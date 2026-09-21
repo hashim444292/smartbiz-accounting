@@ -1,0 +1,119 @@
+import { NextRequest, NextResponse } from "next/server";
+import { getSession, getActiveBusinessCookie } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import { fallbackStore } from "@/lib/fallbackStore";
+
+export const dynamic = "force-dynamic";
+
+export async function GET(req: NextRequest) {
+  try {
+    const session = await getSession();
+    const reqCookie = req.cookies.get("sb_active_business_id")?.value;
+    const activeCookie = reqCookie || getActiveBusinessCookie() || fallbackStore.activeBusinessId;
+
+    // 1. If user is logged in
+    if (session) {
+      let accessibleCompanies: any[] = [];
+      let activeCompany: any = null;
+
+      try {
+        const timeoutPromise = new Promise<never>((_, reject) => setTimeout(() => reject(new Error("DB_TIMEOUT")), 150));
+        if (session.role === "SUPER_ADMIN") {
+          accessibleCompanies = await Promise.race([
+            prisma.business.findMany({
+              orderBy: { name: "asc" },
+            }),
+            timeoutPromise,
+          ]);
+        } else {
+          const memberships = await Promise.race([
+            prisma.businessMember.findMany({
+              where: { userId: session.userId },
+              include: { business: true },
+            }),
+            timeoutPromise,
+          ]);
+          accessibleCompanies = memberships.map((m: any) => m.business);
+        }
+
+        const targetId = activeCookie || session.businessId;
+        activeCompany =
+          accessibleCompanies.find((c) => c.id === targetId) ||
+          accessibleCompanies[0] ||
+          (await Promise.race([
+            prisma.business.findUnique({ where: { id: targetId } }),
+            new Promise<null>((_, reject) => setTimeout(() => reject(new Error("DB_TIMEOUT")), 150)),
+          ]));
+      } catch {
+        // Fallback store
+        if (session.role === "SUPER_ADMIN") {
+          accessibleCompanies = fallbackStore.companies;
+        } else {
+          const userCompanyIds = session.companyIds || [session.businessId];
+          accessibleCompanies = fallbackStore.companies.filter((c) =>
+            userCompanyIds.includes(c.id)
+          );
+          if (accessibleCompanies.length === 0) {
+            accessibleCompanies = [fallbackStore.companies[0]];
+          }
+        }
+
+        const targetId = activeCookie || session.businessId;
+        activeCompany =
+          accessibleCompanies.find((c) => c.id === targetId) ||
+          accessibleCompanies[0] ||
+          fallbackStore.companies[0];
+      }
+
+      if (activeCompany) {
+        fallbackStore.activeBusinessId = activeCompany.id;
+        fallbackStore.business = activeCompany;
+      }
+
+      return NextResponse.json({
+        success: true,
+        authenticated: true,
+        user: {
+          ...session,
+          businessId: activeCompany?.id || session.businessId,
+          businessName: activeCompany?.name || session.businessName,
+        },
+        activeCompany: activeCompany || {
+          id: session.businessId,
+          name: session.businessName,
+        },
+        companies: accessibleCompanies,
+      });
+    }
+
+    // 2. Unauthenticated default state (fallback for easy preview)
+    const activeBiz =
+      fallbackStore.companies.find((c) => c.id === activeCookie) ||
+      fallbackStore.companies.find((c) => c.id === fallbackStore.activeBusinessId) ||
+      fallbackStore.companies[0];
+
+    fallbackStore.activeBusinessId = activeBiz.id;
+    fallbackStore.business = activeBiz;
+
+    return NextResponse.json({
+      success: true,
+      authenticated: false,
+      user: {
+        userId: "usr-1",
+        email: "admin@smartbiz.com",
+        name: "System Super Admin",
+        role: "SUPER_ADMIN",
+        businessId: activeBiz.id,
+        businessName: activeBiz.name,
+        companyIds: fallbackStore.companies.map((c) => c.id),
+      },
+      activeCompany: activeBiz,
+      companies: fallbackStore.companies,
+    });
+  } catch (error: any) {
+    return NextResponse.json(
+      { success: false, error: error.message || "Failed to fetch session" },
+      { status: 500 }
+    );
+  }
+}

@@ -1,0 +1,574 @@
+"use client";
+
+import React, { useEffect, useState } from "react";
+import Link from "next/link";
+import { formatMoney } from "@/lib/decimal";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Plus,
+  Search,
+  Eye,
+  RotateCcw,
+  Printer,
+  UploadCloud,
+  Download,
+  Calendar,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  Filter,
+  CheckCircle2,
+  Clock,
+  X,
+} from "lucide-react";
+
+interface SaleRecord {
+  id: string;
+  invoiceNumber: string;
+  date: string;
+  customerName: string;
+  totalAmount: number;
+  paidAmount: number;
+  remainingAmount: number;
+  paymentStatus: "PAID" | "PARTIAL" | "UNPAID";
+  paymentMethod: string;
+  status: "DRAFT" | "POSTED" | "CANCELLED";
+  items: Array<{ productName: string; quantity: number; unitPrice: number; lineTotal: number }>;
+}
+
+export default function SalesPage() {
+  const [sales, setSales] = useState<SaleRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("ALL");
+  const [dateFilter, setDateFilter] = useState<"ALL" | "TODAY" | "YESTERDAY" | "THIS_WEEK" | "THIS_MONTH" | "LAST_30_DAYS">("ALL");
+  const [reversingId, setReversingId] = useState<string | null>(null);
+
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10); // 10 or 15 default entries
+
+  const fetchSales = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/sales");
+      const json = await res.json();
+      if (json.success) {
+        setSales(json.data);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchSales();
+  }, []);
+
+  const handleReverse = async (id: string, invoiceNumber: string) => {
+    if (!confirm(`Are you sure you want to reverse sale invoice #${invoiceNumber}? This will restock items and rebalance receivables.`)) {
+      return;
+    }
+    setReversingId(id);
+    try {
+      const res = await fetch(`/api/sales/${id}/reverse`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: "Customer return / cancellation requested by user" }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        alert("Sale reversed successfully.");
+        fetchSales();
+      } else {
+        alert(`Failed to reverse: ${json.error}`);
+      }
+    } catch (err: any) {
+      alert(`Error: ${err.message}`);
+    } finally {
+      setReversingId(null);
+    }
+  };
+
+  // Date comparison helper functions
+  const now = new Date();
+  const isSameDay = (d1: Date, d2: Date) =>
+    d1.getFullYear() === d2.getFullYear() &&
+    d1.getMonth() === d2.getMonth() &&
+    d1.getDate() === d2.getDate();
+
+  // Filter Sales records
+  const filteredSales = sales.filter((s) => {
+    // 1. Search text filter
+    const matchesSearch =
+      s.invoiceNumber.toLowerCase().includes(search.toLowerCase()) ||
+      s.customerName.toLowerCase().includes(search.toLowerCase());
+
+    // 2. Payment Status filter
+    const matchesStatus = statusFilter === "ALL" || s.paymentStatus === statusFilter;
+
+    // 3. Date Range filter (Today, Yesterday, This Week, This Month)
+    let matchesDate = true;
+    if (dateFilter !== "ALL") {
+      const saleDate = new Date(s.date);
+      if (isNaN(saleDate.getTime())) {
+        matchesDate = true;
+      } else if (dateFilter === "TODAY") {
+        matchesDate = isSameDay(saleDate, now);
+      } else if (dateFilter === "YESTERDAY") {
+        const yesterday = new Date(now.getTime() - 86400000);
+        matchesDate = isSameDay(saleDate, yesterday);
+      } else if (dateFilter === "THIS_WEEK") {
+        const day = now.getDay();
+        const diffToMonday = now.getDate() - day + (day === 0 ? -6 : 1);
+        const startOfWeek = new Date(now.getFullYear(), now.getMonth(), diffToMonday, 0, 0, 0, 0);
+        matchesDate = saleDate >= startOfWeek;
+      } else if (dateFilter === "THIS_MONTH") {
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+        matchesDate = saleDate >= startOfMonth;
+      } else if (dateFilter === "LAST_30_DAYS") {
+        const thirtyDaysAgo = new Date(now.getTime() - 30 * 86400000);
+        thirtyDaysAgo.setHours(0, 0, 0, 0);
+        matchesDate = saleDate >= thirtyDaysAgo;
+      }
+    }
+
+    return matchesSearch && matchesStatus && matchesDate;
+  });
+
+  // Calculate Summary metrics on filtered data
+  const totalInvoices = filteredSales.length;
+  const paidCount = filteredSales.filter((s) => s.paymentStatus === "PAID").length;
+  const partialCount = filteredSales.filter((s) => s.paymentStatus === "PARTIAL").length;
+  const unpaidCount = filteredSales.filter((s) => s.paymentStatus === "UNPAID").length;
+
+  // Pagination calculations
+  const totalPages = Math.max(1, Math.ceil(totalInvoices / pageSize));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const startIndex = (safeCurrentPage - 1) * pageSize;
+  const paginatedSales = filteredSales.slice(startIndex, startIndex + pageSize);
+
+  const exportSalesToCsv = () => {
+    if (filteredSales.length === 0) {
+      alert("No sales invoices to export.");
+      return;
+    }
+
+    const headers = [
+      "Invoice Number",
+      "Date",
+      "Customer Name",
+      "Total Amount",
+      "Paid Amount",
+      "Remaining Receivable",
+      "Payment Status",
+      "Payment Method",
+      "Accounting Status",
+    ];
+
+    const rows = filteredSales.map((s) => [
+      s.invoiceNumber,
+      new Date(s.date).toLocaleDateString(),
+      `"${(s.customerName || "").replace(/"/g, '""')}"`,
+      Number(s.totalAmount || 0).toFixed(2),
+      Number(s.paidAmount || 0).toFixed(2),
+      Number(s.remainingAmount || 0).toFixed(2),
+      s.paymentStatus || "PAID",
+      s.paymentMethod || "CASH",
+      s.status || "POSTED",
+    ]);
+
+    const csvContent = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", `Sales_Invoices_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  return (
+    <div className="space-y-5">
+      {/* Page Header */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">Sales & Invoices</h2>
+          <p className="text-xs text-slate-500">Track customer sales, payments, and receivables</p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2.5">
+          <Link
+            href="/sales/import"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 shadow-2xs transition"
+          >
+            <UploadCloud className="h-3.5 w-3.5 text-indigo-600" />
+            <span>Bulk Upload (CSV)</span>
+          </Link>
+
+          <button
+            onClick={exportSalesToCsv}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 shadow-2xs transition"
+          >
+            <Download className="h-3.5 w-3.5 text-slate-600" />
+            <span>Export CSV</span>
+          </button>
+
+          <Link href="/sales/create">
+            <Button variant="primary" size="md">
+              <Plus className="h-4 w-4 mr-1.5" />
+              Create Sale Invoice
+            </Button>
+          </Link>
+        </div>
+      </div>
+
+      {/* Enhanced Filters Bar with Date, Status & Quick Pills */}
+      <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-3.5 shadow-sm">
+        {/* Main Controls Row */}
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+          {/* Search Input */}
+          <div className="relative flex-1 max-w-sm">
+            <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Search by invoice # or customer name..."
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="w-full rounded-xl border border-slate-300 bg-slate-50 pl-9 pr-8 py-2 text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+            />
+            {search && (
+              <button
+                onClick={() => {
+                  setSearch("");
+                  setCurrentPage(1);
+                }}
+                className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+
+          {/* Quick Date Pills: Today, Yesterday, This Week, This Month */}
+          <div className="flex items-center gap-1 overflow-x-auto no-scrollbar py-0.5">
+            {[
+              { id: "ALL", label: "All Dates" },
+              { id: "TODAY", label: "Today (آج)" },
+              { id: "YESTERDAY", label: "Yesterday (کل)" },
+              { id: "THIS_WEEK", label: "This Week (اس ہفتے)" },
+              { id: "THIS_MONTH", label: "This Month (اس ماہ)" },
+            ].map((tab) => {
+              const isActive = dateFilter === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => {
+                    setDateFilter(tab.id as any);
+                    setCurrentPage(1);
+                  }}
+                  className={`rounded-xl px-3 py-1.5 text-xs font-semibold transition whitespace-nowrap ${
+                    isActive
+                      ? "bg-indigo-600 text-white shadow-xs"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Dropdown Filters: Date Range + Payment Status */}
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-semibold text-slate-500 whitespace-nowrap">Date:</span>
+              <select
+                value={dateFilter}
+                onChange={(e) => {
+                  setDateFilter(e.target.value as any);
+                  setCurrentPage(1);
+                }}
+                className="rounded-xl border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-700 font-medium focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              >
+                <option value="ALL">All Dates (تمام)</option>
+                <option value="TODAY">Today (آج)</option>
+                <option value="YESTERDAY">Yesterday (گزشتہ کل)</option>
+                <option value="THIS_WEEK">This Week (اس ہفتے)</option>
+                <option value="THIS_MONTH">This Month (اس ماہ)</option>
+                <option value="LAST_30_DAYS">Last 30 Days (30 دن)</option>
+              </select>
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-semibold text-slate-500 whitespace-nowrap">Payment Status:</span>
+              <select
+                value={statusFilter}
+                onChange={(e) => {
+                  setStatusFilter(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="rounded-xl border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-700 font-medium focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              >
+                <option value="ALL">All Statuses</option>
+                <option value="PAID">Paid</option>
+                <option value="PARTIAL">Partial</option>
+                <option value="UNPAID">Unpaid (Credit)</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        {/* Filter Summary Counter Pills & Reset */}
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-2 text-[11px] text-slate-500">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+            <span>
+              Total Filtered: <strong className="text-slate-900 font-semibold">{totalInvoices}</strong>
+            </span>
+            <span className="h-3 w-px bg-slate-200" />
+            <span className="inline-flex items-center gap-1 text-emerald-700 font-medium">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+              Paid: <strong className="font-semibold text-slate-900">{paidCount}</strong>
+            </span>
+            <span className="h-3 w-px bg-slate-200" />
+            <span className="inline-flex items-center gap-1 text-amber-700 font-medium">
+              <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+              Partial: <strong className="font-semibold text-slate-900">{partialCount}</strong>
+            </span>
+            <span className="h-3 w-px bg-slate-200" />
+            <span className="inline-flex items-center gap-1 text-rose-700 font-medium">
+              <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
+              Unpaid: <strong className="font-semibold text-slate-900">{unpaidCount}</strong>
+            </span>
+          </div>
+
+          {(search || statusFilter !== "ALL" || dateFilter !== "ALL") && (
+            <button
+              onClick={() => {
+                setSearch("");
+                setStatusFilter("ALL");
+                setDateFilter("ALL");
+                setCurrentPage(1);
+              }}
+              className="text-indigo-600 hover:text-indigo-800 font-semibold hover:underline"
+            >
+              Reset Filters
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Sales List Table */}
+      <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs text-slate-600 dark:text-slate-300">
+            <thead className="border-b border-slate-200 bg-slate-50/75 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-400">
+              <tr>
+                <th className="px-4 py-3">Invoice #</th>
+                <th className="px-4 py-3">Date</th>
+                <th className="px-4 py-3">Customer</th>
+                <th className="px-4 py-3 text-right">Total Amount</th>
+                <th className="px-4 py-3 text-right">Paid</th>
+                <th className="px-4 py-3 text-right">Balance</th>
+                <th className="px-4 py-3 text-center">Payment</th>
+                <th className="px-4 py-3 text-center">Status</th>
+                <th className="px-4 py-3 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+              {loading ? (
+                Array.from({ length: 6 }).map((_, idx) => (
+                  <tr key={idx} className="animate-pulse">
+                    <td className="px-4 py-3.5"><div className="h-4 w-24 bg-slate-200 dark:bg-slate-800 rounded-md" /></td>
+                    <td className="px-4 py-3.5"><div className="h-4 w-18 bg-slate-100 dark:bg-slate-800/60 rounded" /></td>
+                    <td className="px-4 py-3.5"><div className="h-4 w-36 bg-slate-200 dark:bg-slate-800 rounded" /></td>
+                    <td className="px-4 py-3.5 text-right"><div className="h-4 w-20 bg-slate-200 dark:bg-slate-800 rounded ml-auto" /></td>
+                    <td className="px-4 py-3.5 text-right"><div className="h-4 w-16 bg-slate-100 dark:bg-slate-800/60 rounded ml-auto" /></td>
+                    <td className="px-4 py-3.5 text-right"><div className="h-4 w-16 bg-slate-100 dark:bg-slate-800/60 rounded ml-auto" /></td>
+                    <td className="px-4 py-3.5 text-center"><div className="h-5 w-20 bg-slate-100 dark:bg-slate-800 rounded-full mx-auto" /></td>
+                    <td className="px-4 py-3.5 text-center"><div className="h-5 w-16 bg-slate-100 dark:bg-slate-800 rounded-full mx-auto" /></td>
+                    <td className="px-4 py-3.5 text-right"><div className="h-7 w-20 bg-slate-100 dark:bg-slate-800 rounded-lg ml-auto" /></td>
+                  </tr>
+                ))
+              ) : paginatedSales.length === 0 ? (
+                <tr>
+                  <td colSpan={9} className="py-8 text-center text-xs text-slate-400">
+                    No sales invoices found matching your criteria. Try adjusting date or payment filters.
+                  </td>
+                </tr>
+              ) : (
+                paginatedSales.map((sale) => (
+                  <tr key={sale.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition-colors">
+                    <td className="px-4 py-3 font-semibold text-slate-900 dark:text-white">
+                      <Link href={`/sales/${sale.id}`} className="hover:underline text-blue-600 dark:text-blue-400">
+                        {sale.invoiceNumber}
+                      </Link>
+                    </td>
+                    <td className="px-4 py-3">{new Date(sale.date).toLocaleDateString()}</td>
+                    <td className="px-4 py-3 font-medium text-slate-800 dark:text-slate-200">
+                      {sale.customerName}
+                    </td>
+                    <td className="px-4 py-3 text-right font-bold text-slate-900 dark:text-white tabular-nums">
+                      {formatMoney(sale.totalAmount)}
+                    </td>
+                    <td className="px-4 py-3 text-right text-emerald-600 font-semibold tabular-nums">
+                      {formatMoney(sale.paidAmount)}
+                    </td>
+                    <td className="px-4 py-3 text-right text-rose-600 font-semibold tabular-nums">
+                      {formatMoney(sale.remainingAmount)}
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <Badge
+                        variant={
+                          sale.paymentStatus === "PAID"
+                            ? "success"
+                            : sale.paymentStatus === "PARTIAL"
+                            ? "warning"
+                            : "danger"
+                        }
+                      >
+                        {sale.paymentStatus}
+                      </Badge>
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <Badge variant={sale.status === "POSTED" ? "default" : "secondary"}>
+                        {sale.status}
+                      </Badge>
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <Link
+                          href={`/sales/${sale.id}`}
+                          className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800"
+                          title="View Invoice"
+                        >
+                          <Eye className="h-3.5 w-3.5" />
+                        </Link>
+                        {sale.status === "POSTED" && (
+                          <button
+                            onClick={() => handleReverse(sale.id, sale.invoiceNumber)}
+                            disabled={reversingId === sale.id}
+                            className="rounded-lg p-1.5 text-rose-500 hover:bg-rose-50 hover:text-rose-700 dark:hover:bg-rose-950/40"
+                            title="Return / Reverse Sale"
+                          >
+                            <RotateCcw className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Responsive Pagination Bar */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-3 border-t border-slate-200 bg-slate-50/80 text-xs text-slate-600">
+          <div className="flex items-center gap-3">
+            <div>
+              Showing <strong className="text-slate-900">{totalInvoices === 0 ? 0 : startIndex + 1}</strong> to{" "}
+              <strong className="text-slate-900">{Math.min(startIndex + pageSize, totalInvoices)}</strong> of{" "}
+              <strong className="text-slate-900">{totalInvoices}</strong> invoices
+            </div>
+            <span className="hidden sm:inline-block h-3 w-px bg-slate-300" />
+            <div className="flex items-center gap-1.5">
+              <span className="text-slate-500">Per page:</span>
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setCurrentPage(1);
+                }}
+                className="rounded-lg border border-slate-300 bg-white px-2 py-0.5 text-xs text-slate-700 font-medium focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              >
+                <option value={10}>10</option>
+                <option value={15}>15</option>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Page Buttons */}
+          <div className="flex items-center gap-1 self-center sm:self-auto">
+            <button
+              onClick={() => setCurrentPage(1)}
+              disabled={safeCurrentPage <= 1}
+              className="inline-flex items-center rounded-lg border border-slate-200 bg-white p-1 text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed shadow-2xs transition"
+              title="First Page"
+            >
+              <ChevronsLeft className="h-3.5 w-3.5" />
+            </button>
+            <button
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={safeCurrentPage <= 1}
+              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed shadow-2xs transition"
+            >
+              <ChevronLeft className="h-3.5 w-3.5" />
+              <span>Previous</span>
+            </button>
+
+            {/* Page Number Pills */}
+            <div className="flex items-center gap-1 px-1">
+              {Array.from({ length: totalPages }, (_, i) => i + 1)
+                .filter((p) => {
+                  return (
+                    p === 1 ||
+                    p === totalPages ||
+                    Math.abs(p - safeCurrentPage) <= 1
+                  );
+                })
+                .map((p, idx, arr) => {
+                  const prev = arr[idx - 1];
+                  const hasGap = prev && p - prev > 1;
+                  return (
+                    <React.Fragment key={p}>
+                      {hasGap && <span className="px-1 text-slate-400">...</span>}
+                      <button
+                        onClick={() => setCurrentPage(p)}
+                        className={`min-w-[28px] h-7 rounded-lg text-xs font-semibold transition ${
+                          safeCurrentPage === p
+                            ? "bg-indigo-600 text-white shadow-xs"
+                            : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-100"
+                        }`}
+                      >
+                        {p}
+                      </button>
+                    </React.Fragment>
+                  );
+                })}
+            </div>
+
+            <button
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              disabled={safeCurrentPage >= totalPages}
+              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed shadow-2xs transition"
+            >
+              <span>Next</span>
+              <ChevronRight className="h-3.5 w-3.5" />
+            </button>
+            <button
+              onClick={() => setCurrentPage(totalPages)}
+              disabled={safeCurrentPage >= totalPages}
+              className="inline-flex items-center rounded-lg border border-slate-200 bg-white p-1 text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed shadow-2xs transition"
+              title="Last Page"
+            >
+              <ChevronsRight className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
