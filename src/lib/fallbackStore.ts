@@ -1855,6 +1855,8 @@ function initializeState(): StoreState {
       email: "staff@smartbiz.com",
       password: "staff123",
       role: "STAFF",
+      isBranchManager: false,
+      phone: "+92 300 9876543",
       companyIds: ["biz-101"],
       branchId: "br-101-1",
       branchName: "Saddar Main Branch",
@@ -1866,6 +1868,8 @@ function initializeState(): StoreState {
       email: "kamran@smartbiz.com",
       password: "staff123",
       role: "STAFF",
+      isBranchManager: true,
+      phone: "+92 321 8765432",
       companyIds: ["biz-101"],
       branchId: "br-101-2",
       branchName: "Gulshan Outlet",
@@ -2423,5 +2427,133 @@ export function storeAddSale(saleData: any) {
   };
   fallbackStore.sales.unshift(newSale);
   return newSale;
+}
+
+export function storeGetCompanyUsers(businessId: string) {
+  if (!fallbackStore.users) return [];
+  return fallbackStore.users
+    .filter((u) => u.companyIds && u.companyIds.includes(businessId))
+    .map((u: any) => ({
+      id: u.id,
+      name: u.name,
+      email: u.email,
+      role: u.role,
+      phone: u.phone || null,
+      isBranchManager: Boolean(u.isBranchManager),
+      branchId: u.branchId || null,
+      branchName: u.branchName || null,
+      createdAt: u.createdAt,
+    }));
+}
+
+export function storeAddCompanyUser(data: {
+  businessId: string;
+  name: string;
+  email: string;
+  password?: string;
+  role?: string;
+  branchId?: string | null;
+  phone?: string;
+  isBranchManager?: boolean;
+}) {
+  if (!fallbackStore.users) fallbackStore.users = [];
+
+  const existing = fallbackStore.users.find(
+    (u) => u.email.toLowerCase() === data.email.toLowerCase()
+  );
+  if (existing) {
+    throw new Error("A user with this email already exists");
+  }
+
+  const branch = data.branchId
+    ? fallbackStore.branches?.find((b) => b.id === data.branchId)
+    : null;
+
+  const newUser: any = {
+    id: `usr-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+    name: data.name,
+    email: data.email.toLowerCase().trim(),
+    password: data.password || "staff123",
+    role: data.role || "STAFF",
+    phone: data.phone || null,
+    isBranchManager: Boolean(data.isBranchManager),
+    branchId: branch ? branch.id : null,
+    branchName: branch ? branch.name : null,
+    companyIds: [data.businessId],
+    createdAt: new Date().toISOString(),
+  };
+
+  // If designated as Branch Manager, sync managerName on the branch!
+  if (data.isBranchManager && branch) {
+    branch.managerName = data.name;
+    if (data.phone) branch.phone = data.phone;
+  }
+
+  fallbackStore.users.push(newUser);
+  return newUser;
+}
+
+export function storeUpdateCompanyUser(
+  userId: string,
+  updates: {
+    name?: string;
+    email?: string;
+    role?: string;
+    branchId?: string | null;
+    phone?: string;
+    isBranchManager?: boolean;
+    password?: string;
+  }
+) {
+  const user: any = fallbackStore.users?.find((u) => u.id === userId);
+  if (!user) return null;
+
+  if (updates.name !== undefined) user.name = updates.name;
+  if (updates.email !== undefined) user.email = updates.email.toLowerCase().trim();
+  if (updates.role !== undefined) user.role = updates.role;
+  if (updates.phone !== undefined) user.phone = updates.phone;
+  if (updates.password !== undefined && updates.password) user.password = updates.password;
+
+  if (updates.branchId !== undefined) {
+    if (!updates.branchId) {
+      user.branchId = null;
+      user.branchName = null;
+    } else {
+      const branch = fallbackStore.branches?.find((b) => b.id === updates.branchId);
+      user.branchId = branch ? branch.id : null;
+      user.branchName = branch ? branch.name : null;
+    }
+  }
+
+  if (updates.isBranchManager !== undefined) {
+    user.isBranchManager = Boolean(updates.isBranchManager);
+  }
+
+  // If user is manager and has a branch, update the branch managerName
+  if (user.isBranchManager && user.branchId) {
+    const branch = fallbackStore.branches?.find((b) => b.id === user.branchId);
+    if (branch) {
+      branch.managerName = user.name;
+      if (user.phone) branch.phone = user.phone;
+    }
+  }
+
+  return user;
+}
+
+export function storeDeleteCompanyUser(userId: string, businessId: string) {
+  const idx = fallbackStore.users.findIndex(
+    (u) => u.id === userId && u.companyIds && u.companyIds.includes(businessId)
+  );
+  if (idx === -1) return false;
+
+  const user = fallbackStore.users[idx];
+  // Guard against deleting the main owner
+  if (user.role === "OWNER_ADMIN" && (user.id === "usr-2" || user.id === "usr-1")) {
+    throw new Error("Cannot delete primary company owner or system admin");
+  }
+
+  fallbackStore.users.splice(idx, 1);
+  return true;
 }
 

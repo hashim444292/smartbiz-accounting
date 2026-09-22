@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
             select: { id: true, branchId: true, amount: true },
           }),
           prisma.user.findMany({
-            select: { id: true, name: true, email: true, role: true, branchId: true },
+            select: { id: true, name: true, email: true, role: true, branchId: true, isBranchManager: true },
           }),
         ]),
         timeoutPromise,
@@ -45,7 +45,7 @@ export async function GET(req: NextRequest) {
       branches = storeGetBranches(businessId);
       sales = fallbackStore.sales.filter((s) => s.businessId === businessId);
       expenses = fallbackStore.expenses.filter((e) => e.businessId === businessId);
-      users = fallbackStore.users.filter((u) => u.companyIds?.includes(businessId));
+      users = fallbackStore.users.filter((u) => u.companyIds && u.companyIds.includes(businessId));
     }
 
     // Attach computed branch statistics
@@ -60,7 +60,13 @@ export async function GET(req: NextRequest) {
       return {
         ...b,
         staffCount: branchStaff.length,
-        staffMembers: branchStaff.map((u) => ({ id: u.id, name: u.name, email: u.email, role: u.role })),
+        staffMembers: branchStaff.map((u: any) => ({
+          id: u.id,
+          name: u.name,
+          email: u.email,
+          role: u.role,
+          isBranchManager: Boolean(u.isBranchManager),
+        })),
         totalSales: round2(totalSales),
         totalExpenses: round2(totalExpenses),
         netProfit: round2(totalSales - totalExpenses),

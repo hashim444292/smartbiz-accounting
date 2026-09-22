@@ -25,6 +25,10 @@ import {
   X,
   Store,
   RefreshCw,
+  KeyRound,
+  ShieldCheck,
+  Star,
+  UserPlus,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -46,6 +50,24 @@ export default function BranchesManagementPage() {
   const [assignModalOpen, setAssignModalOpen] = useState(false);
   const [selectedBranch, setSelectedBranch] = useState<any | null>(null);
 
+  // User Management Modals & State
+  const [addUserModalOpen, setAddUserModalOpen] = useState(false);
+  const [editUserModalOpen, setEditUserModalOpen] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<any | null>(null);
+
+  const initialUserFormState = {
+    name: "",
+    email: "",
+    password: "",
+    role: "STAFF",
+    branchId: "",
+    phone: "",
+    isBranchManager: false,
+  };
+  const [userFormData, setUserFormData] = useState(initialUserFormState);
+  const [userSubmitting, setUserSubmitting] = useState(false);
+  const [userFormError, setUserFormError] = useState<string | null>(null);
+
   // Form State
   const initialFormState = {
     name: "",
@@ -64,20 +86,16 @@ export default function BranchesManagementPage() {
   const fetchBranchesAndStaff = async () => {
     try {
       setLoading(true);
-      const [branchRes, staffRes] = await Promise.all([
+      const [branchRes, usersRes] = await Promise.all([
         fetch("/api/branches").then((r) => r.json()),
-        fetch("/api/admin/users").then((r) => r.json()).catch(() => ({ success: false, data: [] })),
+        fetch("/api/branches/users").then((r) => r.json()).catch(() => ({ success: false, data: [] })),
       ]);
 
       if (branchRes.success) {
         setBranches(branchRes.data || []);
       }
-      if (staffRes.success) {
-        // Filter users belonging to this business
-        const compUsers = (staffRes.data || []).filter((u: any) =>
-          u.companyIds?.includes(activeCompany?.id || "")
-        );
-        setUsers(compUsers);
+      if (usersRes.success) {
+        setUsers(usersRes.data || []);
       }
     } catch (err) {
       console.error("Failed to load branches:", err);
@@ -89,6 +107,120 @@ export default function BranchesManagementPage() {
   useEffect(() => {
     fetchBranchesAndStaff();
   }, [activeCompany?.id]);
+
+  const handleCreateUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setUserFormError(null);
+    setUserSubmitting(true);
+    try {
+      const res = await fetch("/api/branches/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(userFormData),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setAddUserModalOpen(false);
+        setUserFormData(initialUserFormState);
+        await fetchBranchesAndStaff();
+        if (refreshSession) await refreshSession();
+      } else {
+        setUserFormError(data.error || "Failed to create user");
+      }
+    } catch (err: any) {
+      setUserFormError(err.message || "Network error");
+    } finally {
+      setUserSubmitting(false);
+    }
+  };
+
+  const handleUpdateUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedUser) return;
+    setUserFormError(null);
+    setUserSubmitting(true);
+    try {
+      const res = await fetch(`/api/branches/users/${selectedUser.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(userFormData),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setEditUserModalOpen(false);
+        setSelectedUser(null);
+        await fetchBranchesAndStaff();
+        if (refreshSession) await refreshSession();
+      } else {
+        setUserFormError(data.error || "Failed to update user");
+      }
+    } catch (err: any) {
+      setUserFormError(err.message || "Network error");
+    } finally {
+      setUserSubmitting(false);
+    }
+  };
+
+  const handleDeleteUser = async (userId: string, userName: string) => {
+    if (!confirm(`Are you sure you want to remove user "${userName}" from this company?`)) {
+      return;
+    }
+    try {
+      const res = await fetch(`/api/branches/users/${userId}`, { method: "DELETE" });
+      const data = await res.json();
+      if (data.success) {
+        await fetchBranchesAndStaff();
+        if (refreshSession) await refreshSession();
+      } else {
+        alert(data.error || "Failed to delete user");
+      }
+    } catch (err: any) {
+      alert(err.message || "Network error");
+    }
+  };
+
+  const handleQuickReassignBranch = async (userId: string, targetBranchId: string) => {
+    try {
+      const res = await fetch(`/api/branches/users/${userId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ branchId: targetBranchId || null }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        await fetchBranchesAndStaff();
+        if (refreshSession) await refreshSession();
+      } else {
+        alert(data.error || "Failed to reassign branch");
+      }
+    } catch (err: any) {
+      alert(err.message || "Network error");
+    }
+  };
+
+  const openEditUser = (u: any) => {
+    setSelectedUser(u);
+    setUserFormData({
+      name: u.name || "",
+      email: u.email || "",
+      password: "",
+      role: u.role || "STAFF",
+      branchId: u.branchId || "",
+      phone: u.phone || "",
+      isBranchManager: Boolean(u.isBranchManager),
+    });
+    setUserFormError(null);
+    setEditUserModalOpen(true);
+  };
+
+  const openAddUserForBranch = (branchId?: string) => {
+    setUserFormData({
+      ...initialUserFormState,
+      branchId: branchId || "",
+    });
+    setUserFormError(null);
+    setAddUserModalOpen(true);
+  };
 
   const handleCreateBranch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -314,7 +446,14 @@ export default function BranchesManagementPage() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => openAddUserForBranch()}
+            className="px-4 py-2 rounded-xl bg-white border border-slate-300 text-slate-700 text-xs font-bold hover:bg-slate-50 transition shadow-xs flex items-center gap-1.5"
+          >
+            <UserPlus className="h-4 w-4 text-indigo-600" />
+            <span>+ Add Branch User / Manager</span>
+          </button>
           <button
             onClick={() => {
               setFormData(initialFormState);
@@ -494,8 +633,19 @@ export default function BranchesManagementPage() {
                   {/* Manager & Contact */}
                   <div className="text-xs space-y-1 py-2 border-y border-slate-100">
                     <div className="flex items-center justify-between text-slate-600">
-                      <span className="text-[11px] text-slate-400 font-medium">Manager:</span>
-                      <span className="font-bold text-slate-800">{branch.managerName || "Not Assigned"}</span>
+                      <span className="text-[11px] text-slate-400 font-medium">Manager / Lead:</span>
+                      <div className="flex items-center gap-1.5">
+                        {branch.managerName ? (
+                          <>
+                            <span className="font-bold text-slate-800">{branch.managerName}</span>
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                              <Star className="h-2.5 w-2.5 fill-amber-500 text-amber-500" /> Branch Lead
+                            </span>
+                          </>
+                        ) : (
+                          <span className="font-medium text-slate-400 italic">Not Assigned</span>
+                        )}
+                      </div>
                     </div>
                     {branch.phone && (
                       <div className="flex items-center justify-between text-slate-600">
@@ -528,12 +678,23 @@ export default function BranchesManagementPage() {
                         <Users className="h-3 w-3 text-slate-400" />
                         <span>Assigned Staff ({branch.staffCount || 0})</span>
                       </span>
-                      <button
-                        onClick={() => openAssign(branch)}
-                        className="text-[10px] font-bold text-indigo-600 hover:text-indigo-700 hover:underline"
-                      >
-                        + Assign / Edit
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => openAddUserForBranch(branch.id)}
+                          className="text-[10px] font-bold text-indigo-600 hover:text-indigo-700 hover:underline flex items-center gap-0.5"
+                          title="Add a new staff or manager directly to this branch"
+                        >
+                          <UserPlus className="h-3 w-3" />
+                          <span>+ New Staff</span>
+                        </button>
+                        <span className="text-slate-300">|</span>
+                        <button
+                          onClick={() => openAssign(branch)}
+                          className="text-[10px] font-bold text-slate-600 hover:text-slate-900 hover:underline"
+                        >
+                          Assign
+                        </button>
+                      </div>
                     </div>
 
                     <div className="flex flex-wrap gap-1">
@@ -541,10 +702,19 @@ export default function BranchesManagementPage() {
                         branch.staffMembers.map((m: any) => (
                           <span
                             key={m.id}
-                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-medium bg-purple-50 text-purple-700 border border-purple-200"
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-medium border ${
+                              m.isBranchManager
+                                ? "bg-amber-50 text-amber-800 border-amber-300 font-bold"
+                                : "bg-purple-50 text-purple-700 border-purple-200"
+                            }`}
                           >
-                            <UserCheck className="h-2.5 w-2.5" />
+                            {m.isBranchManager ? (
+                              <Star className="h-2.5 w-2.5 fill-amber-500 text-amber-500" />
+                            ) : (
+                              <UserCheck className="h-2.5 w-2.5" />
+                            )}
                             <span>{m.name}</span>
+                            {m.isBranchManager && <span className="text-[9px] text-amber-600">(Manager)</span>}
                           </span>
                         ))
                       ) : (
@@ -590,6 +760,153 @@ export default function BranchesManagementPage() {
           })}
         </div>
       )}
+
+      {/* Branch Managers & Staff Team Directory */}
+      <Card className="border-slate-200 bg-white shadow-xs rounded-2xl overflow-hidden">
+        <div className="p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-50/50">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+              <Users className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="font-bold text-slate-900 text-sm">
+                  Branch Managers & Staff Team (برانچ مینیجرز اور ملازمین)
+                </h3>
+                <Badge variant="outline" className="text-[10px] bg-white font-bold">
+                  {users.length} Users
+                </Badge>
+              </div>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                Manage branch assignments, create new staff accounts, set managers, or reset passwords.
+              </p>
+            </div>
+          </div>
+
+          <button
+            onClick={() => openAddUserForBranch()}
+            className="px-3.5 py-1.5 rounded-xl bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700 transition shadow-xs flex items-center gap-1.5 self-start sm:self-auto"
+          >
+            <UserPlus className="h-4 w-4" />
+            <span>+ Add Branch User</span>
+          </button>
+        </div>
+
+        <div className="overflow-x-auto">
+          {users.length === 0 ? (
+            <div className="p-8 text-center text-slate-400 text-xs">
+              No staff members registered for this company yet. Click "+ Add Branch User" to create one.
+            </div>
+          ) : (
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-50/80 border-b border-slate-100 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                <tr>
+                  <th className="py-3 px-4">User / Name</th>
+                  <th className="py-3 px-4">Role</th>
+                  <th className="py-3 px-4">Assigned Branch</th>
+                  <th className="py-3 px-4">Designation</th>
+                  <th className="py-3 px-4">Contact</th>
+                  <th className="py-3 px-4 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {users.map((u) => {
+                  const isManager = Boolean(u.isBranchManager);
+                  return (
+                    <tr key={u.id} className="hover:bg-slate-50/60 transition">
+                      <td className="py-3 px-4">
+                        <div className="flex items-center gap-2.5">
+                          <div className="h-8 w-8 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center font-bold text-slate-700 text-xs shrink-0">
+                            {u.name?.charAt(0)?.toUpperCase() || "U"}
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-bold text-slate-900">{u.name}</span>
+                              {isManager && (
+                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                                  <Star className="h-2.5 w-2.5 fill-amber-500 text-amber-500" /> Lead
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-[11px] text-slate-400 block">{u.email}</span>
+                          </div>
+                        </div>
+                      </td>
+
+                      <td className="py-3 px-4">
+                        <Badge
+                          variant="outline"
+                          className={`text-[10px] font-semibold ${
+                            u.role === "OWNER_ADMIN"
+                              ? "bg-purple-50 text-purple-700 border-purple-200"
+                              : u.role === "MANAGER"
+                              ? "bg-amber-50 text-amber-800 border-amber-200"
+                              : u.role === "ACCOUNTANT"
+                              ? "bg-blue-50 text-blue-700 border-blue-200"
+                              : "bg-slate-100 text-slate-700 border-slate-200"
+                          }`}
+                        >
+                          {u.role}
+                        </Badge>
+                      </td>
+
+                      <td className="py-3 px-4">
+                        <select
+                          value={u.branchId || ""}
+                          onChange={(e) => handleQuickReassignBranch(u.id, e.target.value)}
+                          className="text-xs bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-slate-800 focus:bg-white focus:border-indigo-500 focus:outline-none"
+                          title="Quick reassign branch"
+                        >
+                          <option value="">Head Office / All Branches</option>
+                          {branches.map((b) => (
+                            <option key={b.id} value={b.id}>
+                              {b.name} ({b.code})
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+
+                      <td className="py-3 px-4">
+                        {isManager ? (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
+                            <ShieldCheck className="h-3.5 w-3.5 text-amber-600" />
+                            <span>Branch Lead</span>
+                          </span>
+                        ) : (
+                          <span className="text-[11px] text-slate-400">Staff Member</span>
+                        )}
+                      </td>
+
+                      <td className="py-3 px-4 text-[11px] text-slate-600">
+                        {u.phone ? <span>{u.phone}</span> : <span className="text-slate-300 italic">—</span>}
+                      </td>
+
+                      <td className="py-3 px-4 text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            onClick={() => openEditUser(u)}
+                            className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 transition"
+                            title="Edit user details / password / permissions"
+                          >
+                            <Edit2 className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteUser(u.id, u.name)}
+                            className="p-1.5 rounded-lg border border-rose-200 text-rose-600 hover:bg-rose-50 transition"
+                            title="Delete user"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </Card>
 
       {/* ADD BRANCH MODAL */}
       {addModalOpen && (
@@ -959,6 +1276,324 @@ export default function BranchesManagementPage() {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ADD USER / MANAGER MODAL */}
+      {addUserModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
+          <div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4 bg-slate-50/50">
+              <div className="flex items-center gap-2">
+                <UserPlus className="h-5 w-5 text-indigo-600" />
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">
+                    Add Branch User / Manager (نیا ملازم / مینیجر بنائیں)
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    Create a new user account with branch-specific or company-wide access.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setAddUserModalOpen(false)}
+                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateUser} className="p-6 space-y-4 overflow-y-auto flex-1">
+              {userFormError && (
+                <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-700 font-semibold flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4 shrink-0" />
+                  <span>{userFormError}</span>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                <div className="space-y-1 sm:col-span-2">
+                  <label className="text-xs font-bold text-slate-700">Full Name (پورا نام) *</label>
+                  <input
+                    type="text"
+                    required
+                    value={userFormData.name}
+                    onChange={(e) => setUserFormData({ ...userFormData, name: e.target.value })}
+                    placeholder="e.g. Tariq Mehmood"
+                    className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs text-slate-900 focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-700">Email Address (ای میل) *</label>
+                  <input
+                    type="email"
+                    required
+                    value={userFormData.email}
+                    onChange={(e) => setUserFormData({ ...userFormData, email: e.target.value })}
+                    placeholder="tariq@example.com"
+                    className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs text-slate-900 focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-700">Password (پاس ورڈ) *</label>
+                  <input
+                    type="password"
+                    required
+                    minLength={6}
+                    value={userFormData.password}
+                    onChange={(e) => setUserFormData({ ...userFormData, password: e.target.value })}
+                    placeholder="Min 6 characters"
+                    className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs text-slate-900 focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-700">Phone Number (فون نمبر)</label>
+                  <input
+                    type="text"
+                    value={userFormData.phone}
+                    onChange={(e) => setUserFormData({ ...userFormData, phone: e.target.value })}
+                    placeholder="0300-1234567"
+                    className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs text-slate-900 focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-700">System Role (عہدہ) *</label>
+                  <select
+                    value={userFormData.role}
+                    onChange={(e) => setUserFormData({ ...userFormData, role: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-900 focus:outline-none focus:border-indigo-500 bg-white"
+                  >
+                    <option value="STAFF">Staff Member</option>
+                    <option value="CASHIER">Cashier (کیشیئر)</option>
+                    <option value="ACCOUNTANT">Accountant (اکاؤنٹنٹ)</option>
+                    <option value="MANAGER">Manager (مینیجر)</option>
+                    <option value="OWNER_ADMIN">Co-Owner / Admin</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1 sm:col-span-2">
+                  <label className="text-xs font-bold text-slate-700">Assigned Branch (مخصوص برانچ)</label>
+                  <select
+                    value={userFormData.branchId}
+                    onChange={(e) => setUserFormData({ ...userFormData, branchId: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-900 focus:outline-none focus:border-indigo-500 bg-white"
+                  >
+                    <option value="">🏢 Head Office / All Branches (No Restriction)</option>
+                    {branches.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        🏪 {b.name} ({b.code}) - {b.city}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-[10px] text-slate-400">
+                    Users assigned to a branch will only be able to view and manage data for that location.
+                  </p>
+                </div>
+
+                <div className="sm:col-span-2 pt-2">
+                  <label className="flex items-start gap-2.5 p-3 rounded-xl border border-amber-200 bg-amber-50/60 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={userFormData.isBranchManager}
+                      onChange={(e) =>
+                        setUserFormData({ ...userFormData, isBranchManager: e.target.checked })
+                      }
+                      className="mt-0.5 rounded text-indigo-600 focus:ring-indigo-500 h-4 w-4"
+                    />
+                    <div>
+                      <span className="text-xs font-bold text-amber-900 flex items-center gap-1">
+                        <Star className="h-3.5 w-3.5 fill-amber-500 text-amber-500" />
+                        <span>Designate as Branch Lead / Manager (برانچ کا سربراہ بنائیں)</span>
+                      </span>
+                      <p className="text-[11px] text-amber-800 mt-0.5">
+                        Automatically sets this user as the primary contact manager for the assigned branch.
+                      </p>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              <div className="pt-4 flex items-center justify-end gap-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setAddUserModalOpen(false)}
+                  className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={userSubmitting}
+                  className="px-4 py-2 rounded-xl bg-indigo-600 text-xs font-bold text-white hover:bg-indigo-700 transition shadow-sm flex items-center gap-1.5"
+                >
+                  {userSubmitting ? "Creating..." : "Create User & Assign"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* EDIT USER / MANAGER MODAL */}
+      {editUserModalOpen && selectedUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
+          <div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4 bg-slate-50/50">
+              <div className="flex items-center gap-2">
+                <KeyRound className="h-5 w-5 text-indigo-600" />
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">
+                    Edit User: {selectedUser.name}
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    Update role, assigned branch, manager status, or reset password.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setEditUserModalOpen(false);
+                  setSelectedUser(null);
+                }}
+                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleUpdateUser} className="p-6 space-y-4 overflow-y-auto flex-1">
+              {userFormError && (
+                <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-700 font-semibold flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4 shrink-0" />
+                  <span>{userFormError}</span>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                <div className="space-y-1 sm:col-span-2">
+                  <label className="text-xs font-bold text-slate-700">Full Name (پورا نام) *</label>
+                  <input
+                    type="text"
+                    required
+                    value={userFormData.name}
+                    onChange={(e) => setUserFormData({ ...userFormData, name: e.target.value })}
+                    className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs text-slate-900 focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-700">Email Address (ای میل) *</label>
+                  <input
+                    type="email"
+                    required
+                    value={userFormData.email}
+                    onChange={(e) => setUserFormData({ ...userFormData, email: e.target.value })}
+                    className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs text-slate-900 focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-700">New Password (پاس ورڈ)</label>
+                  <input
+                    type="password"
+                    minLength={6}
+                    value={userFormData.password}
+                    onChange={(e) => setUserFormData({ ...userFormData, password: e.target.value })}
+                    placeholder="Leave blank to keep unchanged"
+                    className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs text-slate-900 focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-700">Phone Number (فون نمبر)</label>
+                  <input
+                    type="text"
+                    value={userFormData.phone}
+                    onChange={(e) => setUserFormData({ ...userFormData, phone: e.target.value })}
+                    placeholder="0300-1234567"
+                    className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs text-slate-900 focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-700">System Role (عہدہ) *</label>
+                  <select
+                    value={userFormData.role}
+                    onChange={(e) => setUserFormData({ ...userFormData, role: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-900 focus:outline-none focus:border-indigo-500 bg-white"
+                  >
+                    <option value="STAFF">Staff Member</option>
+                    <option value="CASHIER">Cashier (کیشیئر)</option>
+                    <option value="ACCOUNTANT">Accountant (اکاؤنٹنٹ)</option>
+                    <option value="MANAGER">Manager (مینیجر)</option>
+                    <option value="OWNER_ADMIN">Co-Owner / Admin</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1 sm:col-span-2">
+                  <label className="text-xs font-bold text-slate-700">Assigned Branch (مخصوص برانچ)</label>
+                  <select
+                    value={userFormData.branchId}
+                    onChange={(e) => setUserFormData({ ...userFormData, branchId: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-900 focus:outline-none focus:border-indigo-500 bg-white"
+                  >
+                    <option value="">🏢 Head Office / All Branches (No Restriction)</option>
+                    {branches.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        🏪 {b.name} ({b.code}) - {b.city}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="sm:col-span-2 pt-2">
+                  <label className="flex items-start gap-2.5 p-3 rounded-xl border border-amber-200 bg-amber-50/60 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={userFormData.isBranchManager}
+                      onChange={(e) =>
+                        setUserFormData({ ...userFormData, isBranchManager: e.target.checked })
+                      }
+                      className="mt-0.5 rounded text-indigo-600 focus:ring-indigo-500 h-4 w-4"
+                    />
+                    <div>
+                      <span className="text-xs font-bold text-amber-900 flex items-center gap-1">
+                        <Star className="h-3.5 w-3.5 fill-amber-500 text-amber-500" />
+                        <span>Designate as Branch Lead / Manager (برانچ کا سربراہ بنائیں)</span>
+                      </span>
+                      <p className="text-[11px] text-amber-800 mt-0.5">
+                        Designate this user as the branch's primary contact manager.
+                      </p>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              <div className="pt-4 flex items-center justify-end gap-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditUserModalOpen(false);
+                    setSelectedUser(null);
+                  }}
+                  className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={userSubmitting}
+                  className="px-4 py-2 rounded-xl bg-indigo-600 text-xs font-bold text-white hover:bg-indigo-700 transition shadow-sm flex items-center gap-1.5"
+                >
+                  {userSubmitting ? "Saving..." : "Save User Changes"}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

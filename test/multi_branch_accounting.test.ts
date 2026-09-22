@@ -7,6 +7,10 @@ import {
   storeDeleteBranch,
   storeAssignUserBranch,
   storeAddSale,
+  storeGetCompanyUsers,
+  storeAddCompanyUser,
+  storeUpdateCompanyUser,
+  storeDeleteCompanyUser,
 } from "@/lib/fallbackStore";
 import { getActiveBranchId } from "@/lib/businessHelper";
 import { NextRequest } from "next/server";
@@ -247,5 +251,63 @@ describe("Multi-Branch Accounting Hierarchy & Isolation System", () => {
     const resolvedConsolidated = await getActiveBranchId(reqConsolidated, ownerSession);
     expect(resolvedConsolidated.branchId).toBeNull();
     expect(resolvedConsolidated.isLockedToBranch).toBe(false);
+  });
+
+  it("8. Self-Service Branch User & Manager Management: Company Owner manages branch staff, leads, and permissions", () => {
+    // 1. Fetch company users for biz-101
+    const initialUsers = storeGetCompanyUsers("biz-101");
+    expect(initialUsers.length).toBeGreaterThan(0);
+    const initialCount = initialUsers.length;
+
+    // 2. Company Owner adds a new Branch Manager for Saddar Main Branch
+    const createdUser = storeAddCompanyUser({
+      name: "Tariq Mahmood",
+      email: "tariq.saddar@hanifmobile.pk",
+      role: "MANAGER",
+      businessId: "biz-101",
+      branchId: "br-101-1",
+      phone: "0300-9876543",
+      isBranchManager: true,
+    });
+
+    expect(createdUser).toBeDefined();
+    expect(createdUser.id).toBeDefined();
+    expect(createdUser.name).toBe("Tariq Mahmood");
+    expect(createdUser.branchId).toBe("br-101-1");
+    expect(createdUser.branchName).toBe("Saddar Main Branch");
+    expect(createdUser.isBranchManager).toBe(true);
+
+    // Verify company users list count increased
+    const afterAdd = storeGetCompanyUsers("biz-101");
+    expect(afterAdd.length).toBe(initialCount + 1);
+
+    // 3. Reassign user to Gulshan Outlet and update contact
+    const updatedUser = storeUpdateCompanyUser(createdUser.id, {
+      branchId: "br-101-2",
+      phone: "0321-1122334",
+      role: "STAFF",
+      isBranchManager: false,
+    });
+
+    expect(updatedUser?.branchId).toBe("br-101-2");
+    expect(updatedUser?.branchName).toBe("Gulshan Outlet");
+    expect(updatedUser?.phone).toBe("0321-1122334");
+    expect(updatedUser?.role).toBe("STAFF");
+    expect(updatedUser?.isBranchManager).toBe(false);
+
+    // 4. Verify tenant isolation: Another company cannot see or modify this user
+    const otherCompanyUsers = storeGetCompanyUsers("biz-102");
+    const userInOther = otherCompanyUsers.find((u) => u.id === createdUser.id);
+    expect(userInOther).toBeUndefined();
+
+    const illegalDelete = storeDeleteCompanyUser(createdUser.id, "biz-102");
+    expect(illegalDelete).toBe(false);
+
+    // 5. Clean deletion by authorized company
+    const legalDelete = storeDeleteCompanyUser(createdUser.id, "biz-101");
+    expect(legalDelete).toBe(true);
+
+    const afterDelete = storeGetCompanyUsers("biz-101");
+    expect(afterDelete.length).toBe(initialCount);
   });
 });

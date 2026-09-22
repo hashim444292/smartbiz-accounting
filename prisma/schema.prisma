@@ -83,17 +83,19 @@ enum AdjustmentReason {
 }
 
 model User {
-  id           String           @id @default(uuid())
-  email        String           @unique
-  passwordHash String
-  name         String
-  role         Role             @default(OWNER_ADMIN)
-  branchId     String?
-  createdAt    DateTime         @default(now())
-  updatedAt    DateTime         @updatedAt
-  memberships  BusinessMember[]
-  auditLogs    AuditLog[]
-  branch       Branch?          @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  id              String           @id @default(uuid())
+  email           String           @unique
+  passwordHash    String
+  name            String
+  phone           String?
+  role            Role             @default(OWNER_ADMIN)
+  isBranchManager Boolean          @default(false)
+  branchId        String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  memberships     BusinessMember[]
+  auditLogs       AuditLog[]
+  branch          Branch?          @relation(fields: [branchId], references: [id], onDelete: SetNull)
 }
 
 model Business {
