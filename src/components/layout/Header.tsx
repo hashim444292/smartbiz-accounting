@@ -22,6 +22,7 @@ import {
   Moon,
   Monitor,
   Type,
+  Store,
 } from "lucide-react";
 import { DateRangeSelector } from "./DateRangeSelector";
 import { useAuth } from "@/context/AuthContext";
@@ -38,6 +39,10 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
     isInspectingClient,
     inspectCompany,
     exitInspection,
+    branches,
+    selectedBranch,
+    isBranchLocked,
+    switchBranch,
   } = useAuth();
   const { theme, resolvedTheme, setTheme, toggleTheme, font, setFont, fontOptions } = useTheme();
   const router = useRouter();
@@ -61,6 +66,10 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
   const [fontMenuOpen, setFontMenuOpen] = useState(false);
   const fontMenuRef = useRef<HTMLDivElement>(null);
 
+  // Branch switcher dropdown state
+  const [branchDropdownOpen, setBranchDropdownOpen] = useState(false);
+  const branchDropdownRef = useRef<HTMLDivElement>(null);
+
   // Global Quick Search state (Cmd + K)
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -77,6 +86,9 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
     function handleClickOutside(event: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setDropdownOpen(false);
+      }
+      if (branchDropdownRef.current && !branchDropdownRef.current.contains(event.target as Node)) {
+        setBranchDropdownOpen(false);
       }
       if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
         setUserMenuOpen(false);
@@ -344,6 +356,129 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
               </div>
             </div>
           )}
+
+          {/* Branch Switcher / Locked Badge */}
+          {isBranchLocked && user?.branchName ? (
+            <div
+              className="flex items-center gap-1.5 rounded-xl border border-amber-200/90 bg-amber-50/80 px-2.5 py-1.5 text-xs font-semibold text-amber-900 dark:border-amber-800/80 dark:bg-amber-950/40 dark:text-amber-200"
+              title={`Assigned to ${user.branchName} (Restricted Staff View)`}
+            >
+              <Store className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+              <div className="text-left max-w-[100px] sm:max-w-[140px] truncate">
+                <span className="block truncate font-bold leading-tight">
+                  {user.branchName}
+                </span>
+                <span className="text-[9px] text-amber-600 dark:text-amber-400 block truncate">
+                  مخصوص برانچ
+                </span>
+              </div>
+            </div>
+          ) : (branches && branches.length > 0 && (user?.role !== "SUPER_ADMIN" || isInspectingClient)) ? (
+            <div className="relative" ref={branchDropdownRef}>
+              <button
+                onClick={() => setBranchDropdownOpen(!branchDropdownOpen)}
+                className={`flex items-center gap-1.5 sm:gap-2 rounded-xl border px-2.5 sm:px-3 py-1.5 text-xs font-semibold transition ${
+                  selectedBranch
+                    ? "border-emerald-300 bg-emerald-50/80 text-emerald-900 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-200"
+                    : "border-slate-200/90 bg-slate-50/80 text-slate-800 hover:bg-slate-100 dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-200"
+                }`}
+                title="Switch Branch View / برانچ تبدیل کریں"
+              >
+                <Store className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                <div className="text-left max-w-[95px] sm:max-w-[150px] truncate">
+                  <span className="block truncate font-bold leading-tight">
+                    {selectedBranch ? selectedBranch.name : "All Branches"}
+                  </span>
+                  <span className="text-[9px] sm:text-[10px] text-slate-500 dark:text-slate-400 block truncate">
+                    {selectedBranch ? (selectedBranch.code || "Branch") : "مجموعی کھاتہ"}
+                  </span>
+                </div>
+                <ChevronDown className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-slate-400 ml-0.5 shrink-0" />
+              </button>
+
+              {branchDropdownOpen && (
+                <div className="absolute left-0 mt-2 w-64 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl dark:border-slate-800 dark:bg-[#111827] z-50 animate-in fade-in zoom-in-95 duration-100">
+                  <div className="px-3 py-2 border-b border-slate-100 dark:border-slate-800 mb-1">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+                      Branch Filter (برانچ سلیکٹر)
+                    </p>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      Consolidated vs Branch-specific accounting
+                    </p>
+                  </div>
+
+                  <div className="space-y-1">
+                    <button
+                      onClick={async () => {
+                        setBranchDropdownOpen(false);
+                        await switchBranch(null);
+                      }}
+                      className={`w-full flex items-center justify-between rounded-xl px-3 py-2 text-left text-xs font-medium transition ${
+                        !selectedBranch
+                          ? "bg-emerald-50 text-emerald-800 font-bold dark:bg-emerald-950/60 dark:text-emerald-200"
+                          : "text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800/70"
+                      }`}
+                    >
+                      <div>
+                        <p className="font-bold flex items-center gap-1.5">
+                          🌐 All Branches (مجموعی کھاتہ)
+                        </p>
+                        <p className="text-[10px] text-slate-400 font-normal">
+                          Combined view of all company outlets
+                        </p>
+                      </div>
+                      {!selectedBranch && <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />}
+                    </button>
+
+                    {branches.map((b) => {
+                      const isSelected = selectedBranch?.id === b.id;
+                      return (
+                        <button
+                          key={b.id}
+                          onClick={async () => {
+                            setBranchDropdownOpen(false);
+                            await switchBranch(b.id);
+                          }}
+                          className={`w-full flex items-center justify-between rounded-xl px-3 py-2 text-left text-xs font-medium transition ${
+                            isSelected
+                              ? "bg-emerald-50 text-emerald-800 font-bold dark:bg-emerald-950/60 dark:text-emerald-200"
+                              : "text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800/70"
+                          }`}
+                        >
+                          <div className="truncate pr-2">
+                            <p className="truncate font-semibold flex items-center gap-1.5">
+                              <Store className="h-3.5 w-3.5 text-slate-400" />
+                              {b.name}
+                            </p>
+                            <div className="flex items-center gap-2 text-[10px] text-slate-400 font-normal">
+                              <span className="font-mono bg-slate-100 dark:bg-slate-800 px-1 rounded">
+                                {b.code}
+                              </span>
+                              {b.city && <span>{b.city}</span>}
+                            </div>
+                          </div>
+                          {isSelected && <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {(user?.role === "SUPER_ADMIN" || user?.role === "OWNER_ADMIN") && (
+                    <div className="mt-1 pt-1 border-t border-slate-100 dark:border-slate-800">
+                      <Link
+                        href="/branches"
+                        onClick={() => setBranchDropdownOpen(false)}
+                        className="flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs text-indigo-600 hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-slate-800 font-semibold transition"
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                        <span>Manage Sub-Branches (برانچز)</span>
+                      </Link>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          ) : null}
 
           {/* Categorized Global Search Trigger */}
           <button

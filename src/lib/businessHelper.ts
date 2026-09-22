@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { cookies } from "next/headers";
-import { ACTIVE_BIZ_COOKIE, TOKEN_NAME, verifySessionToken } from "@/lib/auth";
+import { ACTIVE_BIZ_COOKIE, ACTIVE_BRANCH_COOKIE, TOKEN_NAME, verifySessionToken } from "@/lib/auth";
 import { fallbackStore } from "@/lib/fallbackStore";
 import { NextRequest } from "next/server";
 
@@ -23,51 +23,120 @@ export async function getActiveBusinessId(req?: NextRequest): Promise<string> {
     }
   }
 
-  // 2. Try to read from Next.js server-side cookies()
+  // 2. Read from next/headers cookies() store (Server Components & Route Handlers)
   try {
     const cookieStore = cookies();
-    const cookieBiz = cookieStore.get(ACTIVE_BIZ_COOKIE)?.value;
-    if (cookieBiz) return cookieBiz;
+    const activeBiz = cookieStore.get(ACTIVE_BIZ_COOKIE)?.value;
+    if (activeBiz) return activeBiz;
 
     const token = cookieStore.get(TOKEN_NAME)?.value;
     if (token) {
       const session = verifySessionToken(token);
       if (session?.businessId) return session.businessId;
     }
-  } catch {
-    // cookies() might fail in certain non-request contexts
-  }
+  } catch {}
 
-  // 3. Fallback store active business
-  if (fallbackStore.activeBusinessId) {
-    return fallbackStore.activeBusinessId;
-  }
-  if (fallbackStore.business?.id) {
-    return fallbackStore.business.id;
-  }
-
-  // 4. Check Prisma database for existing business
+  // 3. Fallback: Find default or first business in system
   try {
-    const business = await prisma.business.findFirst({
+    const firstBiz = await prisma.business.findFirst({
       orderBy: { createdAt: "asc" },
+      select: { id: true },
     });
-    if (business) return business.id;
-
-    // Create default business if none exists
-    const created = await prisma.business.create({
-      data: {
-        name: "HANIF Mobile Center",
-        ownerName: "Muhammad Hanif",
-        currency: "PKR",
-        currencySymbol: "Rs",
-        country: "Pakistan",
-        defaultPaymentTerms: 30,
-        defaultTaxRate: 0,
-        negativeStockPolicy: false,
-      },
-    });
-    return created.id;
+    if (firstBiz?.id) return firstBiz.id;
   } catch {
-    return fallbackStore.business?.id || "biz-101";
+    // DB not connected, fallback to in-memory fallbackStore
+    if (fallbackStore.companies && fallbackStore.companies.length > 0) {
+      return fallbackStore.companies[0].id;
+    }
   }
+
+  return "biz-101";
+}
+
+/**
+ * Resolves the active branch ID for multi-branch accounting:
+ * - If user has role STAFF and is locked to a branch, returns that branch strictly (user cannot switch).
+ * - If user is OWNER_ADMIN or SUPER_ADMIN, returns selected branch from query (?branchId=), header (x-branch-id), or cookie (sb_active_branch_id).
+ * - If "all" or empty or null, returns null (meaning Consolidated / All Branches).
+ */
+export async function getActiveBranchId(
+  req?: NextRequest,
+  sessionOverride?: { role?: string; branchId?: string | null } | null
+): Promise<{
+  branchId: string | null;
+  isLockedToBranch: boolean;
+}> {
+  let userSessionBranchId: string | null = sessionOverride?.branchId ?? null;
+  let userRole: string | null = sessionOverride?.role ?? null;
+
+  if (!sessionOverride) {
+    try {
+      let token: string | undefined;
+      if (req) {
+        token = req.cookies.get(TOKEN_NAME)?.value;
+      }
+      if (!token) {
+        const cookieStore = cookies();
+        token = cookieStore.get(TOKEN_NAME)?.value;
+      }
+      if (token) {
+        const session = verifySessionToken(token);
+        if (session) {
+          userRole = session.role;
+          userSessionBranchId = session.branchId || null;
+        }
+      }
+    } catch {}
+  }
+
+  // If user is locked to a branch (STAFF / branch user), enforce it strictly
+  if (userSessionBranchId && userRole !== "SUPER_ADMIN" && userRole !== "OWNER_ADMIN") {
+    return {
+      branchId: userSessionBranchId,
+      isLockedToBranch: true,
+    };
+  }
+
+  // Otherwise, user has authority across branches: check query param, header, or cookie
+  if (req) {
+    const queryBranch = req.nextUrl?.searchParams?.get("branchId");
+    if (queryBranch) {
+      return {
+        branchId: queryBranch === "all" ? null : queryBranch,
+        isLockedToBranch: false,
+      };
+    }
+
+    const headerBranch = req.headers.get("x-branch-id");
+    if (headerBranch) {
+      return {
+        branchId: headerBranch === "all" ? null : headerBranch,
+        isLockedToBranch: false,
+      };
+    }
+
+    const cookieBranch = req.cookies.get(ACTIVE_BRANCH_COOKIE)?.value;
+    if (cookieBranch) {
+      return {
+        branchId: cookieBranch === "all" ? null : cookieBranch,
+        isLockedToBranch: false,
+      };
+    }
+  }
+
+  try {
+    const cookieStore = cookies();
+    const cookieBranch = cookieStore.get(ACTIVE_BRANCH_COOKIE)?.value;
+    if (cookieBranch) {
+      return {
+        branchId: cookieBranch === "all" ? null : cookieBranch,
+        isLockedToBranch: false,
+      };
+    }
+  } catch {}
+
+  return {
+    branchId: null,
+    isLockedToBranch: false,
+  };
 }

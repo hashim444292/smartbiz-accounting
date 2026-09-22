@@ -22,6 +22,7 @@ export interface StoreState {
   aiImports: any[];
   auditLogs: any[];
   subscriptionPayments: any[];
+  branches: any[];
 }
 
 function initializeState(): StoreState {
@@ -61,6 +62,7 @@ function initializeState(): StoreState {
       defaultPaymentTerms: 30,
       defaultTaxRate: 18.00,
       negativeStockPolicy: false,
+      canCreateBranches: true,
       monthlyFee: 5000,
       billingPlan: "Standard Monthly",
       subscriptionStatus: "ACTIVE",
@@ -104,6 +106,7 @@ function initializeState(): StoreState {
       defaultPaymentTerms: 30,
       defaultTaxRate: 18.00,
       negativeStockPolicy: false,
+      canCreateBranches: false,
       monthlyFee: 8000,
       billingPlan: "Enterprise Pro",
       subscriptionStatus: "ACTIVE",
@@ -147,6 +150,7 @@ function initializeState(): StoreState {
       defaultPaymentTerms: 30,
       defaultTaxRate: 18.00,
       negativeStockPolicy: false,
+      canCreateBranches: false,
       monthlyFee: 6000,
       billingPlan: "Standard Monthly",
       subscriptionStatus: "DUE",
@@ -1761,7 +1765,59 @@ function initializeState(): StoreState {
     },
   ];
 
-  // 16. Users & Multi-Tenant Company Assignment
+  // 16. Sub-Branches Hierarchy
+  const branches = [
+    {
+      id: "br-101-1",
+      businessId: "biz-101",
+      name: "Saddar Main Branch",
+      code: "KHI-01",
+      address: "Shop 14-16, Saddar Mobile Mall, Saddar",
+      city: "Karachi",
+      phone: "+92 300 9876543",
+      email: "saddar@hanifmobile.com",
+      managerName: "Muhammad Hanif",
+      isActive: true,
+      createdAt: new Date(2026, 0, 1).toISOString(),
+      updatedAt: new Date(2026, 0, 1).toISOString(),
+    },
+    {
+      id: "br-101-2",
+      businessId: "biz-101",
+      name: "Gulshan Outlet",
+      code: "KHI-02",
+      address: "Shop 4, Block 13-C, University Road, Gulshan-e-Iqbal",
+      city: "Karachi",
+      phone: "+92 321 8765432",
+      email: "gulshan@hanifmobile.com",
+      managerName: "Kamran Ali",
+      isActive: true,
+      createdAt: new Date(2026, 0, 15).toISOString(),
+      updatedAt: new Date(2026, 0, 15).toISOString(),
+    },
+  ];
+
+  // Auto-distribute biz-101 demo transactions between branches
+  sales.forEach((s: any, idx) => {
+    if (s.businessId === "biz-101") {
+      s.branchId = idx % 2 === 0 ? "br-101-1" : "br-101-2";
+      s.branchName = idx % 2 === 0 ? "Saddar Main Branch" : "Gulshan Outlet";
+    }
+  });
+  purchases.forEach((p: any, idx) => {
+    if (p.businessId === "biz-101") {
+      p.branchId = idx % 2 === 0 ? "br-101-1" : "br-101-2";
+      p.branchName = idx % 2 === 0 ? "Saddar Main Branch" : "Gulshan Outlet";
+    }
+  });
+  expenses.forEach((e: any, idx) => {
+    if (e.businessId === "biz-101") {
+      e.branchId = idx % 2 === 0 ? "br-101-1" : "br-101-2";
+      e.branchName = idx % 2 === 0 ? "Saddar Main Branch" : "Gulshan Outlet";
+    }
+  });
+
+  // 17. Users & Multi-Tenant Company Assignment with Branch Locks
   const users = [
     {
       id: "usr-1",
@@ -1770,6 +1826,7 @@ function initializeState(): StoreState {
       password: "admin123",
       role: "SUPER_ADMIN",
       companyIds: ["biz-101", "biz-102", "biz-103"],
+      branchId: null,
       createdAt: new Date(2026, 0, 1).toISOString(),
     },
     {
@@ -1779,6 +1836,7 @@ function initializeState(): StoreState {
       password: "hanif123",
       role: "OWNER_ADMIN",
       companyIds: ["biz-101"],
+      branchId: null, // Full multi-branch and consolidated access
       createdAt: new Date(2026, 0, 1).toISOString(),
     },
     {
@@ -1788,15 +1846,29 @@ function initializeState(): StoreState {
       password: "account123",
       role: "ACCOUNTANT",
       companyIds: ["biz-101", "biz-102"],
+      branchId: null,
       createdAt: new Date(2026, 0, 15).toISOString(),
     },
     {
       id: "usr-4",
-      name: "Bilal Cashier (Staff)",
+      name: "Bilal Cashier (Saddar Staff)",
       email: "staff@smartbiz.com",
       password: "staff123",
       role: "STAFF",
       companyIds: ["biz-101"],
+      branchId: "br-101-1",
+      branchName: "Saddar Main Branch",
+      createdAt: new Date(2026, 1, 1).toISOString(),
+    },
+    {
+      id: "usr-7",
+      name: "Kamran Ali (Gulshan Staff)",
+      email: "kamran@smartbiz.com",
+      password: "staff123",
+      role: "STAFF",
+      companyIds: ["biz-101"],
+      branchId: "br-101-2",
+      branchName: "Gulshan Outlet",
       createdAt: new Date(2026, 1, 1).toISOString(),
     },
     {
@@ -1806,6 +1878,7 @@ function initializeState(): StoreState {
       password: "smart123",
       role: "OWNER_ADMIN",
       companyIds: ["biz-102"],
+      branchId: null,
       createdAt: new Date(2026, 1, 1).toISOString(),
     },
     {
@@ -1815,6 +1888,7 @@ function initializeState(): StoreState {
       password: "madina123",
       role: "OWNER_ADMIN",
       companyIds: ["biz-103"],
+      branchId: null,
       createdAt: new Date(2026, 2, 1).toISOString(),
     },
   ];
@@ -1823,6 +1897,7 @@ function initializeState(): StoreState {
     business: companies[0],
     activeBusinessId: "biz-101",
     companies,
+    branches,
     users,
     accounts,
     cashBankAccounts,
@@ -2238,3 +2313,115 @@ export function storeDeleteCategory(id: string): boolean {
   }
   return true;
 }
+
+// Sub-Branch Management Helpers
+export function storeGetBranches(businessId: string) {
+  if (!fallbackStore.branches) fallbackStore.branches = [];
+  return fallbackStore.branches.filter((b) => b.businessId === businessId);
+}
+
+export function storeAddBranch(data: any) {
+  if (!fallbackStore.branches) fallbackStore.branches = [];
+  const comp = fallbackStore.companies.find((c) => c.id === data.businessId);
+  if (comp && !comp.canCreateBranches) {
+    throw new Error("Multi-Branch authorization is not enabled for this company. Please contact Super Admin.");
+  }
+
+  const newBranch = {
+    id: data.id || `br-${data.businessId || fallbackStore.activeBusinessId}-${Date.now().toString().slice(-4)}`,
+    businessId: data.businessId || fallbackStore.activeBusinessId,
+    name: data.name,
+    code: data.code || `BR-${(fallbackStore.branches.length + 1).toString().padStart(2, "0")}`,
+    address: data.address || "",
+    city: data.city || "Karachi",
+    phone: data.phone || "",
+    email: data.email || "",
+    managerName: data.managerName || "",
+    isActive: data.isActive !== undefined ? Boolean(data.isActive) : true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+
+  fallbackStore.branches.push(newBranch);
+  return newBranch;
+}
+
+export function storeUpdateBranch(id: string, updates: any) {
+  if (!fallbackStore.branches) fallbackStore.branches = [];
+  const idx = fallbackStore.branches.findIndex((b) => b.id === id);
+  if (idx === -1) return null;
+
+  fallbackStore.branches[idx] = {
+    ...fallbackStore.branches[idx],
+    ...updates,
+    updatedAt: new Date().toISOString(),
+  };
+  return fallbackStore.branches[idx];
+}
+
+export function storeDeleteBranch(id: string) {
+  if (!fallbackStore.branches) fallbackStore.branches = [];
+  const idx = fallbackStore.branches.findIndex((b) => b.id === id);
+  if (idx === -1) return false;
+
+  fallbackStore.branches.splice(idx, 1);
+  // Reset any user assigned to this branch
+  fallbackStore.users.forEach((u) => {
+    if (u.branchId === id) {
+      u.branchId = null;
+      u.branchName = null;
+    }
+  });
+  return true;
+}
+
+export function storeAssignUserBranch(userId: string, branchId: string | null) {
+  const user = fallbackStore.users.find((u) => u.id === userId);
+  if (!user) return null;
+
+  if (!branchId) {
+    user.branchId = null;
+    user.branchName = null;
+    return user;
+  }
+
+  const branch = fallbackStore.branches?.find((b) => b.id === branchId);
+  if (!branch) return null;
+
+  user.branchId = branch.id;
+  user.branchName = branch.name;
+  return user;
+}
+
+export function storeAddSale(saleData: any) {
+  const newSale = {
+    id: saleData.id || `sale-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+    businessId: saleData.businessId,
+    branchId: saleData.branchId || null,
+    branchName: saleData.branchName || null,
+    invoiceNumber: saleData.invoiceNumber || `INV-${Date.now()}`,
+    date: saleData.date || new Date().toISOString(),
+    customerName: saleData.customerName || "Walk-in Customer",
+    customerId: saleData.customerId || null,
+    subtotal: Number(saleData.subtotal || 0),
+    discountAmount: Number(saleData.discountAmount || 0),
+    taxAmount: Number(saleData.taxAmount || saleData.salesTax || 0),
+    salesTax: Number(saleData.salesTax || 0),
+    furtherTax: Number(saleData.furtherTax || 0),
+    extraTax: Number(saleData.extraTax || 0),
+    posFee: Number(saleData.posFee || 0),
+    totalAmount: Number(saleData.totalAmount || 0),
+    paidAmount: Number(saleData.paidAmount || saleData.totalAmount || 0),
+    remainingAmount: Number(saleData.remainingAmount || 0),
+    paymentStatus: saleData.paymentStatus || "PAID",
+    paymentMethod: saleData.paymentMethod || "CASH",
+    status: saleData.status || "POSTED",
+    fbrStatus: saleData.fbrStatus || "SUCCESS",
+    fbrInvoiceNumber: saleData.fbrInvoiceNumber || null,
+    fbrQrCode: saleData.fbrQrCode || null,
+    items: saleData.items || [],
+  };
+  fallbackStore.sales.unshift(newSale);
+  return newSale;
+}
+

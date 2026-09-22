@@ -75,6 +75,9 @@ export async function POST(req: NextRequest) {
       businessId: targetBiz.id,
       businessName: targetBiz.name,
       companyIds: targetUser.companyIds || (targetUser.memberships?.map((m: any) => m.businessId)) || [targetBiz.id],
+      branchId: targetUser.branchId || null,
+      branchName: targetUser.branchName || (targetUser as any).branch?.name || null,
+      canCreateBranches: Boolean(targetBiz.canCreateBranches),
       isSwitched: targetUser.role !== "SUPER_ADMIN",
     };
 
@@ -99,6 +102,12 @@ export async function POST(req: NextRequest) {
       maxAge: 60 * 60 * 24 * 30,
       sameSite: "lax",
     });
+
+    if (payload.branchId) {
+      response.cookies.set("sb_active_branch_id", payload.branchId, { path: "/", maxAge: 60 * 60 * 24 * 30 });
+    } else {
+      response.cookies.delete("sb_active_branch_id");
+    }
 
     return response;
   } catch (error: any) {

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { createAndPostSale } from "@/services/salesService";
-import { getActiveBusinessId } from "@/lib/businessHelper";
+import { getActiveBusinessId, getActiveBranchId } from "@/lib/businessHelper";
 import { fallbackStore } from "@/lib/fallbackStore";
 
 export const dynamic = "force-dynamic";
@@ -9,16 +9,27 @@ export const dynamic = "force-dynamic";
 export async function GET(req: NextRequest) {
   try {
     const businessId = await getActiveBusinessId(req);
+    const { branchId, isLockedToBranch } = await getActiveBranchId(req);
+
+    const whereClause: any = { businessId };
+    if (branchId) {
+      whereClause.branchId = branchId;
+    }
+
     const sales = await prisma.sale.findMany({
-      where: { businessId },
-      include: { customer: true, items: true },
+      where: whereClause,
+      include: { customer: true, items: true, branch: true },
       orderBy: { date: "desc" },
     });
-    return NextResponse.json({ success: true, data: sales });
+    return NextResponse.json({ success: true, data: sales, branchId, isLockedToBranch });
   } catch (err) {
     const businessId = await getActiveBusinessId(req);
-    const filtered = fallbackStore.sales.filter((s) => s.businessId === businessId);
-    return NextResponse.json({ success: true, data: filtered, fallback: true });
+    const { branchId, isLockedToBranch } = await getActiveBranchId(req);
+    let filtered = fallbackStore.sales.filter((s) => s.businessId === businessId);
+    if (branchId) {
+      filtered = filtered.filter((s) => s.branchId === branchId);
+    }
+    return NextResponse.json({ success: true, data: filtered, branchId, isLockedToBranch, fallback: true });
   }
 }
 
@@ -27,8 +38,12 @@ export async function POST(req: NextRequest) {
 
   try {
     const businessId = await getActiveBusinessId(req);
+    const { branchId: activeBranchId } = await getActiveBranchId(req);
+    const effectiveBranchId = body.branchId || activeBranchId || null;
+
     const sale = await createAndPostSale({
       businessId,
+      branchId: effectiveBranchId,
       ...body,
     });
     return NextResponse.json({ success: true, data: sale });
@@ -36,6 +51,9 @@ export async function POST(req: NextRequest) {
     // If PostgreSQL server is offline, apply the exact accounting & stock rules to fallbackStore
     if (error.message?.includes("Can't reach database server") || error.code === "P1001" || !process.env.DATABASE_URL) {
       const businessId = await getActiveBusinessId(req);
+      const { branchId: activeBranchId } = await getActiveBranchId(req);
+      const effectiveBranchId = body.branchId || activeBranchId || null;
+      const branchObj = fallbackStore.branches?.find((b) => b.id === effectiveBranchId);
       const saleId = `sale-${Date.now()}`;
       const invNum = `INV-2026-${String(fallbackStore.sales.length + 1).padStart(5, "0")}`;
 
@@ -115,6 +133,8 @@ export async function POST(req: NextRequest) {
       const newSale = {
         id: saleId,
         businessId,
+        branchId: effectiveBranchId,
+        branchName: branchObj?.name || null,
         invoiceNumber: invNum,
         date: body.date || new Date().toISOString(),
         customerName: body.customerName || "Walk-in Customer",

@@ -46,6 +46,7 @@ export async function PUT(
           defaultPaymentTerms: body.defaultPaymentTerms ? Number(body.defaultPaymentTerms) : undefined,
           defaultTaxRate: body.defaultTaxRate !== undefined ? Number(body.defaultTaxRate) : undefined,
           negativeStockPolicy: body.negativeStockPolicy !== undefined ? Boolean(body.negativeStockPolicy) : undefined,
+          canCreateBranches: body.canCreateBranches !== undefined ? Boolean(body.canCreateBranches) : undefined,
         },
       });
 

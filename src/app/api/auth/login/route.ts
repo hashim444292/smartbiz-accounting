@@ -48,17 +48,28 @@ export async function POST(req: NextRequest) {
             businessId: primaryBusiness?.id || "biz-101",
             businessName: primaryBusiness?.name || "SmartBiz",
             companyIds: companyIds.length > 0 ? companyIds : [primaryBusiness?.id || "biz-101"],
+            branchId: user.branchId || null,
+            branchName: (user as any).branch?.name || null,
+            canCreateBranches: Boolean((primaryBusiness as any)?.canCreateBranches),
           };
 
           const token = signSessionToken(payload);
           setSessionCookie(token);
           setActiveBusinessCookie(payload.businessId);
 
-          return NextResponse.json({
+          const response = NextResponse.json({
             success: true,
             user: payload,
             message: "Login successful",
           });
+
+          if (payload.branchId) {
+            response.cookies.set("sb_active_branch_id", payload.branchId, { path: "/", maxAge: 60 * 60 * 24 * 30 });
+          } else {
+            response.cookies.delete("sb_active_branch_id");
+          }
+
+          return response;
         }
       }
     } catch {
@@ -71,7 +82,7 @@ export async function POST(req: NextRequest) {
     );
 
     if (fallbackUser) {
-      const activeBiz = fallbackStore.companies.find((c) => fallbackUser.companyIds.includes(c.id)) || fallbackStore.companies[0];
+      const activeBiz = fallbackStore.companies.find((c) => fallbackUser.companyIds?.includes(c.id)) || fallbackStore.companies[0];
 
       const payload = {
         userId: fallbackUser.id,
@@ -81,17 +92,28 @@ export async function POST(req: NextRequest) {
         businessId: activeBiz.id,
         businessName: activeBiz.name,
         companyIds: fallbackUser.companyIds,
+        branchId: fallbackUser.branchId || null,
+        branchName: fallbackUser.branchName || null,
+        canCreateBranches: Boolean(activeBiz.canCreateBranches),
       };
 
       const token = signSessionToken(payload);
       setSessionCookie(token);
       setActiveBusinessCookie(payload.businessId);
 
-      return NextResponse.json({
+      const response = NextResponse.json({
         success: true,
         user: payload,
         message: "Login successful",
       });
+
+      if (payload.branchId) {
+        response.cookies.set("sb_active_branch_id", payload.branchId, { path: "/", maxAge: 60 * 60 * 24 * 30 });
+      } else {
+        response.cookies.delete("sb_active_branch_id");
+      }
+
+      return response;
     }
 
     return NextResponse.json(

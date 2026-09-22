@@ -6,6 +6,7 @@ import { Role } from "@prisma/client";
 const JWT_SECRET = process.env.JWT_SECRET || "dev-secret-accounting-jwt-key-2026";
 export const TOKEN_NAME = "sb_auth_token";
 export const ACTIVE_BIZ_COOKIE = "sb_active_business_id";
+export const ACTIVE_BRANCH_COOKIE = "sb_active_branch_id";
 
 export interface SessionPayload {
   userId: string;
@@ -15,6 +16,9 @@ export interface SessionPayload {
   businessId: string;
   businessName: string;
   companyIds?: string[];
+  branchId?: string | null;
+  branchName?: string | null;
+  canCreateBranches?: boolean;
   isSwitched?: boolean;
 }
 
@@ -103,8 +107,36 @@ export function getActiveBusinessCookie(): string | null {
   }
 }
 
+export function setActiveBranchCookie(branchId: string | null) {
+  try {
+    const cookieStore = cookies();
+    if (!branchId || branchId === "all") {
+      cookieStore.delete(ACTIVE_BRANCH_COOKIE);
+    } else {
+      cookieStore.set(ACTIVE_BRANCH_COOKIE, branchId, {
+        httpOnly: false,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        path: "/",
+        maxAge: 60 * 60 * 24 * 30, // 30 days
+      });
+    }
+  } catch {}
+}
+
+export function getActiveBranchCookie(): string | null {
+  try {
+    const cookieStore = cookies();
+    const val = cookieStore.get(ACTIVE_BRANCH_COOKIE)?.value;
+    return val && val !== "all" && val !== "" ? val : null;
+  } catch {
+    return null;
+  }
+}
+
 export function clearSessionCookie() {
   const cookieStore = cookies();
   cookieStore.delete(TOKEN_NAME);
   cookieStore.delete(ACTIVE_BIZ_COOKIE);
+  cookieStore.delete(ACTIVE_BRANCH_COOKIE);
 }

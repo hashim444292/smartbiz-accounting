@@ -88,10 +88,12 @@ model User {
   passwordHash String
   name         String
   role         Role             @default(OWNER_ADMIN)
+  branchId     String?
   createdAt    DateTime         @default(now())
   updatedAt    DateTime         @updatedAt
   memberships  BusinessMember[]
   auditLogs    AuditLog[]
+  branch       Branch?          @relation(fields: [branchId], references: [id], onDelete: SetNull)
 }
 
 model Business {
@@ -113,6 +115,7 @@ model Business {
   defaultPaymentTerms Int                  @default(30)
   defaultTaxRate      Decimal              @default(0.00) @db.Decimal(5, 2)
   negativeStockPolicy Boolean              @default(false)
+  canCreateBranches   Boolean              @default(false)
   ntn                 String?
   strn                String?
   businessType        String?              @default("Retail & Wholesale")
@@ -125,6 +128,7 @@ model Business {
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
 
+  branches            Branch[]
   members             BusinessMember[]
   customers           Customer[]
   suppliers           Supplier[]
@@ -222,6 +226,30 @@ model Category {
   @@unique([businessId, name])
 }
 
+model Branch {
+  id          String    @id @default(uuid())
+  businessId  String
+  name        String
+  code        String
+  address     String?
+  city        String?
+  phone       String?
+  email       String?
+  managerName String?
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  business    Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  sales       Sale[]
+  purchases   Purchase[]
+  expenses    Expense[]
+  users       User[]
+
+  @@unique([businessId, code])
+  @@index([businessId])
+}
+
 model Warehouse {
   id         String    @id @default(uuid())
   businessId String
@@ -285,6 +313,7 @@ model InventoryTransaction {
   id            String          @id @default(uuid())
   businessId    String
   productId     String
+  branchId      String?
   type          InventoryTxType
   quantity      Decimal         @db.Decimal(15, 4)
   unitCost      Decimal         @default(0.00) @db.Decimal(15, 2)
@@ -299,11 +328,13 @@ model InventoryTransaction {
   product       Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@index([businessId, productId, date])
+  @@index([businessId, branchId])
 }
 
 model StockAdjustment {
   id          String           @id @default(uuid())
   businessId  String
+  branchId    String?
   date        DateTime         @default(now())
   reason      AdjustmentReason @default(PHYSICAL_COUNT)
   notes       String?
@@ -311,11 +342,14 @@ model StockAdjustment {
   createdAt   DateTime         @default(now())
 
   business    Business         @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId, branchId])
 }
 
 model Sale {
   id              String            @id @default(uuid())
   businessId      String
+  branchId        String?
   invoiceNumber   String
   date            DateTime          @default(now())
   customerId      String?
@@ -341,12 +375,14 @@ model Sale {
   updatedAt       DateTime          @updatedAt
 
   business        Business          @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  branch          Branch?           @relation(fields: [branchId], references: [id], onDelete: SetNull)
   customer        Customer?         @relation(fields: [customerId], references: [id], onDelete: SetNull)
   items           SaleItem[]
   allocations     PaymentAllocation[]
 
   @@unique([businessId, invoiceNumber])
   @@index([businessId, date])
+  @@index([businessId, branchId])
 }
 
 model SaleItem {
@@ -371,6 +407,7 @@ model SaleItem {
 model Purchase {
   id              String            @id @default(uuid())
   businessId      String
+  branchId        String?
   purchaseNumber  String
   date            DateTime          @default(now())
   supplierId      String?
@@ -390,12 +427,14 @@ model Purchase {
   updatedAt       DateTime          @updatedAt
 
   business        Business          @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  branch          Branch?           @relation(fields: [branchId], references: [id], onDelete: SetNull)
   supplier        Supplier?         @relation(fields: [supplierId], references: [id], onDelete: SetNull)
   items           PurchaseItem[]
   allocations     PaymentAllocation[]
 
   @@unique([businessId, purchaseNumber])
   @@index([businessId, date])
+  @@index([businessId, branchId])
 }
 
 model PurchaseItem {
@@ -418,6 +457,7 @@ model PurchaseItem {
 model Payment {
   id              String              @id @default(uuid())
   businessId      String
+  branchId        String?
   type            PaymentType
   date            DateTime            @default(now())
   partyType       PartyType?
@@ -442,6 +482,7 @@ model Payment {
   allocations     PaymentAllocation[]
 
   @@index([businessId, date])
+  @@index([businessId, branchId])
 }
 
 model PaymentAllocation {
@@ -473,6 +514,7 @@ model ExpenseCategory {
 model Expense {
   id            String           @id @default(uuid())
   businessId    String
+  branchId      String?
   categoryId    String
   date          DateTime         @default(now())
   description   String
@@ -486,10 +528,12 @@ model Expense {
   createdAt     DateTime         @default(now())
 
   business      Business         @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  branch        Branch?          @relation(fields: [branchId], references: [id], onDelete: SetNull)
   category      ExpenseCategory  @relation(fields: [categoryId], references: [id], onDelete: Restrict)
   account       CashBankAccount? @relation(fields: [accountId], references: [id], onDelete: SetNull)
 
   @@index([businessId, date])
+  @@index([businessId, branchId])
 }
 
 model Account {

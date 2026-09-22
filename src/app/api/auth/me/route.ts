@@ -70,6 +70,22 @@ export async function GET(req: NextRequest) {
         fallbackStore.business = activeCompany;
       }
 
+      let branches: any[] = [];
+      try {
+        const timeoutPromise = new Promise<never>((_, reject) => setTimeout(() => reject(new Error("DB_TIMEOUT")), 150));
+        branches = await Promise.race([
+          prisma.branch.findMany({
+            where: { businessId: activeCompany.id, isActive: true },
+            orderBy: { name: "asc" },
+          }),
+          timeoutPromise,
+        ]);
+      } catch {
+        branches = fallbackStore.branches ? fallbackStore.branches.filter((b) => b.businessId === activeCompany.id && b.isActive) : [];
+      }
+
+      const liveUser = fallbackStore.users.find((u) => u.id === session.userId);
+
       return NextResponse.json({
         success: true,
         authenticated: true,
@@ -77,12 +93,16 @@ export async function GET(req: NextRequest) {
           ...session,
           businessId: activeCompany?.id || session.businessId,
           businessName: activeCompany?.name || session.businessName,
+          branchId: liveUser?.branchId !== undefined ? liveUser.branchId : (session.branchId || null),
+          branchName: liveUser?.branchName !== undefined ? liveUser.branchName : (session.branchName || null),
+          canCreateBranches: Boolean(activeCompany?.canCreateBranches),
         },
         activeCompany: activeCompany || {
           id: session.businessId,
           name: session.businessName,
         },
         companies: accessibleCompanies,
+        branches,
       });
     }
 
@@ -95,6 +115,8 @@ export async function GET(req: NextRequest) {
     fallbackStore.activeBusinessId = activeBiz.id;
     fallbackStore.business = activeBiz;
 
+    const unauthBranches = fallbackStore.branches ? fallbackStore.branches.filter((b) => b.businessId === activeBiz.id && b.isActive) : [];
+
     return NextResponse.json({
       success: true,
       authenticated: false,
@@ -106,9 +128,13 @@ export async function GET(req: NextRequest) {
         businessId: activeBiz.id,
         businessName: activeBiz.name,
         companyIds: fallbackStore.companies.map((c) => c.id),
+        branchId: null,
+        branchName: null,
+        canCreateBranches: Boolean(activeBiz.canCreateBranches),
       },
       activeCompany: activeBiz,
       companies: fallbackStore.companies,
+      branches: unauthBranches,
     });
   } catch (error: any) {
     return NextResponse.json(

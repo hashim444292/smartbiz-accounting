@@ -21,6 +21,7 @@ import {
   Building2,
   UserCheck,
   Settings,
+  Store,
   ChevronLeft,
   ChevronRight,
   ArrowLeft,
@@ -80,6 +81,7 @@ const TENANT_NAVIGATION_GROUPS: NavGroup[] = [
   {
     section: "ORGANIZATION",
     items: [
+      { name: "Sub-Branches (برانچز)", href: "/branches", icon: Store, roles: ["SUPER_ADMIN", "OWNER_ADMIN"] },
       { name: "Settings & Defaults", href: "/settings", icon: Settings, roles: ["SUPER_ADMIN", "OWNER_ADMIN"] },
     ],
   },

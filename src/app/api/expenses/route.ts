@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getActiveBusinessId } from "@/lib/businessHelper";
+import { getActiveBusinessId, getActiveBranchId } from "@/lib/businessHelper";
 import { createAndPostExpense } from "@/services/expenseService";
 import { fallbackStore } from "@/lib/fallbackStore";
 
@@ -9,12 +9,18 @@ export const dynamic = "force-dynamic";
 export async function GET(req: NextRequest) {
   try {
     const businessId = await getActiveBusinessId(req);
+    const { branchId, isLockedToBranch } = await getActiveBranchId(req);
+    const whereClause: any = { businessId };
+    if (branchId) {
+      whereClause.branchId = branchId;
+    }
+
     const timeoutPromise = new Promise<never>((_, reject) => setTimeout(() => reject(new Error("DB_TIMEOUT")), 150));
     const [expenses, categories, accounts] = await Promise.race([
       Promise.all([
         prisma.expense.findMany({
-          where: { businessId },
-          include: { category: true, account: true },
+          where: whereClause,
+          include: { category: true, account: true, branch: true },
           orderBy: { date: "desc" },
           take: 100,
         }),
@@ -29,15 +35,22 @@ export async function GET(req: NextRequest) {
       timeoutPromise,
     ]);
 
-    return NextResponse.json({ success: true, data: { expenses, categories, accounts } });
+    return NextResponse.json({ success: true, data: { expenses, categories, accounts, branchId, isLockedToBranch } });
   } catch (error: any) {
     const businessId = await getActiveBusinessId(req);
+    const { branchId, isLockedToBranch } = await getActiveBranchId(req);
+    let filtered = fallbackStore.expenses.filter((e) => e.businessId === businessId);
+    if (branchId) {
+      filtered = filtered.filter((e) => e.branchId === branchId);
+    }
     return NextResponse.json({
       success: true,
       data: {
-        expenses: fallbackStore.expenses.filter((e) => e.businessId === businessId),
+        expenses: filtered,
         categories: fallbackStore.expenseCategories.filter((c) => c.businessId === businessId),
         accounts: fallbackStore.cashBankAccounts.filter((a) => a.businessId === businessId),
+        branchId,
+        isLockedToBranch,
       },
       fallback: true,
     });
@@ -49,14 +62,21 @@ export async function POST(req: NextRequest) {
 
   try {
     const businessId = await getActiveBusinessId(req);
+    const { branchId: activeBranchId } = await getActiveBranchId(req);
+    const effectiveBranchId = body.branchId || activeBranchId || null;
+
     const expense = await createAndPostExpense({
       businessId,
+      branchId: effectiveBranchId,
       ...body,
     });
 
     return NextResponse.json({ success: true, data: expense });
   } catch (error: any) {
     const businessId = await getActiveBusinessId(req);
+    const { branchId: activeBranchId } = await getActiveBranchId(req);
+    const effectiveBranchId = body.branchId || activeBranchId || null;
+    const branchObj = fallbackStore.branches?.find((b) => b.id === effectiveBranchId);
     const amt = Number(body.amount || 0);
 
     // Deduct from Cash/Bank account
@@ -73,6 +93,8 @@ export async function POST(req: NextRequest) {
     const newExpense = {
       id: `exp-${Date.now()}`,
       businessId,
+      branchId: effectiveBranchId,
+      branchName: branchObj?.name || null,
       categoryId: body.categoryId,
       category: { name: cat?.name || "General" },
       date: body.date || new Date().toISOString(),
@@ -84,6 +106,7 @@ export async function POST(req: NextRequest) {
     };
 
     fallbackStore.expenses.unshift(newExpense);
+
     return NextResponse.json({ success: true, data: newExpense, fallback: true });
   }
 }

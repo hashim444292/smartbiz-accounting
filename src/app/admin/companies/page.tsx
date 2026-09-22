@@ -101,6 +101,7 @@ export default function CompaniesManagementPage() {
     monthlyFee: "5000",
     billingPlan: "Standard Monthly",
     billingCycleEnd: "",
+    canCreateBranches: false,
     enabledModules: [
       "sales",
       "purchases",
@@ -303,6 +304,25 @@ export default function CompaniesManagementPage() {
     }
   };
 
+  const handleToggleMultiBranch = async (comp: any) => {
+    try {
+      const nextVal = !comp.canCreateBranches;
+      const res = await fetch(`/api/admin/companies/${comp.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ canCreateBranches: nextVal }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        await Promise.all([fetchCompanies(), fetchBillingData()]);
+      } else {
+        alert(data.error || "Failed to update branch permission");
+      }
+    } catch (err: any) {
+      alert(err.message || "Network error");
+    }
+  };
+
   const openEditModal = (comp: any) => {
     setSelectedCompany(comp);
     setFormData({
@@ -327,6 +347,7 @@ export default function CompaniesManagementPage() {
       monthlyFee: String(comp.monthlyFee || 5000),
       billingPlan: comp.billingPlan || "Standard Monthly",
       billingCycleEnd: comp.billingCycleEnd ? comp.billingCycleEnd.slice(0, 10) : "",
+      canCreateBranches: Boolean(comp.canCreateBranches),
       enabledModules: comp.enabledModules || [
         "sales",
         "purchases",
@@ -680,6 +701,18 @@ export default function CompaniesManagementPage() {
                             <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-200">
                               🛡️ {comp.enabledModules ? `${comp.enabledModules.length}/8` : "8/8"} Modules
                             </span>
+                            <button
+                              type="button"
+                              onClick={() => handleToggleMultiBranch(comp)}
+                              className={`text-[9px] font-bold px-1.5 py-0.5 rounded border transition inline-flex items-center gap-1 ${
+                                comp.canCreateBranches
+                                  ? "bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100"
+                                  : "bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200"
+                              }`}
+                              title="Click to toggle Multi-Branch authorization for this company"
+                            >
+                              <span>🏢 {comp.canCreateBranches ? "Multi-Branch: Enabled (ملٹی برانچ)" : "Single Branch (سنگل برانچ)"}</span>
+                            </button>
                           </div>
                         </td>
 
@@ -1180,6 +1213,28 @@ export default function CompaniesManagementPage() {
                 </div>
               </div>
 
+              {/* Multi-Branch Management Authorization */}
+              <div className="p-3.5 rounded-xl border border-indigo-200 bg-indigo-50/40 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-xs font-bold text-indigo-950">
+                    <Building2 className="h-4 w-4 text-indigo-600" />
+                    <span>Multi-Branch Authorization (ملٹی برانچ مینجمنٹ کی اجازت)</span>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(formData.canCreateBranches)}
+                      onChange={(e) => setFormData({ ...formData, canCreateBranches: e.target.checked })}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                  </label>
+                </div>
+                <p className="text-[11px] text-slate-600 leading-relaxed">
+                  Enable this if this company has multiple branches. When enabled, the company owner can create sub-branches, assign staff, and access branch-wise and consolidated accounting views.
+                </p>
+              </div>
+
               {/* Critical Default HS Code & UOM */}
               <div className="p-3.5 rounded-xl border border-indigo-200 bg-indigo-50/50 space-y-3">
                 <div className="flex items-center gap-1.5 text-xs font-bold text-indigo-900">
@@ -1463,6 +1518,28 @@ export default function CompaniesManagementPage() {
                     );
                   })}
                 </div>
+              </div>
+
+              {/* Multi-Branch Management Authorization */}
+              <div className="p-3.5 rounded-xl border border-indigo-200 bg-indigo-50/40 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-xs font-bold text-indigo-950">
+                    <Building2 className="h-4 w-4 text-indigo-600" />
+                    <span>Multi-Branch Authorization (ملٹی برانچ مینجمنٹ کی اجازت)</span>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(formData.canCreateBranches)}
+                      onChange={(e) => setFormData({ ...formData, canCreateBranches: e.target.checked })}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                  </label>
+                </div>
+                <p className="text-[11px] text-slate-600 leading-relaxed">
+                  Enable this if this company has multiple branches. When enabled, the company owner can create sub-branches, assign staff, and access branch-wise and consolidated accounting views.
+                </p>
               </div>
 
               {/* Classification */}

@@ -3,6 +3,19 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { useRouter, usePathname } from "next/navigation";
 
+export interface Branch {
+  id: string;
+  businessId: string;
+  name: string;
+  code: string;
+  address?: string;
+  city?: string;
+  phone?: string;
+  email?: string;
+  managerName?: string;
+  isActive: boolean;
+}
+
 export interface UserProfile {
   userId: string;
   email: string;
@@ -11,6 +24,9 @@ export interface UserProfile {
   businessId: string;
   businessName: string;
   companyIds?: string[];
+  branchId?: string | null;
+  branchName?: string | null;
+  canCreateBranches?: boolean;
   isSwitched?: boolean;
 }
 
@@ -39,6 +55,7 @@ export interface Company {
   billingPlan?: string;
   subscriptionStatus?: string;
   billingCycleEnd?: string;
+  canCreateBranches?: boolean;
   enabledModules?: string[];
 }
 
@@ -46,12 +63,17 @@ interface AuthContextType {
   user: UserProfile | null;
   activeCompany: Company | null;
   companies: Company[];
+  branches: Branch[];
+  activeBranchId: string | null;
+  selectedBranch: Branch | null;
+  isBranchLocked: boolean;
   isAuthenticated: boolean;
   isLoading: boolean;
   isInspectingClient: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string; user?: UserProfile }>;
   logout: () => Promise<void>;
   switchCompany: (businessId: string) => Promise<boolean>;
+  switchBranch: (branchId: string | null) => Promise<boolean>;
   switchUser: (targetUserId: string) => Promise<boolean>;
   inspectCompany: (businessId: string) => Promise<boolean>;
   exitInspection: () => void;
@@ -65,6 +87,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [activeCompany, setActiveCompany] = useState<Company | null>(null);
   const [companies, setCompanies] = useState<Company[]>([]);
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [activeBranchId, setActiveBranchId] = useState<string | null>(null);
+  const [isBranchLocked, setIsBranchLocked] = useState<boolean>(false);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isInspectingClient, setIsInspectingClient] = useState<boolean>(false);
@@ -86,7 +111,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(data.user);
         setActiveCompany(data.activeCompany || null);
         setCompanies(data.companies || []);
+        setBranches(data.branches || []);
         setIsAuthenticated(Boolean(data.authenticated));
+
+        const isLocked = Boolean(data.user?.branchId && data.user?.role !== "SUPER_ADMIN" && data.user?.role !== "OWNER_ADMIN");
+        setIsBranchLocked(isLocked);
+
+        if (isLocked) {
+          setActiveBranchId(data.user.branchId);
+        } else {
+          const cookieMatch = document.cookie.match(/sb_active_branch_id=([^;]+)/);
+          const cookieBranch = cookieMatch ? cookieMatch[1] : null;
+          if (cookieBranch && cookieBranch !== "all") {
+            setActiveBranchId(cookieBranch);
+          } else {
+            setActiveBranchId(null);
+          }
+        }
       }
     } catch (err) {
       console.error("Failed to load auth session:", err);
@@ -228,6 +269,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const selectedBranch = branches.find((b) => b.id === activeBranchId) || null;
+
+  const switchBranch = async (branchId: string | null) => {
+    if (isBranchLocked) {
+      alert("You are assigned to a specific branch and cannot switch branches.");
+      return false;
+    }
+    try {
+      if (!branchId || branchId === "all") {
+        document.cookie = "sb_active_branch_id=; path=/; max-age=0; SameSite=Lax";
+        setActiveBranchId(null);
+      } else {
+        document.cookie = `sb_active_branch_id=${branchId}; path=/; max-age=2592000; SameSite=Lax`;
+        setActiveBranchId(branchId);
+      }
+      window.location.reload();
+      return true;
+    } catch (err: any) {
+      console.error("Switch branch failed:", err);
+      return false;
+    }
+  };
+
   const hasRole = (allowedRoles: string[]) => {
     if (!user) return false;
     if (user.role === "SUPER_ADMIN") return true;
@@ -240,12 +304,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         user,
         activeCompany,
         companies,
+        branches,
+        activeBranchId,
+        selectedBranch,
+        isBranchLocked,
         isAuthenticated,
         isLoading,
         isInspectingClient,
         login,
         logout,
         switchCompany,
+        switchBranch,
         switchUser,
         inspectCompany,
         exitInspection,

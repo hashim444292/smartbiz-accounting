@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { createAndPostPurchase } from "@/services/purchaseService";
-import { getActiveBusinessId } from "@/lib/businessHelper";
+import { getActiveBusinessId, getActiveBranchId } from "@/lib/businessHelper";
 import { fallbackStore } from "@/lib/fallbackStore";
 import { calculateWeightedAverageCost } from "@/lib/decimal";
 
@@ -10,20 +10,30 @@ export const dynamic = "force-dynamic";
 export async function GET(req: NextRequest) {
   try {
     const businessId = await getActiveBusinessId(req);
+    const { branchId, isLockedToBranch } = await getActiveBranchId(req);
+    const whereClause: any = { businessId };
+    if (branchId) {
+      whereClause.branchId = branchId;
+    }
+
     const timeoutPromise = new Promise<never>((_, reject) => setTimeout(() => reject(new Error("DB_TIMEOUT")), 150));
     const purchases = await Promise.race([
       prisma.purchase.findMany({
-        where: { businessId },
-        include: { supplier: true, items: true },
+        where: whereClause,
+        include: { supplier: true, items: true, branch: true },
         orderBy: { date: "desc" },
       }),
       timeoutPromise,
     ]);
-    return NextResponse.json({ success: true, data: purchases });
+    return NextResponse.json({ success: true, data: purchases, branchId, isLockedToBranch });
   } catch (err) {
     const businessId = await getActiveBusinessId(req);
-    const filtered = fallbackStore.purchases.filter((p) => p.businessId === businessId);
-    return NextResponse.json({ success: true, data: filtered, fallback: true });
+    const { branchId, isLockedToBranch } = await getActiveBranchId(req);
+    let filtered = fallbackStore.purchases.filter((p) => p.businessId === businessId);
+    if (branchId) {
+      filtered = filtered.filter((p) => p.branchId === branchId);
+    }
+    return NextResponse.json({ success: true, data: filtered, branchId, isLockedToBranch, fallback: true });
   }
 }
 
@@ -32,10 +42,14 @@ export async function POST(req: NextRequest) {
 
   try {
     const businessId = await getActiveBusinessId(req);
+    const { branchId: activeBranchId } = await getActiveBranchId(req);
+    const effectiveBranchId = body.branchId || activeBranchId || null;
+
     const timeoutPromise = new Promise<never>((_, reject) => setTimeout(() => reject(new Error("DB_TIMEOUT")), 150));
     const purchase = await Promise.race([
       createAndPostPurchase({
         businessId,
+        branchId: effectiveBranchId,
         ...body,
       }),
       timeoutPromise,
@@ -43,6 +57,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: true, data: purchase });
   } catch (error: any) {
     const businessId = await getActiveBusinessId(req);
+    const { branchId: activeBranchId } = await getActiveBranchId(req);
+    const effectiveBranchId = body.branchId || activeBranchId || null;
+    const branchObj = fallbackStore.branches?.find((b) => b.id === effectiveBranchId);
     const purId = `pur-${Date.now()}`;
     const purNum = `PUR-2026-${String(fallbackStore.purchases.length + 1).padStart(5, "0")}`;
     const paid = Number(body.paidAmount || 0);
@@ -167,6 +184,8 @@ export async function POST(req: NextRequest) {
     const newPurchase = {
       id: purId,
       businessId,
+      branchId: effectiveBranchId,
+      branchName: branchObj?.name || null,
       purchaseNumber: purNum,
       date: body.date ? new Date(body.date).toISOString() : new Date().toISOString(),
       supplierName: supName,

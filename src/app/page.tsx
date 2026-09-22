@@ -22,6 +22,7 @@ import {
   ExternalLink,
   ChevronRight,
   Activity,
+  Store,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -47,7 +48,7 @@ type TableLayoutMode = "table" | "cards";
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { user, activeCompany, isInspectingClient, isLoading } = useAuth();
+  const { user, activeCompany, isInspectingClient, isLoading, switchBranch, isBranchLocked } = useAuth();
   const { range } = useDateRange();
   const { resolvedTheme } = useTheme();
   const [data, setData] = useState<any>(null);
@@ -284,6 +285,45 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* Multi-Branch Scope Banner */}
+      {data?.activeBranchName ? (
+        <div className="rounded-xl border border-emerald-300/80 bg-emerald-50/90 px-4 py-2.5 text-xs text-emerald-950 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 shadow-xs">
+          <div className="flex items-center gap-2">
+            <Store className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+            <span>
+              Viewing Branch: <strong className="font-bold text-emerald-900 dark:text-emerald-100">{data.activeBranchName}</strong> (صرف اس برانچ کا ڈیٹا ظاہر ہے)
+            </span>
+          </div>
+          {!isBranchLocked && (
+            <button
+              onClick={() => switchBranch(null)}
+              className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 hover:text-emerald-900 dark:text-emerald-300 dark:hover:text-emerald-100 underline self-start sm:self-auto"
+            >
+              <span>Switch to All Branches (مجموعی کھاتہ دیکھیں)</span>
+              <ArrowRight className="h-3 w-3" />
+            </button>
+          )}
+        </div>
+      ) : data?.branchesCount && data.branchesCount > 1 ? (
+        <div className="rounded-xl border border-indigo-200/80 bg-indigo-50/80 px-4 py-2.5 text-xs text-indigo-950 dark:border-indigo-800/80 dark:bg-indigo-950/40 dark:text-indigo-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 shadow-xs">
+          <div className="flex items-center gap-2">
+            <span className="text-sm">🌐</span>
+            <span>
+              <strong>All Branches View (مجموعی کھاتہ):</strong> Showing consolidated financials across all {data.branchesCount} sub-branches.
+            </span>
+          </div>
+          {(user?.role === "SUPER_ADMIN" || user?.role === "OWNER_ADMIN") && (
+            <Link
+              href="/branches"
+              className="inline-flex items-center gap-1 text-[11px] font-bold text-indigo-700 hover:text-indigo-900 dark:text-indigo-300 dark:hover:text-indigo-100 underline self-start sm:self-auto"
+            >
+              <span>Manage Branches (برانچز)</span>
+              <ArrowRight className="h-3 w-3" />
+            </Link>
+          )}
+        </div>
+      ) : null}
+
       {/* View Switcher / Tabs for Focused Clarity */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-200/80 dark:border-slate-800 pb-2.5">
         <div className="w-full sm:w-auto overflow-x-auto no-scrollbar scroll-smooth flex items-center gap-1 bg-slate-100/90 dark:bg-slate-900/80 p-1 rounded-xl shrink-0 border border-slate-200/60 dark:border-slate-800">
@@ -475,6 +515,102 @@ export default function DashboardPage() {
                 After COGS & Expenses
               </span>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Branch Performance Comparison Matrix (Consolidated Mode) */}
+      {showAccounting && data?.branchBreakdown && data.branchBreakdown.length > 0 && !data?.activeBranchId && (
+        <div className="rounded-2xl border border-slate-200/80 bg-white p-4 sm:p-5 shadow-xs dark:border-slate-800/90 dark:bg-[#111827]">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pb-3.5 border-b border-slate-100 dark:border-slate-800">
+            <div>
+              <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white font-sans flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                <span>Branch Performance Matrix (برانچ وائز تقابلی جائزہ)</span>
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                Real-time consolidated sales, purchases, operating expenses, and estimated net profit per branch
+              </p>
+            </div>
+            {(user?.role === "SUPER_ADMIN" || user?.role === "OWNER_ADMIN") && (
+              <Link
+                href="/branches"
+                className="text-xs font-bold text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 flex items-center gap-1 shrink-0"
+              >
+                <span>Manage Branches</span>
+                <ArrowRight className="h-3 w-3" />
+              </Link>
+            )}
+          </div>
+
+          <div className="overflow-x-auto mt-3">
+            <table className="w-full min-w-[720px] text-left text-xs border-collapse">
+              <thead>
+                <tr className="border-b border-slate-200/80 bg-slate-50/80 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-400">
+                  <th className="py-2.5 px-3">Branch Details</th>
+                  <th className="py-2.5 px-3">Manager / City</th>
+                  <th className="py-2.5 px-3">Gross Sales</th>
+                  <th className="py-2.5 px-3">Purchases</th>
+                  <th className="py-2.5 px-3">Expenses</th>
+                  <th className="py-2.5 px-3">Net Profit</th>
+                  <th className="py-2.5 px-3 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
+                {data.branchBreakdown.map((b: any) => (
+                  <tr key={b.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition">
+                    <td className="py-3 px-3">
+                      <div className="flex items-center gap-2.5">
+                        <div className="h-8 w-8 rounded-lg bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 flex items-center justify-center font-bold text-xs shrink-0">
+                          🏬
+                        </div>
+                        <div>
+                          <span className="font-bold text-slate-900 dark:text-white block">{b.name}</span>
+                          <span className="font-mono text-[10px] text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">
+                            {b.code}
+                          </span>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="py-3 px-3 text-slate-600 dark:text-slate-400">
+                      <div className="text-xs font-semibold text-slate-800 dark:text-slate-200">{b.managerName || "Staff"}</div>
+                      <div className="text-[10px] text-slate-400">{b.city || "Pakistan"}</div>
+                    </td>
+                    <td className="py-3 px-3 font-mono font-bold text-slate-900 dark:text-white">
+                      <div>Rs {Number(b.totalSales || 0).toLocaleString()}</div>
+                      <div className="text-[10px] text-indigo-600 dark:text-indigo-400 font-sans font-medium">
+                        {b.salesSharePercent}% of total
+                      </div>
+                    </td>
+                    <td className="py-3 px-3 font-mono text-slate-700 dark:text-slate-300">
+                      Rs {Number(b.totalPurchases || 0).toLocaleString()}
+                    </td>
+                    <td className="py-3 px-3 font-mono text-rose-600 dark:text-rose-400">
+                      Rs {Number(b.totalExpenses || 0).toLocaleString()}
+                    </td>
+                    <td className="py-3 px-3 font-mono font-bold">
+                      <span
+                        className={`inline-block px-2 py-0.5 rounded-md text-xs ${
+                          b.netProfit >= 0
+                            ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300"
+                            : "bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300"
+                        }`}
+                      >
+                        Rs {Number(b.netProfit || 0).toLocaleString()}
+                      </span>
+                    </td>
+                    <td className="py-3 px-3 text-right">
+                      <button
+                        onClick={() => switchBranch(b.id)}
+                        className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 hover:border-emerald-500 transition shadow-2xs"
+                      >
+                        Inspect Branch &rarr;
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       )}
