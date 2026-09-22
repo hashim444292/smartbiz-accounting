@@ -8,6 +8,9 @@ import {
   storeAddExpense,
   storeUpdateExpense,
   storeDeleteExpense,
+  storeAddPayment,
+  storeTransferFunds,
+  storeAdjustStock,
   storeGetAuditLogs,
 } from "@/lib/fallbackStore";
 
@@ -255,5 +258,159 @@ describe("User Activity Tracking, Edit Detection & Audit Trail System", () => {
     const parsedChanges = JSON.parse(firstUpdate.changes || "{}");
     expect(parsedChanges.previous).toBeDefined();
     expect(parsedChanges.updated).toBeDefined();
+  });
+
+  it("7. Customer Payment Receipt: records who received cash, branch, and generates CUSTOMER_PAYMENT audit log", () => {
+    const payment = storeAddPayment(
+      {
+        businessId: "biz-101",
+        type: "IN",
+        customerId: "cust-1",
+        amount: 25000,
+        paymentMethod: "CASH",
+        branchId: "branch-101-1",
+        notes: "Advance recovery for invoice #1002",
+      },
+      {
+        userId: "usr-cashier-1",
+        name: "Bilal Cashier",
+        email: "bilal@hanifmobile.pk",
+      }
+    );
+
+    expect(payment).toBeDefined();
+    expect(payment.createdById).toBe("usr-cashier-1");
+    expect(payment.createdByName).toBe("Bilal Cashier");
+    expect(payment.branchId).toBe("branch-101-1");
+    expect(payment.amount).toBe(25000);
+    expect(payment.type).toBe("IN");
+
+    // Verify audit log entry
+    const auditLogs = storeGetAuditLogs("biz-101", { entity: "Payment", action: "CUSTOMER_PAYMENT" });
+    const log = auditLogs.find((l) => l.entityId === payment.id);
+    expect(log).toBeDefined();
+    expect(log?.userName).toBe("Bilal Cashier");
+    expect(log?.userId).toBe("usr-cashier-1");
+    expect(log?.branchId).toBe("branch-101-1");
+    expect(log?.details).toContain("Received Rs 25,000");
+  });
+
+  it("8. Supplier Payment Disbursement: records who paid supplier, branch, and generates SUPPLIER_PAYMENT audit log", () => {
+    const payment = storeAddPayment(
+      {
+        businessId: "biz-101",
+        type: "OUT",
+        supplierId: "sup-1",
+        amount: 50000,
+        paymentMethod: "BANK",
+        branchId: "branch-101-2",
+        notes: "Cheque disbursement for raw mobile accessories",
+      },
+      {
+        userId: "usr-finance-mgr",
+        name: "Kamran Ali",
+        email: "kamran@hanifmobile.pk",
+      }
+    );
+
+    expect(payment).toBeDefined();
+    expect(payment.createdById).toBe("usr-finance-mgr");
+    expect(payment.createdByName).toBe("Kamran Ali");
+    expect(payment.branchId).toBe("branch-101-2");
+    expect(payment.type).toBe("OUT");
+
+    // Verify audit log entry
+    const auditLogs = storeGetAuditLogs("biz-101", { entity: "Payment", action: "SUPPLIER_PAYMENT" });
+    const log = auditLogs.find((l) => l.entityId === payment.id);
+    expect(log).toBeDefined();
+    expect(log?.userName).toBe("Kamran Ali");
+    expect(log?.branchId).toBe("branch-101-2");
+    expect(log?.details).toContain("Disbursed Rs 50,000");
+  });
+
+  it("9. Fund Transfer: records who executed fund transfer between accounts and logs audit details", () => {
+    const sourceAcc = fallbackStore.cashBankAccounts[0];
+    const targetAcc = fallbackStore.cashBankAccounts[1];
+    const initialSourceBalance = sourceAcc.balance;
+    const initialTargetBalance = targetAcc.balance;
+    const transferAmount = 15000;
+
+    const transfer = storeTransferFunds(
+      {
+        businessId: "biz-101",
+        fromAccountId: sourceAcc.id,
+        toAccountId: targetAcc.id,
+        amount: transferAmount,
+        branchId: "branch-101-1",
+        notes: "Daily cash deposit to HBL Main Branch account",
+      },
+      {
+        userId: "usr-cashier-1",
+        name: "Bilal Cashier",
+        email: "bilal@hanifmobile.pk",
+      }
+    );
+
+    expect(transfer).toBeDefined();
+    expect(transfer.createdById).toBe("usr-cashier-1");
+    expect(transfer.createdByName).toBe("Bilal Cashier");
+    expect(transfer.branchId).toBe("branch-101-1");
+    expect(transfer.type).toBe("TRANSFER");
+
+    // Balances updated correctly
+    expect(sourceAcc.balance).toBe(initialSourceBalance - transferAmount);
+    expect(targetAcc.balance).toBe(initialTargetBalance + transferAmount);
+
+    // Audit log
+    const auditLogs = storeGetAuditLogs("biz-101", { entity: "Payment", action: "FUNDS_TRANSFER" });
+    const log = auditLogs.find((l) => l.entityId === transfer.id);
+    expect(log).toBeDefined();
+    expect(log?.userName).toBe("Bilal Cashier");
+    expect(log?.branchId).toBe("branch-101-1");
+    expect(log?.details).toContain("Transferred Rs 15,000");
+  });
+
+  it("10. Stock Adjustment & Movement Accountability: records modifier, branch, and logs STOCK_ADJUSTMENT with diff", () => {
+    const product = fallbackStore.products[0];
+    const oldStock = product.currentStock;
+    const targetStock = oldStock + 5;
+
+    const result = storeAdjustStock(
+      {
+        businessId: "biz-101",
+        productId: product.id,
+        targetStock: targetStock,
+        reason: "PHYSICAL_COUNT",
+        notes: "Found extra unopened carton in warehouse back shelf",
+        branchId: "branch-101-1",
+      },
+      {
+        userId: "usr-owner-1",
+        name: "Muhammad Hanif",
+        email: "hanif@hanifmobile.pk",
+      }
+    );
+
+    expect(result).toBeDefined();
+    expect(result.product.currentStock).toBe(targetStock);
+    expect(result.adjustmentQuantity).toBe(5);
+
+    // Verify inventory transaction record
+    expect(result.transaction.createdById).toBe("usr-owner-1");
+    expect(result.transaction.createdByName).toBe("Muhammad Hanif");
+    expect(result.transaction.branchId).toBe("branch-101-1");
+
+    // Verify audit log with before/after diffs
+    const auditLogs = storeGetAuditLogs("biz-101", { entity: "Product", action: "STOCK_ADJUSTMENT" });
+    const log = auditLogs.find((l) => l.entityId === product.id);
+    expect(log).toBeDefined();
+    expect(log?.userName).toBe("Muhammad Hanif");
+    expect(log?.branchId).toBe("branch-101-1");
+    expect(log?.details).toContain(`from ${oldStock} to ${targetStock}`);
+
+    const changes = JSON.parse(log?.changes || "{}");
+    expect(changes.previous.stock).toBe(oldStock);
+    expect(changes.updated.stock).toBe(targetStock);
+    expect(changes.updated.reason).toBe("PHYSICAL_COUNT");
   });
 });

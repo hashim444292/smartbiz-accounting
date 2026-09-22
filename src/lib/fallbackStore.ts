@@ -1816,6 +1816,30 @@ function initializeState(): StoreState {
       e.branchName = idx % 2 === 0 ? "Saddar Main Branch" : "Gulshan Outlet";
     }
   });
+  payments.forEach((p: any, idx) => {
+    if (p.businessId === "biz-101") {
+      p.branchId = idx % 2 === 0 ? "br-101-1" : "br-101-2";
+      p.branchName = idx % 2 === 0 ? "Saddar Main Branch" : "Gulshan Outlet";
+      p.createdById = idx % 2 === 0 ? "usr-4" : "usr-7";
+      p.createdByName = idx % 2 === 0 ? "Bilal Cashier" : "Kamran Ali";
+    } else {
+      p.branchName = "Main Branch / Head Office";
+      p.createdById = "usr-1";
+      p.createdByName = "System Super Admin";
+    }
+  });
+  inventoryTransactions.forEach((itx: any, idx) => {
+    if (itx.businessId === "biz-101") {
+      itx.branchId = idx % 2 === 0 ? "br-101-1" : "br-101-2";
+      itx.branchName = idx % 2 === 0 ? "Saddar Main Branch" : "Gulshan Outlet";
+      itx.createdById = idx % 2 === 0 ? "usr-4" : "usr-7";
+      itx.createdByName = idx % 2 === 0 ? "Bilal Cashier" : "Kamran Ali";
+    } else {
+      itx.branchName = "Main Warehouse";
+      itx.createdById = "usr-1";
+      itx.createdByName = "System Super Admin";
+    }
+  });
 
   // 17. Users & Multi-Tenant Company Assignment with Branch Locks
   const users = [
@@ -1994,6 +2018,36 @@ function initializeState(): StoreState {
       entityId: "exp-101-1",
       details: "Recorded utility expense voucher - Rs 25,000",
       createdAt: yesterday.toISOString(),
+    },
+    {
+      id: "audit-seed-4",
+      businessId: "biz-101",
+      userId: "usr-4",
+      userName: "Bilal Cashier",
+      userEmail: "bilal@hanifmobile.pk",
+      branchId: "br-101-1",
+      action: "CUSTOMER_PAYMENT",
+      entity: "Payment",
+      entityId: "pay-101-1",
+      details: "Received Customer Payment from Saddar Mobile Zone - Rs 200,000 into HBL Saddar (Branch: Saddar Main Branch)",
+      createdAt: yesterday.toISOString(),
+    },
+    {
+      id: "audit-seed-5",
+      businessId: "biz-101",
+      userId: "usr-2",
+      userName: "Muhammad Hanif",
+      userEmail: "hanif@mobile.com",
+      branchId: "br-101-1",
+      action: "STOCK_ADJUSTMENT",
+      entity: "Product",
+      entityId: "prod-101-1",
+      details: 'Adjusted stock for "iPhone 15 Pro Max 256GB" from 25 to 24 (-1). Reason: PHYSICAL_COUNT. Notes: Physical shelf verification count (Branch: Saddar Main Branch)',
+      changes: JSON.stringify({
+        previous: { stock: 25 },
+        updated: { stock: 24, reason: "PHYSICAL_COUNT", notes: "Physical shelf verification count" },
+      }),
+      createdAt: twoDaysAgo.toISOString(),
     },
   ];
 
@@ -3034,5 +3088,280 @@ export function storeGetAuditLogs(businessId: string, filters?: { entity?: strin
   }
 
   return logs;
+}
+
+export function storeAddPayment(
+  data: any,
+  sessionUser?: { userId?: string; name?: string; email?: string }
+) {
+  const businessId = data.businessId;
+  const amt = Number(data.amount || 0);
+  const isReceipt = data.type === "RECEIPT" || data.type === "IN";
+
+  let partyName = data.partyName || "";
+  let targetCustId = data.customerId;
+
+  if (isReceipt) {
+    if (data.saleId && !targetCustId) {
+      const matchedSale = fallbackStore.sales.find((s) => s.id === data.saleId && s.businessId === businessId);
+      if (matchedSale) targetCustId = matchedSale.customerId;
+    }
+
+    if (targetCustId) {
+      const cust = fallbackStore.customers.find((c) => c.id === targetCustId && c.businessId === businessId);
+      if (cust) {
+        cust.currentBalance = Math.max(0, cust.currentBalance - amt);
+        partyName = cust.name;
+      }
+    }
+
+    // Allocate cash across sales
+    let cashToAllocate = amt;
+    if (data.saleId) {
+      const s = fallbackStore.sales.find((sale) => sale.id === data.saleId && sale.businessId === businessId);
+      if (s) {
+        const rem = Number(s.remainingAmount !== undefined ? s.remainingAmount : (Number(s.totalAmount) - Number(s.paidAmount || 0)));
+        const payThis = Math.min(cashToAllocate, rem);
+        s.paidAmount = Number(s.paidAmount || 0) + payThis;
+        s.remainingAmount = Math.max(0, rem - payThis);
+        s.paymentStatus = s.remainingAmount === 0 ? "PAID" : "PARTIAL";
+        cashToAllocate -= payThis;
+      }
+    } else if (data.allocations && data.allocations.length > 0) {
+      for (const alloc of data.allocations) {
+        const s = fallbackStore.sales.find((sale) => sale.id === alloc.saleId && sale.businessId === businessId);
+        if (s) {
+          const a = Number(alloc.amount || 0);
+          s.paidAmount = Number(s.paidAmount || 0) + a;
+          s.remainingAmount = Math.max(0, Number(s.remainingAmount || 0) - a);
+          s.paymentStatus = s.remainingAmount === 0 ? "PAID" : "PARTIAL";
+        }
+      }
+    } else if (targetCustId) {
+      const customerPendingSales = fallbackStore.sales
+        .filter((s) => s.customerId === targetCustId && s.businessId === businessId && s.paymentStatus !== "PAID")
+        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+      for (const s of customerPendingSales) {
+        if (cashToAllocate <= 0) break;
+        const rem = Number(s.remainingAmount !== undefined ? s.remainingAmount : (Number(s.totalAmount) - Number(s.paidAmount || 0)));
+        if (rem <= 0) continue;
+        const payThis = Math.min(cashToAllocate, rem);
+        s.paidAmount = Number(s.paidAmount || 0) + payThis;
+        s.remainingAmount = Math.max(0, rem - payThis);
+        s.paymentStatus = s.remainingAmount === 0 ? "PAID" : "PARTIAL";
+        cashToAllocate -= payThis;
+      }
+    }
+  } else if (!isReceipt && data.supplierId) {
+    const sup = fallbackStore.suppliers.find((s) => s.id === data.supplierId && s.businessId === businessId);
+    if (sup) {
+      sup.currentBalance = Math.max(0, sup.currentBalance - amt);
+      partyName = sup.name;
+    }
+  }
+
+  // Adjust Cash/Bank account balance
+  const isBank = data.paymentMethod === "BANK";
+  let targetAccountName = "Cash";
+  if (data.accountId) {
+    const acc = fallbackStore.cashBankAccounts.find((a) => a.id === data.accountId);
+    if (acc) {
+      if (isReceipt) acc.balance += amt;
+      else acc.balance -= amt;
+      targetAccountName = acc.name;
+    }
+  } else {
+    const acc = fallbackStore.cashBankAccounts.find(
+      (a) => a.businessId === businessId && (isBank ? a.type === "BANK" : a.type === "CASH")
+    );
+    if (acc) {
+      if (isReceipt) acc.balance += amt;
+      else acc.balance -= amt;
+      targetAccountName = acc.name;
+    }
+  }
+
+  // Resolve branch info
+  let branchName = data.branchName || null;
+  if (!branchName && data.branchId) {
+    const b = fallbackStore.branches.find((br) => br.id === data.branchId);
+    if (b) branchName = b.name;
+  }
+
+  const createdById = sessionUser?.userId || data.createdById || "usr-2";
+  const createdByName = sessionUser?.name || data.createdByName || "Muhammad Hanif";
+
+  const newPayment = {
+    id: data.id || `pay-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+    businessId,
+    branchId: data.branchId || null,
+    branchName,
+    type: data.type,
+    date: data.date || new Date().toISOString(),
+    partyName: partyName || (isReceipt ? "Customer" : "Supplier"),
+    customerId: targetCustId,
+    supplierId: data.supplierId,
+    amount: amt,
+    paymentMethod: data.paymentMethod || "CASH",
+    referenceNumber: data.referenceNumber || `REF-${Date.now().toString().slice(-6)}`,
+    notes: data.notes,
+    createdById,
+    createdByName,
+    account: { name: targetAccountName },
+  };
+
+  fallbackStore.payments.unshift(newPayment);
+
+  // Audit Log
+  if (!fallbackStore.auditLogs) fallbackStore.auditLogs = [];
+  fallbackStore.auditLogs.unshift({
+    id: `audit-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+    businessId,
+    userId: createdById,
+    userName: createdByName,
+    userEmail: sessionUser?.email,
+    branchId: newPayment.branchId,
+    action: isReceipt ? "CUSTOMER_PAYMENT" : "SUPPLIER_PAYMENT",
+    entity: "Payment",
+    entityId: newPayment.id,
+    details: isReceipt
+      ? `Received Rs ${amt.toLocaleString()} from ${newPayment.partyName} into ${targetAccountName}${branchName ? ` (${branchName})` : ""}`
+      : `Disbursed Rs ${amt.toLocaleString()} to ${newPayment.partyName} from ${targetAccountName}${branchName ? ` (${branchName})` : ""}`,
+    createdAt: new Date().toISOString(),
+  });
+
+  return newPayment;
+}
+
+export function storeTransferFunds(
+  data: any,
+  sessionUser?: { userId?: string; name?: string; email?: string }
+) {
+  const amt = Number(data.amount || 0);
+  const fromAcc = fallbackStore.cashBankAccounts.find((a) => a.id === data.fromAccountId);
+  const toAcc = fallbackStore.cashBankAccounts.find((a) => a.id === data.toAccountId);
+
+  if (fromAcc && fromAcc.balance < amt) {
+    throw new Error("Insufficient funds in source account.");
+  }
+
+  if (fromAcc) fromAcc.balance -= amt;
+  if (toAcc) toAcc.balance += amt;
+
+  let branchName = data.branchName || null;
+  if (!branchName && data.branchId) {
+    const b = fallbackStore.branches.find((br) => br.id === data.branchId);
+    if (b) branchName = b.name;
+  }
+
+  const createdById = sessionUser?.userId || data.createdById || "usr-2";
+  const createdByName = sessionUser?.name || data.createdByName || "Muhammad Hanif";
+
+  const newTransfer = {
+    id: data.id || `transfer-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+    businessId: data.businessId,
+    branchId: data.branchId || null,
+    branchName,
+    type: "TRANSFER",
+    amount: amt,
+    fromAccountId: data.fromAccountId,
+    toAccountId: data.toAccountId,
+    account: fromAcc ? { name: fromAcc.name } : { name: "Source Account" },
+    targetAccount: toAcc ? { name: toAcc.name } : { name: "Target Account" },
+    partyName: `Transfer: ${fromAcc?.name || "Account"} -> ${toAcc?.name || "Account"}`,
+    referenceNumber: data.referenceNumber || `TRF-${Date.now().toString().slice(-6)}`,
+    notes: data.notes,
+    date: data.date || new Date().toISOString(),
+    createdById,
+    createdByName,
+  };
+
+  fallbackStore.payments.unshift(newTransfer);
+
+  if (!fallbackStore.auditLogs) fallbackStore.auditLogs = [];
+  fallbackStore.auditLogs.unshift({
+    id: `audit-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+    businessId: data.businessId,
+    userId: createdById,
+    userName: createdByName,
+    userEmail: sessionUser?.email,
+    branchId: newTransfer.branchId,
+    action: "FUNDS_TRANSFER",
+    entity: "Payment",
+    entityId: newTransfer.id,
+    details: `Transferred Rs ${amt.toLocaleString()} from ${fromAcc?.name || "Source"} to ${toAcc?.name || "Destination"}${branchName ? ` (${branchName})` : ""}`,
+    createdAt: new Date().toISOString(),
+  });
+
+  return newTransfer;
+}
+
+export function storeAdjustStock(
+  data: any,
+  sessionUser?: { userId?: string; name?: string; email?: string }
+) {
+  const prod = fallbackStore.products.find((p) => p.id === data.productId);
+  if (!prod) throw new Error("Product not found");
+
+  const prev = Number(prod.currentStock || 0);
+  const target = Number(data.targetStock);
+  const diff = target - prev;
+  prod.currentStock = target;
+
+  let branchName = data.branchName || null;
+  if (!branchName && data.branchId) {
+    const b = fallbackStore.branches.find((br) => br.id === data.branchId);
+    if (b) branchName = b.name;
+  }
+
+  const createdById = sessionUser?.userId || data.createdById || "usr-2";
+  const createdByName = sessionUser?.name || data.createdByName || "Muhammad Hanif";
+
+  const txRecord = {
+    id: data.id || `itx-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+    businessId: data.businessId || prod.businessId,
+    branchId: data.branchId || null,
+    branchName,
+    productId: prod.id,
+    product: { name: prod.name },
+    type: "ADJUSTMENT",
+    quantity: diff,
+    unitCost: Number(prod.averageCost || 0),
+    totalCost: Math.abs(diff) * Number(prod.averageCost || 0),
+    date: data.date || new Date().toISOString(),
+    reason: data.reason || "PHYSICAL_COUNT",
+    notes: `Adjustment (${data.reason || "PHYSICAL_COUNT"}): ${prev} -> ${target}.${data.notes ? ` ${data.notes}` : ""}`,
+    createdById,
+    createdByName,
+  };
+
+  fallbackStore.inventoryTransactions.unshift(txRecord);
+
+  if (!fallbackStore.auditLogs) fallbackStore.auditLogs = [];
+  fallbackStore.auditLogs.unshift({
+    id: `audit-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+    businessId: data.businessId || prod.businessId,
+    userId: createdById,
+    userName: createdByName,
+    userEmail: sessionUser?.email,
+    branchId: data.branchId || null,
+    action: "STOCK_ADJUSTMENT",
+    entity: "Product",
+    entityId: prod.id,
+    details: `Adjusted stock for "${prod.name}" from ${prev} to ${target} (${diff > 0 ? "+" : ""}${diff}). Reason: ${data.reason || "PHYSICAL_COUNT"}.${data.notes ? ` Notes: ${data.notes}` : ""}${branchName ? ` [Branch: ${branchName}]` : ""}`,
+    changes: JSON.stringify({
+      previous: { stock: prev },
+      updated: { stock: target, reason: data.reason || "PHYSICAL_COUNT", notes: data.notes || null },
+    }),
+    createdAt: new Date().toISOString(),
+  });
+
+  return {
+    product: prod,
+    adjustmentQuantity: diff,
+    newStock: target,
+    transaction: txRecord,
+  };
 }
 

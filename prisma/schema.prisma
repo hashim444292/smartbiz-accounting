@@ -243,10 +243,13 @@ model Branch {
   updatedAt   DateTime  @updatedAt
 
   business    Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  sales       Sale[]
-  purchases   Purchase[]
-  expenses    Expense[]
-  users       User[]
+  sales               Sale[]
+  purchases           Purchase[]
+  expenses            Expense[]
+  payments            Payment[]
+  inventoryTxns       InventoryTransaction[]
+  stockAdjustments    StockAdjustment[]
+  users               User[]
 
   @@unique([businessId, code])
   @@index([businessId])
@@ -323,27 +326,32 @@ model InventoryTransaction {
   referenceType String?
   referenceId   String?
   notes         String?
+  createdById   String?
+  createdByName String?
   date          DateTime        @default(now())
   createdAt     DateTime        @default(now())
 
   business      Business        @relation(fields: [businessId], references: [id], onDelete: Cascade)
   product       Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  branch        Branch?         @relation(fields: [branchId], references: [id], onDelete: SetNull)
 
   @@index([businessId, productId, date])
   @@index([businessId, branchId])
 }
 
 model StockAdjustment {
-  id          String           @id @default(uuid())
-  businessId  String
-  branchId    String?
-  date        DateTime         @default(now())
-  reason      AdjustmentReason @default(PHYSICAL_COUNT)
-  notes       String?
-  createdById String?
-  createdAt   DateTime         @default(now())
+  id            String           @id @default(uuid())
+  businessId    String
+  branchId      String?
+  date          DateTime         @default(now())
+  reason        AdjustmentReason @default(PHYSICAL_COUNT)
+  notes         String?
+  createdById   String?
+  createdByName String?
+  createdAt     DateTime         @default(now())
 
-  business    Business         @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  business      Business         @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  branch        Branch?          @relation(fields: [branchId], references: [id], onDelete: SetNull)
 
   @@index([businessId, branchId])
 }
@@ -484,9 +492,11 @@ model Payment {
   notes           String?
   attachmentUrl   String?
   createdById     String?
+  createdByName   String?
   createdAt       DateTime            @default(now())
 
   business        Business            @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  branch          Branch?             @relation(fields: [branchId], references: [id], onDelete: SetNull)
   customer        Customer?           @relation(fields: [customerId], references: [id], onDelete: SetNull)
   supplier        Supplier?           @relation(fields: [supplierId], references: [id], onDelete: SetNull)
   account         CashBankAccount?    @relation("SourceAccount", fields: [accountId], references: [id], onDelete: SetNull)

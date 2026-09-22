@@ -5,6 +5,7 @@ import { createJournalEntry, assertPeriodOpen } from "./accountingService";
 
 export interface RecordCustomerPaymentInput {
   businessId: string;
+  branchId?: string;
   customerId: string;
   amount: Decimal.Value;
   paymentMethod?: string;
@@ -14,11 +15,13 @@ export interface RecordCustomerPaymentInput {
   saleId?: string;
   allocations?: Array<{ saleId: string; amount: Decimal.Value }>;
   createdById?: string;
+  createdByName?: string;
   date?: Date;
 }
 
 export interface RecordSupplierPaymentInput {
   businessId: string;
+  branchId?: string;
   supplierId: string;
   amount: Decimal.Value;
   paymentMethod?: string;
@@ -27,17 +30,20 @@ export interface RecordSupplierPaymentInput {
   notes?: string;
   allocations?: Array<{ purchaseId: string; amount: Decimal.Value }>;
   createdById?: string;
+  createdByName?: string;
   date?: Date;
 }
 
 export interface TransferFundsInput {
   businessId: string;
+  branchId?: string;
   fromAccountId: string;
   toAccountId: string;
   amount: Decimal.Value;
   notes?: string;
   referenceNumber?: string;
   createdById?: string;
+  createdByName?: string;
   date?: Date;
 }
 
@@ -65,6 +71,7 @@ export async function recordCustomerPayment(input: RecordCustomerPaymentInput) {
     const payment = await tx.payment.create({
       data: {
         businessId,
+        branchId: input.branchId || null,
         type: "RECEIPT",
         date,
         partyType: "CUSTOMER",
@@ -76,6 +83,7 @@ export async function recordCustomerPayment(input: RecordCustomerPaymentInput) {
         referenceNumber,
         notes,
         createdById,
+        createdByName: input.createdByName || null,
       },
     });
 
@@ -203,6 +211,8 @@ export async function recordCustomerPayment(input: RecordCustomerPaymentInput) {
       data: {
         businessId,
         userId: createdById || null,
+        userName: input.createdByName || null,
+        branchId: input.branchId || null,
         action: "CUSTOMER_PAYMENT",
         entity: "Payment",
         entityId: payment.id,
@@ -210,6 +220,7 @@ export async function recordCustomerPayment(input: RecordCustomerPaymentInput) {
           customerName: customer.name,
           amount: paymentAmount.toString(),
           accountName: bankAccount.name,
+          referenceNumber: referenceNumber || null,
         }),
       },
     });
@@ -242,6 +253,7 @@ export async function recordSupplierPayment(input: RecordSupplierPaymentInput) {
     const payment = await tx.payment.create({
       data: {
         businessId,
+        branchId: input.branchId || null,
         type: "DISBURSEMENT",
         date,
         partyType: "SUPPLIER",
@@ -253,6 +265,7 @@ export async function recordSupplierPayment(input: RecordSupplierPaymentInput) {
         referenceNumber,
         notes,
         createdById,
+        createdByName: input.createdByName || null,
       },
     });
 
@@ -350,6 +363,8 @@ export async function recordSupplierPayment(input: RecordSupplierPaymentInput) {
       data: {
         businessId,
         userId: createdById || null,
+        userName: input.createdByName || null,
+        branchId: input.branchId || null,
         action: "SUPPLIER_PAYMENT",
         entity: "Payment",
         entityId: payment.id,
@@ -357,6 +372,7 @@ export async function recordSupplierPayment(input: RecordSupplierPaymentInput) {
           supplierName: supplier.name,
           amount: paymentAmount.toString(),
           accountName: bankAccount.name,
+          referenceNumber: referenceNumber || null,
         }),
       },
     });
@@ -406,6 +422,7 @@ export async function transferFunds(input: TransferFundsInput) {
     const payment = await tx.payment.create({
       data: {
         businessId,
+        branchId: input.branchId || null,
         type: "TRANSFER",
         date,
         partyType: "OTHER",
@@ -417,6 +434,7 @@ export async function transferFunds(input: TransferFundsInput) {
         referenceNumber,
         notes,
         createdById,
+        createdByName: input.createdByName || null,
       },
     });
 
@@ -442,6 +460,25 @@ export async function transferFunds(input: TransferFundsInput) {
           description: `Transfer out of ${fromAcc.name}`,
         },
       ],
+    });
+
+    // Audit Log for Funds Transfer
+    await tx.auditLog.create({
+      data: {
+        businessId,
+        userId: createdById || null,
+        userName: input.createdByName || null,
+        branchId: input.branchId || null,
+        action: "FUNDS_TRANSFER",
+        entity: "Payment",
+        entityId: payment.id,
+        details: JSON.stringify({
+          fromAccount: fromAcc.name,
+          toAccount: toAcc.name,
+          amount: amount.toString(),
+          referenceNumber: referenceNumber || null,
+        }),
+      },
     });
 
     return payment;

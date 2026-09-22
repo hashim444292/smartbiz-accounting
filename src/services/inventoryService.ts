@@ -16,6 +16,7 @@ export async function recordStockMovement(
   tx: Prisma.TransactionClient,
   params: {
     businessId: string;
+    branchId?: string;
     productId: string;
     type: InventoryTxType;
     quantity: Decimal.Value;
@@ -23,6 +24,8 @@ export async function recordStockMovement(
     referenceType?: string;
     referenceId?: string;
     notes?: string;
+    createdById?: string;
+    createdByName?: string;
     date?: Date;
   }
 ) {
@@ -79,6 +82,7 @@ export async function recordStockMovement(
     data: {
       businessId,
       productId,
+      branchId: params.branchId,
       type,
       quantity: qty.toNumber(),
       unitCost: movementUnitCost.toNumber(),
@@ -86,6 +90,8 @@ export async function recordStockMovement(
       referenceType,
       referenceId,
       notes,
+      createdById: params.createdById,
+      createdByName: params.createdByName,
       date,
     },
   });
@@ -149,15 +155,17 @@ export async function performStockAdjustment(
   tx: Prisma.TransactionClient,
   params: {
     businessId: string;
+    branchId?: string;
     productId: string;
     targetStock: Decimal.Value;
     reason: AdjustmentReason;
     notes?: string;
     createdById?: string;
+    createdByName?: string;
     date?: Date;
   }
 ) {
-  const { businessId, productId, reason, notes, createdById } = params;
+  const { businessId, branchId, productId, reason, notes, createdById, createdByName } = params;
   const date = params.date || new Date();
   const target = round4(params.targetStock);
 
@@ -179,9 +187,11 @@ export async function performStockAdjustment(
   const adjustmentRecord = await tx.stockAdjustment.create({
     data: {
       businessId,
+      branchId: branchId || null,
       reason,
       notes: notes || `Stock adjusted from ${current} to ${target}. Diff: ${diff}`,
-      createdById,
+      createdById: createdById || null,
+      createdByName: createdByName || null,
       date,
     },
   });
@@ -190,6 +200,7 @@ export async function performStockAdjustment(
     // Stock Increase
     await recordStockMovement(tx, {
       businessId,
+      branchId,
       productId,
       type: "STOCK_IN",
       quantity: diff,
@@ -197,6 +208,8 @@ export async function performStockAdjustment(
       referenceType: "ADJUSTMENT",
       referenceId: adjustmentRecord.id,
       notes: `Adjustment gain (${reason}): ${notes || ""}`,
+      createdById,
+      createdByName,
       date,
     });
 
@@ -219,6 +232,7 @@ export async function performStockAdjustment(
     // Stock Decrease (Shrinkage, Damage, Loss)
     await recordStockMovement(tx, {
       businessId,
+      branchId,
       productId,
       type: reason === "DAMAGE" ? "DAMAGE" : "STOCK_OUT",
       quantity: absDiff,
@@ -226,6 +240,8 @@ export async function performStockAdjustment(
       referenceType: "ADJUSTMENT",
       referenceId: adjustmentRecord.id,
       notes: `Adjustment loss (${reason}): ${notes || ""}`,
+      createdById,
+      createdByName,
       date,
     });
 
@@ -245,6 +261,25 @@ export async function performStockAdjustment(
       });
     }
   }
+
+  // Audit Log for Stock Adjustment
+  await tx.auditLog.create({
+    data: {
+      businessId,
+      userId: createdById || null,
+      userName: createdByName || null,
+      branchId: branchId || null,
+      action: "STOCK_ADJUSTMENT",
+      entity: "Product",
+      entityId: productId,
+      details: `Stock Adjusted for "${product.name}" (${current} -> ${target}, diff: ${diff.gt(0) ? "+" : ""}${diff}). Reason: ${reason}.${notes ? ` Notes: ${notes}` : ""}`,
+      changes: JSON.stringify({
+        previous: { stock: current.toNumber() },
+        updated: { stock: target.toNumber(), reason, notes: notes || null },
+      }),
+      createdAt: date,
+    },
+  });
 
   return { status: "ADJUSTED", previousStock: current, newStock: target, diff };
 }
