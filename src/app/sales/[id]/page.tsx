@@ -18,11 +18,18 @@ export default function SaleDetailPage() {
   useEffect(() => {
     async function fetchSale() {
       try {
-        const res = await fetch(`/api/sales`);
+        const res = await fetch(`/api/sales/${params.id}`);
         const json = await res.json();
         if (json.success) {
-          const found = json.data.find((s: any) => s.id === params.id);
-          setSale(found);
+          setSale(json.data);
+        } else {
+          // fallback to list
+          const listRes = await fetch(`/api/sales`);
+          const listJson = await listRes.json();
+          if (listJson.success) {
+            const found = listJson.data.find((s: any) => s.id === params.id);
+            setSale(found);
+          }
         }
       } catch (err) {
         console.error(err);
@@ -69,6 +76,33 @@ export default function SaleDetailPage() {
         </div>
       </div>
 
+      {/* Edited Warning Banner */}
+      {sale.isEdited && (
+        <div className="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-xs text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200 shadow-xs">
+          <div className="flex items-start gap-3">
+            <span className="text-xl">⚠️</span>
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-sm text-amber-950 dark:text-amber-100">
+                  Edited Invoice Notice (ترمیم شدہ انوائس)
+                </span>
+                <span className="rounded-md bg-amber-200/80 px-2 py-0.5 text-[10px] font-bold text-amber-900 dark:bg-amber-900/80 dark:text-amber-200">
+                  Edited {sale.editCount || 1} time{sale.editCount > 1 ? "s" : ""}
+                </span>
+              </div>
+              <p className="text-amber-800 dark:text-amber-300">
+                This invoice was modified after initial issuance. <strong>Last edited by:</strong> {sale.updatedByName || "Staff"} on {sale.updatedAt ? new Date(sale.updatedAt).toLocaleString() : "Recently"}.
+              </p>
+              {sale.editReason && (
+                <p className="rounded-lg bg-amber-100/70 p-2 text-xs italic text-amber-900 dark:bg-amber-900/40 dark:text-amber-200">
+                  <strong>Reason for modification:</strong> &ldquo;{sale.editReason}&rdquo;
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Invoice Document Box */}
       <div className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm dark:border-slate-800 dark:bg-slate-900 print:border-none print:shadow-none print:p-0">
         {/* Header */}
@@ -80,9 +114,16 @@ export default function SaleDetailPage() {
             <p className="text-[11px] text-slate-500">Phone: +92 300 1234567</p>
           </div>
           <div className="text-right">
-            <span className="rounded-lg bg-blue-50 px-2.5 py-1 text-xs font-bold text-blue-700 dark:bg-blue-950 dark:text-blue-300">
-              SALE INVOICE
-            </span>
+            <div className="flex items-center justify-end gap-1.5 flex-wrap">
+              <span className="rounded-lg bg-blue-50 px-2.5 py-1 text-xs font-bold text-blue-700 dark:bg-blue-950 dark:text-blue-300">
+                SALE INVOICE
+              </span>
+              {sale.isEdited && (
+                <span className="rounded-lg bg-amber-100 px-2 py-1 text-xs font-bold text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+                  ✏️ EDITED
+                </span>
+              )}
+            </div>
             <p className="mt-2 text-base font-bold text-slate-900 dark:text-white">{sale.invoiceNumber}</p>
             <p className="text-xs text-slate-500">Date: {new Date(sale.date).toLocaleDateString()}</p>
             <div className="mt-1">
@@ -163,6 +204,43 @@ export default function SaleDetailPage() {
             {sale.notes}
           </div>
         )}
+
+        {/* User Attribution & Audit Trail Footer */}
+        <div className="mt-8 rounded-xl border border-slate-100 bg-slate-50/70 p-4 text-xs dark:border-slate-800 dark:bg-slate-800/40">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Generated / Created By:</p>
+              <p className="font-semibold text-slate-800 dark:text-slate-200 mt-0.5">
+                {sale.createdByName || "System Admin"}
+              </p>
+              <p className="text-[10px] text-slate-400">{new Date(sale.date).toLocaleString()}</p>
+            </div>
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Branch Location:</p>
+              <p className="font-semibold text-slate-800 dark:text-slate-200 mt-0.5">
+                {sale.branch?.name || "Main Branch"}
+              </p>
+              <p className="text-[10px] text-slate-400">Code: {sale.branch?.code || "HQ"}</p>
+            </div>
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Audit Status:</p>
+              <p className="font-semibold text-slate-800 dark:text-slate-200 mt-0.5 flex items-center gap-1">
+                {sale.isEdited ? (
+                  <span className="text-amber-600 font-bold">
+                    ✏️ Edited ({sale.editCount || 1}x)
+                  </span>
+                ) : (
+                  <span className="text-emerald-600 font-semibold">
+                    ✓ Original (Unmodified)
+                  </span>
+                )}
+              </p>
+              {sale.isEdited && sale.updatedByName && (
+                <p className="text-[10px] text-slate-500">By {sale.updatedByName}</p>
+              )}
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

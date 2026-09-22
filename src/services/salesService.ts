@@ -26,6 +26,7 @@ export interface CreateSaleInput {
   accountId?: string | null;
   notes?: string;
   createdById?: string;
+  createdByName?: string;
   customerPhone?: string;
   salesTax?: Decimal.Value;
   furtherTax?: Decimal.Value;
@@ -67,6 +68,7 @@ export async function createAndPostSale(input: CreateSaleInput) {
       accountId,
       notes,
       createdById,
+      createdByName,
     } = input;
 
     const date = input.date || new Date();
@@ -181,8 +183,8 @@ export async function createAndPostSale(input: CreateSaleInput) {
         status: "POSTED",
         fbrStatus: input.fbrStatus || "PENDING",
         fbrInvoiceNumber: fbrInvNumber,
-        fbrQrCode: fbrQr,
         createdById,
+        createdByName,
         items: {
           create: processedItems.map((pi) => ({
             productId: pi.productId,
@@ -374,6 +376,8 @@ export async function createAndPostSale(input: CreateSaleInput) {
       data: {
         businessId,
         userId: createdById || null,
+        userName: createdByName || null,
+        branchId: sale.branchId,
         action: "CREATE_SALE",
         entity: "Sale",
         entityId: sale.id,

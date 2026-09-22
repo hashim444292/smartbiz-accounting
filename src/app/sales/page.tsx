@@ -23,7 +23,11 @@ import {
   CheckCircle2,
   Clock,
   X,
+  Pencil,
+  User,
+  AlertCircle,
 } from "lucide-react";
+import { Modal } from "@/components/ui/modal";
 
 interface SaleRecord {
   id: string;
@@ -36,6 +40,15 @@ interface SaleRecord {
   paymentStatus: "PAID" | "PARTIAL" | "UNPAID";
   paymentMethod: string;
   status: "DRAFT" | "POSTED" | "CANCELLED";
+  createdById?: string;
+  createdByName?: string;
+  isEdited?: boolean;
+  editCount?: number;
+  updatedById?: string;
+  updatedByName?: string;
+  updatedAt?: string;
+  editReason?: string;
+  notes?: string;
   items: Array<{ productName: string; quantity: number; unitPrice: number; lineTotal: number }>;
 }
 
@@ -46,6 +59,15 @@ export default function SalesPage() {
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [dateFilter, setDateFilter] = useState<"ALL" | "TODAY" | "YESTERDAY" | "THIS_WEEK" | "THIS_MONTH" | "LAST_30_DAYS">("ALL");
   const [reversingId, setReversingId] = useState<string | null>(null);
+
+  // Edit Invoice State & User Tracking
+  const [editingSale, setEditingSale] = useState<SaleRecord | null>(null);
+  const [editCustomerName, setEditCustomerName] = useState("");
+  const [editPaymentStatus, setEditPaymentStatus] = useState<"PAID" | "PARTIAL" | "UNPAID">("PAID");
+  const [editPaidAmount, setEditPaidAmount] = useState<number>(0);
+  const [editNotes, setEditNotes] = useState("");
+  const [editReason, setEditReason] = useState("");
+  const [editSaving, setEditSaving] = useState(false);
 
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
@@ -92,6 +114,50 @@ export default function SalesPage() {
       alert(`Error: ${err.message}`);
     } finally {
       setReversingId(null);
+    }
+  };
+
+  const openEditModal = (sale: SaleRecord) => {
+    setEditingSale(sale);
+    setEditCustomerName(sale.customerName || "");
+    setEditPaymentStatus(sale.paymentStatus);
+    setEditPaidAmount(Number(sale.paidAmount || 0));
+    setEditNotes(sale.notes || "");
+    setEditReason("");
+  };
+
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingSale) return;
+    if (!editReason.trim()) {
+      alert("Please provide an edit reason (ترمیم کی وجہ درج کرنا لازمی ہے).");
+      return;
+    }
+    setEditSaving(true);
+    try {
+      const res = await fetch(`/api/sales/${editingSale.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          customerName: editCustomerName,
+          paidAmount: editPaidAmount,
+          paymentStatus: editPaymentStatus,
+          notes: editNotes,
+          editReason: editReason.trim(),
+        }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        alert("Invoice updated successfully. Audit trail recorded.");
+        setEditingSale(null);
+        fetchSales();
+      } else {
+        alert(json.error || "Failed to update sale invoice");
+      }
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setEditSaving(false);
     }
   };
 
@@ -377,6 +443,7 @@ export default function SalesPage() {
                 <th className="px-4 py-3">Invoice #</th>
                 <th className="px-4 py-3">Date</th>
                 <th className="px-4 py-3">Customer</th>
+                <th className="px-4 py-3">Created By (بنایا گیا)</th>
                 <th className="px-4 py-3 text-right">Total Amount</th>
                 <th className="px-4 py-3 text-right">Paid</th>
                 <th className="px-4 py-3 text-right">Balance</th>
@@ -392,6 +459,7 @@ export default function SalesPage() {
                     <td className="px-4 py-3.5"><div className="h-4 w-24 bg-slate-200 dark:bg-slate-800 rounded-md" /></td>
                     <td className="px-4 py-3.5"><div className="h-4 w-18 bg-slate-100 dark:bg-slate-800/60 rounded" /></td>
                     <td className="px-4 py-3.5"><div className="h-4 w-36 bg-slate-200 dark:bg-slate-800 rounded" /></td>
+                    <td className="px-4 py-3.5"><div className="h-4 w-28 bg-slate-200 dark:bg-slate-800 rounded" /></td>
                     <td className="px-4 py-3.5 text-right"><div className="h-4 w-20 bg-slate-200 dark:bg-slate-800 rounded ml-auto" /></td>
                     <td className="px-4 py-3.5 text-right"><div className="h-4 w-16 bg-slate-100 dark:bg-slate-800/60 rounded ml-auto" /></td>
                     <td className="px-4 py-3.5 text-right"><div className="h-4 w-16 bg-slate-100 dark:bg-slate-800/60 rounded ml-auto" /></td>
@@ -402,7 +470,7 @@ export default function SalesPage() {
                 ))
               ) : paginatedSales.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="py-8 text-center text-xs text-slate-400">
+                  <td colSpan={10} className="py-8 text-center text-xs text-slate-400">
                     No sales invoices found matching your criteria. Try adjusting date or payment filters.
                   </td>
                 </tr>
@@ -410,13 +478,41 @@ export default function SalesPage() {
                 paginatedSales.map((sale) => (
                   <tr key={sale.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition-colors">
                     <td className="px-4 py-3 font-semibold text-slate-900 dark:text-white">
-                      <Link href={`/sales/${sale.id}`} className="hover:underline text-blue-600 dark:text-blue-400">
-                        {sale.invoiceNumber}
-                      </Link>
+                      <div className="flex flex-col gap-1 items-start">
+                        <Link href={`/sales/${sale.id}`} className="hover:underline text-blue-600 dark:text-blue-400 font-bold">
+                          {sale.invoiceNumber}
+                        </Link>
+                        {sale.isEdited && (
+                          <span
+                            className="inline-flex items-center gap-1 rounded-md bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800 border border-amber-300 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800 cursor-help"
+                            title={`⚠️ Edited invoice (${sale.editCount || 1}x)\nLast edited by: ${sale.updatedByName || "User"}\nReason: ${sale.editReason || "Modified"}\nDate: ${sale.updatedAt ? new Date(sale.updatedAt).toLocaleString() : ""}`}
+                          >
+                            <span>✏️ Edited</span>
+                            {(sale.editCount || 1) > 1 && <span className="text-[9px]">({sale.editCount}x)</span>}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-3">{new Date(sale.date).toLocaleDateString()}</td>
                     <td className="px-4 py-3 font-medium text-slate-800 dark:text-slate-200">
                       {sale.customerName}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <div className="h-6 w-6 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-700 flex items-center justify-center text-[10px] font-bold shrink-0">
+                          {(sale.createdByName || "A").slice(0, 1).toUpperCase()}
+                        </div>
+                        <div className="leading-tight">
+                          <p className="text-xs font-semibold text-slate-900 dark:text-white">
+                            {sale.createdByName || "System Admin"}
+                          </p>
+                          {sale.isEdited && (
+                            <p className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">
+                              ✏️ Edited by: {sale.updatedByName || "Admin"}
+                            </p>
+                          )}
+                        </div>
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-right font-bold text-slate-900 dark:text-white tabular-nums">
                       {formatMoney(sale.totalAmount)}
@@ -447,6 +543,13 @@ export default function SalesPage() {
                     </td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-1.5">
+                        <button
+                          onClick={() => openEditModal(sale)}
+                          className="rounded-lg p-1.5 text-indigo-600 hover:bg-indigo-50 hover:text-indigo-800 dark:hover:bg-indigo-950/40"
+                          title="Edit Invoice Details (Record change in audit trail)"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
                         <Link
                           href={`/sales/${sale.id}`}
                           className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800"
@@ -569,6 +672,123 @@ export default function SalesPage() {
           </div>
         </div>
       </div>
+
+      {/* Edit Sale Invoice Modal with Audit Logging */}
+      {editingSale && (
+        <Modal
+          isOpen={!!editingSale}
+          onClose={() => setEditingSale(null)}
+          title={`Edit Invoice #${editingSale.invoiceNumber}`}
+        >
+          <form onSubmit={handleSaveEdit} className="space-y-4">
+            {/* Creator Attribution Info Card */}
+            <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3 text-xs dark:border-slate-800 dark:bg-slate-800/50">
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500">Original Creator (بنایا گیا بذریعہ):</span>
+                <span className="font-semibold text-slate-900 dark:text-white">
+                  {editingSale.createdByName || "System Admin"}
+                </span>
+              </div>
+              {editingSale.isEdited && (
+                <div className="mt-1 flex items-center justify-between text-amber-700 dark:text-amber-300">
+                  <span>Previous Edit ({editingSale.editCount || 1}x):</span>
+                  <span className="font-medium">
+                    By {editingSale.updatedByName || "Staff"}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                Customer Name
+              </label>
+              <Input
+                value={editCustomerName}
+                onChange={(e) => setEditCustomerName(e.target.value)}
+                placeholder="Customer Name"
+                required
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Payment Status
+                </label>
+                <select
+                  value={editPaymentStatus}
+                  onChange={(e) => setEditPaymentStatus(e.target.value as any)}
+                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                >
+                  <option value="PAID">PAID (مکمل ادا)</option>
+                  <option value="PARTIAL">PARTIAL (جزوی ادا)</option>
+                  <option value="UNPAID">UNPAID (ادھار)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Paid Amount (Rs)
+                </label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={editPaidAmount}
+                  onChange={(e) => setEditPaidAmount(Number(e.target.value) || 0)}
+                  required
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                Invoice Notes
+              </label>
+              <Input
+                value={editNotes}
+                onChange={(e) => setEditNotes(e.target.value)}
+                placeholder="Additional notes / comments..."
+              />
+            </div>
+
+            {/* Required Audit Reason */}
+            <div className="rounded-xl border border-amber-300 bg-amber-50/70 p-3 dark:border-amber-800 dark:bg-amber-950/40">
+              <label className="block text-xs font-bold text-amber-900 dark:text-amber-200 mb-1">
+                Reason for Editing (ترمیم کی وجہ درج کرنا لازمی ہے) *
+              </label>
+              <p className="text-[11px] text-amber-700 dark:text-amber-400 mb-1.5">
+                This modification will be permanently logged in the software Audit Trail along with your name.
+              </p>
+              <textarea
+                value={editReason}
+                onChange={(e) => setEditReason(e.target.value)}
+                placeholder="e.g. Corrected typo in customer name / received additional payment..."
+                rows={2}
+                required
+                className="w-full rounded-lg border border-amber-300 bg-white p-2 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500 dark:bg-slate-900 dark:text-white dark:border-amber-700"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setEditingSale(null)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                variant="primary"
+                isLoading={editSaving}
+              >
+                Save Changes (ترمیم محفوظ کریں)
+              </Button>
+            </div>
+          </form>
+        </Modal>
+      )}
     </div>
   );
 }

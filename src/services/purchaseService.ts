@@ -27,6 +27,7 @@ export interface CreatePurchaseInput {
   accountId?: string | null;
   notes?: string;
   createdById?: string;
+  createdByName?: string;
 }
 
 export async function getNextPurchaseNumber(
@@ -53,6 +54,7 @@ export async function createAndPostPurchase(input: CreatePurchaseInput) {
       accountId,
       notes,
       createdById,
+      createdByName,
     } = input;
 
     const date = input.date || new Date();
@@ -141,8 +143,8 @@ export async function createAndPostPurchase(input: CreatePurchaseInput) {
         paymentStatus,
         paymentMethod,
         notes,
-        status: "POSTED",
         createdById,
+        createdByName,
         items: {
           create: processedItems.map((pi) => ({
             productId: pi.productId,
@@ -294,6 +296,8 @@ export async function createAndPostPurchase(input: CreatePurchaseInput) {
       data: {
         businessId,
         userId: createdById || null,
+        userName: createdByName || null,
+        branchId: purchase.branchId,
         action: "CREATE_PURCHASE",
         entity: "Purchase",
         entityId: purchase.id,

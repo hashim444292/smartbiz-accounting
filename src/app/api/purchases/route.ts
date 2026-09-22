@@ -4,6 +4,7 @@ import { createAndPostPurchase } from "@/services/purchaseService";
 import { getActiveBusinessId, getActiveBranchId } from "@/lib/businessHelper";
 import { fallbackStore } from "@/lib/fallbackStore";
 import { calculateWeightedAverageCost } from "@/lib/decimal";
+import { getSession } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -41,15 +42,20 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
 
   try {
+    const session = await getSession();
     const businessId = await getActiveBusinessId(req);
     const { branchId: activeBranchId } = await getActiveBranchId(req);
     const effectiveBranchId = body.branchId || activeBranchId || null;
+    const createdById = session?.userId || body.createdById || "usr-2";
+    const createdByName = session?.name || body.createdByName || "Muhammad Hanif";
 
     const timeoutPromise = new Promise<never>((_, reject) => setTimeout(() => reject(new Error("DB_TIMEOUT")), 150));
     const purchase = await Promise.race([
       createAndPostPurchase({
         businessId,
         branchId: effectiveBranchId,
+        createdById,
+        createdByName,
         ...body,
       }),
       timeoutPromise,
@@ -198,9 +204,33 @@ export async function POST(req: NextRequest) {
       status: "POSTED",
       notes: body.notes || "",
       items: processedItems,
+      createdById: body.createdById || "usr-2",
+      createdByName: body.createdByName || "Muhammad Hanif",
+      updatedById: null,
+      updatedByName: null,
+      isEdited: false,
+      editCount: 0,
+      editReason: null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     };
 
     fallbackStore.purchases.unshift(newPurchase);
+
+    if (!fallbackStore.auditLogs) fallbackStore.auditLogs = [];
+    fallbackStore.auditLogs.unshift({
+      id: `audit-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      businessId,
+      userId: newPurchase.createdById,
+      userName: newPurchase.createdByName,
+      branchId: effectiveBranchId,
+      action: "CREATE_PURCHASE",
+      entity: "Purchase",
+      entityId: newPurchase.id,
+      details: `Created Purchase Order #${purNum} from ${supName} - Rs ${total.toLocaleString()}`,
+      createdAt: new Date().toISOString(),
+    });
+
     return NextResponse.json({ success: true, data: newPurchase, fallback: true });
   }
 }

@@ -37,7 +37,6 @@ export async function getDashboardMetrics(businessId: string, range?: DateRange)
   const purchases = await prisma.purchase.findMany({
     where: {
       businessId,
-      status: "POSTED",
       date: { gte: startOfDay, lte: endOfDay },
     },
   });
@@ -212,18 +211,16 @@ export async function getDailyReport(businessId: string, targetDate: Date) {
   let purchaseRemainingPayable = new Decimal(0);
 
   for (const p of purchases) {
-    if (p.status === "POSTED") {
-      const tot = toDecimal(p.totalAmount);
-      const paid = toDecimal(p.paidAmount);
-      const rem = toDecimal(p.remainingAmount);
+    const tot = toDecimal(p.totalAmount);
+    const paid = toDecimal(p.paidAmount);
+    const rem = toDecimal(p.remainingAmount);
 
-      totalPurchasesAmount = totalPurchasesAmount.add(tot);
-      purchasePaidAmount = purchasePaidAmount.add(paid);
-      purchaseRemainingPayable = purchaseRemainingPayable.add(rem);
+    totalPurchasesAmount = totalPurchasesAmount.add(tot);
+    purchasePaidAmount = purchasePaidAmount.add(paid);
+    purchaseRemainingPayable = purchaseRemainingPayable.add(rem);
 
-      if (rem.isZero()) cashPurchases = cashPurchases.add(tot);
-      else creditPurchases = creditPurchases.add(tot);
-    }
+    if (rem.isZero()) cashPurchases = cashPurchases.add(tot);
+    else creditPurchases = creditPurchases.add(tot);
   }
 
   // Payments received today
@@ -375,7 +372,7 @@ export async function getMonthlyClosingReport(businessId: string, year: number, 
 
   // B. Monthly Purchases
   const purchases = await prisma.purchase.findMany({
-    where: { businessId, status: "POSTED", date: { gte: startDate, lte: endDate } },
+    where: { businessId, date: { gte: startDate, lte: endDate } },
     include: { items: true, supplier: true },
   });
 

@@ -13,12 +13,14 @@ export interface CreateExpenseInput {
   receiptUrl?: string;
   notes?: string;
   createdById?: string;
+  createdByName?: string;
+  branchId?: string | null;
   date?: Date;
 }
 
 export async function createAndPostExpense(input: CreateExpenseInput) {
   return await prisma.$transaction(async (tx) => {
-    const { businessId, categoryId, description, paymentMethod = "CASH", accountId, paidTo, receiptUrl, notes, createdById } = input;
+    const { businessId, categoryId, description, paymentMethod = "CASH", accountId, paidTo, receiptUrl, notes, createdById, createdByName, branchId } = input;
     const date = input.date || new Date();
     await assertPeriodOpen(tx, businessId, date);
 
@@ -55,8 +57,9 @@ export async function createAndPostExpense(input: CreateExpenseInput) {
         accountId: targetCashBank?.id || null,
         paidTo,
         receiptUrl,
-        notes,
+        branchId: branchId || null,
         createdById,
+        createdByName,
       },
       include: {
         category: true,
@@ -113,6 +116,8 @@ export async function createAndPostExpense(input: CreateExpenseInput) {
       data: {
         businessId,
         userId: createdById || null,
+        userName: createdByName || null,
+        branchId: branchId || null,
         action: "CREATE_EXPENSE",
         entity: "Expense",
         entityId: expense.id,

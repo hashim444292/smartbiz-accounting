@@ -1897,11 +1897,110 @@ function initializeState(): StoreState {
     },
   ];
 
+  // User Attribution & Edit Tracking Normalization for Seeds
+  sales.forEach((s: any) => {
+    if (!s.createdById) {
+      s.createdById = s.branchId === "br-101-2" ? "usr-7" : s.branchId === "br-101-1" ? "usr-4" : "usr-2";
+      s.createdByName = s.branchId === "br-101-2" ? "Kamran Ali" : s.branchId === "br-101-1" ? "Bilal Cashier" : "Muhammad Hanif";
+    }
+    if (s.isEdited === undefined) {
+      s.isEdited = false;
+      s.editCount = 0;
+      s.editReason = null;
+      s.updatedById = null;
+      s.updatedByName = null;
+    }
+  });
+
+  // Mark demo sale-101-7 as edited so user immediately sees the "Edited" badge in action
+  const demoEdited: any = sales.find((s: any) => s.id === "sale-101-7");
+  if (demoEdited) {
+    demoEdited.isEdited = true;
+    demoEdited.editCount = 1;
+    demoEdited.updatedById = "usr-2";
+    demoEdited.updatedByName = "Muhammad Hanif";
+    demoEdited.updatedAt = new Date(Date.now() - 3600000).toISOString();
+    demoEdited.editReason = "Adjusted Walk-in partial payment and customer note";
+  }
+
+  purchases.forEach((p: any) => {
+    if (!p.createdById) {
+      p.createdById = "usr-2";
+      p.createdByName = "Muhammad Hanif";
+    }
+    if (p.isEdited === undefined) {
+      p.isEdited = false;
+      p.editCount = 0;
+      p.editReason = null;
+      p.updatedById = null;
+      p.updatedByName = null;
+    }
+  });
+
+  expenses.forEach((e: any) => {
+    if (!e.createdById) {
+      e.createdById = "usr-3";
+      e.createdByName = "Farhan Accountant";
+    }
+    if (e.isEdited === undefined) {
+      e.isEdited = false;
+      e.editCount = 0;
+      e.editReason = null;
+      e.updatedById = null;
+      e.updatedByName = null;
+    }
+  });
+
+  const auditLogs = [
+    {
+      id: "audit-seed-1",
+      businessId: "biz-101",
+      userId: "usr-2",
+      userName: "Muhammad Hanif",
+      userEmail: "hanif@mobile.com",
+      branchId: "br-101-1",
+      action: "UPDATE_SALE",
+      entity: "Sale",
+      entityId: "sale-101-7",
+      details: "Modified Invoice #INV-2026-00007 (Reason: Adjusted Walk-in partial payment and customer note)",
+      changes: JSON.stringify({
+        previous: { paidAmount: 1000, customerName: "Walk in" },
+        updated: { paidAmount: 2000, customerName: "Walk in" },
+      }),
+      createdAt: new Date(Date.now() - 3600000).toISOString(),
+    },
+    {
+      id: "audit-seed-2",
+      businessId: "biz-101",
+      userId: "usr-4",
+      userName: "Bilal Cashier",
+      userEmail: "bilal@hanifmobile.pk",
+      branchId: "br-101-1",
+      action: "CREATE_SALE",
+      entity: "Sale",
+      entityId: "sale-101-7",
+      details: "Generated Sale Invoice #INV-2026-00007 for Walk in (Walk in) - Rs 7,500",
+      createdAt: yesterday.toISOString(),
+    },
+    {
+      id: "audit-seed-3",
+      businessId: "biz-101",
+      userId: "usr-3",
+      userName: "Farhan Accountant",
+      userEmail: "accountant@smartbiz.com",
+      branchId: "br-101-1",
+      action: "CREATE_EXPENSE",
+      entity: "Expense",
+      entityId: "exp-101-1",
+      details: "Recorded utility expense voucher - Rs 25,000",
+      createdAt: yesterday.toISOString(),
+    },
+  ];
+
   return {
     business: companies[0],
     activeBusinessId: "biz-101",
     companies,
-    branches,
     users,
     accounts,
     cashBankAccounts,
@@ -1927,8 +2026,9 @@ function initializeState(): StoreState {
       },
     ],
     aiImports: [],
-    auditLogs: [],
+    auditLogs,
     subscriptionPayments,
+    branches: branches || [],
   };
 }
 
@@ -2397,7 +2497,7 @@ export function storeAssignUserBranch(userId: string, branchId: string | null) {
   return user;
 }
 
-export function storeAddSale(saleData: any) {
+export function storeAddSale(saleData: any, sessionUser?: { userId?: string; name?: string; email?: string }) {
   const newSale = {
     id: saleData.id || `sale-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
     businessId: saleData.businessId,
@@ -2424,9 +2524,103 @@ export function storeAddSale(saleData: any) {
     fbrInvoiceNumber: saleData.fbrInvoiceNumber || null,
     fbrQrCode: saleData.fbrQrCode || null,
     items: saleData.items || [],
+    createdById: sessionUser?.userId || saleData.createdById || "usr-2",
+    createdByName: sessionUser?.name || saleData.createdByName || "Muhammad Hanif",
+    updatedById: null,
+    updatedByName: null,
+    isEdited: false,
+    editCount: 0,
+    editReason: null,
+    createdAt: saleData.createdAt || new Date().toISOString(),
+    updatedAt: saleData.updatedAt || new Date().toISOString(),
   };
   fallbackStore.sales.unshift(newSale);
+
+  if (!fallbackStore.auditLogs) fallbackStore.auditLogs = [];
+  fallbackStore.auditLogs.unshift({
+    id: `audit-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+    businessId: newSale.businessId,
+    userId: newSale.createdById,
+    userName: newSale.createdByName,
+    branchId: newSale.branchId,
+    action: "CREATE_SALE",
+    entity: "Sale",
+    entityId: newSale.id,
+    details: `Generated Sale Invoice #${newSale.invoiceNumber} for ${newSale.customerName} - Rs ${Number(newSale.totalAmount).toLocaleString()}`,
+    createdAt: new Date().toISOString(),
+  });
+
   return newSale;
+}
+
+export function storeUpdateSale(
+  id: string,
+  updates: any,
+  sessionUser?: { userId?: string; name?: string; email?: string },
+  reason?: string
+) {
+  const sale = fallbackStore.sales.find((s) => s.id === id);
+  if (!sale) return null;
+
+  const previousSnapshot = {
+    customerName: sale.customerName,
+    totalAmount: sale.totalAmount,
+    paidAmount: sale.paidAmount,
+    remainingAmount: sale.remainingAmount,
+    notes: sale.notes,
+  };
+
+  if (updates.customerName !== undefined) sale.customerName = updates.customerName;
+  if (updates.notes !== undefined) sale.notes = updates.notes;
+  if (updates.paymentMethod !== undefined) sale.paymentMethod = updates.paymentMethod;
+  if (updates.paymentStatus !== undefined) sale.paymentStatus = updates.paymentStatus;
+  if (updates.paidAmount !== undefined) {
+    sale.paidAmount = Number(updates.paidAmount);
+    sale.remainingAmount = Math.max(0, Number(sale.totalAmount) - sale.paidAmount);
+  }
+  if (updates.totalAmount !== undefined) {
+    sale.totalAmount = Number(updates.totalAmount);
+    sale.remainingAmount = Math.max(0, sale.totalAmount - Number(sale.paidAmount || 0));
+  }
+  if (updates.items !== undefined) {
+    sale.items = updates.items;
+  }
+
+  // Stamp Edit Tracking
+  sale.isEdited = true;
+  sale.editCount = (sale.editCount || 0) + 1;
+  sale.updatedById = sessionUser?.userId || "usr-2";
+  sale.updatedByName = sessionUser?.name || "Muhammad Hanif";
+  sale.updatedAt = new Date().toISOString();
+  sale.editReason = reason || updates.editReason || "Invoice details modified by administrator";
+
+  // Append Audit Log
+  if (!fallbackStore.auditLogs) fallbackStore.auditLogs = [];
+  fallbackStore.auditLogs.unshift({
+    id: `audit-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+    businessId: sale.businessId,
+    userId: sale.updatedById,
+    userName: sale.updatedByName,
+    userEmail: sessionUser?.email,
+    branchId: sale.branchId,
+    action: "UPDATE_SALE",
+    entity: "Sale",
+    entityId: sale.id,
+    details: `Modified Sale Invoice #${sale.invoiceNumber} (Reason: ${sale.editReason})`,
+    changes: JSON.stringify({
+      previous: previousSnapshot,
+      updated: {
+        customerName: sale.customerName,
+        totalAmount: sale.totalAmount,
+        paidAmount: sale.paidAmount,
+        remainingAmount: sale.remainingAmount,
+        notes: sale.notes,
+      },
+    }),
+    createdAt: new Date().toISOString(),
+  });
+
+  return sale;
 }
 
 export function storeGetCompanyUsers(businessId: string) {
@@ -2555,5 +2749,290 @@ export function storeDeleteCompanyUser(userId: string, businessId: string) {
 
   fallbackStore.users.splice(idx, 1);
   return true;
+}
+
+export function storeAddPurchase(data: any, sessionUser?: { userId?: string; name?: string; email?: string }) {
+  const newPurchase = {
+    id: data.id || `pur-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+    businessId: data.businessId,
+    branchId: data.branchId || null,
+    branchName: data.branchName || null,
+    purchaseNumber: data.purchaseNumber || `PUR-${Date.now()}`,
+    date: data.date || new Date().toISOString(),
+    supplierName: data.supplierName || "General Supplier",
+    supplierId: data.supplierId || null,
+    subtotal: Number(data.subtotal || 0),
+    discountAmount: Number(data.discountAmount || 0),
+    taxAmount: Number(data.taxAmount || 0),
+    totalAmount: Number(data.totalAmount || 0),
+    paidAmount: Number(data.paidAmount || data.totalAmount || 0),
+    remainingAmount: Number(data.remainingAmount || 0),
+    paymentStatus: data.paymentStatus || "PAID",
+    paymentMethod: data.paymentMethod || "CASH",
+    status: data.status || "POSTED",
+    notes: data.notes || null,
+    items: data.items || [],
+    createdById: sessionUser?.userId || data.createdById || "usr-2",
+    createdByName: sessionUser?.name || data.createdByName || "Muhammad Hanif",
+    updatedById: null,
+    updatedByName: null,
+    isEdited: false,
+    editCount: 0,
+    editReason: null,
+    createdAt: data.createdAt || new Date().toISOString(),
+    updatedAt: data.updatedAt || new Date().toISOString(),
+  };
+
+  fallbackStore.purchases.unshift(newPurchase);
+
+  if (!fallbackStore.auditLogs) fallbackStore.auditLogs = [];
+  fallbackStore.auditLogs.unshift({
+    id: `audit-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+    businessId: newPurchase.businessId,
+    userId: newPurchase.createdById,
+    userName: newPurchase.createdByName,
+    branchId: newPurchase.branchId,
+    action: "CREATE_PURCHASE",
+    entity: "Purchase",
+    entityId: newPurchase.id,
+    details: `Created Purchase Order #${newPurchase.purchaseNumber} from ${newPurchase.supplierName} - Rs ${Number(newPurchase.totalAmount).toLocaleString()}`,
+    createdAt: new Date().toISOString(),
+  });
+
+  return newPurchase;
+}
+
+export function storeUpdatePurchase(
+  id: string,
+  updates: any,
+  sessionUser?: { userId?: string; name?: string; email?: string },
+  reason?: string
+) {
+  const purchase = fallbackStore.purchases.find((p) => p.id === id);
+  if (!purchase) return null;
+
+  const previousSnapshot = {
+    supplierName: purchase.supplierName,
+    totalAmount: purchase.totalAmount,
+    paidAmount: purchase.paidAmount,
+    remainingAmount: purchase.remainingAmount,
+    notes: purchase.notes,
+  };
+
+  if (updates.supplierName !== undefined) purchase.supplierName = updates.supplierName;
+  if (updates.notes !== undefined) purchase.notes = updates.notes;
+  if (updates.paymentMethod !== undefined) purchase.paymentMethod = updates.paymentMethod;
+  if (updates.paymentStatus !== undefined) purchase.paymentStatus = updates.paymentStatus;
+  if (updates.paidAmount !== undefined) {
+    purchase.paidAmount = Number(updates.paidAmount);
+    purchase.remainingAmount = Math.max(0, Number(purchase.totalAmount) - purchase.paidAmount);
+  }
+  if (updates.totalAmount !== undefined) {
+    purchase.totalAmount = Number(updates.totalAmount);
+    purchase.remainingAmount = Math.max(0, purchase.totalAmount - Number(purchase.paidAmount || 0));
+  }
+
+  // Stamp Edit Tracking
+  purchase.isEdited = true;
+  purchase.editCount = (purchase.editCount || 0) + 1;
+  purchase.updatedById = sessionUser?.userId || "usr-2";
+  purchase.updatedByName = sessionUser?.name || "Muhammad Hanif";
+  purchase.updatedAt = new Date().toISOString();
+  purchase.editReason = reason || updates.editReason || "Purchase order updated by administrator";
+
+  // Append Audit Log
+  if (!fallbackStore.auditLogs) fallbackStore.auditLogs = [];
+  fallbackStore.auditLogs.unshift({
+    id: `audit-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+    businessId: purchase.businessId,
+    userId: purchase.updatedById,
+    userName: purchase.updatedByName,
+    userEmail: sessionUser?.email,
+    branchId: purchase.branchId,
+    action: "UPDATE_PURCHASE",
+    entity: "Purchase",
+    entityId: purchase.id,
+    details: `Modified Purchase Order #${purchase.purchaseNumber} (Reason: ${purchase.editReason})`,
+    changes: JSON.stringify({
+      previous: previousSnapshot,
+      updated: {
+        supplierName: purchase.supplierName,
+        totalAmount: purchase.totalAmount,
+        paidAmount: purchase.paidAmount,
+        remainingAmount: purchase.remainingAmount,
+        notes: purchase.notes,
+      },
+    }),
+    createdAt: new Date().toISOString(),
+  });
+
+  return purchase;
+}
+
+export function storeAddExpense(data: any, sessionUser?: { userId?: string; name?: string; email?: string }) {
+  const newExpense = {
+    id: data.id || `exp-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+    businessId: data.businessId,
+    branchId: data.branchId || null,
+    branchName: data.branchName || null,
+    categoryId: data.categoryId,
+    category: data.category || { name: "General" },
+    date: data.date || new Date().toISOString(),
+    description: data.description || "Business Expense",
+    amount: Number(data.amount || 0),
+    paymentMethod: data.paymentMethod || "CASH",
+    paidTo: data.paidTo || null,
+    notes: data.notes || null,
+    createdById: sessionUser?.userId || data.createdById || "usr-3",
+    createdByName: sessionUser?.name || data.createdByName || "Farhan Accountant",
+    updatedById: null,
+    updatedByName: null,
+    isEdited: false,
+    editCount: 0,
+    editReason: null,
+    createdAt: data.createdAt || new Date().toISOString(),
+    updatedAt: data.updatedAt || new Date().toISOString(),
+  };
+
+  fallbackStore.expenses.unshift(newExpense);
+
+  if (!fallbackStore.auditLogs) fallbackStore.auditLogs = [];
+  fallbackStore.auditLogs.unshift({
+    id: `audit-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+    businessId: newExpense.businessId,
+    userId: newExpense.createdById,
+    userName: newExpense.createdByName,
+    branchId: newExpense.branchId,
+    action: "CREATE_EXPENSE",
+    entity: "Expense",
+    entityId: newExpense.id,
+    details: `Recorded Expense: ${newExpense.description} - Rs ${Number(newExpense.amount).toLocaleString()}`,
+    createdAt: new Date().toISOString(),
+  });
+
+  return newExpense;
+}
+
+export function storeUpdateExpense(
+  id: string,
+  updates: any,
+  sessionUser?: { userId?: string; name?: string; email?: string },
+  reason?: string
+) {
+  const expense = fallbackStore.expenses.find((e) => e.id === id);
+  if (!expense) return null;
+
+  const previousSnapshot = {
+    description: expense.description,
+    amount: expense.amount,
+    paidTo: expense.paidTo,
+    notes: expense.notes,
+  };
+
+  if (updates.description !== undefined) expense.description = updates.description;
+  if (updates.amount !== undefined) expense.amount = Number(updates.amount);
+  if (updates.paidTo !== undefined) expense.paidTo = updates.paidTo;
+  if (updates.notes !== undefined) expense.notes = updates.notes;
+  if (updates.paymentMethod !== undefined) expense.paymentMethod = updates.paymentMethod;
+  if (updates.categoryId !== undefined) {
+    expense.categoryId = updates.categoryId;
+    const cat = fallbackStore.expenseCategories.find((c) => c.id === updates.categoryId);
+    if (cat) expense.category = { name: cat.name };
+  }
+
+  // Stamp Edit Tracking
+  expense.isEdited = true;
+  expense.editCount = (expense.editCount || 0) + 1;
+  expense.updatedById = sessionUser?.userId || "usr-2";
+  expense.updatedByName = sessionUser?.name || "Muhammad Hanif";
+  expense.updatedAt = new Date().toISOString();
+  expense.editReason = reason || updates.editReason || "Expense voucher edited by administrator";
+
+  // Append Audit Log
+  if (!fallbackStore.auditLogs) fallbackStore.auditLogs = [];
+  fallbackStore.auditLogs.unshift({
+    id: `audit-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+    businessId: expense.businessId,
+    userId: expense.updatedById,
+    userName: expense.updatedByName,
+    userEmail: sessionUser?.email,
+    branchId: expense.branchId,
+    action: "UPDATE_EXPENSE",
+    entity: "Expense",
+    entityId: expense.id,
+    details: `Modified Expense: ${expense.description} (Reason: ${expense.editReason})`,
+    changes: JSON.stringify({
+      previous: previousSnapshot,
+      updated: {
+        description: expense.description,
+        amount: expense.amount,
+        paidTo: expense.paidTo,
+        notes: expense.notes,
+      },
+    }),
+    createdAt: new Date().toISOString(),
+  });
+
+  return expense;
+}
+
+export function storeDeleteExpense(
+  id: string,
+  businessIdOrSession?: string | { userId?: string; name?: string; email?: string },
+  sessionUserOrReason?: { userId?: string; name?: string; email?: string } | string,
+  reasonParam?: string
+) {
+  let businessId: string | undefined;
+  let sessionUser: { userId?: string; name?: string; email?: string } | undefined;
+  let reason: string | undefined;
+
+  if (typeof businessIdOrSession === "string") {
+    businessId = businessIdOrSession;
+    if (typeof sessionUserOrReason === "object") sessionUser = sessionUserOrReason;
+    reason = reasonParam || (typeof sessionUserOrReason === "string" ? sessionUserOrReason : undefined);
+  } else {
+    sessionUser = businessIdOrSession;
+    if (typeof sessionUserOrReason === "string") reason = sessionUserOrReason;
+  }
+
+  const idx = fallbackStore.expenses.findIndex((e) => e.id === id && (!businessId || e.businessId === businessId));
+  if (idx === -1) return false;
+
+  const exp = fallbackStore.expenses[idx];
+  fallbackStore.expenses.splice(idx, 1);
+
+  if (!fallbackStore.auditLogs) fallbackStore.auditLogs = [];
+  fallbackStore.auditLogs.unshift({
+    id: `audit-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+    businessId: exp.businessId,
+    userId: sessionUser?.userId || "usr-2",
+    userName: sessionUser?.name || "Muhammad Hanif",
+    userEmail: sessionUser?.email,
+    branchId: exp.branchId,
+    action: "DELETE_EXPENSE",
+    entity: "Expense",
+    entityId: id,
+    details: `Deleted Expense: ${exp.description} - Rs ${Number(exp.amount).toLocaleString()}${reason ? ` (Reason: ${reason})` : ""}`,
+    createdAt: new Date().toISOString(),
+  });
+
+  return true;
+}
+
+export function storeGetAuditLogs(businessId: string, filters?: { entity?: string; action?: string; userId?: string }) {
+  if (!fallbackStore.auditLogs) fallbackStore.auditLogs = [];
+  let logs = fallbackStore.auditLogs.filter((a) => a.businessId === businessId);
+
+  if (filters?.entity && filters.entity !== "ALL") {
+    logs = logs.filter((a) => a.entity?.toLowerCase() === filters.entity?.toLowerCase());
+  }
+  if (filters?.action && filters.action !== "ALL") {
+    logs = logs.filter((a) => a.action?.toLowerCase() === filters.action?.toLowerCase());
+  }
+  if (filters?.userId && filters.userId !== "ALL") {
+    logs = logs.filter((a) => a.userId === filters.userId);
+  }
+
+  return logs;
 }
 

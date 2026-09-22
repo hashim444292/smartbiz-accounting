@@ -371,8 +371,13 @@ model Sale {
   status          TransactionStatus @default(POSTED)
   fbrStatus       String?           @default("PENDING")
   fbrInvoiceNumber String?
-  fbrQrCode       String?
   createdById     String?
+  createdByName   String?
+  updatedById     String?
+  updatedByName   String?
+  isEdited        Boolean           @default(false)
+  editCount       Int               @default(0)
+  editReason      String?
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
 
@@ -423,8 +428,13 @@ model Purchase {
   paymentStatus   PaymentStatus     @default(UNPAID)
   paymentMethod   String?           @default("CASH")
   notes           String?
-  status          TransactionStatus @default(POSTED)
   createdById     String?
+  createdByName   String?
+  updatedById     String?
+  updatedByName   String?
+  isEdited        Boolean           @default(false)
+  editCount       Int               @default(0)
+  editReason      String?
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
 
@@ -525,9 +535,15 @@ model Expense {
   accountId     String?
   paidTo        String?
   receiptUrl    String?
-  notes         String?
   createdById   String?
+  createdByName String?
+  updatedById   String?
+  updatedByName String?
+  isEdited      Boolean          @default(false)
+  editCount     Int              @default(0)
+  editReason    String?
   createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
 
   business      Business         @relation(fields: [businessId], references: [id], onDelete: Cascade)
   branch        Branch?          @relation(fields: [branchId], references: [id], onDelete: SetNull)
@@ -685,10 +701,14 @@ model AuditLog {
   id         String   @id @default(uuid())
   businessId String
   userId     String?
+  userName   String?
+  userEmail  String?
+  branchId   String?
   action     String
   entity     String
   entityId   String?
   details    String?
+  changes    String?
   ipAddress  String?
   createdAt  DateTime @default(now())
 

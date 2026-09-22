@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { createAndPostSale } from "@/services/salesService";
 import { getActiveBusinessId, getActiveBranchId } from "@/lib/businessHelper";
 import { fallbackStore } from "@/lib/fallbackStore";
+import { getSession } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -37,13 +38,18 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
 
   try {
+    const session = await getSession();
     const businessId = await getActiveBusinessId(req);
     const { branchId: activeBranchId } = await getActiveBranchId(req);
     const effectiveBranchId = body.branchId || activeBranchId || null;
+    const createdById = session?.userId || body.createdById || "usr-2";
+    const createdByName = session?.name || body.createdByName || "Muhammad Hanif";
 
     const sale = await createAndPostSale({
       businessId,
       branchId: effectiveBranchId,
+      createdById,
+      createdByName,
       ...body,
     });
     return NextResponse.json({ success: true, data: sale });
@@ -156,9 +162,33 @@ export async function POST(req: NextRequest) {
         fbrInvoiceNumber: fbrInvNum,
         fbrQrCode: fbrQr,
         items: processedItems,
+        createdById: body.createdById || "usr-2",
+        createdByName: body.createdByName || "Muhammad Hanif",
+        updatedById: null,
+        updatedByName: null,
+        isEdited: false,
+        editCount: 0,
+        editReason: null,
+        createdAt: body.date || new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
       };
 
       fallbackStore.sales.unshift(newSale);
+
+      if (!fallbackStore.auditLogs) fallbackStore.auditLogs = [];
+      fallbackStore.auditLogs.unshift({
+        id: `audit-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        businessId,
+        userId: newSale.createdById,
+        userName: newSale.createdByName,
+        branchId: effectiveBranchId,
+        action: "CREATE_SALE",
+        entity: "Sale",
+        entityId: newSale.id,
+        details: `Generated Sale Invoice #${invNum} for ${newSale.customerName} - Rs ${total.toLocaleString()}`,
+        createdAt: new Date().toISOString(),
+      });
+
       return NextResponse.json({ success: true, data: newSale, fallback: true });
     }
 

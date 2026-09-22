@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getActiveBusinessId, getActiveBranchId } from "@/lib/businessHelper";
 import { createAndPostExpense } from "@/services/expenseService";
 import { fallbackStore } from "@/lib/fallbackStore";
+import { getSession } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -61,23 +62,31 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
 
   try {
+    const session = await getSession();
     const businessId = await getActiveBusinessId(req);
     const { branchId: activeBranchId } = await getActiveBranchId(req);
     const effectiveBranchId = body.branchId || activeBranchId || null;
+    const createdById = session?.userId || body.createdById || "usr-3";
+    const createdByName = session?.name || body.createdByName || "Farhan Accountant";
 
     const expense = await createAndPostExpense({
       businessId,
       branchId: effectiveBranchId,
+      createdById,
+      createdByName,
       ...body,
     });
 
     return NextResponse.json({ success: true, data: expense });
   } catch (error: any) {
+    const session = await getSession();
     const businessId = await getActiveBusinessId(req);
     const { branchId: activeBranchId } = await getActiveBranchId(req);
     const effectiveBranchId = body.branchId || activeBranchId || null;
     const branchObj = fallbackStore.branches?.find((b) => b.id === effectiveBranchId);
     const amt = Number(body.amount || 0);
+    const createdById = session?.userId || body.createdById || "usr-3";
+    const createdByName = session?.name || body.createdByName || "Farhan Accountant";
 
     // Deduct from Cash/Bank account
     const isBank = body.paymentMethod === "BANK";
@@ -103,9 +112,32 @@ export async function POST(req: NextRequest) {
       paymentMethod: body.paymentMethod || "CASH",
       paidTo: body.paidTo || null,
       notes: body.notes || null,
+      createdById,
+      createdByName,
+      updatedById: null,
+      updatedByName: null,
+      isEdited: false,
+      editCount: 0,
+      editReason: null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     };
 
     fallbackStore.expenses.unshift(newExpense);
+
+    if (!fallbackStore.auditLogs) fallbackStore.auditLogs = [];
+    fallbackStore.auditLogs.unshift({
+      id: `audit-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      businessId,
+      userId: createdById,
+      userName: createdByName,
+      branchId: effectiveBranchId,
+      action: "CREATE_EXPENSE",
+      entity: "Expense",
+      entityId: newExpense.id,
+      details: `Recorded Expense: ${newExpense.description} - Rs ${amt.toLocaleString()}`,
+      createdAt: new Date().toISOString(),
+    });
 
     return NextResponse.json({ success: true, data: newExpense, fallback: true });
   }

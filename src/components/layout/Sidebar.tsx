@@ -22,6 +22,7 @@ import {
   UserCheck,
   Settings,
   Store,
+  History,
   ChevronLeft,
   ChevronRight,
   ArrowLeft,
@@ -82,6 +83,7 @@ const TENANT_NAVIGATION_GROUPS: NavGroup[] = [
     section: "ORGANIZATION",
     items: [
       { name: "Sub-Branches (برانچز)", href: "/branches", icon: Store, roles: ["SUPER_ADMIN", "OWNER_ADMIN"] },
+      { name: "Activity Log (آڈٹ لاگ)", href: "/audit-logs", icon: History, roles: ["SUPER_ADMIN", "OWNER_ADMIN", "ACCOUNTANT"] },
       { name: "Settings & Defaults", href: "/settings", icon: Settings, roles: ["SUPER_ADMIN", "OWNER_ADMIN"] },
     ],
   },
@@ -94,6 +96,7 @@ const PLATFORM_ADMIN_GROUPS: NavGroup[] = [
       { name: "Admin Dashboard", href: "/admin", icon: LayoutDashboard },
       { name: "Client Companies & MRR", href: "/admin/companies", icon: Building2 },
       { name: "User Accounts & Roles", href: "/admin/users", icon: UserCheck },
+      { name: "Activity Log (آڈٹ لاگ)", href: "/audit-logs", icon: History },
       { name: "Platform Settings & Audit", href: "/settings", icon: Settings },
     ],
   },
