@@ -310,4 +310,99 @@ describe("Multi-Branch Accounting Hierarchy & Isolation System", () => {
     const afterDelete = storeGetCompanyUsers("biz-101");
     expect(afterDelete.length).toBe(initialCount);
   });
+
+  it("9. Branch Account Isolation: Cash drawers and branch banks are strictly isolated per outlet", () => {
+    // biz-101 has dedicated accounts for Saddar and Gulshan outlets
+    const allAccounts = fallbackStore.cashBankAccounts.filter((a) => a.businessId === "biz-101");
+    expect(allAccounts.length).toBeGreaterThanOrEqual(4);
+
+    const saddarCash = allAccounts.find((a) => a.id === "cb-101-cash");
+    const saddarBank = allAccounts.find((a) => a.id === "cb-101-bank");
+    const gulshanCash = allAccounts.find((a) => a.id === "cb-101-cash-gulshan");
+    const gulshanBank = allAccounts.find((a) => a.id === "cb-101-bank-gulshan");
+    const centralTreasury = allAccounts.find((a) => a.id === "cb-101-bank-central");
+
+    expect(saddarCash?.branchId).toBe("br-101-1");
+    expect(saddarCash?.name).toContain("Saddar");
+
+    expect(saddarBank?.branchId).toBe("br-101-1");
+    expect(saddarBank?.name).toContain("Saddar");
+
+    expect(gulshanCash?.branchId).toBe("br-101-2");
+    expect(gulshanCash?.name).toContain("Gulshan");
+
+    expect(gulshanBank?.branchId).toBe("br-101-2");
+    expect(gulshanBank?.name).toContain("Gulshan");
+
+    expect(centralTreasury?.branchId).toBeNull(); // Universal account
+
+    // When operating within Gulshan Outlet scope:
+    const gulshanScopedAccounts = allAccounts.filter(
+      (a) => !a.branchId || a.branchId === "br-101-2"
+    );
+
+    // Must contain Gulshan Cash Drawer, Gulshan Meezan Bank, and Central Treasury
+    expect(gulshanScopedAccounts.some((a) => a.id === "cb-101-cash-gulshan")).toBe(true);
+    expect(gulshanScopedAccounts.some((a) => a.id === "cb-101-bank-gulshan")).toBe(true);
+    expect(gulshanScopedAccounts.some((a) => a.id === "cb-101-bank-central")).toBe(true);
+
+    // MUST NEVER CONTAIN Saddar Cash Drawer or Saddar HBL!
+    expect(gulshanScopedAccounts.some((a) => a.id === "cb-101-cash")).toBe(false);
+    expect(gulshanScopedAccounts.some((a) => a.id === "cb-101-bank")).toBe(false);
+
+    // Conversely, when operating within Saddar Main Branch scope:
+    const saddarScopedAccounts = allAccounts.filter(
+      (a) => !a.branchId || a.branchId === "br-101-1"
+    );
+    expect(saddarScopedAccounts.some((a) => a.id === "cb-101-cash")).toBe(true);
+    expect(saddarScopedAccounts.some((a) => a.id === "cb-101-bank")).toBe(true);
+    expect(saddarScopedAccounts.some((a) => a.id === "cb-101-cash-gulshan")).toBe(false);
+    expect(saddarScopedAccounts.some((a) => a.id === "cb-101-bank-gulshan")).toBe(false);
+  });
+
+  it("10. Strict Branch Isolation for Staff: Gulshan staff cannot modify or leak into Saddar outlet", async () => {
+    // Gulshan staff user (Kamran Ali)
+    const gulshanStaff = fallbackStore.users.find((u) => u.id === "usr-7");
+    expect(gulshanStaff).toBeDefined();
+    expect(gulshanStaff?.role).toBe("STAFF");
+    expect(gulshanStaff?.branchId).toBe("br-101-2");
+
+    // Request from staff attempting to tamper branchId to Saddar (br-101-1)
+    const reqTampered = new NextRequest("http://localhost:3000/api/payments?branchId=br-101-1", {
+      headers: {
+        cookie: "sb_active_branch_id=br-101-1",
+        "x-branch-id": "br-101-1",
+      },
+    });
+
+    const staffSession = {
+      userId: "usr-7",
+      name: "Kamran Ali",
+      role: "STAFF" as const,
+      businessId: "biz-101",
+      branchId: "br-101-2",
+    };
+
+    const resolved = await getActiveBranchId(reqTampered, staffSession);
+
+    // Security check: Must ALWAYS be locked to their assigned branch (br-101-2)
+    expect(resolved.branchId).toBe("br-101-2");
+    expect(resolved.isLockedToBranch).toBe(true);
+
+    // Owner (usr-2) is not locked and can freely select Gulshan or Saddar
+    const ownerSession = {
+      userId: "usr-2",
+      name: "Muhammad Hanif",
+      role: "OWNER_ADMIN" as const,
+      businessId: "biz-101",
+      branchId: null,
+    };
+
+    const resolvedOwnerGulshan = await getActiveBranchId(
+      new NextRequest("http://localhost:3000/api/payments?branchId=br-101-2"),
+      ownerSession
+    );
+    expect(resolvedOwnerGulshan.branchId).toBe("br-101-2");
+    expect(resolvedOwnerGulshan.isLockedToBranch).toBe(false);
+  });
 });

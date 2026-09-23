@@ -24,8 +24,10 @@ import {
   Wallet,
   UserCheck,
   AlertTriangle,
-  BadgeAlert
+  BadgeAlert,
+  Building2,
 } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
 
 interface ProductOption {
   id: string;
@@ -80,6 +82,14 @@ type PaymentMode = "FULL" | "PARTIAL" | "CREDIT";
 
 export default function CreateSalePage() {
   const router = useRouter();
+  const { user, activeCompany, branches, selectedBranch, activeBranchId, isBranchLocked } = useAuth();
+  const effectiveBranch = isBranchLocked ? user?.branchId : (selectedBranch?.id || activeBranchId || null);
+  const [saleBranchId, setSaleBranchId] = useState<string>("");
+
+  useEffect(() => {
+    const bId = isBranchLocked ? (user?.branchId || "") : (selectedBranch?.id || activeBranchId || (branches[0]?.id || ""));
+    setSaleBranchId(bId);
+  }, [isBranchLocked, user?.branchId, selectedBranch?.id, activeBranchId, branches]);
 
   // Master Data State
   const [products, setProducts] = useState<ProductOption[]>([]);
@@ -191,10 +201,15 @@ export default function CreateSalePage() {
     async function loadInitialData() {
       try {
         setLoadingOptions(true);
+        const headers: Record<string, string> = {};
+        if (activeCompany?.id) headers["x-business-id"] = activeCompany.id;
+        const branchToPass = isBranchLocked ? user?.branchId : (saleBranchId || effectiveBranch);
+        if (branchToPass) headers["x-branch-id"] = branchToPass;
+
         const [metaRes, prodRes, custRes] = await Promise.all([
-          fetch("/api/products?meta=true"),
-          fetch("/api/products?limit=100"),
-          fetch("/api/customers"),
+          fetch("/api/products?meta=true", { headers }),
+          fetch("/api/products?limit=100", { headers }),
+          fetch("/api/customers", { headers }),
         ]);
 
         const [metaJson, prodJson, custJson] = await Promise.all([
@@ -587,7 +602,12 @@ export default function CreateSalePage() {
         ? (remaining > 0 && walkInName.trim() ? `${walkInName.trim()} (Walk-in)` : "Walk in (Walk in)")
         : (customerName || "Walk in (Walk in)");
 
+      const operatingBranchId = isBranchLocked ? (user?.branchId || null) : (saleBranchId || effectiveBranch || null);
+
       const payload = {
+        branchId: operatingBranchId,
+        createdById: user?.userId,
+        createdByName: user?.name,
         date: new Date(date),
         customerId: customerId || null,
         customerName: finalCustomerName,
@@ -616,9 +636,13 @@ export default function CreateSalePage() {
         fbrQrCode: null,
       };
 
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (activeCompany?.id) headers["x-business-id"] = activeCompany.id;
+      if (operatingBranchId) headers["x-branch-id"] = operatingBranchId;
+
       const res = await fetch("/api/sales", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify(payload),
       });
 
@@ -702,6 +726,48 @@ export default function CreateSalePage() {
               <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
               <span>FBR Invoicing Queue (Manual Hit)</span>
             </div>
+          </div>
+        </div>
+
+        {/* Active Branch Scope Indicator & Cashier Attribution */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-2xl border border-indigo-100 bg-indigo-50/70 p-4 text-xs text-indigo-950 dark:border-indigo-900/60 dark:bg-indigo-950/40 dark:text-indigo-200">
+          <div className="flex items-center gap-2.5">
+            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-indigo-600 text-xs font-bold text-white uppercase">
+              {user?.name?.charAt(0) || "U"}
+            </span>
+            <div>
+              <div className="flex items-center gap-1.5">
+                <span className="font-bold text-slate-900 dark:text-white">{user?.name || "Cashier"}</span>
+                <span className="rounded bg-indigo-200/80 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-900 dark:bg-indigo-900 dark:text-indigo-200">
+                  {user?.role?.replace("_", " ") || "STAFF"}
+                </span>
+              </div>
+              <span className="text-[11px] text-slate-500 dark:text-slate-400">Billing Officer (فروخت کنندہ)</span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-slate-500 dark:text-slate-400 font-medium">Terminal Outlet:</span>
+            {isBranchLocked ? (
+              <span className="inline-flex items-center gap-1.5 rounded-lg bg-amber-100 px-3 py-1 font-bold text-amber-900 dark:bg-amber-950 dark:text-amber-200 border border-amber-300 dark:border-amber-800">
+                <Building2 className="h-3.5 w-3.5 text-amber-700 dark:text-amber-300" />
+                <span>{user?.branchName || "Assigned Branch"} (LOCKED)</span>
+              </span>
+            ) : (
+              <div className="min-w-[200px]">
+                <select
+                  value={saleBranchId}
+                  onChange={(e) => setSaleBranchId(e.target.value)}
+                  className="w-full rounded-lg border border-indigo-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-900 dark:border-indigo-800 dark:bg-slate-900 dark:text-white"
+                >
+                  {branches.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      🏢 {b.name} ({b.code})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
         </div>
 

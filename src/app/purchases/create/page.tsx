@@ -21,9 +21,9 @@ import {
   Info,
   Check,
   Search,
-  Package,
   ArrowUpRight,
   ShieldCheck,
+  Building2,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { BrandPageLoader } from "@/components/ui/loader";
@@ -43,7 +43,14 @@ interface PurchaseItem {
 
 export default function CreatePurchasePage() {
   const router = useRouter();
-  const { activeCompany } = useAuth();
+  const { user, activeCompany, branches, selectedBranch, activeBranchId, isBranchLocked } = useAuth();
+  const effectiveBranch = isBranchLocked ? user?.branchId : (selectedBranch?.id || activeBranchId || null);
+  const [purchaseBranchId, setPurchaseBranchId] = useState<string>("");
+
+  useEffect(() => {
+    const bId = isBranchLocked ? (user?.branchId || "") : (selectedBranch?.id || activeBranchId || (branches[0]?.id || ""));
+    setPurchaseBranchId(bId);
+  }, [isBranchLocked, user?.branchId, selectedBranch?.id, activeBranchId, branches]);
 
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
@@ -69,6 +76,10 @@ export default function CreatePurchasePage() {
       const headers: Record<string, string> = {};
       if (activeCompany?.id) {
         headers["x-business-id"] = activeCompany.id;
+      }
+      const branchToPass = isBranchLocked ? user?.branchId : (purchaseBranchId || effectiveBranch);
+      if (branchToPass) {
+        headers["x-branch-id"] = branchToPass;
       }
 
       const [supRes, prodRes] = await Promise.all([
@@ -282,8 +293,15 @@ export default function CreatePurchasePage() {
       if (activeCompany?.id) {
         headers["x-business-id"] = activeCompany.id;
       }
+      const operatingBranchId = isBranchLocked ? (user?.branchId || null) : (purchaseBranchId || effectiveBranch || null);
+      if (operatingBranchId) {
+        headers["x-branch-id"] = operatingBranchId;
+      }
 
       const payload = {
+        branchId: operatingBranchId,
+        createdById: user?.userId,
+        createdByName: user?.name,
         date: new Date(date),
         supplierId,
         supplierName,
@@ -408,6 +426,48 @@ export default function CreatePurchasePage() {
           >
             Bulk Import (CSV)
           </Link>
+        </div>
+      </div>
+
+      {/* Active Branch Scope Indicator & Receiving Officer Attribution */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-2xl border border-indigo-100 bg-indigo-50/70 p-4 text-xs text-indigo-950 dark:border-indigo-900/60 dark:bg-indigo-950/40 dark:text-indigo-200">
+        <div className="flex items-center gap-2.5">
+          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-indigo-600 text-xs font-bold text-white uppercase">
+            {user?.name?.charAt(0) || "U"}
+          </span>
+          <div>
+            <div className="flex items-center gap-1.5">
+              <span className="font-bold text-slate-900 dark:text-white">{user?.name || "Purchaser"}</span>
+              <span className="rounded bg-indigo-200/80 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-900 dark:bg-indigo-900 dark:text-indigo-200">
+                {user?.role?.replace("_", " ") || "STAFF"}
+              </span>
+            </div>
+            <span className="text-[11px] text-slate-500 dark:text-slate-400">Receiving Officer (خریداری و وصولی کنندہ)</span>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <span className="text-slate-500 dark:text-slate-400 font-medium">Destination Outlet:</span>
+          {isBranchLocked ? (
+            <span className="inline-flex items-center gap-1.5 rounded-lg bg-amber-100 px-3 py-1 font-bold text-amber-900 dark:bg-amber-950 dark:text-amber-200 border border-amber-300 dark:border-amber-800">
+              <Building2 className="h-3.5 w-3.5 text-amber-700 dark:text-amber-300" />
+              <span>{user?.branchName || "Assigned Branch"} (LOCKED)</span>
+            </span>
+          ) : (
+            <div className="min-w-[200px]">
+              <select
+                value={purchaseBranchId}
+                onChange={(e) => setPurchaseBranchId(e.target.value)}
+                className="w-full rounded-lg border border-indigo-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-900 dark:border-indigo-800 dark:bg-slate-900 dark:text-white"
+              >
+                {branches.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    🏢 {b.name} ({b.code})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
       </div>
 

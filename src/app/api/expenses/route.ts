@@ -64,8 +64,8 @@ export async function POST(req: NextRequest) {
   try {
     const session = await getSession();
     const businessId = await getActiveBusinessId(req);
-    const { branchId: activeBranchId } = await getActiveBranchId(req);
-    const effectiveBranchId = body.branchId || activeBranchId || null;
+    const { branchId: activeBranchId, isLockedToBranch } = await getActiveBranchId(req);
+    const effectiveBranchId = isLockedToBranch ? activeBranchId : (body.branchId || activeBranchId || null);
     const createdById = session?.userId || body.createdById || "usr-3";
     const createdByName = session?.name || body.createdByName || "Farhan Accountant";
 
@@ -81,8 +81,8 @@ export async function POST(req: NextRequest) {
   } catch (error: any) {
     const session = await getSession();
     const businessId = await getActiveBusinessId(req);
-    const { branchId: activeBranchId } = await getActiveBranchId(req);
-    const effectiveBranchId = body.branchId || activeBranchId || null;
+    const { branchId: activeBranchId, isLockedToBranch } = await getActiveBranchId(req);
+    const effectiveBranchId = isLockedToBranch ? activeBranchId : (body.branchId || activeBranchId || null);
     const branchObj = fallbackStore.branches?.find((b) => b.id === effectiveBranchId);
     const amt = Number(body.amount || 0);
     const createdById = session?.userId || body.createdById || "usr-3";
@@ -91,6 +91,8 @@ export async function POST(req: NextRequest) {
     // Deduct from Cash/Bank account
     const isBank = body.paymentMethod === "BANK";
     const acc = fallbackStore.cashBankAccounts.find(
+      (a) => a.businessId === businessId && (!effectiveBranchId || a.branchId === effectiveBranchId) && (isBank ? a.type === "BANK" : a.type === "CASH")
+    ) || fallbackStore.cashBankAccounts.find(
       (a) => a.businessId === businessId && (isBank ? a.type === "BANK" : a.type === "CASH")
     );
     if (acc) {

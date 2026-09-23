@@ -5,12 +5,16 @@ import Link from "next/link";
 import { formatMoney } from "@/lib/decimal";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Plus, Search, Eye, Download, UploadCloud, FileSpreadsheet, Pencil } from "lucide-react";
+import { Plus, Search, Eye, Download, UploadCloud, FileSpreadsheet, Pencil, Building2 } from "lucide-react";
 import { TableRowsSkeleton } from "@/components/ui/loader";
 import { Modal } from "@/components/ui/modal";
 import { Input } from "@/components/ui/input";
+import { useAuth } from "@/context/AuthContext";
 
 export default function PurchasesPage() {
+  const { user, activeCompany, branches, selectedBranch, activeBranchId, isBranchLocked } = useAuth();
+  const effectiveBranch = isBranchLocked ? user?.branchId : (selectedBranch?.id || activeBranchId || null);
+
   const [purchases, setPurchases] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -27,7 +31,12 @@ export default function PurchasesPage() {
   const fetchPurchases = async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/purchases");
+      const headers: Record<string, string> = {};
+      if (activeCompany?.id) headers["x-business-id"] = activeCompany.id;
+      if (effectiveBranch) headers["x-branch-id"] = effectiveBranch;
+      const query = effectiveBranch ? `?branchId=${effectiveBranch}` : "?branchId=all";
+
+      const res = await fetch(`/api/purchases${query}`, { headers });
       const json = await res.json();
       if (json.success) setPurchases(json.data);
     } catch (err) {
@@ -39,7 +48,7 @@ export default function PurchasesPage() {
 
   useEffect(() => {
     fetchPurchases();
-  }, []);
+  }, [activeCompany?.id, effectiveBranch]);
 
   const openEditModal = (purchase: any) => {
     setEditingPurchase(purchase);
@@ -164,6 +173,32 @@ export default function PurchasesPage() {
             </Button>
           </Link>
         </div>
+      </div>
+
+      {/* Active Branch Scope Indicator Banner */}
+      <div className="flex items-center justify-between rounded-xl border border-indigo-100 bg-indigo-50/60 px-4 py-2.5 text-xs text-indigo-950 dark:border-indigo-900/50 dark:bg-indigo-950/20 dark:text-indigo-200">
+        <div className="flex items-center gap-2">
+          <Building2 className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+          <span>
+            Current Outlet Scope:{" "}
+            <strong>
+              {isBranchLocked
+                ? `${user?.branchName || "Assigned Outlet"} (Fixed Staff Access)`
+                : effectiveBranch
+                ? branches.find((b) => b.id === effectiveBranch)?.name || "Filtered Outlet"
+                : "All Outlets (Consolidated Master View)"}
+            </strong>
+          </span>
+        </div>
+        {isBranchLocked ? (
+          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800 dark:bg-amber-900/50 dark:text-amber-300">
+            🔒 Branch Restricted
+          </span>
+        ) : (
+          <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-bold text-indigo-800 dark:bg-indigo-900/50 dark:text-indigo-300">
+            👑 Owner Multi-Outlet View
+          </span>
+        )}
       </div>
 
       <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">

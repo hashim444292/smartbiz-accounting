@@ -40,25 +40,25 @@ export async function POST(req: NextRequest) {
   try {
     const session = await getSession();
     const businessId = await getActiveBusinessId(req);
-    const { branchId: activeBranchId } = await getActiveBranchId(req);
-    const effectiveBranchId = body.branchId || activeBranchId || null;
+    const { branchId: activeBranchId, isLockedToBranch } = await getActiveBranchId(req);
+    const effectiveBranchId = isLockedToBranch ? activeBranchId : (body.branchId || activeBranchId || null);
     const createdById = session?.userId || body.createdById || "usr-2";
     const createdByName = session?.name || body.createdByName || "Muhammad Hanif";
 
     const sale = await createAndPostSale({
+      ...body,
       businessId,
       branchId: effectiveBranchId,
       createdById,
       createdByName,
-      ...body,
     });
     return NextResponse.json({ success: true, data: sale });
   } catch (error: any) {
     // If PostgreSQL server is offline, apply the exact accounting & stock rules to fallbackStore
     if (error.message?.includes("Can't reach database server") || error.code === "P1001" || !process.env.DATABASE_URL) {
       const businessId = await getActiveBusinessId(req);
-      const { branchId: activeBranchId } = await getActiveBranchId(req);
-      const effectiveBranchId = body.branchId || activeBranchId || null;
+      const { branchId: activeBranchId, isLockedToBranch } = await getActiveBranchId(req);
+      const effectiveBranchId = isLockedToBranch ? activeBranchId : (body.branchId || activeBranchId || null);
       const branchObj = fallbackStore.branches?.find((b) => b.id === effectiveBranchId);
       const saleId = `sale-${Date.now()}`;
       const invNum = `INV-2026-${String(fallbackStore.sales.length + 1).padStart(5, "0")}`;
@@ -128,7 +128,11 @@ export async function POST(req: NextRequest) {
 
       // Cash/Bank
       if (paid > 0) {
-        const acc = fallbackStore.cashBankAccounts.find((a) => (body.paymentMethod === "BANK" ? a.type === "BANK" : a.type === "CASH"));
+        const acc = fallbackStore.cashBankAccounts.find(
+          (a) => a.businessId === businessId && (!effectiveBranchId || a.branchId === effectiveBranchId) && (body.paymentMethod === "BANK" ? a.type === "BANK" : a.type === "CASH")
+        ) || fallbackStore.cashBankAccounts.find(
+          (a) => a.businessId === businessId && (body.paymentMethod === "BANK" ? a.type === "BANK" : a.type === "CASH")
+        );
         if (acc) acc.balance += paid;
       }
 

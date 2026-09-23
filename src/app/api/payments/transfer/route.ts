@@ -12,8 +12,8 @@ export async function POST(req: NextRequest) {
   try {
     const session = await getSession();
     const businessId = await getActiveBusinessId(req);
-    const { branchId: activeBranchId } = await getActiveBranchId(req);
-    const effectiveBranchId = body.branchId || activeBranchId || null;
+    const { branchId: activeBranchId, isLockedToBranch } = await getActiveBranchId(req);
+    const effectiveBranchId = isLockedToBranch ? activeBranchId : (body.branchId || activeBranchId || null);
     const createdById = session?.userId || body.createdById || "usr-2";
     const createdByName = session?.name || body.createdByName || "Muhammad Hanif";
 
@@ -35,18 +35,18 @@ export async function POST(req: NextRequest) {
       try {
         const session = await getSession();
         const businessId = await getActiveBusinessId(req);
-        const { branchId: activeBranchId } = await getActiveBranchId(req);
-        const effectiveBranchId = body.branchId || activeBranchId || null;
+        const { branchId: activeBranchId, isLockedToBranch } = await getActiveBranchId(req);
+        const effectiveBranchId = isLockedToBranch ? activeBranchId : (body.branchId || activeBranchId || null);
         const createdById = session?.userId || body.createdById || "usr-2";
         const createdByName = session?.name || body.createdByName || "Muhammad Hanif";
 
         const newTransfer = storeTransferFunds(
           {
             businessId,
+            ...body,
             branchId: effectiveBranchId,
             createdById,
             createdByName,
-            ...body,
           },
           { userId: createdById, name: createdByName, email: session?.email }
         );

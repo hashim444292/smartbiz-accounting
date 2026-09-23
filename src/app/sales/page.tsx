@@ -24,10 +24,11 @@ import {
   Clock,
   X,
   Pencil,
-  User,
   AlertCircle,
+  Building2,
 } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
+import { useAuth } from "@/context/AuthContext";
 
 interface SaleRecord {
   id: string;
@@ -53,6 +54,9 @@ interface SaleRecord {
 }
 
 export default function SalesPage() {
+  const { user, activeCompany, branches, selectedBranch, activeBranchId, isBranchLocked } = useAuth();
+  const effectiveBranch = isBranchLocked ? user?.branchId : (selectedBranch?.id || activeBranchId || null);
+
   const [sales, setSales] = useState<SaleRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -76,7 +80,12 @@ export default function SalesPage() {
   const fetchSales = async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/sales");
+      const headers: Record<string, string> = {};
+      if (activeCompany?.id) headers["x-business-id"] = activeCompany.id;
+      if (effectiveBranch) headers["x-branch-id"] = effectiveBranch;
+      const query = effectiveBranch ? `?branchId=${effectiveBranch}` : "?branchId=all";
+
+      const res = await fetch(`/api/sales${query}`, { headers });
       const json = await res.json();
       if (json.success) {
         setSales(json.data);
@@ -90,7 +99,7 @@ export default function SalesPage() {
 
   useEffect(() => {
     fetchSales();
-  }, []);
+  }, [activeCompany?.id, effectiveBranch]);
 
   const handleReverse = async (id: string, invoiceNumber: string) => {
     if (!confirm(`Are you sure you want to reverse sale invoice #${invoiceNumber}? This will restock items and rebalance receivables.`)) {
@@ -293,6 +302,32 @@ export default function SalesPage() {
             </Button>
           </Link>
         </div>
+      </div>
+
+      {/* Active Branch Scope Indicator Banner */}
+      <div className="flex items-center justify-between rounded-xl border border-indigo-100 bg-indigo-50/60 px-4 py-2.5 text-xs text-indigo-950 dark:border-indigo-900/50 dark:bg-indigo-950/20 dark:text-indigo-200">
+        <div className="flex items-center gap-2">
+          <Building2 className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+          <span>
+            Current Outlet Scope:{" "}
+            <strong>
+              {isBranchLocked
+                ? `${user?.branchName || "Assigned Outlet"} (Fixed Staff Access)`
+                : effectiveBranch
+                ? branches.find((b) => b.id === effectiveBranch)?.name || "Filtered Outlet"
+                : "All Outlets (Consolidated Master View)"}
+            </strong>
+          </span>
+        </div>
+        {isBranchLocked ? (
+          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800 dark:bg-amber-900/50 dark:text-amber-300">
+            🔒 Branch Restricted
+          </span>
+        ) : (
+          <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-bold text-indigo-800 dark:bg-indigo-900/50 dark:text-indigo-300">
+            👑 Owner Multi-Outlet View
+          </span>
+        )}
       </div>
 
       {/* Enhanced Filters Bar with Date, Status & Quick Pills */}

@@ -37,7 +37,8 @@ export default function InventoryPage() {
     try {
       const headers: Record<string, string> = {};
       if (activeCompany?.id) headers["x-business-id"] = activeCompany.id;
-      if (activeBranchId) headers["x-branch-id"] = activeBranchId;
+      const branchToPass = isBranchLocked ? user?.branchId : activeBranchId;
+      if (branchToPass) headers["x-branch-id"] = branchToPass;
 
       const res = await fetch("/api/products?limit=1000", { headers });
       const json = await res.json();
@@ -56,7 +57,8 @@ export default function InventoryPage() {
     try {
       const headers: Record<string, string> = {};
       if (activeCompany?.id) headers["x-business-id"] = activeCompany.id;
-      if (activeBranchId) headers["x-branch-id"] = activeBranchId;
+      const branchToPass = isBranchLocked ? user?.branchId : activeBranchId;
+      if (branchToPass) headers["x-branch-id"] = branchToPass;
 
       const res = await fetch("/api/inventory/transactions", { headers });
       const json = await res.json();
@@ -72,10 +74,9 @@ export default function InventoryPage() {
   useEffect(() => {
     fetchProducts();
     fetchTransactions();
-    if (selectedBranch?.id || activeBranchId) {
-      setAdjustBranchId(selectedBranch?.id || activeBranchId || "");
-    }
-  }, [activeCompany?.id, activeBranchId]);
+    const initialBranch = isBranchLocked ? (user?.branchId || "") : (selectedBranch?.id || activeBranchId || "");
+    setAdjustBranchId(initialBranch);
+  }, [activeCompany?.id, activeBranchId, isBranchLocked, user?.branchId]);
 
   const handleAdjustSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -94,7 +95,7 @@ export default function InventoryPage() {
           targetStock,
           reason: adjustReason,
           notes: adjustNotes,
-          branchId: adjustBranchId || selectedBranch?.id || activeBranchId || null,
+          branchId: isBranchLocked ? user?.branchId : (adjustBranchId || selectedBranch?.id || activeBranchId || null),
           createdById: user?.userId,
           createdByName: user?.name,
         }),
@@ -399,7 +400,8 @@ export default function InventoryPage() {
                             onClick={() => {
                               setSelectedProduct(p);
                               setTargetStock(Number(p.currentStock || 0));
-                              setAdjustBranchId(selectedBranch?.id || activeBranchId || (branches[0]?.id || ""));
+                              const branchForAdjust = isBranchLocked ? (user?.branchId || "") : (selectedBranch?.id || activeBranchId || (branches[0]?.id || ""));
+                              setAdjustBranchId(branchForAdjust);
                               setShowAdjustModal(true);
                             }}
                           >

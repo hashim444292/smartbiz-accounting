@@ -250,6 +250,7 @@ model Branch {
   inventoryTxns       InventoryTransaction[]
   stockAdjustments    StockAdjustment[]
   users               User[]
+  cashBankAccounts    CashBankAccount[]
 
   @@unique([businessId, code])
   @@index([businessId])
@@ -624,16 +625,20 @@ model CashBankAccount {
   accountNumber String?
   bankName      String?
   branch        String?
+  branchId      String?
   balance       Decimal   @default(0.00) @db.Decimal(15, 2)
   isDefault     Boolean   @default(false)
   isActive      Boolean   @default(true)
   createdAt     DateTime  @default(now())
 
   business      Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  branchOutlet  Branch?   @relation(fields: [branchId], references: [id], onDelete: SetNull)
   account       Account?  @relation(fields: [accountId], references: [id], onDelete: SetNull)
   sentPayments  Payment[] @relation("SourceAccount")
   rcvdPayments  Payment[] @relation("TargetAccount")
   expenses      Expense[]
+
+  @@index([businessId, branchId])
 }
 
 model AccountingPeriod {

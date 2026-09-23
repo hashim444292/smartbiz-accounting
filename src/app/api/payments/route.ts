@@ -18,21 +18,27 @@ export async function GET(req: NextRequest) {
     if (type) where.type = type;
     if (branchId) where.branchId = branchId;
 
-    const payments = await prisma.payment.findMany({
-      where,
-      include: {
-        customer: true,
-        supplier: true,
-        account: true,
-        targetAccount: true,
-        allocations: true,
-        branch: true,
-      },
-      orderBy: { date: "desc" },
-      take: 100,
-    });
+    const [payments, accounts] = await Promise.all([
+      prisma.payment.findMany({
+        where,
+        include: {
+          customer: true,
+          supplier: true,
+          account: true,
+          targetAccount: true,
+          allocations: true,
+          branch: true,
+        },
+        orderBy: { date: "desc" },
+        take: 100,
+      }),
+      prisma.cashBankAccount.findMany({
+        where: { businessId, isActive: true },
+        orderBy: { name: "asc" },
+      }),
+    ]);
 
-    return NextResponse.json({ success: true, data: payments, branchId, isLockedToBranch });
+    return NextResponse.json({ success: true, data: payments, accounts, branchId, isLockedToBranch });
   } catch (error: any) {
     const businessId = await getActiveBusinessId(req);
     const { branchId, isLockedToBranch } = await getActiveBranchId(req);
@@ -41,7 +47,8 @@ export async function GET(req: NextRequest) {
     let pays = fallbackStore.payments.filter((p) => p.businessId === businessId);
     if (type) pays = pays.filter((p) => p.type === type);
     if (branchId) pays = pays.filter((p) => p.branchId === branchId);
-    return NextResponse.json({ success: true, data: pays, branchId, isLockedToBranch, fallback: true });
+    const accounts = fallbackStore.cashBankAccounts.filter((a) => a.businessId === businessId);
+    return NextResponse.json({ success: true, data: pays, accounts, branchId, isLockedToBranch, fallback: true });
   }
 }
 
@@ -51,8 +58,8 @@ export async function POST(req: NextRequest) {
   try {
     const session = await getSession();
     const businessId = await getActiveBusinessId(req);
-    const { branchId: activeBranchId } = await getActiveBranchId(req);
-    const effectiveBranchId = body.branchId || activeBranchId || null;
+    const { branchId: activeBranchId, isLockedToBranch } = await getActiveBranchId(req);
+    const effectiveBranchId = isLockedToBranch ? activeBranchId : (body.branchId || activeBranchId || null);
     const createdById = session?.userId || body.createdById || "usr-2";
     const createdByName = session?.name || body.createdByName || "Muhammad Hanif";
 
@@ -95,18 +102,18 @@ export async function POST(req: NextRequest) {
     if (error.message?.includes("Can't reach database server") || error.code === "P1001" || !process.env.DATABASE_URL) {
       const session = await getSession();
       const businessId = await getActiveBusinessId(req);
-      const { branchId: activeBranchId } = await getActiveBranchId(req);
-      const effectiveBranchId = body.branchId || activeBranchId || null;
+      const { branchId: activeBranchId, isLockedToBranch } = await getActiveBranchId(req);
+      const effectiveBranchId = isLockedToBranch ? activeBranchId : (body.branchId || activeBranchId || null);
       const createdById = session?.userId || body.createdById || "usr-2";
       const createdByName = session?.name || body.createdByName || "Muhammad Hanif";
 
       const newPayment = storeAddPayment(
         {
           businessId,
+          ...body,
           branchId: effectiveBranchId,
           createdById,
           createdByName,
-          ...body,
         },
         { userId: createdById, name: createdByName, email: session?.email }
       );

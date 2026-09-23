@@ -6,10 +6,13 @@ import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, Receipt, Tag, Download, Pencil, Trash2 } from "lucide-react";
+import { Plus, Search, Receipt, Tag, Download, Pencil, Trash2, Building2 } from "lucide-react";
 import { TableRowsSkeleton } from "@/components/ui/loader";
+import { useAuth } from "@/context/AuthContext";
 
 export default function ExpensesPage() {
+  const { user, activeCompany, branches, selectedBranch, activeBranchId, isBranchLocked } = useAuth();
+
   const [expenses, setExpenses] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
   const [accounts, setAccounts] = useState<any[]>([]);
@@ -17,6 +20,27 @@ export default function ExpensesPage() {
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("ALL");
   const [showAddModal, setShowAddModal] = useState(false);
+
+  // Branch Selection in modal
+  const effectiveBranch = isBranchLocked ? user?.branchId : (selectedBranch?.id || activeBranchId || null);
+  const [expenseBranchId, setExpenseBranchId] = useState("");
+
+  // Accounts filtered strictly by the operating branch
+  const modalAccounts = accounts.filter((a) => {
+    if (expenseBranchId) {
+      return !a.branchId || a.branchId === expenseBranchId;
+    }
+    return true;
+  });
+
+  useEffect(() => {
+    if (modalAccounts.length > 0) {
+      const isAccValid = modalAccounts.some((a) => a.id === accountId);
+      if (!isAccValid) {
+        setAccountId(modalAccounts[0].id);
+      }
+    }
+  }, [expenseBranchId, accounts]);
 
   // Form State (New Expense)
   const [categoryId, setCategoryId] = useState("");
@@ -42,14 +66,21 @@ export default function ExpensesPage() {
   const fetchExpenses = async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/expenses");
+      const headers: Record<string, string> = {};
+      if (activeCompany?.id) headers["x-business-id"] = activeCompany.id;
+      if (effectiveBranch) headers["x-branch-id"] = effectiveBranch;
+      const query = effectiveBranch ? `?branchId=${effectiveBranch}` : "?branchId=all";
+
+      const res = await fetch(`/api/expenses${query}`, { headers });
       const json = await res.json();
       if (json.success) {
         setExpenses(json.data.expenses);
         setCategories(json.data.categories);
-        setAccounts(json.data.accounts);
+        setAccounts(json.data.accounts || []);
         if (json.data.categories.length > 0) setCategoryId(json.data.categories[0].id);
-        if (json.data.accounts.length > 0) setAccountId(json.data.accounts[0].id);
+        const branchForAcc = isBranchLocked ? user?.branchId : (expenseBranchId || effectiveBranch);
+        const validAccounts = (json.data.accounts || []).filter((a: any) => !branchForAcc || !a.branchId || a.branchId === branchForAcc);
+        if (validAccounts.length > 0) setAccountId(validAccounts[0].id);
       }
     } catch (err) {
       console.error(err);
@@ -60,11 +91,20 @@ export default function ExpensesPage() {
 
   useEffect(() => {
     fetchExpenses();
-  }, []);
+    const branchToUse = isBranchLocked ? (user?.branchId || "") : (selectedBranch?.id || activeBranchId || (branches[0]?.id || ""));
+    setExpenseBranchId(branchToUse);
+  }, [activeCompany?.id, activeBranchId, isBranchLocked, user?.branchId, selectedBranch?.id]);
+
+  const openAddModal = () => {
+    const branchToUse = isBranchLocked ? (user?.branchId || "") : (selectedBranch?.id || activeBranchId || (branches[0]?.id || ""));
+    setExpenseBranchId(branchToUse);
+    setShowAddModal(true);
+  };
 
   const handleCreateExpense = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
+    const branchForExpense = isBranchLocked ? (user?.branchId || null) : (expenseBranchId || effectiveBranch || null);
     try {
       const res = await fetch("/api/expenses", {
         method: "POST",
@@ -78,6 +118,7 @@ export default function ExpensesPage() {
           paidTo,
           notes,
           date: new Date(date),
+          branchId: branchForExpense,
         }),
       });
       const json = await res.json();
@@ -184,10 +225,36 @@ export default function ExpensesPage() {
             Total Filtered Expenses: <span className="font-bold text-rose-600">{formatMoney(totalExpenses)}</span>
           </p>
         </div>
-        <Button variant="danger" size="sm" onClick={() => setShowAddModal(true)}>
+        <Button variant="danger" size="sm" onClick={openAddModal}>
           <Plus className="h-4 w-4 mr-1.5" />
           Add Expense
         </Button>
+      </div>
+
+      {/* Active Branch Scope Indicator Banner */}
+      <div className="flex items-center justify-between rounded-xl border border-indigo-100 bg-indigo-50/60 px-4 py-2.5 text-xs text-indigo-950 dark:border-indigo-900/50 dark:bg-indigo-950/20 dark:text-indigo-200">
+        <div className="flex items-center gap-2">
+          <Building2 className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+          <span>
+            Current Outlet Scope:{" "}
+            <strong>
+              {isBranchLocked
+                ? `${user?.branchName || "Assigned Outlet"} (Fixed Staff Access)`
+                : effectiveBranch
+                ? branches.find((b) => b.id === effectiveBranch)?.name || "Filtered Outlet"
+                : "All Outlets (Consolidated Master View)"}
+            </strong>
+          </span>
+        </div>
+        {isBranchLocked ? (
+          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800 dark:bg-amber-900/50 dark:text-amber-300">
+            🔒 Branch Restricted
+          </span>
+        ) : (
+          <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-bold text-indigo-800 dark:bg-indigo-900/50 dark:text-indigo-300">
+            👑 Owner Multi-Outlet View
+          </span>
+        )}
       </div>
 
       {/* Filters Bar */}
@@ -316,6 +383,37 @@ export default function ExpensesPage() {
       {/* Add Expense Modal */}
       <Modal isOpen={showAddModal} onClose={() => setShowAddModal(false)} title="Record Daily Expense">
         <form onSubmit={handleCreateExpense} className="space-y-3.5">
+          {/* User attribution & Branch Lock Display */}
+          <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3 text-xs dark:border-slate-800 dark:bg-slate-800/50">
+            <div className="flex items-center justify-between">
+              <span className="text-slate-500">Recorded By (خرچ درج کنندہ):</span>
+              <span className="font-semibold text-slate-900 dark:text-white">
+                {user?.name || "Staff User"} ({user?.role || "STAFF"})
+              </span>
+            </div>
+            <div className="mt-2 pt-2 border-t border-slate-200 dark:border-slate-700 flex items-center justify-between">
+              <span className="text-slate-500">Operating Branch / Outlet:</span>
+              {isBranchLocked ? (
+                <span className="inline-flex items-center gap-1 rounded-md bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-800 dark:bg-amber-900/50 dark:text-amber-300">
+                  <Building2 className="h-3 w-3" />
+                  {user?.branchName || "Assigned Outlet"} (LOCKED)
+                </span>
+              ) : (
+                <div className="w-56">
+                  <select
+                    value={expenseBranchId}
+                    onChange={(e) => setExpenseBranchId(e.target.value)}
+                    className="w-full rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                  >
+                    {branches.map((b) => (
+                      <option key={b.id} value={b.id}>{b.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+          </div>
+
           <div className="grid grid-cols-2 gap-3">
             <Select label="Expense Category" value={categoryId} onChange={(e) => setCategoryId(e.target.value)} required>
               {categories.map((c) => (
@@ -335,9 +433,15 @@ export default function ExpensesPage() {
               <option value="BANK">Bank Account</option>
             </Select>
             <Select label="Paid From Account" value={accountId} onChange={(e) => setAccountId(e.target.value)}>
-              {accounts.map((a) => (
-                <option key={a.id} value={a.id}>{a.name} (Bal: {formatMoney(a.balance)})</option>
-              ))}
+              {modalAccounts.length === 0 ? (
+                <option value="">No branch cash/bank accounts found</option>
+              ) : (
+                modalAccounts.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name} ({a.branchName || "Global"}) (Bal: {formatMoney(a.balance)})
+                  </option>
+                ))
+              )}
             </Select>
           </div>
           <Input label="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Optional voucher notes..." />

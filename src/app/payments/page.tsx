@@ -36,18 +36,45 @@ export default function PaymentsPage() {
   const [paymentBranchId, setPaymentBranchId] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  // Compute effective branch: if user is staff locked to a branch, strictly use that; otherwise active branch or null
+  const effectiveBranch = isBranchLocked ? user?.branchId : (selectedBranch?.id || activeBranchId || null);
+
+  // Filter accounts strictly by the selected operating branch in the modal (or universal accounts)
+  const modalAccounts = accounts.filter((a) => {
+    if (paymentBranchId) {
+      return !a.branchId || a.branchId === paymentBranchId;
+    }
+    return true;
+  });
+
+  // Whenever the modal's operating branch changes, auto-select a valid account from that branch
+  useEffect(() => {
+    if (modalAccounts.length > 0) {
+      const isAccValid = modalAccounts.some((a) => a.id === accountId);
+      if (!isAccValid) {
+        setAccountId(modalAccounts[0].id);
+      }
+      const isTargetValid = modalAccounts.some((a) => a.id === targetAccountId);
+      if (!isTargetValid && modalAccounts.length > 1) {
+        setTargetAccountId(modalAccounts[1].id);
+      }
+    }
+  }, [paymentBranchId, accounts]);
+
   const fetchPayments = async () => {
     setLoading(true);
     try {
       const headers: Record<string, string> = {};
       if (activeCompany?.id) headers["x-business-id"] = activeCompany.id;
-      if (activeBranchId) headers["x-branch-id"] = activeBranchId;
+      if (effectiveBranch) headers["x-branch-id"] = effectiveBranch;
+
+      const query = effectiveBranch ? `?branchId=${effectiveBranch}` : "?branchId=all";
 
       const [payRes, custRes, supRes, expRes] = await Promise.all([
-        fetch("/api/payments", { headers }),
+        fetch(`/api/payments${query}`, { headers }),
         fetch("/api/customers", { headers }),
         fetch("/api/suppliers", { headers }),
-        fetch("/api/expenses", { headers }),
+        fetch(`/api/expenses${query}`, { headers }),
       ]);
       const payJson = await payRes.json();
       const custJson = await custRes.json();
@@ -57,12 +84,19 @@ export default function PaymentsPage() {
       if (payJson.success) setPayments(payJson.data);
       if (custJson.success) setCustomers(custJson.data);
       if (supJson.success) setSuppliers(supJson.data);
-      if (expJson.success && expJson.data.accounts) {
-        setAccounts(expJson.data.accounts);
-        if (expJson.data.accounts.length > 0) {
-          setAccountId(expJson.data.accounts[0].id);
-          if (expJson.data.accounts.length > 1) {
-            setTargetAccountId(expJson.data.accounts[1].id);
+
+      const rawAccounts = (payJson.accounts && payJson.accounts.length > 0)
+        ? payJson.accounts
+        : (expJson.data?.accounts || []);
+
+      if (rawAccounts.length > 0) {
+        setAccounts(rawAccounts);
+        const branchForAcc = isBranchLocked ? user?.branchId : (paymentBranchId || effectiveBranch);
+        const filtered = rawAccounts.filter((a: any) => !branchForAcc || !a.branchId || a.branchId === branchForAcc);
+        if (filtered.length > 0) {
+          setAccountId(filtered[0].id);
+          if (filtered.length > 1) {
+            setTargetAccountId(filtered[1].id);
           }
         }
       }
@@ -75,10 +109,29 @@ export default function PaymentsPage() {
 
   useEffect(() => {
     fetchPayments();
-    if (selectedBranch?.id || activeBranchId) {
-      setPaymentBranchId(selectedBranch?.id || activeBranchId || "");
-    }
-  }, [activeCompany?.id, activeBranchId]);
+    const branchToUse = isBranchLocked ? (user?.branchId || "") : (selectedBranch?.id || activeBranchId || (branches[0]?.id || ""));
+    setPaymentBranchId(branchToUse);
+  }, [activeCompany?.id, activeBranchId, isBranchLocked, user?.branchId, selectedBranch?.id]);
+
+  const openReceiptModal = () => {
+    if (customers.length > 0) setPartyId(customers[0].id);
+    const branchToUse = isBranchLocked ? (user?.branchId || "") : (selectedBranch?.id || activeBranchId || (branches[0]?.id || ""));
+    setPaymentBranchId(branchToUse);
+    setShowReceiptModal(true);
+  };
+
+  const openDisburseModal = () => {
+    if (suppliers.length > 0) setPartyId(suppliers[0].id);
+    const branchToUse = isBranchLocked ? (user?.branchId || "") : (selectedBranch?.id || activeBranchId || (branches[0]?.id || ""));
+    setPaymentBranchId(branchToUse);
+    setShowDisburseModal(true);
+  };
+
+  const openTransferModal = () => {
+    const branchToUse = isBranchLocked ? (user?.branchId || "") : (selectedBranch?.id || activeBranchId || (branches[0]?.id || ""));
+    setPaymentBranchId(branchToUse);
+    setShowTransferModal(true);
+  };
 
   const handleCreateReceipt = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -86,7 +139,9 @@ export default function PaymentsPage() {
     try {
       const headers: Record<string, string> = { "Content-Type": "application/json" };
       if (activeCompany?.id) headers["x-business-id"] = activeCompany.id;
-      if (activeBranchId) headers["x-branch-id"] = activeBranchId;
+      if (effectiveBranch) headers["x-branch-id"] = effectiveBranch;
+
+      const effectiveCreateBranch = isBranchLocked ? user?.branchId : (paymentBranchId || effectiveBranch || null);
 
       const res = await fetch("/api/payments", {
         method: "POST",
@@ -98,7 +153,7 @@ export default function PaymentsPage() {
           accountId,
           referenceNumber,
           notes,
-          branchId: paymentBranchId || selectedBranch?.id || activeBranchId || null,
+          branchId: effectiveCreateBranch,
           createdById: user?.userId,
           createdByName: user?.name,
         }),
@@ -124,7 +179,9 @@ export default function PaymentsPage() {
     try {
       const headers: Record<string, string> = { "Content-Type": "application/json" };
       if (activeCompany?.id) headers["x-business-id"] = activeCompany.id;
-      if (activeBranchId) headers["x-branch-id"] = activeBranchId;
+      if (effectiveBranch) headers["x-branch-id"] = effectiveBranch;
+
+      const effectiveCreateBranch = isBranchLocked ? user?.branchId : (paymentBranchId || effectiveBranch || null);
 
       const res = await fetch("/api/payments", {
         method: "POST",
@@ -136,7 +193,7 @@ export default function PaymentsPage() {
           accountId,
           referenceNumber,
           notes,
-          branchId: paymentBranchId || selectedBranch?.id || activeBranchId || null,
+          branchId: effectiveCreateBranch,
           createdById: user?.userId,
           createdByName: user?.name,
         }),
@@ -162,7 +219,9 @@ export default function PaymentsPage() {
     try {
       const headers: Record<string, string> = { "Content-Type": "application/json" };
       if (activeCompany?.id) headers["x-business-id"] = activeCompany.id;
-      if (activeBranchId) headers["x-branch-id"] = activeBranchId;
+      if (effectiveBranch) headers["x-branch-id"] = effectiveBranch;
+
+      const effectiveCreateBranch = isBranchLocked ? user?.branchId : (paymentBranchId || effectiveBranch || null);
 
       const res = await fetch("/api/payments/transfer", {
         method: "POST",
@@ -173,7 +232,7 @@ export default function PaymentsPage() {
           amount,
           referenceNumber,
           notes,
-          branchId: paymentBranchId || selectedBranch?.id || activeBranchId || null,
+          branchId: effectiveCreateBranch,
           createdById: user?.userId,
           createdByName: user?.name,
         }),
@@ -237,35 +296,52 @@ export default function PaymentsPage() {
           <Button
             variant="success"
             size="sm"
-            onClick={() => {
-              if (customers.length > 0) setPartyId(customers[0].id);
-              setPaymentBranchId(selectedBranch?.id || activeBranchId || (branches[0]?.id || ""));
-              setShowReceiptModal(true);
-            }}
+            onClick={openReceiptModal}
           >
             <ArrowDownLeft className="h-4 w-4 mr-1" /> Money Received
           </Button>
           <Button
             variant="danger"
             size="sm"
-            onClick={() => {
-              if (suppliers.length > 0) setPartyId(suppliers[0].id);
-              setPaymentBranchId(selectedBranch?.id || activeBranchId || (branches[0]?.id || ""));
-              setShowDisburseModal(true);
-            }}
+            onClick={openDisburseModal}
           >
             <ArrowUpRight className="h-4 w-4 mr-1" /> Money Paid
           </Button>
           <Button
             variant="outline"
             size="sm"
-            onClick={() => {
-              setPaymentBranchId(selectedBranch?.id || activeBranchId || (branches[0]?.id || ""));
-              setShowTransferModal(true);
-            }}
+            onClick={openTransferModal}
           >
             <ArrowLeftRight className="h-4 w-4 mr-1" /> Transfer Funds
           </Button>
+        </div>
+      </div>
+
+      {/* Active Branch Scope Indicator Banner */}
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200/90 bg-white p-3.5 shadow-xs dark:border-slate-800 dark:bg-[#111827]">
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400">
+            <Building2 className="h-4 w-4" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Active Outlet View (موجودہ برانچ):</span>
+              {isBranchLocked ? (
+                <span className="inline-flex items-center gap-1.5 rounded-lg bg-amber-50 border border-amber-200 px-2.5 py-0.5 text-xs font-bold text-amber-900 dark:bg-amber-950/60 dark:border-amber-800 dark:text-amber-200">
+                  🏢 {user?.branchName || branches.find((b) => b.id === user?.branchId)?.name || "Assigned Branch"} (مخصوص کھاتہ / Locked)
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 text-xs font-bold text-emerald-900 dark:bg-emerald-950/60 dark:border-emerald-800 dark:text-emerald-200">
+                  🏢 {selectedBranch ? `${selectedBranch.name} (${selectedBranch.code})` : "🌐 Consolidated (All Outlets / تمام برانچز کا مجموعہ)"}
+                </span>
+              )}
+            </div>
+            <p className="text-[11px] text-slate-400 mt-0.5">
+              {isBranchLocked
+                ? "آپ کے اکاؤنٹ کو سختی سے آپ کی مخصوص برانچ تک محدود کیا گیا ہے۔ دوسرے آؤٹ لیٹس کا ڈیٹا اور کیش ڈراور مکمل پوشیدہ ہے۔"
+                : "بطور Owner آپ اوپر ہیڈر سے کسی بھی وقت برانچ تبدیل کر سکتے ہیں یا تمام آؤٹ لیٹس کا اکٹھا کھاتہ دیکھ سکتے ہیں۔"}
+            </p>
+          </div>
         </div>
       </div>
 
@@ -402,24 +478,41 @@ export default function PaymentsPage() {
                 </div>
               </div>
               <span className="rounded-md bg-white/80 dark:bg-slate-800 px-2 py-0.5 text-[11px] font-medium border border-indigo-200 dark:border-indigo-800">
-                🏢 {branches.find((b) => b.id === paymentBranchId)?.name || selectedBranch?.name || "Main Branch"}
+                🏢 {branches.find((b) => b.id === paymentBranchId)?.name || selectedBranch?.name || user?.branchName || "Main Branch"}
               </span>
             </div>
           </div>
 
-          {branches.length > 1 && !isBranchLocked && (
-            <Select
-              label="Receiving Branch (برانچ جہاں کیش جمع ہوا)"
-              value={paymentBranchId}
-              onChange={(e) => setPaymentBranchId(e.target.value)}
-            >
-              {branches.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name} ({b.code})
-                </option>
-              ))}
-            </Select>
-          )}
+          {isBranchLocked ? (
+            <div className="flex items-center justify-between rounded-xl border border-amber-200/90 bg-amber-50/80 p-2.5 text-xs text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200">
+              <span className="font-semibold text-amber-900 dark:text-amber-300">
+                Receiving Outlet (مخصوص برانچ):
+              </span>
+              <span className="font-bold flex items-center gap-1.5">
+                🏢 {user?.branchName || branches.find((b) => b.id === user?.branchId)?.name || "Your Outlet"}
+                <span className="rounded bg-amber-200/90 px-1.5 py-0.5 text-[10px] font-bold text-amber-900 dark:bg-amber-900 dark:text-amber-100">
+                  LOCKED
+                </span>
+              </span>
+            </div>
+          ) : branches.length > 1 ? (
+            <div>
+              <Select
+                label="Receiving Branch (برانچ جہاں کیش جمع ہوا)"
+                value={paymentBranchId}
+                onChange={(e) => setPaymentBranchId(e.target.value)}
+              >
+                {branches.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    🏢 {b.name} ({b.code})
+                  </option>
+                ))}
+              </Select>
+              <p className="text-[10px] text-slate-500 mt-1 italic">
+                💡 منتخب برانچ کے کیش ڈراور اور اکاؤنٹس خودکار طور پر نیچے فلٹر ہو جائیں گے۔
+              </p>
+            </div>
+          ) : null}
 
           <Select label="Customer" value={partyId} onChange={(e) => setPartyId(e.target.value)} required>
             {customers.map((c) => (
@@ -437,9 +530,9 @@ export default function PaymentsPage() {
             required
           />
           <Select label="Deposit Into Account" value={accountId} onChange={(e) => setAccountId(e.target.value)}>
-            {accounts.map((a) => (
+            {modalAccounts.map((a) => (
               <option key={a.id} value={a.id}>
-                {a.name} (Balance: {formatMoney(a.balance)})
+                {a.name} {a.branchName ? `[${a.branchName}]` : ""} (Balance: {formatMoney(a.balance)})
               </option>
             ))}
           </Select>
@@ -472,24 +565,41 @@ export default function PaymentsPage() {
                 </div>
               </div>
               <span className="rounded-md bg-white/80 dark:bg-slate-800 px-2 py-0.5 text-[11px] font-medium border border-rose-200 dark:border-rose-800">
-                🏢 {branches.find((b) => b.id === paymentBranchId)?.name || selectedBranch?.name || "Main Branch"}
+                🏢 {branches.find((b) => b.id === paymentBranchId)?.name || selectedBranch?.name || user?.branchName || "Main Branch"}
               </span>
             </div>
           </div>
 
-          {branches.length > 1 && !isBranchLocked && (
-            <Select
-              label="Disbursing Branch (برانچ جہاں سے کیش دیا گیا)"
-              value={paymentBranchId}
-              onChange={(e) => setPaymentBranchId(e.target.value)}
-            >
-              {branches.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name} ({b.code})
-                </option>
-              ))}
-            </Select>
-          )}
+          {isBranchLocked ? (
+            <div className="flex items-center justify-between rounded-xl border border-amber-200/90 bg-amber-50/80 p-2.5 text-xs text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200">
+              <span className="font-semibold text-amber-900 dark:text-amber-300">
+                Disbursing Outlet (مخصوص برانچ):
+              </span>
+              <span className="font-bold flex items-center gap-1.5">
+                🏢 {user?.branchName || branches.find((b) => b.id === user?.branchId)?.name || "Your Outlet"}
+                <span className="rounded bg-amber-200/90 px-1.5 py-0.5 text-[10px] font-bold text-amber-900 dark:bg-amber-900 dark:text-amber-100">
+                  LOCKED
+                </span>
+              </span>
+            </div>
+          ) : branches.length > 1 ? (
+            <div>
+              <Select
+                label="Disbursing Branch (برانچ جہاں سے کیش دیا گیا)"
+                value={paymentBranchId}
+                onChange={(e) => setPaymentBranchId(e.target.value)}
+              >
+                {branches.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    🏢 {b.name} ({b.code})
+                  </option>
+                ))}
+              </Select>
+              <p className="text-[10px] text-slate-500 mt-1 italic">
+                💡 منتخب برانچ کے کیش ڈراور اور اکاؤنٹس خودکار طور پر نیچے فلٹر ہو جائیں گے۔
+              </p>
+            </div>
+          ) : null}
 
           <Select label="Supplier" value={partyId} onChange={(e) => setPartyId(e.target.value)} required>
             {suppliers.map((s) => (
@@ -507,9 +617,9 @@ export default function PaymentsPage() {
             required
           />
           <Select label="Disburse From Account" value={accountId} onChange={(e) => setAccountId(e.target.value)}>
-            {accounts.map((a) => (
+            {modalAccounts.map((a) => (
               <option key={a.id} value={a.id}>
-                {a.name} (Balance: {formatMoney(a.balance)})
+                {a.name} {a.branchName ? `[${a.branchName}]` : ""} (Balance: {formatMoney(a.balance)})
               </option>
             ))}
           </Select>
@@ -542,12 +652,24 @@ export default function PaymentsPage() {
                 </div>
               </div>
               <span className="rounded-md bg-white/80 dark:bg-slate-800 px-2 py-0.5 text-[11px] font-medium border border-blue-200 dark:border-blue-800">
-                🏢 {branches.find((b) => b.id === paymentBranchId)?.name || selectedBranch?.name || "Main Branch"}
+                🏢 {branches.find((b) => b.id === paymentBranchId)?.name || selectedBranch?.name || user?.branchName || "Main Branch"}
               </span>
             </div>
           </div>
 
-          {branches.length > 1 && !isBranchLocked && (
+          {isBranchLocked ? (
+            <div className="flex items-center justify-between rounded-xl border border-amber-200/90 bg-amber-50/80 p-2.5 text-xs text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200">
+              <span className="font-semibold text-amber-900 dark:text-amber-300">
+                Operating Outlet (مخصوص برانچ):
+              </span>
+              <span className="font-bold flex items-center gap-1.5">
+                🏢 {user?.branchName || branches.find((b) => b.id === user?.branchId)?.name || "Your Outlet"}
+                <span className="rounded bg-amber-200/90 px-1.5 py-0.5 text-[10px] font-bold text-amber-900 dark:bg-amber-900 dark:text-amber-100">
+                  LOCKED
+                </span>
+              </span>
+            </div>
+          ) : branches.length > 1 ? (
             <Select
               label="Operating Branch (برانچ)"
               value={paymentBranchId}
@@ -555,23 +677,23 @@ export default function PaymentsPage() {
             >
               {branches.map((b) => (
                 <option key={b.id} value={b.id}>
-                  {b.name} ({b.code})
+                  🏢 {b.name} ({b.code})
                 </option>
               ))}
             </Select>
-          )}
+          ) : null}
 
           <Select label="From Account" value={accountId} onChange={(e) => setAccountId(e.target.value)} required>
-            {accounts.map((a) => (
+            {modalAccounts.map((a) => (
               <option key={a.id} value={a.id}>
-                {a.name} (Balance: {formatMoney(a.balance)})
+                {a.name} {a.branchName ? `[${a.branchName}]` : ""} (Balance: {formatMoney(a.balance)})
               </option>
             ))}
           </Select>
           <Select label="To Account" value={targetAccountId} onChange={(e) => setTargetAccountId(e.target.value)} required>
             {accounts.map((a) => (
               <option key={a.id} value={a.id}>
-                {a.name} (Balance: {formatMoney(a.balance)})
+                {a.name} {a.branchName ? `[${a.branchName}]` : ""} (Balance: {formatMoney(a.balance)})
               </option>
             ))}
           </Select>

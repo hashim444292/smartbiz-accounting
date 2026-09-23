@@ -710,9 +710,12 @@ function initializeState(): StoreState {
 
   // 6. Cash & Bank Accounts
   const cashBankAccounts = [
-    // biz-101
-    { id: "cb-101-cash", businessId: "biz-101", name: "Shop Cash Drawer (Saddar)", type: "CASH", balance: 391500, isDefault: true },
-    { id: "cb-101-bank", businessId: "biz-101", name: "Habib Bank Limited (HBL Saddar)", type: "BANK", balance: 528500, isDefault: false },
+    // biz-101 Accounts (Branch-specific & Corporate)
+    { id: "cb-101-cash", businessId: "biz-101", branchId: "br-101-1", branchName: "Saddar Main Branch", name: "Shop Cash Drawer (Saddar)", type: "CASH", balance: 391500, isDefault: true },
+    { id: "cb-101-bank", businessId: "biz-101", branchId: "br-101-1", branchName: "Saddar Main Branch", name: "Habib Bank Limited (HBL Saddar)", type: "BANK", balance: 528500, isDefault: false },
+    { id: "cb-101-cash-gulshan", businessId: "biz-101", branchId: "br-101-2", branchName: "Gulshan Outlet", name: "Shop Cash Drawer (Gulshan)", type: "CASH", balance: 245000, isDefault: true },
+    { id: "cb-101-bank-gulshan", businessId: "biz-101", branchId: "br-101-2", branchName: "Gulshan Outlet", name: "Meezan Bank (Gulshan Branch)", type: "BANK", balance: 680000, isDefault: false },
+    { id: "cb-101-bank-central", businessId: "biz-101", branchId: null, branchName: "Corporate / All Branches", name: "Corporate Central Treasury Account", type: "BANK", balance: 1500000, isDefault: false },
 
     // biz-102
     { id: "cb-102-cash", businessId: "biz-102", name: "Wholesale Cash Vault", type: "CASH", balance: 1250000, isDefault: true },
@@ -3173,6 +3176,8 @@ export function storeAddPayment(
     }
   } else {
     const acc = fallbackStore.cashBankAccounts.find(
+      (a) => a.businessId === businessId && (!data.branchId || a.branchId === data.branchId) && (isBank ? a.type === "BANK" : a.type === "CASH")
+    ) || fallbackStore.cashBankAccounts.find(
       (a) => a.businessId === businessId && (isBank ? a.type === "BANK" : a.type === "CASH")
     );
     if (acc) {
