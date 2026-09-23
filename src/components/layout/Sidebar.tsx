@@ -32,6 +32,7 @@ import { useAuth } from "@/context/AuthContext";
 
 interface NavItem {
   name: string;
+  sublabel?: string;
   href: string;
   icon: React.ComponentType<{ className?: string }>;
   badge?: string;
@@ -46,45 +47,44 @@ interface NavGroup {
 
 const TENANT_NAVIGATION_GROUPS: NavGroup[] = [
   {
-    section: "DASHBOARD",
+    section: "بنیادی ڈیش بورڈ • OVERVIEW",
     items: [
-      { name: "Executive Dashboard", href: "/", icon: LayoutDashboard },
+      { name: "Executive Dashboard", sublabel: "مرکزی ڈیش بورڈ", href: "/", icon: LayoutDashboard },
     ],
   },
   {
-    section: "CORE ACCOUNTING",
+    section: "روزمرہ کا کام • DAILY WORK",
     items: [
-      { name: "Sales & Invoices", href: "/sales", icon: Receipt, moduleKey: "sales" },
-      { name: "Purchases & Bills", href: "/purchases", icon: ShoppingBag, moduleKey: "purchases" },
-      { name: "Inventory & Stock", href: "/inventory", icon: Boxes, moduleKey: "inventory" },
-      { name: "Customers (Receivables)", href: "/customers", icon: Users, moduleKey: "sales" },
-      { name: "Suppliers (Payables)", href: "/suppliers", icon: Truck, moduleKey: "purchases" },
-      { name: "Cash & Bank Accounts", href: "/payments", icon: Wallet, moduleKey: "accounting" },
-      { name: "Daily Expenses", href: "/expenses", icon: Coins, moduleKey: "accounting" },
-      { name: "General Ledger & Accounts", href: "/accounting", icon: BookOpen, roles: ["SUPER_ADMIN", "OWNER_ADMIN", "ACCOUNTANT"], moduleKey: "accounting" },
+      { name: "Sales & Invoices", sublabel: "مال بیچیں (کسٹمر بل)", href: "/sales", icon: Receipt, moduleKey: "sales" },
+      { name: "Purchases & Bills", sublabel: "مال خریدیں (سپلائر بل)", href: "/purchases", icon: ShoppingBag, moduleKey: "purchases" },
+      { name: "Cash & Payments", sublabel: "پیسے وصولی و ادائیگی", href: "/payments", icon: Wallet, moduleKey: "accounting" },
+      { name: "Daily Expenses", sublabel: "دکان کے روزمرہ خرچے", href: "/expenses", icon: Coins, moduleKey: "accounting" },
     ],
   },
   {
-    section: "FBR TAX & PRODUCTS",
+    section: "کھاتہ و اسٹاک • STOCK & KHATA",
     items: [
-      { name: "FBR Invoicing & POS", href: "/compliance/fbr", icon: ShieldCheck, badge: "FBR Live", moduleKey: "compliance" },
-      { name: "Products & HS Codes", href: "/products", icon: Package, moduleKey: "inventory" },
-      { name: "Bulk Import Wizard", href: "/products/import", icon: UploadCloud, moduleKey: "bulkImport" },
-      { name: "AI Invoice Reader", href: "/ai-entry", icon: Sparkles, moduleKey: "aiEntry" },
+      { name: "Inventory & Stock", sublabel: "دکان کا مال و اسٹاک", href: "/inventory", icon: Boxes, moduleKey: "inventory" },
+      { name: "Customers (Receivables)", sublabel: "گاہکوں کا ادھار کھاتہ", href: "/customers", icon: Users, moduleKey: "sales" },
+      { name: "Suppliers (Payables)", sublabel: "سپلائرز کا ادھار کھاتہ", href: "/suppliers", icon: Truck, moduleKey: "purchases" },
+      { name: "Products & Rates", sublabel: "سامان و آئٹم ریٹ لسٹ", href: "/products", icon: Package, moduleKey: "inventory" },
     ],
   },
   {
-    section: "FINANCIAL REPORTS",
+    section: "ٹیکس اور رپورٹس • REPORTS & TAX",
     items: [
-      { name: "Closing & Tax Reports", href: "/reports", icon: BarChart3, roles: ["SUPER_ADMIN", "OWNER_ADMIN", "ACCOUNTANT"], moduleKey: "reports" },
+      { name: "Closing & Reports", sublabel: "کھاتہ بندش و منافع رپورٹ", href: "/reports", icon: BarChart3, roles: ["SUPER_ADMIN", "OWNER_ADMIN", "ACCOUNTANT"], moduleKey: "reports" },
+      { name: "FBR POS Digital", sublabel: "FBR ڈیجیٹل انوائسنگ", href: "/compliance/fbr", icon: ShieldCheck, badge: "FBR Live", moduleKey: "compliance" },
+      { name: "General Ledger", sublabel: "ڈبل انٹری جنرل لیجر", href: "/accounting", icon: BookOpen, roles: ["SUPER_ADMIN", "OWNER_ADMIN", "ACCOUNTANT"], moduleKey: "accounting" },
+      { name: "AI Invoice Reader", sublabel: "انوائس اسکینر", href: "/ai-entry", icon: Sparkles, moduleKey: "aiEntry" },
     ],
   },
   {
-    section: "ORGANIZATION",
+    section: "ادارہ و ترتیبات • ORGANIZATION",
     items: [
-      { name: "Sub-Branches (برانچز)", href: "/branches", icon: Store, roles: ["SUPER_ADMIN", "OWNER_ADMIN"] },
-      { name: "Activity Log (آڈٹ لاگ)", href: "/audit-logs", icon: History, roles: ["SUPER_ADMIN", "OWNER_ADMIN", "ACCOUNTANT"] },
-      { name: "Settings & Defaults", href: "/settings", icon: Settings, roles: ["SUPER_ADMIN", "OWNER_ADMIN"] },
+      { name: "Sub-Branches", sublabel: "آؤٹ لیٹس و برانچز", href: "/branches", icon: Store, roles: ["SUPER_ADMIN", "OWNER_ADMIN"] },
+      { name: "Activity Log", sublabel: "آڈٹ ٹریک لاگ", href: "/audit-logs", icon: History, roles: ["SUPER_ADMIN", "OWNER_ADMIN", "ACCOUNTANT"] },
+      { name: "Settings & Defaults", sublabel: "کمپنی سیٹنگز", href: "/settings", icon: Settings, roles: ["SUPER_ADMIN", "OWNER_ADMIN"] },
     ],
   },
 ];
@@ -293,9 +293,16 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
                           }`}
                         />
                         {!isCollapsed && (
-                          <span className="flex-1 truncate tracking-tight">
-                            {item.name}
-                          </span>
+                          <div className="flex flex-col min-w-0 flex-1 leading-snug text-left">
+                            <span className="truncate tracking-tight font-semibold">
+                              {item.name}
+                            </span>
+                            {item.sublabel && (
+                              <span className="text-[10px] text-slate-400 dark:text-slate-500 font-sans truncate font-normal">
+                                {item.sublabel}
+                              </span>
+                            )}
+                          </div>
                         )}
                         {!isCollapsed && item.badge && (
                           <span

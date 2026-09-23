@@ -94,7 +94,7 @@ describe("Multi-Branch Accounting Hierarchy & Isolation System", () => {
     expect(bilal?.branchName).toBe("Saddar Main Branch");
 
     // Assign another user to Gulshan Outlet (br-101-2)
-    storeAssignUserBranch("usr-3", "br-101-2", "Gulshan Outlet");
+    storeAssignUserBranch("usr-3", "br-101-2");
     const farhan = fallbackStore.users.find((u) => u.id === "usr-3");
     expect(farhan?.branchId).toBe("br-101-2");
     expect(farhan?.branchName).toBe("Gulshan Outlet");
