@@ -5,6 +5,7 @@ import { formatMoney } from "@/lib/decimal";
 import { Badge } from "@/components/ui/badge";
 import { BookOpen, Scale, FileText, CheckCircle2 } from "lucide-react";
 import { BrandPageLoader, TableSkeleton } from "@/components/ui/loader";
+import { smartFetch } from "@/lib/clientCache";
 
 export default function AccountingPage() {
   const [accounts, setAccounts] = useState<any[]>([]);
@@ -16,14 +17,13 @@ export default function AccountingPage() {
     async function fetchData() {
       setLoading(true);
       try {
-        const res = await fetch("/api/accounting");
-        const json = await res.json();
+        const json = await smartFetch("/api/accounting", { ttlMs: 30000 });
         if (json.success) {
           setAccounts(json.data.accounts);
           setJournals(json.data.journals);
         }
       } catch (err) {
-        console.error(err);
+        console.error("Failed to load accounting data:", err);
       } finally {
         setLoading(false);
       }

@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { BrandPageLoader } from "@/components/ui/loader";
+import { smartFetch, invalidateCache } from "@/lib/clientCache";
 
 interface PurchaseItem {
   productId: string;
@@ -82,12 +83,10 @@ export default function CreatePurchasePage() {
         headers["x-branch-id"] = branchToPass;
       }
 
-      const [supRes, prodRes] = await Promise.all([
-        fetch("/api/suppliers", { headers }),
-        fetch("/api/products?limit=250", { headers }),
+      const [supJson, prodJson] = await Promise.all([
+        smartFetch("/api/suppliers", { headers, ttlMs: 30000 }),
+        smartFetch("/api/products?limit=250", { headers, ttlMs: 30000 }),
       ]);
-      const supJson = await supRes.json();
-      const prodJson = await prodRes.json();
 
       if (supJson.success && supJson.data && supJson.data.length > 0) {
         setSuppliers(supJson.data);
@@ -327,6 +326,11 @@ export default function CreatePurchasePage() {
 
       const json = await res.json();
       if (!json.success) throw new Error(json.error || "Failed to record purchase bill.");
+
+      invalidateCache("/api/purchases");
+      invalidateCache("/api/products");
+      invalidateCache("/api/dashboard");
+      invalidateCache("/api/accounting");
 
       router.push("/purchases");
     } catch (err: any) {

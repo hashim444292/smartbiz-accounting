@@ -10,6 +10,7 @@ import { TableRowsSkeleton } from "@/components/ui/loader";
 import { Modal } from "@/components/ui/modal";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/context/AuthContext";
+import { smartFetch, invalidateCache } from "@/lib/clientCache";
 
 export default function PurchasesPage() {
   const { user, activeCompany, branches, selectedBranch, activeBranchId, isBranchLocked } = useAuth();
@@ -36,11 +37,10 @@ export default function PurchasesPage() {
       if (effectiveBranch) headers["x-branch-id"] = effectiveBranch;
       const query = effectiveBranch ? `?branchId=${effectiveBranch}` : "?branchId=all";
 
-      const res = await fetch(`/api/purchases${query}`, { headers });
-      const json = await res.json();
+      const json = await smartFetch(`/api/purchases${query}`, { headers, ttlMs: 20000 });
       if (json.success) setPurchases(json.data);
     } catch (err) {
-      console.error(err);
+      console.error("Failed to load purchases:", err);
     } finally {
       setLoading(false);
     }
@@ -83,6 +83,8 @@ export default function PurchasesPage() {
       if (json.success) {
         alert("Purchase bill updated successfully. Audit trail recorded.");
         setEditingPurchase(null);
+        invalidateCache("/api/purchases");
+        invalidateCache("/api/dashboard");
         fetchPurchases();
       } else {
         alert(json.error || "Failed to update purchase bill");

@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { useAuth } from "@/context/AuthContext";
+import { smartFetch, invalidateCache } from "@/lib/clientCache";
 
 interface SaleRecord {
   id: string;
@@ -85,13 +86,12 @@ export default function SalesPage() {
       if (effectiveBranch) headers["x-branch-id"] = effectiveBranch;
       const query = effectiveBranch ? `?branchId=${effectiveBranch}` : "?branchId=all";
 
-      const res = await fetch(`/api/sales${query}`, { headers });
-      const json = await res.json();
+      const json = await smartFetch(`/api/sales${query}`, { headers, ttlMs: 20000 });
       if (json.success) {
         setSales(json.data);
       }
     } catch (err) {
-      console.error(err);
+      console.error("Failed to load sales:", err);
     } finally {
       setLoading(false);
     }
@@ -115,6 +115,9 @@ export default function SalesPage() {
       const json = await res.json();
       if (json.success) {
         alert("Sale reversed successfully.");
+        invalidateCache("/api/sales");
+        invalidateCache("/api/products");
+        invalidateCache("/api/dashboard");
         fetchSales();
       } else {
         alert(`Failed to reverse: ${json.error}`);
@@ -159,6 +162,8 @@ export default function SalesPage() {
       if (json.success) {
         alert("Invoice updated successfully. Audit trail recorded.");
         setEditingSale(null);
+        invalidateCache("/api/sales");
+        invalidateCache("/api/dashboard");
         fetchSales();
       } else {
         alert(json.error || "Failed to update sale invoice");

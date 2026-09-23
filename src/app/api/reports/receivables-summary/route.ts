@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   try {
-    const businessId = await getActiveBusinessId();
+    const businessId = await getActiveBusinessId(req);
     const report = await getReceivablesSummaryReport(businessId);
     return NextResponse.json({ success: true, data: report });
   } catch (error: any) {

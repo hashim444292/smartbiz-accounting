@@ -35,6 +35,7 @@ import {
 } from "recharts";
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
+import { smartFetch, invalidateCache } from "@/lib/clientCache";
 import {
   BrandPageLoader,
   CardSkeleton,
@@ -68,8 +69,10 @@ export default function DashboardPage() {
     try {
       const start = range.startDate.toISOString();
       const end = range.endDate.toISOString();
-      const res = await fetch(`/api/dashboard?start=${start}&end=${end}`);
-      const json = await res.json();
+      const headers: Record<string, string> = {};
+      if (activeCompany?.id) headers["x-business-id"] = activeCompany.id;
+
+      const json = await smartFetch(`/api/dashboard?start=${start}&end=${end}`, { headers, ttlMs: 15000 });
       if (json.success) {
         setData(json.data);
       }
@@ -94,6 +97,7 @@ export default function DashboardPage() {
       });
       const resData = await res.json();
       if (resData.success) {
+        invalidateCache("/api/dashboard");
         await fetchMetrics();
       }
     } catch (err) {

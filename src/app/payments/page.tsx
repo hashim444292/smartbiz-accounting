@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { ArrowDownLeft, ArrowUpRight, ArrowLeftRight, Search, ShieldCheck, Building2, UserCheck, TrendingUp, TrendingDown, Wallet } from "lucide-react";
 import { TableRowsSkeleton } from "@/components/ui/loader";
 import { useAuth } from "@/context/AuthContext";
+import { smartFetch, invalidateCache } from "@/lib/clientCache";
 
 export default function PaymentsPage() {
   const { user, activeCompany, branches, selectedBranch, activeBranchId, isBranchLocked } = useAuth();
@@ -61,6 +62,9 @@ export default function PaymentsPage() {
     }
   }, [paymentBranchId, accounts]);
 
+  const [loadingCustomers, setLoadingCustomers] = useState(false);
+  const [loadingSuppliers, setLoadingSuppliers] = useState(false);
+
   const fetchPayments = async () => {
     setLoading(true);
     try {
@@ -70,24 +74,12 @@ export default function PaymentsPage() {
 
       const query = effectiveBranch ? `?branchId=${effectiveBranch}` : "?branchId=all";
 
-      const [payRes, custRes, supRes, expRes] = await Promise.all([
-        fetch(`/api/payments${query}`, { headers }),
-        fetch("/api/customers", { headers }),
-        fetch("/api/suppliers", { headers }),
-        fetch(`/api/expenses${query}`, { headers }),
-      ]);
-      const payJson = await payRes.json();
-      const custJson = await custRes.json();
-      const supJson = await supRes.json();
-      const expJson = await expRes.json();
+      // SMART LAZY LOAD: Only hit payments endpoint on initial page mount (single network call)
+      const payJson = await smartFetch(`/api/payments${query}`, { headers, ttlMs: 20000 });
 
-      if (payJson.success) setPayments(payJson.data);
-      if (custJson.success) setCustomers(custJson.data);
-      if (supJson.success) setSuppliers(supJson.data);
+      if (payJson.success) setPayments(payJson.data || []);
 
-      const rawAccounts = (payJson.accounts && payJson.accounts.length > 0)
-        ? payJson.accounts
-        : (expJson.data?.accounts || []);
+      const rawAccounts = (payJson.accounts && payJson.accounts.length > 0) ? payJson.accounts : [];
 
       if (rawAccounts.length > 0) {
         setAccounts(rawAccounts);
@@ -101,10 +93,48 @@ export default function PaymentsPage() {
         }
       }
     } catch (e) {
-      console.error(e);
+      console.error("Failed to load payments:", e);
     } finally {
       setLoading(false);
     }
+  };
+
+  const ensureCustomersLoaded = async () => {
+    if (customers.length > 0) return customers;
+    setLoadingCustomers(true);
+    try {
+      const headers: Record<string, string> = {};
+      if (activeCompany?.id) headers["x-business-id"] = activeCompany.id;
+      const custJson = await smartFetch("/api/customers", { headers, ttlMs: 30000 });
+      if (custJson.success && Array.isArray(custJson.data)) {
+        setCustomers(custJson.data);
+        return custJson.data;
+      }
+    } catch (err) {
+      console.error("Failed to load customers:", err);
+    } finally {
+      setLoadingCustomers(false);
+    }
+    return [];
+  };
+
+  const ensureSuppliersLoaded = async () => {
+    if (suppliers.length > 0) return suppliers;
+    setLoadingSuppliers(true);
+    try {
+      const headers: Record<string, string> = {};
+      if (activeCompany?.id) headers["x-business-id"] = activeCompany.id;
+      const supJson = await smartFetch("/api/suppliers", { headers, ttlMs: 30000 });
+      if (supJson.success && Array.isArray(supJson.data)) {
+        setSuppliers(supJson.data);
+        return supJson.data;
+      }
+    } catch (err) {
+      console.error("Failed to load suppliers:", err);
+    } finally {
+      setLoadingSuppliers(false);
+    }
+    return [];
   };
 
   useEffect(() => {
@@ -113,18 +143,24 @@ export default function PaymentsPage() {
     setPaymentBranchId(branchToUse);
   }, [activeCompany?.id, activeBranchId, isBranchLocked, user?.branchId, selectedBranch?.id]);
 
-  const openReceiptModal = () => {
-    if (customers.length > 0) setPartyId(customers[0].id);
+  const openReceiptModal = async () => {
     const branchToUse = isBranchLocked ? (user?.branchId || "") : (selectedBranch?.id || activeBranchId || (branches[0]?.id || ""));
     setPaymentBranchId(branchToUse);
     setShowReceiptModal(true);
+    const custList = await ensureCustomersLoaded();
+    if (custList.length > 0 && !partyId) {
+      setPartyId(custList[0].id);
+    }
   };
 
-  const openDisburseModal = () => {
-    if (suppliers.length > 0) setPartyId(suppliers[0].id);
+  const openDisburseModal = async () => {
     const branchToUse = isBranchLocked ? (user?.branchId || "") : (selectedBranch?.id || activeBranchId || (branches[0]?.id || ""));
     setPaymentBranchId(branchToUse);
     setShowDisburseModal(true);
+    const supList = await ensureSuppliersLoaded();
+    if (supList.length > 0 && !partyId) {
+      setPartyId(supList[0].id);
+    }
   };
 
   const openTransferModal = () => {
@@ -162,6 +198,7 @@ export default function PaymentsPage() {
       if (json.success) {
         setShowReceiptModal(false);
         setAmount(0);
+        invalidateCache("/api/payments");
         fetchPayments();
       } else {
         alert(json.error);
@@ -202,6 +239,7 @@ export default function PaymentsPage() {
       if (json.success) {
         setShowDisburseModal(false);
         setAmount(0);
+        invalidateCache("/api/payments");
         fetchPayments();
       } else {
         alert(json.error);
@@ -241,6 +279,7 @@ export default function PaymentsPage() {
       if (json.success) {
         setShowTransferModal(false);
         setAmount(0);
+        invalidateCache("/api/payments");
         fetchPayments();
       } else {
         alert(json.error);
@@ -515,11 +554,17 @@ export default function PaymentsPage() {
           ) : null}
 
           <Select label="Customer" value={partyId} onChange={(e) => setPartyId(e.target.value)} required>
-            {customers.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name} (Receivable Due: {formatMoney(c.currentBalance)})
-              </option>
-            ))}
+            {loadingCustomers ? (
+              <option value="">Loading customer directory...</option>
+            ) : customers.length === 0 ? (
+              <option value="">No customers found</option>
+            ) : (
+              customers.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name} (Receivable Due: {formatMoney(c.currentBalance)})
+                </option>
+              ))
+            )}
           </Select>
           <Input
             label="Amount Received (Rs)"
@@ -602,11 +647,17 @@ export default function PaymentsPage() {
           ) : null}
 
           <Select label="Supplier" value={partyId} onChange={(e) => setPartyId(e.target.value)} required>
-            {suppliers.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name} (Payable Due: {formatMoney(s.currentBalance)})
-              </option>
-            ))}
+            {loadingSuppliers ? (
+              <option value="">Loading supplier directory...</option>
+            ) : suppliers.length === 0 ? (
+              <option value="">No suppliers found</option>
+            ) : (
+              suppliers.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name} (Payable Due: {formatMoney(s.currentBalance)})
+                </option>
+              ))
+            )}
           </Select>
           <Input
             label="Amount Disbursed (Rs)"

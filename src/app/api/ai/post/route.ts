@@ -10,7 +10,7 @@ export async function POST(req: NextRequest) {
   const { extractedTransactionId, overrides, userId = "admin" } = body;
 
   try {
-    const businessId = await getActiveBusinessId();
+    const businessId = await getActiveBusinessId(req);
 
     const result = await approveAndPostAITransaction(
       businessId,

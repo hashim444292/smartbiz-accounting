@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Plus, Search, Receipt, Tag, Download, Pencil, Trash2, Building2 } from "lucide-react";
 import { TableRowsSkeleton } from "@/components/ui/loader";
 import { useAuth } from "@/context/AuthContext";
+import { smartFetch, invalidateCache } from "@/lib/clientCache";
 
 export default function ExpensesPage() {
   const { user, activeCompany, branches, selectedBranch, activeBranchId, isBranchLocked } = useAuth();
@@ -71,8 +72,7 @@ export default function ExpensesPage() {
       if (effectiveBranch) headers["x-branch-id"] = effectiveBranch;
       const query = effectiveBranch ? `?branchId=${effectiveBranch}` : "?branchId=all";
 
-      const res = await fetch(`/api/expenses${query}`, { headers });
-      const json = await res.json();
+      const json = await smartFetch(`/api/expenses${query}`, { headers, ttlMs: 20000 });
       if (json.success) {
         setExpenses(json.data.expenses);
         setCategories(json.data.categories);
@@ -83,7 +83,7 @@ export default function ExpensesPage() {
         if (validAccounts.length > 0) setAccountId(validAccounts[0].id);
       }
     } catch (err) {
-      console.error(err);
+      console.error("Failed to load expenses:", err);
     } finally {
       setLoading(false);
     }
@@ -127,6 +127,9 @@ export default function ExpensesPage() {
         setDescription("");
         setAmount(0);
         setPaidTo("");
+        invalidateCache("/api/expenses");
+        invalidateCache("/api/dashboard");
+        invalidateCache("/api/accounting");
         fetchExpenses();
       } else {
         alert(json.error);
@@ -173,6 +176,9 @@ export default function ExpensesPage() {
       if (json.success) {
         alert("Expense voucher updated. Audit trail recorded.");
         setEditingExpense(null);
+        invalidateCache("/api/expenses");
+        invalidateCache("/api/dashboard");
+        invalidateCache("/api/accounting");
         fetchExpenses();
       } else {
         alert(json.error || "Failed to update expense");
@@ -196,6 +202,9 @@ export default function ExpensesPage() {
       const json = await res.json();
       if (json.success) {
         alert("Expense deleted and logged in audit trail.");
+        invalidateCache("/api/expenses");
+        invalidateCache("/api/dashboard");
+        invalidateCache("/api/accounting");
         fetchExpenses();
       } else {
         alert(json.error || "Failed to delete expense");

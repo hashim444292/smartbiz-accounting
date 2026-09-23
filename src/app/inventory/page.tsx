@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Search, Sliders, AlertTriangle, ArrowUpDown, Download, Package } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { TableRowsSkeleton } from "@/components/ui/loader";
+import { smartFetch, invalidateCache } from "@/lib/clientCache";
 
 export default function InventoryPage() {
   const { user, activeCompany, branches, selectedBranch, activeBranchId, isBranchLocked } = useAuth();
@@ -40,12 +41,11 @@ export default function InventoryPage() {
       const branchToPass = isBranchLocked ? user?.branchId : activeBranchId;
       if (branchToPass) headers["x-branch-id"] = branchToPass;
 
-      const res = await fetch("/api/products?limit=1000", { headers });
-      const json = await res.json();
+      const json = await smartFetch("/api/products?limit=1000", { headers, ttlMs: 20000 });
       const list = json.products || json.data || [];
       setProducts(Array.isArray(list) ? list : []);
     } catch (e) {
-      console.error(e);
+      console.error("Failed to load products:", e);
       setProducts([]);
     } finally {
       setLoading(false);
@@ -60,11 +60,10 @@ export default function InventoryPage() {
       const branchToPass = isBranchLocked ? user?.branchId : activeBranchId;
       if (branchToPass) headers["x-branch-id"] = branchToPass;
 
-      const res = await fetch("/api/inventory/transactions", { headers });
-      const json = await res.json();
+      const json = await smartFetch("/api/inventory/transactions", { headers, ttlMs: 20000 });
       setTransactions(Array.isArray(json.data) ? json.data : []);
     } catch (e) {
-      console.error(e);
+      console.error("Failed to load inventory transactions:", e);
       setTransactions([]);
     } finally {
       setTxLoading(false);
@@ -73,10 +72,16 @@ export default function InventoryPage() {
 
   useEffect(() => {
     fetchProducts();
-    fetchTransactions();
     const initialBranch = isBranchLocked ? (user?.branchId || "") : (selectedBranch?.id || activeBranchId || "");
     setAdjustBranchId(initialBranch);
   }, [activeCompany?.id, activeBranchId, isBranchLocked, user?.branchId]);
+
+  // SMART LAZY LOAD: Only hit transactions endpoint when user opens the MOVEMENTS tab
+  useEffect(() => {
+    if (activeTab === "MOVEMENTS") {
+      fetchTransactions();
+    }
+  }, [activeTab, activeCompany?.id, activeBranchId]);
 
   const handleAdjustSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -103,8 +108,12 @@ export default function InventoryPage() {
       const json = await res.json();
       if (json.success) {
         setShowAdjustModal(false);
+        invalidateCache("/api/products");
+        invalidateCache("/api/inventory/transactions");
         fetchProducts();
-        fetchTransactions();
+        if (activeTab === "MOVEMENTS") {
+          fetchTransactions();
+        }
       }
     } catch (err) {
       console.error(err);

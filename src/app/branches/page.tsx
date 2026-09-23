@@ -34,6 +34,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useAuth, Branch } from "@/context/AuthContext";
 import { BrandPageLoader } from "@/components/ui/loader";
+import { smartFetch, invalidateCache } from "@/lib/clientCache";
 
 export default function BranchesManagementPage() {
   const router = useRouter();
@@ -83,12 +84,20 @@ export default function BranchesManagementPage() {
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
-  const fetchBranchesAndStaff = async () => {
+  const fetchBranchesAndStaff = async (force: boolean | unknown = false) => {
     try {
       setLoading(true);
+      const headers: Record<string, string> = {};
+      if (activeCompany?.id) headers["x-business-id"] = activeCompany.id;
+
+      const shouldForce = force === true;
+      if (shouldForce) {
+        invalidateCache("/api/branches");
+      }
+
       const [branchRes, usersRes] = await Promise.all([
-        fetch("/api/branches").then((r) => r.json()),
-        fetch("/api/branches/users").then((r) => r.json()).catch(() => ({ success: false, data: [] })),
+        smartFetch("/api/branches", { headers, ttlMs: 30000, skipCache: shouldForce }),
+        smartFetch("/api/branches/users", { headers, ttlMs: 30000, skipCache: shouldForce }).catch(() => ({ success: false, data: [] })),
       ]);
 
       if (branchRes.success) {
@@ -567,7 +576,7 @@ export default function BranchesManagementPage() {
         </div>
 
         <button
-          onClick={fetchBranchesAndStaff}
+          onClick={() => fetchBranchesAndStaff(true)}
           className="p-2 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 transition self-end sm:self-auto"
           title="Refresh List"
         >

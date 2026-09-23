@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
   const endDate = endParam ? new Date(endParam) : new Date();
 
   try {
-    const businessId = await getActiveBusinessId();
+    const businessId = await getActiveBusinessId(req);
     const report = await getItemsSummaryReport(businessId, startDate, endDate);
     return NextResponse.json({ success: true, data: report });
   } catch (error: any) {

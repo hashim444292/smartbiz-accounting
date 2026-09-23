@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   try {
-    const businessId = await getActiveBusinessId();
+    const businessId = await getActiveBusinessId(req);
     const { searchParams } = new URL(req.url);
     const now = new Date();
     const year = parseInt(searchParams.get("year") || String(now.getFullYear()));
@@ -111,7 +111,7 @@ export async function POST(req: NextRequest) {
   const { action, year, month, notes, reason, userId = "admin" } = body;
 
   try {
-    const businessId = await getActiveBusinessId();
+    const businessId = await getActiveBusinessId(req);
 
     if (action === "CLOSE") {
       const period = await closeAccountingPeriod(businessId, year, month, userId, notes);

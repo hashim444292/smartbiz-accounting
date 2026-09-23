@@ -28,6 +28,7 @@ import {
   Building2,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { smartFetch, invalidateCache } from "@/lib/clientCache";
 
 interface ProductOption {
   id: string;
@@ -206,16 +207,10 @@ export default function CreateSalePage() {
         const branchToPass = isBranchLocked ? user?.branchId : (saleBranchId || effectiveBranch);
         if (branchToPass) headers["x-branch-id"] = branchToPass;
 
-        const [metaRes, prodRes, custRes] = await Promise.all([
-          fetch("/api/products?meta=true", { headers }),
-          fetch("/api/products?limit=100", { headers }),
-          fetch("/api/customers", { headers }),
-        ]);
-
         const [metaJson, prodJson, custJson] = await Promise.all([
-          metaRes.json().catch(() => ({})),
-          prodRes.json().catch(() => ({})),
-          custRes.json().catch(() => ({})),
+          smartFetch("/api/products?meta=true", { headers, ttlMs: 60000 }).catch(() => ({})),
+          smartFetch("/api/products?limit=100", { headers, ttlMs: 25000 }).catch(() => ({})),
+          smartFetch("/api/customers", { headers, ttlMs: 25000 }).catch(() => ({})),
         ]);
 
         // 1. Organization & Categories
@@ -474,6 +469,7 @@ export default function CreateSalePage() {
       }
 
       const createdCust: CustomerOption = data.data;
+      invalidateCache("/api/customers");
       setCustomers((prev) => [createdCust, ...prev]);
       setCustomerId(createdCust.id);
       setCustomerName(createdCust.name);
@@ -533,6 +529,7 @@ export default function CreateSalePage() {
       }
 
       const createdProduct: ProductOption = data.data;
+      invalidateCache("/api/products");
       setProducts((prev) => [createdProduct, ...prev]);
 
       // If triggered from a line item, populate that line item
@@ -650,6 +647,11 @@ export default function CreateSalePage() {
       if (!json.success) {
         throw new Error(json.error || "Failed to post sales invoice");
       }
+
+      invalidateCache("/api/sales");
+      invalidateCache("/api/products");
+      invalidateCache("/api/dashboard");
+      invalidateCache("/api/accounting");
 
       // Show Save & Queued Dialog with Accounts Receivable breakdown
       setSavedInvoiceResult({
