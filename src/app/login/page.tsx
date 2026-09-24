@@ -47,7 +47,7 @@ export default function LoginPage() {
           <ShieldCheck className="h-8 w-8" />
         </div>
         <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-          SmartBiz Accounting Portal
+          accounts360.live
         </h2>
         <p className="mt-2 text-sm text-slate-500">
           Multi-Company Ledger, POS, Inventory & AI-Powered Financials

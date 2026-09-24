@@ -4,7 +4,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { ThemeProvider } from "@/context/ThemeContext";
 
 export const metadata: Metadata = {
-  title: "SmartBiz ERP | Financial Accounting, Multi-Company Ledger & FBR POS",
+  title: "accounts360.live | Financial Accounting, Multi-Company Ledger & FBR POS",
   description:
     "Professional cloud accounting ERP for Pakistani enterprises: real-time double-entry ledger, multi-location stock, automated tax closing, and official FBR digital POS compliance.",
 };

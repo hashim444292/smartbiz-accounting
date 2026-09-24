@@ -169,7 +169,7 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
               <div className="leading-none overflow-hidden text-ellipsis whitespace-nowrap">
                 <div className="flex items-center gap-1.5">
                   <span className="text-sm font-extrabold tracking-tight text-slate-900 dark:text-white font-sans">
-                    SmartBiz
+                    Accounts360
                   </span>
                   <span
                     className={`rounded-md px-1.5 py-0.5 text-[9px] font-extrabold uppercase tracking-wide border ${
