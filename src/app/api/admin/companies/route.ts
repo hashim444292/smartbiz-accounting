@@ -14,24 +14,24 @@ export async function GET() {
         { status: 403 }
       );
     }
+    if (!process.env.DATABASE_URL) {
+      throw new Error("No database configured");
+    }
+
     try {
-      const timeoutPromise = new Promise<never>((_, reject) => setTimeout(() => reject(new Error("DB_TIMEOUT")), 150));
-      const companies = await Promise.race([
-        prisma.business.findMany({
-          orderBy: { createdAt: "desc" },
-          include: {
-            _count: {
-              select: {
-                members: true,
-                products: true,
-                sales: true,
-                customers: true,
-              },
+      const companies = await prisma.business.findMany({
+        orderBy: { createdAt: "desc" },
+        include: {
+          _count: {
+            select: {
+              members: true,
+              products: true,
+              sales: true,
+              customers: true,
             },
           },
-        }),
-        timeoutPromise,
-      ]);
+        },
+      });
 
       const formatted = companies.map((c) => ({
         id: c.id,

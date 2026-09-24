@@ -11,14 +11,10 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   try {
     const businessId = await getActiveBusinessId(req);
 
-    const timeoutPromise = new Promise<never>((_, reject) => setTimeout(() => reject(new Error("DB_TIMEOUT")), 150));
-    const purchase = await Promise.race([
-      prisma.purchase.findFirst({
-        where: { id, businessId },
-        include: { supplier: true, items: true, branch: true },
-      }),
-      timeoutPromise,
-    ]);
+    const purchase = await prisma.purchase.findFirst({
+      where: { id, businessId },
+      include: { supplier: true, items: true, branch: true },
+    });
 
     if (!purchase) {
       return NextResponse.json({ success: false, error: "Purchase not found" }, { status: 404 });
@@ -49,13 +45,9 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     const editorEmail = session?.email || "admin@smartbiz.com";
     const editReason = body.editReason || "Purchase order modified by administrator";
 
-    const timeoutPromise = new Promise<never>((_, reject) => setTimeout(() => reject(new Error("DB_TIMEOUT")), 150));
-    const existing = await Promise.race([
-      prisma.purchase.findFirst({
-        where: { id, businessId },
-      }),
-      timeoutPromise,
-    ]);
+    const existing = await prisma.purchase.findFirst({
+      where: { id, businessId },
+    });
 
     if (!existing) {
       return NextResponse.json({ success: false, error: "Purchase not found" }, { status: 404 });

@@ -16,24 +16,20 @@ export async function GET(req: NextRequest) {
       whereClause.branchId = branchId;
     }
 
-    const timeoutPromise = new Promise<never>((_, reject) => setTimeout(() => reject(new Error("DB_TIMEOUT")), 150));
-    const [expenses, categories, accounts] = await Promise.race([
-      Promise.all([
-        prisma.expense.findMany({
-          where: whereClause,
-          include: { category: true, account: true, branch: true },
-          orderBy: { date: "desc" },
-          take: 100,
-        }),
-        prisma.expenseCategory.findMany({
-          where: { businessId },
-          orderBy: { name: "asc" },
-        }),
-        prisma.cashBankAccount.findMany({
-          where: { businessId, isActive: true },
-        }),
-      ]),
-      timeoutPromise,
+    const [expenses, categories, accounts] = await Promise.all([
+      prisma.expense.findMany({
+        where: whereClause,
+        include: { category: true, account: true, branch: true },
+        orderBy: { date: "desc" },
+        take: 100,
+      }),
+      prisma.expenseCategory.findMany({
+        where: { businessId },
+        orderBy: { name: "asc" },
+      }),
+      prisma.cashBankAccount.findMany({
+        where: { businessId, isActive: true },
+      }),
     ]);
 
     return NextResponse.json({ success: true, data: { expenses, categories, accounts, branchId, isLockedToBranch } });

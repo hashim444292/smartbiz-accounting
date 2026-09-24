@@ -25,7 +25,7 @@ export interface ResolveHsCodeResult {
  * 3. Organization-level default HS Code
  * 4. Missing / Error
  */
-const dbTimeout = (ms = 100) => new Promise<never>((_, reject) => setTimeout(() => reject(new Error("DB_TIMEOUT")), ms));
+// Production Database Engine without artificial race timeouts
 
 export async function resolveProductHsCode(params: {
   organizationId: string;
@@ -47,13 +47,10 @@ export async function resolveProductHsCode(params: {
   let categoryDefaultHsCode: string | null = null;
 
   try {
-    const org = await Promise.race([
-      prisma.business.findUnique({
-        where: { id: organizationId },
-        select: { defaultHsCode: true },
-      }),
-      dbTimeout(),
-    ]);
+    const org = await prisma.business.findUnique({
+      where: { id: organizationId },
+      select: { defaultHsCode: true },
+    });
     if (org?.defaultHsCode) {
       orgDefaultHsCode = org.defaultHsCode;
     }
@@ -66,13 +63,10 @@ export async function resolveProductHsCode(params: {
 
   if (categoryId) {
     try {
-      const cat = await Promise.race([
-        prisma.category.findUnique({
-          where: { id: categoryId },
-          select: { defaultHsCode: true },
-        }),
-        dbTimeout(),
-      ]);
+      const cat = await prisma.category.findUnique({
+        where: { id: categoryId },
+        select: { defaultHsCode: true },
+      });
       if (cat?.defaultHsCode) {
         categoryDefaultHsCode = cat.defaultHsCode;
       }
@@ -146,18 +140,15 @@ export async function listProducts(params: ListProductsParams) {
       else if (status === "ARCHIVED") where.isActive = false;
     }
 
-    const [products, total] = await Promise.race([
-      Promise.all([
-        prisma.product.findMany({
-          where,
-          skip,
-          take: limit,
-          orderBy: { updatedAt: "desc" },
-          include: { category: true },
-        }),
-        prisma.product.count({ where }),
-      ]),
-      dbTimeout(),
+    const [products, total] = await Promise.all([
+      prisma.product.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { updatedAt: "desc" },
+        include: { category: true },
+      }),
+      prisma.product.count({ where }),
     ]);
 
     return {
@@ -292,13 +283,10 @@ export async function createProduct(input: CreateProductInput) {
 
   let savedProduct: any;
   try {
-    savedProduct = await Promise.race([
-      prisma.product.create({
-        data: productData as any,
-        include: { category: true },
-      }),
-      dbTimeout(),
-    ]);
+    savedProduct = await prisma.product.create({
+      data: productData as any,
+      include: { category: true },
+    });
   } catch {
     savedProduct = storeAddProduct(productData);
     const cat = fallbackStore.categories.find((c) => c.id === savedProduct.categoryId);
@@ -330,13 +318,10 @@ export async function updateProduct(
 ) {
   let existingProduct: any = null;
   try {
-    existingProduct = await Promise.race([
-      prisma.product.findUnique({
-        where: { id },
-        include: { category: true },
-      }),
-      dbTimeout(),
-    ]);
+    existingProduct = await prisma.product.findUnique({
+      where: { id },
+      include: { category: true },
+    });
   } catch {
     existingProduct = fallbackStore.products.find((p) => p.id === id);
   }
@@ -385,32 +370,29 @@ export async function updateProduct(
 
   let updatedProduct: any;
   try {
-    updatedProduct = await Promise.race([
-      prisma.product.update({
-        where: { id },
-        data: {
-          ...(updates.name && { name: updates.name.trim() }),
-          ...(updates.sku && { sku: updates.sku.trim() }),
-          ...(updates.productCode && { productCode: updates.productCode.trim() }),
-          ...(updates.barcode !== undefined && { barcode: updates.barcode?.trim() || "" }),
-          ...(updates.categoryId !== undefined && { categoryId: updates.categoryId }),
-          ...(updates.brand !== undefined && { brand: updates.brand?.trim() || "" }),
-          ...(updates.description !== undefined && { description: updates.description?.trim() || "" }),
-          ...(updates.uom && { uom: updates.uom, unit: updates.uom }),
-          ...(updates.hsCode && { hsCode: updates.hsCode.trim() }),
-          ...(updates.taxProfile && { taxProfile: updates.taxProfile }),
-          ...(updates.salesTax !== undefined && { salesTax: Number(updates.salesTax) }),
-          ...(updates.furtherTax !== undefined && { furtherTax: Number(updates.furtherTax) }),
-          ...(updates.extraTax !== undefined && { extraTax: Number(updates.extraTax) }),
-          ...(updates.retailPrice !== undefined && { retailPrice: Number(updates.retailPrice), sellingPrice: Number(updates.retailPrice) }),
-          ...(updates.wholesalePrice !== undefined && { wholesalePrice: Number(updates.wholesalePrice) }),
-          ...(updates.purchasePrice !== undefined && { purchasePrice: Number(updates.purchasePrice) }),
-          ...(updates.status && { status: updates.status, isActive: updates.status !== "ARCHIVED" }),
-        } as any,
-        include: { category: true },
-      }),
-      dbTimeout(),
-    ]);
+    updatedProduct = await prisma.product.update({
+      where: { id },
+      data: {
+        ...(updates.name && { name: updates.name.trim() }),
+        ...(updates.sku && { sku: updates.sku.trim() }),
+        ...(updates.productCode && { productCode: updates.productCode.trim() }),
+        ...(updates.barcode !== undefined && { barcode: updates.barcode?.trim() || "" }),
+        ...(updates.categoryId !== undefined && { categoryId: updates.categoryId }),
+        ...(updates.brand !== undefined && { brand: updates.brand?.trim() || "" }),
+        ...(updates.description !== undefined && { description: updates.description?.trim() || "" }),
+        ...(updates.uom && { uom: updates.uom, unit: updates.uom }),
+        ...(updates.hsCode && { hsCode: updates.hsCode.trim() }),
+        ...(updates.taxProfile && { taxProfile: updates.taxProfile }),
+        ...(updates.salesTax !== undefined && { salesTax: Number(updates.salesTax) }),
+        ...(updates.furtherTax !== undefined && { furtherTax: Number(updates.furtherTax) }),
+        ...(updates.extraTax !== undefined && { extraTax: Number(updates.extraTax) }),
+        ...(updates.retailPrice !== undefined && { retailPrice: Number(updates.retailPrice), sellingPrice: Number(updates.retailPrice) }),
+        ...(updates.wholesalePrice !== undefined && { wholesalePrice: Number(updates.wholesalePrice) }),
+        ...(updates.purchasePrice !== undefined && { purchasePrice: Number(updates.purchasePrice) }),
+        ...(updates.status && { status: updates.status, isActive: updates.status !== "ARCHIVED" }),
+      } as any,
+      include: { category: true },
+    });
   } catch {
     updatedProduct = storeUpdateProduct(id, updates);
   }
@@ -435,20 +417,17 @@ export async function updateProduct(
 export async function getProductById(id: string, _businessId?: string) {
   let product: any = null;
   try {
-    product = await Promise.race([
-      prisma.product.findUnique({
-        where: { id },
-        include: {
-          category: true,
-          saleItems: {
-            take: 10,
-            include: { sale: true },
-            orderBy: { sale: { date: "desc" } },
-          },
+    product = await prisma.product.findUnique({
+      where: { id },
+      include: {
+        category: true,
+        saleItems: {
+          take: 10,
+          include: { sale: true },
+          orderBy: { sale: { date: "desc" } },
         },
-      }),
-      dbTimeout(),
-    ]);
+      },
+    });
   } catch {
     product = fallbackStore.products.find((p) => p.id === id);
     if (product) {

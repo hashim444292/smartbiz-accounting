@@ -18,13 +18,9 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     const editorEmail = session?.email || "admin@smartbiz.com";
     const editReason = body.editReason || "Expense details modified by administrator";
 
-    const timeoutPromise = new Promise<never>((_, reject) => setTimeout(() => reject(new Error("DB_TIMEOUT")), 150));
-    const existing = await Promise.race([
-      prisma.expense.findFirst({
-        where: { id, businessId },
-      }),
-      timeoutPromise,
-    ]);
+    const existing = await prisma.expense.findFirst({
+      where: { id, businessId },
+    });
 
     if (!existing) {
       return NextResponse.json({ success: false, error: "Expense not found" }, { status: 404 });
@@ -112,13 +108,9 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
     const editorName = session?.name || "Administrator";
     const editorEmail = session?.email || "admin@smartbiz.com";
 
-    const timeoutPromise = new Promise<never>((_, reject) => setTimeout(() => reject(new Error("DB_TIMEOUT")), 150));
-    const existing = await Promise.race([
-      prisma.expense.findFirst({
-        where: { id, businessId },
-      }),
-      timeoutPromise,
-    ]);
+    const existing = await prisma.expense.findFirst({
+      where: { id, businessId },
+    });
 
     if (!existing) {
       return NextResponse.json({ success: false, error: "Expense not found" }, { status: 404 });

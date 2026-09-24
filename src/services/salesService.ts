@@ -101,11 +101,34 @@ export async function createAndPostSale(input: CreateSaleInput) {
     }> = [];
 
     for (const item of items) {
-      const product = await tx.product.findUnique({
+      let product = item.productId ? await tx.product.findUnique({
         where: { id: item.productId },
-      });
+      }) : null;
+
+      if (!product && (item as any).productName) {
+        product = await tx.product.findFirst({
+          where: { businessId, name: { equals: (item as any).productName.trim(), mode: "insensitive" } },
+        });
+      }
+
+      if (!product && (item as any).productName) {
+        const defaultCat = await tx.category.findFirst({ where: { businessId } });
+        product = await tx.product.create({
+          data: {
+            businessId,
+            name: (item as any).productName.trim(),
+            sku: item.productId && item.productId !== "prod-default" && !item.productId.startsWith("prod-") ? item.productId : `SKU-${Date.now().toString().slice(-6)}`,
+            sellingPrice: Number(item.unitPrice || 0),
+            purchasePrice: Number(item.unitPrice || 0) * 0.8,
+            currentStock: 100,
+            categoryId: defaultCat?.id || null,
+            unit: "pcs",
+          },
+        });
+      }
+
       if (!product) {
-        throw new Error(`Product with ID ${item.productId} not found.`);
+        throw new Error(`Product '${(item as any).productName || item.productId}' not found in catalog.`);
       }
 
       const q = round4(item.quantity);
@@ -160,13 +183,22 @@ export async function createAndPostSale(input: CreateSaleInput) {
     const fbrInvNumber = isFbrDirect ? (input.fbrInvoiceNumber || `FBR-POS-${new Date().getFullYear()}-${Math.floor(100000 + Math.random() * 900000)}`) : null;
     const fbrQr = isFbrDirect ? (input.fbrQrCode || `https://e.fbr.gov.pk/verify?inv=${encodeURIComponent(fbrInvNumber!)}&pos=POS-101&amt=${totalAmount.toNumber()}`) : null;
 
+    // Validate customer exists in DB before using as foreign key
+    let validCustomerId: string | null = null;
+    if (customerId) {
+      const custExists = await tx.customer.findUnique({ where: { id: customerId } });
+      if (custExists) {
+        validCustomerId = customerId;
+      }
+    }
+
     // 2. Create the Sale record
     const sale = await tx.sale.create({
       data: {
         businessId,
         invoiceNumber,
         date,
-        customerId: customerId || null,
+        customerId: validCustomerId,
         customerName,
         subtotal: subtotal.toNumber(),
         discountAmount: totalDiscount.toNumber(),
@@ -274,6 +306,25 @@ export async function createAndPostSale(input: CreateSaleInput) {
         // Find any active cash account or create default
         cashBank = await tx.cashBankAccount.findFirst({
           where: { businessId, type: "CASH", isActive: true },
+        });
+      }
+
+      if (!cashBank) {
+        cashBank = await tx.cashBankAccount.findFirst({
+          where: { businessId },
+        });
+      }
+
+      if (!cashBank) {
+        cashBank = await tx.cashBankAccount.create({
+          data: {
+            businessId,
+            name: "Cash in Hand",
+            type: "CASH",
+            balance: 0,
+            isDefault: true,
+            isActive: true,
+          },
         });
       }
 

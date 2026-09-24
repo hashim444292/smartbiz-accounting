@@ -16,13 +16,9 @@ export async function GET(req: NextRequest) {
     let expenses: any[] = [];
     let users: any[] = [];
 
-    try {
-      const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error("DB_TIMEOUT")), 200)
-      );
-
-      [branches, sales, expenses, users] = await Promise.race([
-        Promise.all([
+    if (process.env.DATABASE_URL) {
+      try {
+        [branches, sales, expenses, users] = await Promise.all([
           prisma.branch.findMany({
             where: { businessId },
             orderBy: { createdAt: "asc" },
@@ -38,10 +34,15 @@ export async function GET(req: NextRequest) {
           prisma.user.findMany({
             select: { id: true, name: true, email: true, role: true, branchId: true, isBranchManager: true },
           }),
-        ]),
-        timeoutPromise,
-      ]);
-    } catch {
+        ]);
+      } catch (err: any) {
+        console.error("branches GET DB error:", err?.message || err);
+        branches = storeGetBranches(businessId);
+        sales = fallbackStore.sales.filter((s) => s.businessId === businessId);
+        expenses = fallbackStore.expenses.filter((e) => e.businessId === businessId);
+        users = fallbackStore.users.filter((u) => u.companyIds && u.companyIds.includes(businessId));
+      }
+    } else {
       branches = storeGetBranches(businessId);
       sales = fallbackStore.sales.filter((s) => s.businessId === businessId);
       expenses = fallbackStore.expenses.filter((e) => e.businessId === businessId);

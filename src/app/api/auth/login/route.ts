@@ -21,18 +21,14 @@ export async function POST(req: NextRequest) {
 
     // 1. Check in database first
     try {
-      const timeoutPromise = new Promise<never>((_, reject) => setTimeout(() => reject(new Error("DB_TIMEOUT")), 150));
-      const user = await Promise.race([
-        prisma.user.findUnique({
-          where: { email: cleanEmail },
-          include: {
-            memberships: {
-              include: { business: true },
-            },
+      const user = await prisma.user.findUnique({
+        where: { email: cleanEmail },
+        include: {
+          memberships: {
+            include: { business: true },
           },
-        }),
-        timeoutPromise,
-      ]);
+        },
+      });
 
       if (user) {
         const isValid = await comparePassword(password, user.passwordHash);

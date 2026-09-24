@@ -17,15 +17,11 @@ export async function GET(req: NextRequest) {
       whereClause.branchId = branchId;
     }
 
-    const timeoutPromise = new Promise<never>((_, reject) => setTimeout(() => reject(new Error("DB_TIMEOUT")), 150));
-    const purchases = await Promise.race([
-      prisma.purchase.findMany({
-        where: whereClause,
-        include: { supplier: true, items: true, branch: true },
-        orderBy: { date: "desc" },
-      }),
-      timeoutPromise,
-    ]);
+    const purchases = await prisma.purchase.findMany({
+      where: whereClause,
+      include: { supplier: true, items: true, branch: true },
+      orderBy: { date: "desc" },
+    });
     return NextResponse.json({ success: true, data: purchases, branchId, isLockedToBranch });
   } catch (err) {
     const businessId = await getActiveBusinessId(req);
@@ -49,19 +45,19 @@ export async function POST(req: NextRequest) {
     const createdById = session?.userId || body.createdById || "usr-2";
     const createdByName = session?.name || body.createdByName || "Muhammad Hanif";
 
-    const timeoutPromise = new Promise<never>((_, reject) => setTimeout(() => reject(new Error("DB_TIMEOUT")), 150));
-    const purchase = await Promise.race([
-      createAndPostPurchase({
-        ...body,
-        businessId,
-        branchId: effectiveBranchId,
-        createdById,
-        createdByName,
-      }),
-      timeoutPromise,
-    ]);
+    const purchase = await createAndPostPurchase({
+      ...body,
+      businessId,
+      branchId: effectiveBranchId,
+      createdById,
+      createdByName,
+    });
     return NextResponse.json({ success: true, data: purchase });
   } catch (error: any) {
+    if (process.env.DATABASE_URL) {
+      console.error("Purchase creation error:", error);
+      return NextResponse.json({ success: false, error: error.message }, { status: 400 });
+    }
     const businessId = await getActiveBusinessId(req);
     const { branchId: activeBranchId, isLockedToBranch } = await getActiveBranchId(req);
     const effectiveBranchId = isLockedToBranch ? activeBranchId : (body.branchId || activeBranchId || null);

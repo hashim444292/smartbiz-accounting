@@ -119,29 +119,25 @@ export async function POST(req: NextRequest) {
         const paymentStatus = remaining === 0 ? "PAID" : paid > 0 ? "PARTIAL" : "UNPAID";
         const paymentMethod = row.paymentMethod || (paid > 0 ? "CASH" : "BANK");
 
-        // Try Prisma with fast timeout
+        // Try Prisma database
         let dbPurchase: any = null;
         try {
-          const timeoutPromise = new Promise<never>((_, reject) => setTimeout(() => reject(new Error("DB_TIMEOUT")), 100));
-          dbPurchase = await Promise.race([
-            createAndPostPurchase({
-              businessId,
-              supplierId,
-              supplierName: sup.name,
-              date,
-              items: processedItems.map((it: any) => ({
-                productId: it.productId,
-                quantity: it.quantity,
-                unitCost: it.unitCost,
-              })),
-              paidAmount: paid,
-              paymentMethod,
-              notes: row.notes || "Bulk imported purchase bill",
-            }),
-            timeoutPromise,
-          ]);
+          dbPurchase = await createAndPostPurchase({
+            businessId,
+            supplierId,
+            supplierName: sup.name,
+            date,
+            items: processedItems.map((it: any) => ({
+              productId: it.productId,
+              quantity: it.quantity,
+              unitCost: it.unitCost,
+            })),
+            paidAmount: paid,
+            paymentMethod,
+            notes: row.notes || "Bulk imported purchase bill",
+          });
         } catch {
-          // DB offline or timed out, use fallback
+          // DB offline or error, use fallback
         }
 
         // Update supplier balance

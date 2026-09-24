@@ -17,22 +17,15 @@ export async function GET(req: NextRequest) {
       let activeCompany: any = null;
 
       try {
-        const timeoutPromise = new Promise<never>((_, reject) => setTimeout(() => reject(new Error("DB_TIMEOUT")), 150));
         if (session.role === "SUPER_ADMIN") {
-          accessibleCompanies = await Promise.race([
-            prisma.business.findMany({
-              orderBy: { name: "asc" },
-            }),
-            timeoutPromise,
-          ]);
+          accessibleCompanies = await prisma.business.findMany({
+            orderBy: { name: "asc" },
+          });
         } else {
-          const memberships = await Promise.race([
-            prisma.businessMember.findMany({
-              where: { userId: session.userId },
-              include: { business: true },
-            }),
-            timeoutPromise,
-          ]);
+          const memberships = await prisma.businessMember.findMany({
+            where: { userId: session.userId },
+            include: { business: true },
+          });
           accessibleCompanies = memberships.map((m: any) => m.business);
         }
 
@@ -40,10 +33,7 @@ export async function GET(req: NextRequest) {
         activeCompany =
           accessibleCompanies.find((c) => c.id === targetId) ||
           accessibleCompanies[0] ||
-          (await Promise.race([
-            prisma.business.findUnique({ where: { id: targetId } }),
-            new Promise<null>((_, reject) => setTimeout(() => reject(new Error("DB_TIMEOUT")), 150)),
-          ]));
+          (await prisma.business.findUnique({ where: { id: targetId } }));
       } catch {
         // Fallback store
         if (session.role === "SUPER_ADMIN") {
@@ -72,14 +62,10 @@ export async function GET(req: NextRequest) {
 
       let branches: any[] = [];
       try {
-        const timeoutPromise = new Promise<never>((_, reject) => setTimeout(() => reject(new Error("DB_TIMEOUT")), 150));
-        branches = await Promise.race([
-          prisma.branch.findMany({
-            where: { businessId: activeCompany.id, isActive: true },
-            orderBy: { name: "asc" },
-          }),
-          timeoutPromise,
-        ]);
+        branches = await prisma.branch.findMany({
+          where: { businessId: activeCompany.id, isActive: true },
+          orderBy: { name: "asc" },
+        });
       } catch {
         branches = fallbackStore.branches ? fallbackStore.branches.filter((b) => b.businessId === activeCompany.id && b.isActive) : [];
       }

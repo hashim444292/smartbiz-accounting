@@ -18,16 +18,17 @@ export async function GET(req: NextRequest) {
     if (action !== "ALL") whereClause.action = action;
     if (userId !== "ALL") whereClause.userId = userId;
 
-    const timeoutPromise = new Promise<never>((_, reject) => setTimeout(() => reject(new Error("DB_TIMEOUT")), 150));
-    const logs = await Promise.race([
-      prisma.auditLog.findMany({
-        where: whereClause,
-        include: { user: true },
-        orderBy: { createdAt: "desc" },
-        take: 150,
-      }),
-      timeoutPromise,
-    ]);
+    if (!process.env.DATABASE_URL) {
+      const logs = storeGetAuditLogs(businessId, { entity, action, userId });
+      return NextResponse.json({ success: true, data: logs, fallback: true });
+    }
+
+    const logs = await prisma.auditLog.findMany({
+      where: whereClause,
+      include: { user: true },
+      orderBy: { createdAt: "desc" },
+      take: 150,
+    });
 
     return NextResponse.json({ success: true, data: logs });
   } catch {

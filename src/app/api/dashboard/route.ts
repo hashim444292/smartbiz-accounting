@@ -25,18 +25,14 @@ export async function GET(req: NextRequest) {
     let branches: any[] = [];
 
     try {
-      const timeoutPromise = new Promise<never>((_, reject) => setTimeout(() => reject(new Error("DB_TIMEOUT")), 200));
-      [allSales, allPurchases, allExpenses, products, customers, suppliers, branches] = await Promise.race([
-        Promise.all([
-          prisma.sale.findMany({ where: { businessId }, include: { items: true }, orderBy: { date: "desc" } }),
-          prisma.purchase.findMany({ where: { businessId } }),
-          prisma.expense.findMany({ where: { businessId } }),
-          prisma.product.findMany({ where: { businessId } }),
-          prisma.customer.findMany({ where: { businessId } }),
-          prisma.supplier.findMany({ where: { businessId } }),
-          prisma.branch.findMany({ where: { businessId, isActive: true }, orderBy: { name: "asc" } }),
-        ]),
-        timeoutPromise,
+      [allSales, allPurchases, allExpenses, products, customers, suppliers, branches] = await Promise.all([
+        prisma.sale.findMany({ where: { businessId }, include: { items: true }, orderBy: { date: "desc" } }),
+        prisma.purchase.findMany({ where: { businessId } }),
+        prisma.expense.findMany({ where: { businessId } }),
+        prisma.product.findMany({ where: { businessId } }),
+        prisma.customer.findMany({ where: { businessId } }),
+        prisma.supplier.findMany({ where: { businessId } }),
+        prisma.branch.findMany({ where: { businessId, isActive: true }, orderBy: { name: "asc" } }),
       ]);
     } catch {
       allSales = fallbackStore.sales.filter((s) => s.businessId === businessId);

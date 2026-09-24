@@ -83,11 +83,34 @@ export async function createAndPostPurchase(input: CreatePurchaseInput) {
     }> = [];
 
     for (const item of items) {
-      const product = await tx.product.findUnique({
+      let product = item.productId && item.productId !== "__custom__" ? await tx.product.findUnique({
         where: { id: item.productId },
-      });
+      }) : null;
+
+      if (!product && (item as any).productName) {
+        product = await tx.product.findFirst({
+          where: { businessId, name: { equals: (item as any).productName.trim(), mode: "insensitive" } },
+        });
+      }
+
+      if (!product && (item as any).productName) {
+        const defaultCat = await tx.category.findFirst({ where: { businessId } });
+        product = await tx.product.create({
+          data: {
+            businessId,
+            name: (item as any).productName.trim(),
+            sku: item.productId && item.productId !== "__custom__" && !item.productId.startsWith("prod-") ? item.productId : `SKU-${Date.now().toString().slice(-6)}`,
+            purchasePrice: Number(item.unitCost || 0),
+            sellingPrice: Number((item as any).newSellingPrice || (Number(item.unitCost || 0) * 1.25)),
+            currentStock: 0,
+            categoryId: defaultCat?.id || null,
+            unit: "pcs",
+          },
+        });
+      }
+
       if (!product) {
-        throw new Error(`Product with ID ${item.productId} not found.`);
+        throw new Error(`Product '${(item as any).productName || item.productId}' not found in catalog.`);
       }
 
       const q = round4(item.quantity);
@@ -126,13 +149,22 @@ export async function createAndPostPurchase(input: CreatePurchaseInput) {
       paymentStatus = "PARTIAL";
     }
 
+    // Validate supplier exists in DB before using as foreign key
+    let validSupplierId: string | null = null;
+    if (supplierId) {
+      const supExists = await tx.supplier.findUnique({ where: { id: supplierId } });
+      if (supExists) {
+        validSupplierId = supplierId;
+      }
+    }
+
     // 1. Create Purchase record
     const purchase = await tx.purchase.create({
       data: {
         businessId,
         purchaseNumber,
         date,
-        supplierId: supplierId || null,
+        supplierId: validSupplierId,
         supplierName,
         subtotal: subtotal.toNumber(),
         discountAmount: totalDiscount.toNumber(),
@@ -214,6 +246,25 @@ export async function createAndPostPurchase(input: CreatePurchaseInput) {
       if (!cashBank) {
         cashBank = await tx.cashBankAccount.findFirst({
           where: { businessId, type: "CASH", isActive: true },
+        });
+      }
+
+      if (!cashBank) {
+        cashBank = await tx.cashBankAccount.findFirst({
+          where: { businessId },
+        });
+      }
+
+      if (!cashBank) {
+        cashBank = await tx.cashBankAccount.create({
+          data: {
+            businessId,
+            name: "Cash in Hand",
+            type: "CASH",
+            balance: 0,
+            isDefault: true,
+            isActive: true,
+          },
         });
       }
 

@@ -12,23 +12,19 @@ export async function GET(req: NextRequest) {
     const userEmail = session?.email || "admin@smartbiz.com";
 
     let dbUser: any = null;
-    try {
-      const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error("DB_TIMEOUT")), 150)
-      );
-      dbUser = await Promise.race([
-        prisma.user.findFirst({
+    if (process.env.DATABASE_URL) {
+      try {
+        dbUser = await prisma.user.findFirst({
           where: { OR: [{ id: userId }, { email: userEmail }] },
           include: {
             memberships: {
               include: { business: true },
             },
           },
-        }),
-        timeoutPromise,
-      ]);
-    } catch {
-      // Prisma offline or timed out
+        });
+      } catch (err: any) {
+        console.error("profile DB lookup error:", err?.message || err);
+      }
     }
 
     if (dbUser) {
@@ -108,19 +104,15 @@ export async function PUT(req: NextRequest) {
     const trimmedName = name.trim();
 
     // 1. Update DB if available
-    try {
-      const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error("DB_TIMEOUT")), 150)
-      );
-      await Promise.race([
-        prisma.user.update({
+    if (process.env.DATABASE_URL) {
+      try {
+        await prisma.user.update({
           where: { id: userId },
           data: { name: trimmedName },
-        }),
-        timeoutPromise,
-      ]);
-    } catch {
-      // Prisma offline, fallback
+        });
+      } catch (err: any) {
+        console.error("profile DB update error:", err?.message || err);
+      }
     }
 
     // 2. Update Fallback store

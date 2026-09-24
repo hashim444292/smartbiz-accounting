@@ -29,8 +29,15 @@ export async function createAndPostExpense(input: CreateExpenseInput) {
       throw new Error("Expense amount must be greater than zero.");
     }
 
-    const category = await tx.expenseCategory.findUnique({ where: { id: categoryId } });
-    if (!category) throw new Error("Expense category not found.");
+    let category = categoryId ? await tx.expenseCategory.findUnique({ where: { id: categoryId } }) : null;
+    if (!category) {
+      category = await tx.expenseCategory.findFirst({ where: { businessId } });
+    }
+    if (!category) {
+      category = await tx.expenseCategory.create({
+        data: { businessId, name: "General Expense", isDefault: true },
+      });
+    }
 
     // Resolve cash/bank account
     let targetCashBank = accountId
@@ -45,11 +52,30 @@ export async function createAndPostExpense(input: CreateExpenseInput) {
       });
     }
 
+    if (!targetCashBank) {
+      targetCashBank = await tx.cashBankAccount.findFirst({
+        where: { businessId },
+      });
+    }
+
+    if (!targetCashBank) {
+      targetCashBank = await tx.cashBankAccount.create({
+        data: {
+          businessId,
+          name: "Cash in Hand",
+          type: "CASH",
+          balance: 0,
+          isDefault: true,
+          isActive: true,
+        },
+      });
+    }
+
     // 1. Create Expense record
     const expense = await tx.expense.create({
       data: {
         businessId,
-        categoryId,
+        categoryId: category.id,
         date,
         description,
         amount: amount.toNumber(),

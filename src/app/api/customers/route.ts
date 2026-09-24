@@ -8,18 +8,14 @@ export const dynamic = "force-dynamic";
 export async function GET(req: NextRequest) {
   try {
     const businessId = await getActiveBusinessId(req);
-    const timeoutPromise = new Promise<never>((_, reject) => setTimeout(() => reject(new Error("DB_TIMEOUT")), 150));
-    const customers = await Promise.race([
-      prisma.customer.findMany({
-        where: { businessId, isActive: true },
-        include: {
-          sales: { take: 5, orderBy: { date: "desc" } },
-          payments: { take: 5, orderBy: { date: "desc" } },
-        },
-        orderBy: { name: "asc" },
-      }),
-      timeoutPromise,
-    ]);
+    const customers = await prisma.customer.findMany({
+      where: { businessId, isActive: true },
+      include: {
+        sales: { take: 5, orderBy: { date: "desc" } },
+        payments: { take: 5, orderBy: { date: "desc" } },
+      },
+      orderBy: { name: "asc" },
+    });
     return NextResponse.json({ success: true, data: customers });
   } catch (error: any) {
     const businessId = await getActiveBusinessId(req);

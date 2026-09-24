@@ -20,30 +20,29 @@ export async function POST(req: NextRequest) {
     let companyName = "Company";
     let found = false;
 
-    // 1. Fast-path: Check fallback store first (< 1ms)
-    const fbBiz = fallbackStore.companies.find((c) => c.id === businessId);
-    if (fbBiz) {
-      companyName = fbBiz.name;
-      found = true;
-      storeSetActiveCompany(businessId);
-    }
-
-    // 2. Check DB with short timeout if not in fallback
-    if (!found) {
+    // 1. Check DB first if configured
+    if (process.env.DATABASE_URL) {
       try {
-        const bizPromise = prisma.business.findUnique({ where: { id: businessId } });
-        const timeoutPromise = new Promise<null>((_, reject) => setTimeout(() => reject(new Error("DB_TIMEOUT")), 150));
-        const biz: any = await Promise.race([bizPromise, timeoutPromise]);
+        const biz = await prisma.business.findUnique({ where: { id: businessId } });
         if (biz) {
           companyName = biz.name;
           found = true;
         }
-      } catch {
-        // Ignore DB error / offline
+      } catch (err: any) {
+        console.error("switch-company DB lookup error:", err?.message || err);
       }
     }
 
-    // 3. Fallback active company
+    // 2. Fallback store if DB didn't find or errored
+    if (!found) {
+      const fbBiz = fallbackStore.companies.find((c) => c.id === businessId);
+      if (fbBiz) {
+        companyName = fbBiz.name;
+        found = true;
+      }
+    }
+
+    // Sync in-memory fallback store as well
     storeSetActiveCompany(businessId);
     fallbackStore.activeBusinessId = businessId;
 

@@ -47,22 +47,18 @@ export async function POST(req: NextRequest) {
     let dbUser: any = null;
     let isCurrentValid = false;
 
-    try {
-      const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error("DB_TIMEOUT")), 150)
-      );
-      dbUser = await Promise.race([
-        prisma.user.findFirst({
+    if (process.env.DATABASE_URL) {
+      try {
+        dbUser = await prisma.user.findFirst({
           where: { OR: [{ id: userId }, { email: userEmail }] },
-        }),
-        timeoutPromise,
-      ]);
+        });
 
-      if (dbUser && dbUser.passwordHash) {
-        isCurrentValid = await comparePassword(currentPassword, dbUser.passwordHash);
+        if (dbUser && dbUser.passwordHash) {
+          isCurrentValid = await comparePassword(currentPassword, dbUser.passwordHash);
+        }
+      } catch (err: any) {
+        console.error("change-password lookup DB error:", err?.message || err);
       }
-    } catch {
-      // Prisma offline or timed out
     }
 
     // Check fallback store if not validated via DB
@@ -89,20 +85,14 @@ export async function POST(req: NextRequest) {
     const newPasswordHash = await hashPassword(newPassword);
 
     // 4. Update in Prisma DB if available
-    if (dbUser) {
+    if (dbUser && process.env.DATABASE_URL) {
       try {
-        const timeoutPromise = new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error("DB_TIMEOUT")), 150)
-        );
-        await Promise.race([
-          prisma.user.update({
-            where: { id: dbUser.id },
-            data: { passwordHash: newPasswordHash },
-          }),
-          timeoutPromise,
-        ]);
-      } catch {
-        // Failed DB update, continue with fallback store
+        await prisma.user.update({
+          where: { id: dbUser.id },
+          data: { passwordHash: newPasswordHash },
+        });
+      } catch (err: any) {
+        console.error("change-password update DB error:", err?.message || err);
       }
     }
 

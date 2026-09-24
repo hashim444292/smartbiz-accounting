@@ -11,14 +11,10 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   try {
     const businessId = await getActiveBusinessId(req);
 
-    const timeoutPromise = new Promise<never>((_, reject) => setTimeout(() => reject(new Error("DB_TIMEOUT")), 150));
-    const sale = await Promise.race([
-      prisma.sale.findFirst({
-        where: { id, businessId },
-        include: { customer: true, items: true, branch: true },
-      }),
-      timeoutPromise,
-    ]);
+    const sale = await prisma.sale.findFirst({
+      where: { id, businessId },
+      include: { customer: true, items: true, branch: true },
+    });
 
     if (!sale) {
       return NextResponse.json({ success: false, error: "Invoice not found" }, { status: 404 });
@@ -49,14 +45,10 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     const editorEmail = session?.email || "admin@smartbiz.com";
     const editReason = body.editReason || "Invoice details modified by administrator";
 
-    const timeoutPromise = new Promise<never>((_, reject) => setTimeout(() => reject(new Error("DB_TIMEOUT")), 150));
-    const existing = await Promise.race([
-      prisma.sale.findFirst({
-        where: { id, businessId },
-        include: { items: true },
-      }),
-      timeoutPromise,
-    ]);
+    const existing = await prisma.sale.findFirst({
+      where: { id, businessId },
+      include: { items: true },
+    });
 
     if (!existing) {
       return NextResponse.json({ success: false, error: "Invoice not found" }, { status: 404 });

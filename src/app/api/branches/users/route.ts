@@ -23,27 +23,25 @@ export async function GET(req: NextRequest) {
 
     const businessId = await getActiveBusinessId(req);
 
-    try {
-      const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error("DB_TIMEOUT")), 300)
-      );
+    if (!process.env.DATABASE_URL) {
+      const users = storeGetCompanyUsers(businessId);
+      return NextResponse.json({ success: true, data: users, fallback: true });
+    }
 
-      const dbUsers = await Promise.race([
-        prisma.user.findMany({
-          where: {
-            memberships: {
-              some: { businessId },
-            },
+    try {
+      const dbUsers = await prisma.user.findMany({
+        where: {
+          memberships: {
+            some: { businessId },
           },
-          include: {
-            branch: {
-              select: { id: true, name: true, code: true },
-            },
+        },
+        include: {
+          branch: {
+            select: { id: true, name: true, code: true },
           },
-          orderBy: { createdAt: "desc" },
-        }),
-        timeoutPromise,
-      ]);
+        },
+        orderBy: { createdAt: "desc" },
+      });
 
       const formatted = dbUsers.map((u) => ({
         id: u.id,
