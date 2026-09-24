@@ -114,7 +114,7 @@ export async function createAndPostPurchase(input: CreatePurchaseInput) {
       }
 
       const q = round4(item.quantity);
-      const c = round2(item.unitCost);
+      const c = round2(item.unitCost ?? (item as any).purchasePrice ?? (item as any).price ?? 0);
       const d = round2(item.discount || 0);
       const tr = round2(item.taxRate || 0);
 
@@ -151,11 +151,18 @@ export async function createAndPostPurchase(input: CreatePurchaseInput) {
 
     // Validate supplier exists in DB before using as foreign key
     let validSupplierId: string | null = null;
+    let resolvedSupplierName: string = (supplierName || "").trim();
     if (supplierId) {
       const supExists = await tx.supplier.findUnique({ where: { id: supplierId } });
       if (supExists) {
         validSupplierId = supplierId;
+        if (!resolvedSupplierName) {
+          resolvedSupplierName = supExists.name;
+        }
       }
+    }
+    if (!resolvedSupplierName) {
+      resolvedSupplierName = "General Supplier";
     }
 
     // 1. Create Purchase record
@@ -165,7 +172,7 @@ export async function createAndPostPurchase(input: CreatePurchaseInput) {
         purchaseNumber,
         date,
         supplierId: validSupplierId,
-        supplierName,
+        supplierName: resolvedSupplierName,
         subtotal: subtotal.toNumber(),
         discountAmount: totalDiscount.toNumber(),
         taxAmount: totalTax.toNumber(),

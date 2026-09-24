@@ -185,11 +185,18 @@ export async function createAndPostSale(input: CreateSaleInput) {
 
     // Validate customer exists in DB before using as foreign key
     let validCustomerId: string | null = null;
+    let resolvedCustomerName: string = (customerName || "").trim();
     if (customerId) {
       const custExists = await tx.customer.findUnique({ where: { id: customerId } });
       if (custExists) {
         validCustomerId = customerId;
+        if (!resolvedCustomerName) {
+          resolvedCustomerName = custExists.name;
+        }
       }
+    }
+    if (!resolvedCustomerName) {
+      resolvedCustomerName = "Walk-in Retail Customer";
     }
 
     // 2. Create the Sale record
@@ -199,7 +206,7 @@ export async function createAndPostSale(input: CreateSaleInput) {
         invoiceNumber,
         date,
         customerId: validCustomerId,
-        customerName,
+        customerName: resolvedCustomerName,
         subtotal: subtotal.toNumber(),
         discountAmount: totalDiscount.toNumber(),
         taxAmount: calculatedTax.toNumber(),
