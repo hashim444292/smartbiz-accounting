@@ -70,6 +70,34 @@ export interface JournalLineInput {
   description?: string;
 }
 
+export const STANDARD_ACCOUNTS: Record<string, { name: string; type: any; subType: string }> = {
+  "1010": { name: "Cash in Hand", type: "ASSET", subType: "Cash" },
+  "1020": { name: "Main Bank Account", type: "ASSET", subType: "Bank" },
+  "1100": { name: "Accounts Receivable", type: "ASSET", subType: "Receivable" },
+  "1200": { name: "Merchandise Inventory", type: "ASSET", subType: "Inventory" },
+  "1300": { name: "Other Current Assets", type: "ASSET", subType: "Current Asset" },
+  "2010": { name: "Accounts Payable", type: "LIABILITY", subType: "Payable" },
+  "2100": { name: "Tax / VAT Payable", type: "LIABILITY", subType: "Tax" },
+  "2200": { name: "Other Current Liabilities", type: "LIABILITY", subType: "Current Liability" },
+  "3010": { name: "Owner's Capital", type: "EQUITY", subType: "Capital" },
+  "3020": { name: "Owner's Drawings", type: "EQUITY", subType: "Drawings" },
+  "3100": { name: "Retained Earnings", type: "EQUITY", subType: "Retained Earnings" },
+  "4010": { name: "Sales Revenue", type: "REVENUE", subType: "Operating Revenue" },
+  "4020": { name: "Sales Returns", type: "REVENUE", subType: "Contra Revenue" },
+  "4100": { name: "Other Income", type: "REVENUE", subType: "Non-Operating Revenue" },
+  "5010": { name: "Cost of Goods Sold (COGS)", type: "COGS", subType: "Direct Cost" },
+  "5020": { name: "Inventory Shrinkage & Loss", type: "COGS", subType: "Stock Loss" },
+  "6010": { name: "Rent Expense", type: "EXPENSE", subType: "Occupancy" },
+  "6020": { name: "Salaries & Wages", type: "EXPENSE", subType: "Payroll" },
+  "6030": { name: "Electricity & Utilities", type: "EXPENSE", subType: "Utilities" },
+  "6040": { name: "Internet & Mobile", type: "EXPENSE", subType: "Utilities" },
+  "6050": { name: "Transport & Fuel", type: "EXPENSE", subType: "Logistics" },
+  "6060": { name: "Repairs & Maintenance", type: "EXPENSE", subType: "Maintenance" },
+  "6070": { name: "Office Supplies", type: "EXPENSE", subType: "Admin" },
+  "6080": { name: "Marketing & Advertising", type: "EXPENSE", subType: "Sales" },
+  "6990": { name: "Miscellaneous Expenses", type: "EXPENSE", subType: "General" },
+};
+
 /**
  * Creates and posts a balanced double-entry Journal Entry within an active Prisma transaction.
  */
@@ -98,34 +126,6 @@ export async function createJournalEntry(
       balanceCheck.totalCredit.toString()
     );
   }
-
-export const STANDARD_ACCOUNTS: Record<string, { name: string; type: any; subType: string }> = {
-  "1010": { name: "Cash in Hand", type: "ASSET", subType: "Cash" },
-  "1020": { name: "Main Bank Account", type: "ASSET", subType: "Bank" },
-  "1100": { name: "Accounts Receivable", type: "ASSET", subType: "Receivable" },
-  "1200": { name: "Merchandise Inventory", type: "ASSET", subType: "Inventory" },
-  "1300": { name: "Other Current Assets", type: "ASSET", subType: "Current Asset" },
-  "2010": { name: "Accounts Payable", type: "LIABILITY", subType: "Payable" },
-  "2100": { name: "Tax / VAT Payable", type: "LIABILITY", subType: "Tax" },
-  "2200": { name: "Other Current Liabilities", type: "LIABILITY", subType: "Current Liability" },
-  "3010": { name: "Owner's Capital", type: "EQUITY", subType: "Capital" },
-  "3020": { name: "Owner's Drawings", type: "EQUITY", subType: "Drawings" },
-  "3100": { name: "Retained Earnings", type: "EQUITY", subType: "Retained Earnings" },
-  "4010": { name: "Sales Revenue", type: "REVENUE", subType: "Operating Revenue" },
-  "4020": { name: "Sales Returns", type: "REVENUE", subType: "Contra Revenue" },
-  "4100": { name: "Other Income", type: "REVENUE", subType: "Non-Operating Revenue" },
-  "5010": { name: "Cost of Goods Sold (COGS)", type: "COGS", subType: "Direct Cost" },
-  "5020": { name: "Inventory Shrinkage & Loss", type: "COGS", subType: "Stock Loss" },
-  "6010": { name: "Rent Expense", type: "EXPENSE", subType: "Occupancy" },
-  "6020": { name: "Salaries & Wages", type: "EXPENSE", subType: "Payroll" },
-  "6030": { name: "Electricity & Utilities", type: "EXPENSE", subType: "Utilities" },
-  "6040": { name: "Internet & Mobile", type: "EXPENSE", subType: "Utilities" },
-  "6050": { name: "Transport & Fuel", type: "EXPENSE", subType: "Logistics" },
-  "6060": { name: "Repairs & Maintenance", type: "EXPENSE", subType: "Maintenance" },
-  "6070": { name: "Office Supplies", type: "EXPENSE", subType: "Admin" },
-  "6080": { name: "Marketing & Advertising", type: "EXPENSE", subType: "Sales" },
-  "6990": { name: "Miscellaneous Expenses", type: "EXPENSE", subType: "General" },
-};
 
   // 3. Resolve accounts by ID or Code
   const resolvedLines = await Promise.all(
