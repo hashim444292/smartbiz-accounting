@@ -1,0 +1,59 @@
+# ==============================================================================
+# SmartBiz Accounting - GitHub Actions Automated Production Deployment Workflow
+# Copy to: .github/workflows/deploy.yml in your repository when workflow scope is enabled
+# ==============================================================================
+
+name: Production Deployment (Contabo VPS)
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+jobs:
+  test-and-validate:
+    name: Run Tests & Build Validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Generate Prisma Client
+        run: npx prisma generate
+
+      - name: Execute Vitest Test Suite
+        run: npm test
+
+  deploy-to-vps:
+    name: Deploy to Contabo VPS (myaccounts360.com)
+    needs: test-and-validate
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Execute Remote Deployment via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.CONTABO_HOST }}
+          username: ${{ secrets.CONTABO_SSH_USER }}
+          key: ${{ secrets.CONTABO_SSH_KEY }}
+          port: ${{ secrets.CONTABO_SSH_PORT || 22 }}
+          script_stop: true
+          script: |
+            echo "Connected to Contabo VPS. Initiating deploy..."
+            cd /opt/smartbiz-accounting
+            chmod +x scripts/deploy.sh scripts/backup-db.sh
+            ./scripts/deploy.sh

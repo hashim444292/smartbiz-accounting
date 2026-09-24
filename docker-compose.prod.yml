@@ -1,0 +1,30 @@
+version: "3.8"
+
+services:
+  smartbiz-app:
+    container_name: smartbiz-app
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: smartbiz-accounting:latest
+    restart: unless-stopped
+    ports:
+      # Bound strictly to 127.0.0.1 so it cannot be accessed directly bypassing Nginx/SSL
+      # Port 3001 avoids conflict with existing app on port 3000
+      - "127.0.0.1:3001:3000"
+    extra_hosts:
+      # Allows the container to communicate with the existing PostgreSQL instance on the host machine
+      - "host.docker.internal:host-gateway"
+    env_file:
+      - .env.production
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://127.0.0.1:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "5"
