@@ -1,5 +1,4 @@
 import { PrismaClient } from "@prisma/client";
-import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
 
@@ -349,7 +348,7 @@ async function main() {
   console.log("🌱 Starting Database Seed for Complete Business Accounting System...");
 
   // 1. Create or Find Super Admin User
-  const passwordHash = await bcrypt.hash("admin123", 10);
+  const passwordHash = "$2a$10$/gMLM9bMyYfKlQN5ijSlZO2.ak0iWGQhjM7eglvPRJbWHHlMCh5Sq"; // admin123
   const user = await prisma.user.upsert({
     where: { email: "admin@smartbiz.com" },
     update: {
