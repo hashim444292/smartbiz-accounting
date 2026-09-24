@@ -84,6 +84,10 @@ export default function DashboardPage() {
   };
 
   useEffect(() => {
+    if (!isLoading && !user) {
+      router.replace("/login");
+      return;
+    }
     if (!isLoading && user?.role === "SUPER_ADMIN" && !isInspectingClient) {
       router.replace("/admin");
     }
