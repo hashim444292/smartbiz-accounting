@@ -3,6 +3,7 @@ import { Decimal, round2, round4, toDecimal, calculateLineTotal } from "@/lib/de
 import { PaymentStatus, TransactionStatus, Prisma } from "@prisma/client";
 import { recordStockMovement } from "./inventoryService";
 import { createJournalEntry, assertPeriodOpen } from "./accountingService";
+import { createSafeAuditLog } from "@/lib/auditHelper";
 
 export interface SaleItemInput {
   productId: string;
@@ -430,23 +431,21 @@ export async function createAndPostSale(input: CreateSaleInput) {
     }
 
     // 7. Audit Log
-    await tx.auditLog.create({
-      data: {
-        businessId,
-        userId: createdById || null,
-        userName: createdByName || null,
-        branchId: sale.branchId,
-        action: "CREATE_SALE",
-        entity: "Sale",
-        entityId: sale.id,
-        details: JSON.stringify({
-          invoiceNumber,
-          customerName,
-          totalAmount: totalAmount.toString(),
-          paidAmount: paidAmount.toString(),
-          itemCount: processedItems.length,
-        }),
-      },
+    await createSafeAuditLog(tx, {
+      businessId,
+      userId: createdById || null,
+      userName: createdByName || null,
+      branchId: sale.branchId,
+      action: "CREATE_SALE",
+      entity: "Sale",
+      entityId: sale.id,
+      details: JSON.stringify({
+        invoiceNumber,
+        customerName,
+        totalAmount: totalAmount.toString(),
+        paidAmount: paidAmount.toString(),
+        itemCount: processedItems.length,
+      }),
     });
 
     return sale;
@@ -549,15 +548,13 @@ export async function reverseSale(
     }
 
     // 5. Audit Log
-    await tx.auditLog.create({
-      data: {
-        businessId: sale.businessId,
-        userId: userId || null,
-        action: "REVERSE_SALE",
-        entity: "Sale",
-        entityId: sale.id,
-        details: JSON.stringify({ invoiceNumber: sale.invoiceNumber, reason }),
-      },
+    await createSafeAuditLog(tx, {
+      businessId: sale.businessId,
+      userId: userId || null,
+      action: "REVERSE_SALE",
+      entity: "Sale",
+      entityId: sale.id,
+      details: JSON.stringify({ invoiceNumber: sale.invoiceNumber, reason }),
     });
 
     return { status: "REVERSED", saleId };

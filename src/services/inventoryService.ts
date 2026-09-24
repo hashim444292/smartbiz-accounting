@@ -1,6 +1,7 @@
 import { Decimal, round2, round4, toDecimal, calculateWeightedAverageCost } from "@/lib/decimal";
 import { Prisma, InventoryTxType, AdjustmentReason } from "@prisma/client";
 import { assertPeriodOpen, createJournalEntry } from "./accountingService";
+import { createSafeAuditLog } from "@/lib/auditHelper";
 
 export class InsufficientStockError extends Error {
   constructor(productName: string, available: string, requested: string) {
@@ -263,22 +264,20 @@ export async function performStockAdjustment(
   }
 
   // Audit Log for Stock Adjustment
-  await tx.auditLog.create({
-    data: {
-      businessId,
-      userId: createdById || null,
-      userName: createdByName || null,
-      branchId: branchId || null,
-      action: "STOCK_ADJUSTMENT",
-      entity: "Product",
-      entityId: productId,
-      details: `Stock Adjusted for "${product.name}" (${current} -> ${target}, diff: ${diff.gt(0) ? "+" : ""}${diff}). Reason: ${reason}.${notes ? ` Notes: ${notes}` : ""}`,
-      changes: JSON.stringify({
-        previous: { stock: current.toNumber() },
-        updated: { stock: target.toNumber(), reason, notes: notes || null },
-      }),
-      createdAt: date,
-    },
+  await createSafeAuditLog(tx, {
+    businessId,
+    userId: createdById || null,
+    userName: createdByName || null,
+    branchId: branchId || null,
+    action: "STOCK_ADJUSTMENT",
+    entity: "Product",
+    entityId: productId,
+    details: `Stock Adjusted for "${product.name}" (${current} -> ${target}, diff: ${diff.gt(0) ? "+" : ""}${diff}). Reason: ${reason}.${notes ? ` Notes: ${notes}` : ""}`,
+    changes: JSON.stringify({
+      previous: { stock: current.toNumber() },
+      updated: { stock: target.toNumber(), reason, notes: notes || null },
+    }),
+    createdAt: date,
   });
 
   return { status: "ADJUSTED", previousStock: current, newStock: target, diff };

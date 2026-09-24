@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getActiveBusinessId } from "@/lib/businessHelper";
 import { fallbackStore, storeUpdatePurchase } from "@/lib/fallbackStore";
 import { getSession } from "@/lib/auth";
+import { createSafeAuditLog } from "@/lib/auditHelper";
 
 export const dynamic = "force-dynamic";
 
@@ -83,27 +84,25 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         include: { supplier: true, items: true, branch: true },
       });
 
-      await tx.auditLog.create({
-        data: {
-          businessId,
-          userId: editorId,
-          userName: editorName,
-          userEmail: editorEmail,
-          branchId: existing.branchId,
-          action: "UPDATE_PURCHASE",
-          entity: "Purchase",
-          entityId: id,
-          details: `Modified Purchase Order #${existing.purchaseNumber} (Reason: ${editReason})`,
-          changes: JSON.stringify({
-            previous: previousSnapshot,
-            updated: {
-              supplierName: updated.supplierName,
-              totalAmount: updated.totalAmount.toString(),
-              paidAmount: updated.paidAmount.toString(),
-              notes: updated.notes,
-            },
-          }),
-        },
+      await createSafeAuditLog(tx, {
+        businessId,
+        userId: editorId,
+        userName: editorName,
+        userEmail: editorEmail,
+        branchId: existing.branchId,
+        action: "UPDATE_PURCHASE",
+        entity: "Purchase",
+        entityId: id,
+        details: `Modified Purchase Order #${existing.purchaseNumber} (Reason: ${editReason})`,
+        changes: JSON.stringify({
+          previous: previousSnapshot,
+          updated: {
+            supplierName: updated.supplierName,
+            totalAmount: updated.totalAmount.toString(),
+            paidAmount: updated.paidAmount.toString(),
+            notes: updated.notes,
+          },
+        }),
       });
 
       return updated;

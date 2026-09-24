@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { Decimal, round2, toDecimal } from "@/lib/decimal";
 import { createJournalEntry, assertPeriodOpen } from "./accountingService";
+import { createSafeAuditLog } from "@/lib/auditHelper";
 
 export interface CreateExpenseInput {
   businessId: string;
@@ -138,21 +139,19 @@ export async function createAndPostExpense(input: CreateExpenseInput) {
     });
 
     // 4. Audit Log
-    await tx.auditLog.create({
-      data: {
-        businessId,
-        userId: createdById || null,
-        userName: createdByName || null,
-        branchId: branchId || null,
-        action: "CREATE_EXPENSE",
-        entity: "Expense",
-        entityId: expense.id,
-        details: JSON.stringify({
-          category: category.name,
-          amount: amount.toString(),
-          paidTo,
-        }),
-      },
+    await createSafeAuditLog(tx, {
+      businessId,
+      userId: createdById || null,
+      userName: createdByName || null,
+      branchId: branchId || null,
+      action: "CREATE_EXPENSE",
+      entity: "Expense",
+      entityId: expense.id,
+      details: JSON.stringify({
+        category: category.name,
+        amount: amount.toString(),
+        paidTo,
+      }),
     });
 
     return expense;

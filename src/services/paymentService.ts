@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { Decimal, round2, toDecimal } from "@/lib/decimal";
 import { PaymentType, PartyType, Prisma } from "@prisma/client";
 import { createJournalEntry, assertPeriodOpen } from "./accountingService";
+import { createSafeAuditLog } from "@/lib/auditHelper";
 
 export interface RecordCustomerPaymentInput {
   businessId: string;
@@ -207,22 +208,20 @@ export async function recordCustomerPayment(input: RecordCustomerPaymentInput) {
     });
 
     // 6. Audit Log
-    await tx.auditLog.create({
-      data: {
-        businessId,
-        userId: createdById || null,
-        userName: input.createdByName || null,
-        branchId: input.branchId || null,
-        action: "CUSTOMER_PAYMENT",
-        entity: "Payment",
-        entityId: payment.id,
-        details: JSON.stringify({
-          customerName: customer.name,
-          amount: paymentAmount.toString(),
-          accountName: bankAccount.name,
-          referenceNumber: referenceNumber || null,
-        }),
-      },
+    await createSafeAuditLog(tx, {
+      businessId,
+      userId: createdById || null,
+      userName: input.createdByName || null,
+      branchId: input.branchId || null,
+      action: "CUSTOMER_PAYMENT",
+      entity: "Payment",
+      entityId: payment.id,
+      details: JSON.stringify({
+        customerName: customer.name,
+        amount: paymentAmount.toString(),
+        accountName: bankAccount.name,
+        referenceNumber: referenceNumber || null,
+      }),
     });
 
     return payment;
@@ -359,22 +358,20 @@ export async function recordSupplierPayment(input: RecordSupplierPaymentInput) {
     });
 
     // 6. Audit Log
-    await tx.auditLog.create({
-      data: {
-        businessId,
-        userId: createdById || null,
-        userName: input.createdByName || null,
-        branchId: input.branchId || null,
-        action: "SUPPLIER_PAYMENT",
-        entity: "Payment",
-        entityId: payment.id,
-        details: JSON.stringify({
-          supplierName: supplier.name,
-          amount: paymentAmount.toString(),
-          accountName: bankAccount.name,
-          referenceNumber: referenceNumber || null,
-        }),
-      },
+    await createSafeAuditLog(tx, {
+      businessId,
+      userId: createdById || null,
+      userName: input.createdByName || null,
+      branchId: input.branchId || null,
+      action: "SUPPLIER_PAYMENT",
+      entity: "Payment",
+      entityId: payment.id,
+      details: JSON.stringify({
+        supplierName: supplier.name,
+        amount: paymentAmount.toString(),
+        accountName: bankAccount.name,
+        referenceNumber: referenceNumber || null,
+      }),
     });
 
     return payment;
@@ -463,22 +460,20 @@ export async function transferFunds(input: TransferFundsInput) {
     });
 
     // Audit Log for Funds Transfer
-    await tx.auditLog.create({
-      data: {
-        businessId,
-        userId: createdById || null,
-        userName: input.createdByName || null,
-        branchId: input.branchId || null,
-        action: "FUNDS_TRANSFER",
-        entity: "Payment",
-        entityId: payment.id,
-        details: JSON.stringify({
-          fromAccount: fromAcc.name,
-          toAccount: toAcc.name,
-          amount: amount.toString(),
-          referenceNumber: referenceNumber || null,
-        }),
-      },
+    await createSafeAuditLog(tx, {
+      businessId,
+      userId: createdById || null,
+      userName: input.createdByName || null,
+      branchId: input.branchId || null,
+      action: "FUNDS_TRANSFER",
+      entity: "Payment",
+      entityId: payment.id,
+      details: JSON.stringify({
+        fromAccount: fromAcc.name,
+        toAccount: toAcc.name,
+        amount: amount.toString(),
+        referenceNumber: referenceNumber || null,
+      }),
     });
 
     return payment;

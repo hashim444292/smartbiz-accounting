@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { Decimal, round2, toDecimal } from "@/lib/decimal";
+import { createSafeAuditLog } from "@/lib/auditHelper";
 
 export interface DateRange {
   startDate: Date;
@@ -611,15 +612,13 @@ export async function closeAccountingPeriod(
     },
   });
 
-  await prisma.auditLog.create({
-    data: {
-      businessId,
-      userId,
-      action: "CLOSE_ACCOUNTING_PERIOD",
-      entity: "AccountingPeriod",
-      entityId: period.id,
-      details: JSON.stringify({ year, month, name, notes }),
-    },
+  await createSafeAuditLog(prisma, {
+    businessId,
+    userId,
+    action: "CLOSE_ACCOUNTING_PERIOD",
+    entity: "AccountingPeriod",
+    entityId: period.id,
+    details: JSON.stringify({ year, month, name, notes }),
   });
 
   return period;
@@ -651,15 +650,13 @@ export async function reopenAccountingPeriod(
     },
   });
 
-  await prisma.auditLog.create({
-    data: {
-      businessId,
-      userId,
-      action: "REOPEN_ACCOUNTING_PERIOD",
-      entity: "AccountingPeriod",
-      entityId: period.id,
-      details: JSON.stringify({ year, month, reason }),
-    },
+  await createSafeAuditLog(prisma, {
+    businessId,
+    userId,
+    action: "REOPEN_ACCOUNTING_PERIOD",
+    entity: "AccountingPeriod",
+    entityId: period.id,
+    details: JSON.stringify({ year, month, reason }),
   });
 
   return updated;

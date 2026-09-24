@@ -3,6 +3,7 @@ import { Decimal, round2, round4, toDecimal, calculateLineTotal } from "@/lib/de
 import { PaymentStatus, Prisma } from "@prisma/client";
 import { recordStockMovement } from "./inventoryService";
 import { createJournalEntry, assertPeriodOpen } from "./accountingService";
+import { createSafeAuditLog } from "@/lib/auditHelper";
 
 export interface PurchaseItemInput {
   productId: string;
@@ -350,22 +351,20 @@ export async function createAndPostPurchase(input: CreatePurchaseInput) {
     });
 
     // 6. Audit Log
-    await tx.auditLog.create({
-      data: {
-        businessId,
-        userId: createdById || null,
-        userName: createdByName || null,
-        branchId: purchase.branchId,
-        action: "CREATE_PURCHASE",
-        entity: "Purchase",
-        entityId: purchase.id,
-        details: JSON.stringify({
-          purchaseNumber,
-          supplierName,
-          totalAmount: totalAmount.toString(),
-          paidAmount: paidAmount.toString(),
-        }),
-      },
+    await createSafeAuditLog(tx, {
+      businessId,
+      userId: createdById || null,
+      userName: createdByName || null,
+      branchId: purchase.branchId,
+      action: "CREATE_PURCHASE",
+      entity: "Purchase",
+      entityId: purchase.id,
+      details: JSON.stringify({
+        purchaseNumber,
+        supplierName,
+        totalAmount: totalAmount.toString(),
+        paidAmount: paidAmount.toString(),
+      }),
     });
 
     return purchase;

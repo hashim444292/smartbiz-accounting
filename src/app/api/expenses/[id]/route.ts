@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getActiveBusinessId } from "@/lib/businessHelper";
 import { fallbackStore, storeUpdateExpense, storeDeleteExpense } from "@/lib/fallbackStore";
 import { getSession } from "@/lib/auth";
+import { createSafeAuditLog } from "@/lib/auditHelper";
 
 export const dynamic = "force-dynamic";
 
@@ -51,26 +52,24 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         include: { category: true, account: true, branch: true },
       });
 
-      await tx.auditLog.create({
-        data: {
-          businessId,
-          userId: editorId,
-          userName: editorName,
-          userEmail: editorEmail,
-          branchId: existing.branchId,
-          action: "UPDATE_EXPENSE",
-          entity: "Expense",
-          entityId: id,
-          details: `Modified Expense: ${existing.description} (Reason: ${editReason})`,
-          changes: JSON.stringify({
-            previous: previousSnapshot,
-            updated: {
-              description: updated.description,
-              amount: updated.amount.toString(),
-              paidTo: updated.paidTo,
-            },
-          }),
-        },
+      await createSafeAuditLog(tx, {
+        businessId,
+        userId: editorId,
+        userName: editorName,
+        userEmail: editorEmail,
+        branchId: existing.branchId,
+        action: "UPDATE_EXPENSE",
+        entity: "Expense",
+        entityId: id,
+        details: `Modified Expense: ${existing.description} (Reason: ${editReason})`,
+        changes: JSON.stringify({
+          previous: previousSnapshot,
+          updated: {
+            description: updated.description,
+            amount: updated.amount.toString(),
+            paidTo: updated.paidTo,
+          },
+        }),
       });
 
       return updated;
@@ -119,18 +118,16 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
     await prisma.$transaction(async (tx) => {
       await tx.expense.delete({ where: { id } });
 
-      await tx.auditLog.create({
-        data: {
-          businessId,
-          userId: editorId,
-          userName: editorName,
-          userEmail: editorEmail,
-          branchId: existing.branchId,
-          action: "DELETE_EXPENSE",
-          entity: "Expense",
-          entityId: id,
-          details: `Deleted Expense: ${existing.description} - Rs ${Number(existing.amount).toLocaleString()}`,
-        },
+      await createSafeAuditLog(tx, {
+        businessId,
+        userId: editorId,
+        userName: editorName,
+        userEmail: editorEmail,
+        branchId: existing.branchId,
+        action: "DELETE_EXPENSE",
+        entity: "Expense",
+        entityId: id,
+        details: `Deleted Expense: ${existing.description} - Rs ${Number(existing.amount).toLocaleString()}`,
       });
     });
 

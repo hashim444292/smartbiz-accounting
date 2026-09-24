@@ -352,10 +352,12 @@ async function main() {
   const user = await prisma.user.upsert({
     where: { email: "admin@smartbiz.com" },
     update: {
+      id: "usr-1",
       role: "SUPER_ADMIN",
       name: "Hashim Khan (Super Admin)",
     },
     create: {
+      id: "usr-1",
       email: "admin@smartbiz.com",
       passwordHash,
       name: "Hashim Khan (Super Admin)",
@@ -363,6 +365,55 @@ async function main() {
     },
   });
   console.log(`✅ User ready: ${user.email} (${user.role})`);
+
+  // 1b. Seed demo users (usr-2 through usr-4) with fixed IDs
+  // These are the users used by the frontend quick-switch panel
+  const demoUsers = [
+    {
+      id: "usr-2",
+      email: "hanif@mobile.com",
+      passwordHash: "$2a$10$2Grd8/bN48..0N97INIxYeePt2VFxXfTW97DKAQlWJJyVUYmVmWXW", // hanif123
+      name: "Muhammad Hanif (Owner)",
+      role: "OWNER_ADMIN",
+    },
+    {
+      id: "usr-3",
+      email: "accountant@smartbiz.com",
+      passwordHash: "$2a$10$2Grd8/bN48..0N97INIxYeePt2VFxXfTW97DKAQlWJJyVUYmVmWXW", // account123
+      name: "Farhan Accountant",
+      role: "ACCOUNTANT",
+    },
+    {
+      id: "usr-4",
+      email: "staff@smartbiz.com",
+      passwordHash: "$2a$10$2Grd8/bN48..0N97INIxYeePt2VFxXfTW97DKAQlWJJyVUYmVmWXW", // staff123
+      name: "Bilal Cashier (Staff)",
+      role: "STAFF",
+    },
+  ];
+
+  for (const du of demoUsers) {
+    // Check if user exists by ID first, then by email
+    const existingById = await prisma.user.findUnique({ where: { id: du.id } });
+    const existingByEmail = await prisma.user.findUnique({ where: { email: du.email } });
+
+    if (existingById) {
+      // Already exists with the right ID, just update
+      await prisma.user.update({
+        where: { id: du.id },
+        data: { name: du.name, role: du.role },
+      });
+      console.log(`✅ Demo user updated: ${du.email} (${du.id})`);
+    } else if (existingByEmail) {
+      // Exists with a different ID - we can't change primary keys easily,
+      // so just log a warning; the safe auditLog helper handles it gracefully
+      console.log(`⚠️  Demo user ${du.email} exists but with different ID. AuditLog will use null for this user.`);
+    } else {
+      await prisma.user.create({ data: du });
+      console.log(`✅ Demo user created: ${du.email} (${du.id})`);
+    }
+  }
+
 
   // 2. Define Core Businesses (biz-101 and biz-102)
   const businesses = [
@@ -412,16 +463,23 @@ async function main() {
     await seedBusiness(b, user);
   }
 
-  // Also check if any other businesses exist in DB that need standard accounts/branches
-  const existingBusinesses = await prisma.business.findMany({
-    where: {
-      id: { notIn: ["biz-101", "biz-102"] },
-    },
-  });
-
-  for (const extraBiz of existingBusinesses) {
-    console.log(`🔄 Syncing existing business: ${extraBiz.name} (${extraBiz.id})`);
-    await seedBusiness(extraBiz, user);
+  // Also add demo users as members of biz-101 so they can log in and create data
+  const demoMemberships = [
+    { userId: "usr-2", businessId: "biz-101", role: "OWNER_ADMIN" },
+    { userId: "usr-3", businessId: "biz-101", role: "ACCOUNTANT" },
+    { userId: "usr-4", businessId: "biz-101", role: "STAFF" },
+    { userId: "usr-2", businessId: "biz-102", role: "OWNER_ADMIN" },
+  ];
+  for (const m of demoMemberships) {
+    const userExists = await prisma.user.findUnique({ where: { id: m.userId } });
+    if (userExists) {
+      await prisma.businessMember.upsert({
+        where: { businessId_userId: { businessId: m.businessId, userId: m.userId } },
+        update: { role: m.role },
+        create: m,
+      });
+      console.log(`✅ Member link: ${m.userId} -> ${m.businessId} (${m.role})`);
+    }
   }
 
   console.log("🎉 Seeding completed successfully!");
