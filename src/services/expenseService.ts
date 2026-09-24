@@ -21,7 +21,7 @@ export interface CreateExpenseInput {
 export async function createAndPostExpense(input: CreateExpenseInput) {
   return await prisma.$transaction(async (tx) => {
     const { businessId, categoryId, description, paymentMethod = "CASH", accountId, paidTo, receiptUrl, notes, createdById, createdByName, branchId } = input;
-    const date = input.date || new Date();
+    const date = input.date ? (input.date instanceof Date ? input.date : new Date(input.date)) : new Date();
     await assertPeriodOpen(tx, businessId, date);
 
     const amount = round2(input.amount);

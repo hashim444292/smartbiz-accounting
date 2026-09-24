@@ -22,10 +22,11 @@ export class JournalUnbalancedError extends Error {
 export async function assertPeriodOpen(
   tx: Prisma.TransactionClient,
   businessId: string,
-  date: Date
+  date: Date | string
 ): Promise<void> {
-  const year = date.getFullYear();
-  const month = date.getMonth() + 1;
+  const d = date instanceof Date ? date : new Date(date || Date.now());
+  const year = d.getFullYear();
+  const month = d.getMonth() + 1;
 
   const period = await tx.accountingPeriod.findUnique({
     where: {
@@ -50,9 +51,10 @@ export async function assertPeriodOpen(
 export async function getNextJournalNumber(
   tx: Prisma.TransactionClient,
   businessId: string,
-  date: Date
+  date: Date | string
 ): Promise<string> {
-  const prefix = `JE-${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, "0")}`;
+  const d = date instanceof Date ? date : new Date(date || Date.now());
+  const prefix = `JE-${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}`;
   const count = await tx.journalEntry.count({
     where: {
       businessId,
@@ -105,7 +107,7 @@ export async function createJournalEntry(
   tx: Prisma.TransactionClient,
   params: {
     businessId: string;
-    date: Date;
+    date: Date | string;
     description: string;
     referenceType?: string;
     referenceId?: string;
@@ -114,9 +116,10 @@ export async function createJournalEntry(
   }
 ) {
   const { businessId, date, description, referenceType, referenceId, createdById, lines } = params;
+  const entryDate = date instanceof Date ? date : new Date(date || Date.now());
 
   // 1. Ensure period is not locked
-  await assertPeriodOpen(tx, businessId, date);
+  await assertPeriodOpen(tx, businessId, entryDate);
 
   // 2. Validate double-entry equality (Debits == Credits)
   const balanceCheck = isJournalBalanced(lines);
@@ -175,14 +178,14 @@ export async function createJournalEntry(
   );
 
   // 4. Generate entry number
-  const entryNumber = await getNextJournalNumber(tx, businessId, date);
+  const entryNumber = await getNextJournalNumber(tx, businessId, entryDate);
 
   // 5. Create Journal Entry
   const entry = await tx.journalEntry.create({
     data: {
       businessId,
       entryNumber,
-      date,
+      date: entryDate,
       description,
       referenceType,
       referenceId,

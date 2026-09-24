@@ -57,7 +57,7 @@ export async function createAndPostPurchase(input: CreatePurchaseInput) {
       createdByName,
     } = input;
 
-    const date = input.date || new Date();
+    const date = input.date ? (input.date instanceof Date ? input.date : new Date(input.date)) : new Date();
     await assertPeriodOpen(tx, businessId, date);
 
     if (!items || items.length === 0) {
