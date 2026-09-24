@@ -67,13 +67,13 @@ echo "✅ Healthcheck passed! Service is responding on http://127.0.0.1:3001"
 
 # 5. Execute Prisma Database Schema Push
 echo "🗄️ Synchronizing Prisma schema with PostgreSQL database..."
-docker compose -f "${COMPOSE_FILE}" exec -T "${CONTAINER_NAME}" npx prisma db push --skip-generate || {
+docker run --rm --network contract-genie_app_network -v "${APP_DIR}":/app -w /app --env-file "${APP_DIR}/.env.production" node:20-alpine sh -c "npx prisma db push --skip-generate" || {
     echo "⚠️ Warning: Prisma db push encountered an issue. Check DATABASE_URL in .env.production."
 }
 
 # 6. Check database tables and optionally seed if empty
 echo "🌱 Checking if initial seed data is required..."
-docker compose -f "${COMPOSE_FILE}" exec -T "${CONTAINER_NAME}" node scripts/seed.mjs || {
+docker run --rm --network contract-genie_app_network -v "${APP_DIR}":/app -w /app --env-file "${APP_DIR}/.env.production" node:20-alpine sh -c "node scripts/seed.mjs" || {
     echo "ℹ️ Seeding skipped or already populated."
 }
 

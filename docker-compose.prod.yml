@@ -15,6 +15,9 @@ services:
     extra_hosts:
       # Allows the container to communicate with the existing PostgreSQL instance on the host machine
       - "host.docker.internal:host-gateway"
+    networks:
+      - default
+      - contract-genie_app_network
     env_file:
       - .env.production
     healthcheck:
@@ -28,3 +31,7 @@ services:
       options:
         max-size: "20m"
         max-file: "5"
+
+networks:
+  contract-genie_app_network:
+    external: true
