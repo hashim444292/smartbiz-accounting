@@ -1,8 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getActiveBusinessId } from "@/lib/businessHelper";
-import { getFbrComplianceOverview, createFbrPosInvoice } from "@/services/fbrService";
-import { fallbackStore } from "@/lib/fallbackStore";
+import {
+  getFbrComplianceOverview,
+  createFbrPosInvoice,
+  transmitSaleToFbr,
+  testFbrToken,
+  saveFbrConfig,
+  getFbrConfig,
+  buildFbrPayload,
+} from "@/services/fbrService";
 import { prisma } from "@/lib/prisma";
+import { fallbackStore } from "@/lib/fallbackStore";
 
 export const dynamic = "force-dynamic";
 
@@ -16,112 +24,127 @@ export async function GET(req: NextRequest) {
   }
 }
 
-async function processFbrTransmission(invoiceId: string, allowIncomplete = false) {
-  const fbrInvNum = `FBR-POS-2026-${Math.floor(100000 + Math.random() * 900000)}`;
-
-  try {
-    const sale = await prisma.sale.findUnique({ where: { id: invoiceId } });
-    if (!sale) throw new Error("Sale not found in database");
-
-    if (!allowIncomplete && sale.paymentStatus !== "PAID") {
-      throw new Error(
-        `Invoice #${sale.invoiceNumber} cannot be transmitted to FBR because payment is incomplete (${sale.paymentStatus}, Remaining: Rs. ${Number(sale.remainingAmount || 0).toLocaleString()}). Invoices can only be transmitted to FBR once 100% payment is received.`
-      );
-    }
-
-    const currentFee = Number((sale as any).posFee || 0);
-    const additionalFee = currentFee >= 1 ? 0 : 1.0;
-    const newTotal = Number(sale.totalAmount) + additionalFee;
-    const fbrQr = `https://e.fbr.gov.pk/verify?inv=${encodeURIComponent(fbrInvNum)}&pos=POS-101&amt=${newTotal}`;
-
-    const updated = await prisma.sale.update({
-      where: { id: invoiceId },
-      data: {
-        posFee: 1.0,
-        totalAmount: newTotal,
-        remainingAmount: Math.max(0, Number(sale.remainingAmount) + additionalFee),
-        fbrStatus: "SUCCESS",
-        fbrInvoiceNumber: fbrInvNum,
-        fbrQrCode: fbrQr,
-      } as any,
-    });
-    return updated;
-  } catch (err: any) {
-    if (err.message?.includes("cannot be transmitted to FBR because payment is incomplete")) {
-      throw err;
-    }
-
-    const s = fallbackStore.sales.find((sale) => sale.id === invoiceId);
-    if (!s) throw new Error(`Sale #${invoiceId} not found`);
-
-    if (!allowIncomplete && s.paymentStatus !== "PAID") {
-      throw new Error(
-        `Invoice #${s.invoiceNumber} cannot be transmitted to FBR because payment is incomplete (${s.paymentStatus}, Remaining: Rs. ${Number(s.remainingAmount || 0).toLocaleString()}). Invoices can only be transmitted to FBR once 100% payment is received.`
-      );
-    }
-
-    const currentFee = Number(s.posFee || 0);
-    const additionalFee = currentFee >= 1 ? 0 : 1.0;
-    s.posFee = 1.0;
-    s.totalAmount = Number(s.totalAmount) + additionalFee;
-    s.remainingAmount = Math.max(0, Number(s.remainingAmount || 0) + additionalFee);
-    if (s.customerId && additionalFee > 0) {
-      const cust = fallbackStore.customers.find((c) => c.id === s.customerId);
-      if (cust) cust.currentBalance += additionalFee;
-    }
-    s.fbrInvoiceNumber = s.fbrInvoiceNumber && s.fbrInvoiceNumber !== "Pending Generation" ? s.fbrInvoiceNumber : fbrInvNum;
-    s.fbrQrCode = `https://e.fbr.gov.pk/verify?inv=${encodeURIComponent(s.fbrInvoiceNumber)}&pos=POS-101&amt=${s.totalAmount}`;
-    s.fbrStatus = "SUCCESS";
-    return s;
-  }
-}
-
 export async function POST(req: NextRequest) {
   try {
     const businessId = await getActiveBusinessId(req);
     const body = await req.json();
 
-    if (body.action === "transmit" || body.action === "retry") {
-      const { invoiceId, allowIncomplete } = body;
-      const updated = await processFbrTransmission(invoiceId, allowIncomplete);
+    // 1. Test FBR Sandbox or Production Gateway Connection
+    if (body.action === "test_connection") {
+      const { token, environment = "sandbox", payload } = body;
+      const result = await testFbrToken(token, environment, payload);
       return NextResponse.json({
-        success: true,
-        data: updated,
-        message: `Invoice #${updated.invoiceNumber} transmitted to FBR. Rs. 1/- POS fee applied.`,
+        success: result.success,
+        data: result,
       });
     }
 
+    // 2. Save FBR API Credentials and Configuration
+    if (body.action === "save_config") {
+      const saved = await saveFbrConfig(businessId, body.config || {});
+      return NextResponse.json({
+        success: true,
+        data: saved,
+        message: "FBR API settings saved successfully",
+      });
+    }
+
+    // 3. Preview Exact FBR JSON Payload for an Invoice
+    if (body.action === "preview_payload") {
+      const { invoiceId } = body;
+      let sale: any = null;
+      let business: any = null;
+
+      try {
+        sale = await prisma.sale.findUnique({
+          where: { id: invoiceId },
+          include: {
+            items: { include: { product: true } },
+            customer: true,
+            business: true,
+          },
+        });
+        if (sale) business = sale.business;
+      } catch {
+        sale = fallbackStore.sales.find((s) => s.id === invoiceId);
+        business = fallbackStore.companies.find((c) => c.id === businessId);
+      }
+
+      if (!sale) {
+        return NextResponse.json({ success: false, error: "Invoice not found" }, { status: 404 });
+      }
+
+      const config = await getFbrConfig(businessId);
+      const payload = buildFbrPayload(sale, business, config);
+
+      return NextResponse.json({
+        success: true,
+        data: {
+          payload,
+          config,
+          endpoint:
+            config.environment === "production"
+              ? "https://gw.fbr.gov.pk/di_data/v1/di/postinvoicedata"
+              : "https://gw.fbr.gov.pk/di_data/v1/di/postinvoicedata_sb",
+        },
+      });
+    }
+
+    // 4. Transmit Single Invoice to FBR (Sandbox or Live)
+    if (body.action === "transmit" || body.action === "retry") {
+      const { invoiceId, allowIncomplete = false, overrideToken } = body;
+      const result = await transmitSaleToFbr(invoiceId, {
+        allowIncomplete,
+        overrideToken,
+      });
+
+      return NextResponse.json({
+        success: result.success,
+        data: result.sale,
+        payload: result.payload,
+        fbrResponse: result.fbrResponse,
+        message: result.message || `Invoice transmitted to FBR successfully.`,
+      });
+    }
+
+    // 5. Batch Transmit Invoices to FBR
     if (body.action === "transmit_batch") {
       const { invoiceIds = [], allowIncomplete = false } = body;
       const results = [];
       const skippedPartial = [];
+      const errors = [];
 
       for (const id of invoiceIds) {
         try {
-          const res = await processFbrTransmission(id, allowIncomplete);
-          results.push(res);
+          const res = await transmitSaleToFbr(id, { allowIncomplete });
+          results.push(res.sale);
         } catch (e: any) {
           if (e.message?.includes("payment is incomplete")) {
             skippedPartial.push(id);
           } else {
-            console.error(`Batch transmission error for ${id}:`, e);
+            errors.push({ id, error: e.message });
           }
         }
       }
 
-      let msg = `${results.length} fully paid invoice(s) transmitted to FBR. Rs. 1/- fee charged per invoice.`;
+      let msg = `${results.length} invoice(s) transmitted to FBR.`;
       if (skippedPartial.length > 0) {
-        msg += ` (${skippedPartial.length} partial/credit invoice(s) safely held back until full payment is collected).`;
+        msg += ` (${skippedPartial.length} partial/credit invoice(s) held back until full payment is received).`;
+      }
+      if (errors.length > 0) {
+        msg += ` (${errors.length} failed with error).`;
       }
 
       return NextResponse.json({
         success: true,
         data: results,
         skippedPartialCount: skippedPartial.length,
+        errors,
         message: msg,
       });
     }
 
+    // Default: Create simulated FBR POS sale
     const newSale = await createFbrPosInvoice({
       ...body,
       businessId,

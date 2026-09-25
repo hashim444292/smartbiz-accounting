@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { fallbackStore, storeUpdateCompany, storeDeleteCompany } from "@/lib/fallbackStore";
 import { getSession } from "@/lib/auth";
+import { saveFbrConfig, getFbrConfig } from "@/services/fbrService";
 
 export const dynamic = "force-dynamic";
 
@@ -50,14 +51,36 @@ export async function PUT(
         },
       });
 
+      // Update FBR Digital Invoicing Configuration
+      let fbrConfig = null;
+      if (
+        body.fbrToken !== undefined ||
+        body.fbrEnv !== undefined ||
+        body.fbrPosId !== undefined ||
+        body.fbrScenarioId !== undefined ||
+        body.fbrAutoSync !== undefined
+      ) {
+        fbrConfig = await saveFbrConfig(id, {
+          token: body.fbrToken,
+          environment: body.fbrEnv,
+          posId: body.fbrPosId,
+          scenarioId: body.fbrScenarioId,
+          autoSync: body.fbrAutoSync !== undefined ? Boolean(body.fbrAutoSync) : undefined,
+          sellerNtn: body.ntn,
+          sellerBusinessName: body.name,
+          sellerProvince: body.province,
+          sellerAddress: body.address,
+        });
+      }
+
       if (body.enabledModules) {
         storeUpdateCompany(id, { enabledModules: body.enabledModules });
       }
 
       return NextResponse.json({
         success: true,
-        data: { ...updated, enabledModules: body.enabledModules },
-        message: "Company updated successfully (existing products remain decoupled)",
+        data: { ...updated, fbrConfig, enabledModules: body.enabledModules },
+        message: "Company and FBR settings updated successfully",
       });
     } catch {
       const updated = storeUpdateCompany(id, body);

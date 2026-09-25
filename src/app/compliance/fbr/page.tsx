@@ -26,7 +26,12 @@ import {
   ShieldAlert,
   Download,
   UploadCloud,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Settings,
+  Key,
+  Code,
+  Copy,
+  CheckCheck,
 } from "lucide-react";
 import { TableRowsSkeleton } from "@/components/ui/loader";
 import { useAuth } from "@/context/AuthContext";
@@ -60,6 +65,26 @@ export default function FbrCompliancePage() {
   const [settleMethod, setSettleMethod] = useState<"CASH" | "BANK">("CASH");
   const [isSettling, setIsSettling] = useState(false);
 
+  // FBR API Gateway Config & Test State
+  const [fbrConfigModal, setFbrConfigModal] = useState(false);
+  const [fbrConfigForm, setFbrConfigForm] = useState({
+    token: "",
+    environment: "sandbox",
+    posId: "POS-101",
+    scenarioId: "SN000",
+    autoSync: false,
+    sellerNtn: "",
+    sellerBusinessName: "",
+    sellerProvince: "Sindh",
+    sellerAddress: "",
+  });
+  const [savingConfig, setSavingConfig] = useState(false);
+  const [testingConnection, setTestingConnection] = useState(false);
+  const [testResultModal, setTestResultModal] = useState<any | null>(null);
+  const [payloadModal, setPayloadModal] = useState<any | null>(null);
+  const [loadingPayloadId, setLoadingPayloadId] = useState<string | null>(null);
+  const [copiedPayload, setCopiedPayload] = useState(false);
+
   const loadCompliance = async () => {
     setLoading(true);
     try {
@@ -78,6 +103,92 @@ export default function FbrCompliancePage() {
   useEffect(() => {
     loadCompliance();
   }, [activeCompany?.id]);
+
+  useEffect(() => {
+    if (complianceData?.config) {
+      setFbrConfigForm({
+        token: complianceData.config.token || "",
+        environment: complianceData.config.environment || "sandbox",
+        posId: complianceData.config.posId || "POS-101",
+        scenarioId: complianceData.config.scenarioId || "SN000",
+        autoSync: Boolean(complianceData.config.autoSync),
+        sellerNtn: complianceData.config.sellerNtn || activeCompany?.ntn || "",
+        sellerBusinessName: complianceData.config.sellerBusinessName || activeCompany?.name || "",
+        sellerProvince: complianceData.config.sellerProvince || activeCompany?.province || "Sindh",
+        sellerAddress: complianceData.config.sellerAddress || activeCompany?.address || "",
+      });
+    }
+  }, [complianceData, activeCompany]);
+
+  const handleSaveFbrConfig = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingConfig(true);
+    try {
+      const res = await fetch("/api/compliance/fbr", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "save_config", config: fbrConfigForm }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        setActionMessage({ type: "success", text: "FBR Digital Invoicing settings saved successfully." });
+        setFbrConfigModal(false);
+        loadCompliance();
+      } else {
+        alert(json.error || "Failed to save FBR settings");
+      }
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setSavingConfig(false);
+    }
+  };
+
+  const handleTestSandbox = async () => {
+    setTestingConnection(true);
+    try {
+      const res = await fetch("/api/compliance/fbr", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "test_connection",
+          token: fbrConfigForm.token,
+          environment: fbrConfigForm.environment,
+        }),
+      });
+      const json = await res.json();
+      setTestResultModal(json.data);
+    } catch (err: any) {
+      setTestResultModal({ success: false, message: err.message });
+    } finally {
+      setTestingConnection(false);
+    }
+  };
+
+  const handlePreviewPayload = async (inv: any) => {
+    setLoadingPayloadId(inv.id);
+    try {
+      const res = await fetch("/api/compliance/fbr", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "preview_payload", invoiceId: inv.id }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        setPayloadModal({
+          invoiceNumber: inv.invoiceNumber,
+          payload: json.data.payload,
+          endpoint: json.data.endpoint,
+        });
+      } else {
+        alert(json.error || "Failed to generate preview");
+      }
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setLoadingPayloadId(null);
+    }
+  };
 
   // All Invoices List
   const allInvoices: any[] = useMemo(() => {
@@ -410,6 +521,77 @@ export default function FbrCompliancePage() {
           </button>
         </div>
       )}
+
+      {/* Live FBR Gateway & Sandbox Sync Status Banner */}
+      <div className="rounded-2xl border border-indigo-200/80 bg-gradient-to-r from-indigo-50/90 via-white to-blue-50/50 p-4 shadow-xs">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="flex h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+              <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                FBR Digital Invoicing (DI) API Gateway
+              </span>
+              <span className="rounded bg-indigo-100 px-2 py-0.5 text-[10px] font-bold text-indigo-800 uppercase font-mono">
+                {complianceData?.config?.environment === "production" ? "LIVE PRODUCTION" : "SANDBOX SB"}
+              </span>
+              {complianceData?.config?.token ? (
+                <span className="rounded bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
+                  ✓ Token Active
+                </span>
+              ) : (
+                <span className="rounded bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800">
+                  ⚠️ Token Not Set (Using Sandbox Simulation)
+                </span>
+              )}
+            </div>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-slate-600 font-mono">
+              <span>
+                <strong>Post URL:</strong>{" "}
+                <code className="bg-slate-100 px-1 py-0.5 rounded text-indigo-700">
+                  {complianceData?.config?.environment === "production"
+                    ? "https://gw.fbr.gov.pk/di_data/v1/di/postinvoicedata"
+                    : "https://gw.fbr.gov.pk/di_data/v1/di/postinvoicedata_sb"}
+                </code>
+              </span>
+              <span>
+                <strong>Seller NTN:</strong>{" "}
+                {complianceData?.config?.sellerNtn || activeCompany?.ntn || "0000000000000"}
+              </span>
+              <span>
+                <strong>Scenario ID:</strong>{" "}
+                {complianceData?.config?.scenarioId || "SN000"}
+              </span>
+              <span>
+                <strong>Auto-Sync on Post:</strong>{" "}
+                {complianceData?.config?.autoSync ? (
+                  <span className="text-emerald-700 font-bold">Enabled (Auto-POST)</span>
+                ) : (
+                  <span className="text-slate-500">Manual Queue</span>
+                )}
+              </span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={handleTestSandbox}
+              disabled={testingConnection}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-indigo-200 bg-white px-3 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-50 shadow-2xs transition"
+            >
+              <Zap className={`h-3.5 w-3.5 text-indigo-600 ${testingConnection ? "animate-spin" : ""}`} />
+              <span>{testingConnection ? "Testing Gateway..." : "Test Sandbox API"}</span>
+            </button>
+
+            <button
+              onClick={() => setFbrConfigModal(true)}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-3.5 py-2 text-xs font-semibold text-white hover:bg-slate-800 shadow-sm transition"
+            >
+              <Settings className="h-3.5 w-3.5" />
+              <span>FBR Credentials</span>
+            </button>
+          </div>
+        </div>
+      </div>
 
       {/* Status KPI Overview Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
@@ -830,51 +1012,64 @@ export default function FbrCompliancePage() {
 
                       {/* Action Button */}
                       <td className="py-3 px-3 text-right">
-                        {isSuccess ? (
+                        <div className="flex items-center justify-end gap-1.5">
                           <button
                             type="button"
-                            onClick={() => setSelectedReceiptInvoice(inv)}
-                            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-indigo-600 hover:bg-indigo-50 shadow-2xs"
+                            onClick={() => handlePreviewPayload(inv)}
+                            disabled={loadingPayloadId === inv.id}
+                            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-600 hover:text-indigo-600 hover:bg-slate-50 shadow-2xs"
+                            title="Preview FBR Digital Invoice JSON"
                           >
-                            <QrCode className="h-3.5 w-3.5" />
-                            <span>View QR</span>
+                            <Code className={`h-3 w-3 ${loadingPayloadId === inv.id ? "animate-spin text-indigo-600" : ""}`} />
+                            <span>JSON</span>
                           </button>
-                        ) : isEligibleToHit ? (
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="primary"
-                            onClick={() => handleHitFbr(inv)}
-                            isLoading={isHittingThis}
-                            className="bg-indigo-600 hover:bg-indigo-700 text-xs px-2.5 py-1 shadow-2xs"
-                          >
-                            <Zap className="h-3 w-3 mr-1" />
-                            Hit FBR
-                          </Button>
-                        ) : (
-                          <div className="flex items-center justify-end gap-1.5">
-                            {/* 1-Click Settle Button */}
-                            <button
-                              type="button"
-                              onClick={() => setSettleModalInvoice(inv)}
-                              className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1 text-[11px] font-bold text-white hover:bg-emerald-700 shadow-2xs transition"
-                              title="Clear balance and unlock for FBR"
-                            >
-                              <Wallet className="h-3 w-3" />
-                              <span>Settle & Unlock</span>
-                            </button>
 
-                            {/* Details modal */}
+                          {isSuccess ? (
                             <button
                               type="button"
-                              onClick={() => setLockedInvoiceModal(inv)}
-                              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white p-1 text-slate-500 hover:bg-slate-50"
-                              title="View Protection Details"
+                              onClick={() => setSelectedReceiptInvoice(inv)}
+                              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-indigo-600 hover:bg-indigo-50 shadow-2xs"
                             >
-                              <Lock className="h-3 w-3 text-amber-600" />
+                              <QrCode className="h-3.5 w-3.5" />
+                              <span>View QR</span>
                             </button>
-                          </div>
-                        )}
+                          ) : isEligibleToHit ? (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="primary"
+                              onClick={() => handleHitFbr(inv)}
+                              isLoading={isHittingThis}
+                              className="bg-indigo-600 hover:bg-indigo-700 text-xs px-2.5 py-1 shadow-2xs"
+                            >
+                              <Zap className="h-3 w-3 mr-1" />
+                              Hit FBR
+                            </Button>
+                          ) : (
+                            <div className="flex items-center gap-1.5">
+                              {/* 1-Click Settle Button */}
+                              <button
+                                type="button"
+                                onClick={() => setSettleModalInvoice(inv)}
+                                className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1 text-[11px] font-bold text-white hover:bg-emerald-700 shadow-2xs transition"
+                                title="Clear balance and unlock for FBR"
+                              >
+                                <Wallet className="h-3 w-3" />
+                                <span>Settle & Unlock</span>
+                              </button>
+
+                              {/* Details modal */}
+                              <button
+                                type="button"
+                                onClick={() => setLockedInvoiceModal(inv)}
+                                className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white p-1 text-slate-500 hover:bg-slate-50"
+                                title="View Protection Details"
+                              >
+                                <Lock className="h-3 w-3 text-amber-600" />
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -1180,6 +1375,303 @@ export default function FbrCompliancePage() {
                   Done
                 </Button>
               </div>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* ── 1. FBR DIGITAL INVOICING CONFIGURATION MODAL ── */}
+      {fbrConfigModal && (
+        <Modal
+          isOpen={true}
+          onClose={() => setFbrConfigModal(false)}
+          title="FBR Digital Invoicing (DI) API Configuration"
+          description="Configure your official FBR Digital Invoicing Bearer Token and gateway parameters."
+          maxWidth="lg"
+        >
+          <form onSubmit={handleSaveFbrConfig} className="space-y-4 text-xs">
+            <div className="rounded-xl border border-indigo-200 bg-indigo-50/60 p-3.5 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-indigo-950">Gateway Environment</span>
+                <span className="rounded bg-indigo-200/80 px-2 py-0.5 text-[10px] font-bold text-indigo-900 font-mono">
+                  gw.fbr.gov.pk
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setFbrConfigForm({ ...fbrConfigForm, environment: "sandbox" })}
+                  className={`py-2 px-3 rounded-lg text-xs font-bold border transition ${
+                    fbrConfigForm.environment === "sandbox"
+                      ? "bg-indigo-600 text-white border-indigo-700 shadow-xs"
+                      : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                  }`}
+                >
+                  🧪 Sandbox Testing (_sb)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFbrConfigForm({ ...fbrConfigForm, environment: "production" })}
+                  className={`py-2 px-3 rounded-lg text-xs font-bold border transition ${
+                    fbrConfigForm.environment === "production"
+                      ? "bg-indigo-600 text-white border-indigo-700 shadow-xs"
+                      : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                  }`}
+                >
+                  🏢 Production Live
+                </button>
+              </div>
+              <p className="text-[10px] text-slate-500 font-mono">
+                Active Endpoint:{" "}
+                <span className="text-indigo-700 font-bold">
+                  {fbrConfigForm.environment === "production"
+                    ? "https://gw.fbr.gov.pk/di_data/v1/di/postinvoicedata"
+                    : "https://gw.fbr.gov.pk/di_data/v1/di/postinvoicedata_sb"}
+                </span>
+              </p>
+            </div>
+
+            {/* Bearer Token */}
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                FBR Bearer Security Token (API Key / Token) *
+              </label>
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Paste your FBR Bearer Token here..."
+                  value={fbrConfigForm.token}
+                  onChange={(e) => setFbrConfigForm({ ...fbrConfigForm, token: e.target.value })}
+                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-mono text-slate-900 focus:border-indigo-500 focus:outline-none pr-24"
+                />
+                <button
+                  type="button"
+                  onClick={handleTestSandbox}
+                  disabled={testingConnection}
+                  className="absolute right-1.5 top-1.5 px-2.5 py-1 rounded-lg bg-indigo-50 text-[10px] font-bold text-indigo-700 hover:bg-indigo-100 border border-indigo-200"
+                >
+                  {testingConnection ? "Testing..." : "Test Token"}
+                </button>
+              </div>
+              <p className="text-[10px] text-slate-500 mt-1">
+                Obtained from FBR IRIS / POS Developer Portal. Used in HTTP header:{" "}
+                <code className="bg-slate-100 px-1 py-0.5 rounded font-mono">Authorization: Bearer &lt;token&gt;</code>
+              </p>
+            </div>
+
+            {/* Scenario & POS ID */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                  Scenario ID
+                </label>
+                <input
+                  type="text"
+                  placeholder="SN000"
+                  value={fbrConfigForm.scenarioId}
+                  onChange={(e) => setFbrConfigForm({ ...fbrConfigForm, scenarioId: e.target.value })}
+                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-mono text-slate-900 focus:border-indigo-500 focus:outline-none"
+                />
+                <p className="text-[10px] text-slate-500 mt-0.5">Standard default: SN000</p>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                  POS ID
+                </label>
+                <input
+                  type="text"
+                  placeholder="POS-101"
+                  value={fbrConfigForm.posId}
+                  onChange={(e) => setFbrConfigForm({ ...fbrConfigForm, posId: e.target.value })}
+                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-mono text-slate-900 focus:border-indigo-500 focus:outline-none"
+                />
+                <p className="text-[10px] text-slate-500 mt-0.5">Assigned by FBR for this branch/till</p>
+              </div>
+            </div>
+
+            {/* Seller Tax Profile */}
+            <div className="p-3 rounded-xl border border-slate-200 bg-slate-50 space-y-2.5">
+              <span className="text-[11px] font-bold text-slate-800 uppercase block">
+                Seller Information (FBR Header Data)
+              </span>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-600 mb-0.5">Seller NTN / CNIC</label>
+                  <input
+                    type="text"
+                    value={fbrConfigForm.sellerNtn}
+                    onChange={(e) => setFbrConfigForm({ ...fbrConfigForm, sellerNtn: e.target.value })}
+                    className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-mono text-slate-900"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-600 mb-0.5">Seller Province</label>
+                  <select
+                    value={fbrConfigForm.sellerProvince}
+                    onChange={(e) => setFbrConfigForm({ ...fbrConfigForm, sellerProvince: e.target.value })}
+                    className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs text-slate-900"
+                  >
+                    <option value="Sindh">Sindh</option>
+                    <option value="Punjab">Punjab</option>
+                    <option value="Khyber Pakhtunkhwa">Khyber Pakhtunkhwa</option>
+                    <option value="Balochistan">Balochistan</option>
+                    <option value="Islamabad Capital Territory">Islamabad</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-slate-600 mb-0.5">Seller Address</label>
+                <input
+                  type="text"
+                  value={fbrConfigForm.sellerAddress}
+                  onChange={(e) => setFbrConfigForm({ ...fbrConfigForm, sellerAddress: e.target.value })}
+                  className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs text-slate-900"
+                />
+              </div>
+            </div>
+
+            {/* Auto-Sync Toggle */}
+            <div className="flex items-center justify-between p-3 rounded-xl border border-slate-200 bg-white">
+              <div>
+                <span className="font-bold text-slate-800 text-xs block">
+                  Automatic FBR Sync on Sale Post
+                </span>
+                <p className="text-[11px] text-slate-500">
+                  When enabled, fully-paid sales will automatically transmit to FBR as soon as they are posted.
+                </p>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={Boolean(fbrConfigForm.autoSync)}
+                  onChange={(e) => setFbrConfigForm({ ...fbrConfigForm, autoSync: e.target.checked })}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+              </label>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <Button type="button" variant="secondary" onClick={() => setFbrConfigModal(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" variant="primary" isLoading={savingConfig} className="bg-indigo-600 hover:bg-indigo-700">
+                Save FBR Settings
+              </Button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {/* ── 2. LIVE FBR GATEWAY TEST RESULT MODAL ── */}
+      {testResultModal && (
+        <Modal
+          isOpen={true}
+          onClose={() => setTestResultModal(null)}
+          title="FBR Gateway Connection Test Result"
+          description="Live diagnostic response from gw.fbr.gov.pk"
+          maxWidth="md"
+        >
+          <div className="space-y-3.5 text-xs">
+            <div
+              className={`p-3.5 rounded-xl border ${
+                testResultModal.success
+                  ? "bg-emerald-50 text-emerald-950 border-emerald-300"
+                  : "bg-amber-50 text-amber-950 border-amber-300"
+              }`}
+            >
+              <div className="flex items-center gap-2 font-bold mb-1">
+                {testResultModal.success ? (
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                ) : (
+                  <AlertOctagon className="h-4 w-4 text-amber-600" />
+                )}
+                <span>
+                  {testResultModal.success
+                    ? "✓ Connection Verified by FBR"
+                    : `HTTP ${testResultModal.statusCode || 401} Response from Gateway`}
+                </span>
+              </div>
+              <p className="text-[11px] leading-relaxed">{testResultModal.message}</p>
+            </div>
+
+            <div className="space-y-1">
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                Target Endpoint
+              </span>
+              <code className="block bg-slate-900 text-slate-100 p-2.5 rounded-lg text-[11px] font-mono break-all">
+                {testResultModal.endpoint || "https://gw.fbr.gov.pk/di_data/v1/di/validateinvoicedata_sb"}
+              </code>
+            </div>
+
+            {testResultModal.fbrResponse && (
+              <div className="space-y-1">
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                  Raw Gateway Response Body
+                </span>
+                <pre className="bg-slate-900 text-emerald-400 p-3 rounded-xl text-[10px] font-mono overflow-x-auto max-h-56">
+                  {JSON.stringify(testResultModal.fbrResponse, null, 2)}
+                </pre>
+              </div>
+            )}
+
+            <div className="flex justify-end pt-2">
+              <Button type="button" variant="primary" onClick={() => setTestResultModal(null)}>
+                Dismiss
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* ── 3. FBR JSON PAYLOAD INSPECTOR MODAL ── */}
+      {payloadModal && (
+        <Modal
+          isOpen={true}
+          onClose={() => setPayloadModal(null)}
+          title={`FBR Digital Invoicing Payload — #${payloadModal.invoiceNumber}`}
+          description="Exact JSON schema sent to gw.fbr.gov.pk according to official FBR specifications."
+          maxWidth="lg"
+        >
+          <div className="space-y-3.5 text-xs">
+            <div className="flex items-center justify-between bg-slate-100 px-3 py-2 rounded-lg text-[11px] font-mono">
+              <span className="truncate text-slate-700">
+                <strong>POST:</strong> {payloadModal.endpoint}
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard.writeText(JSON.stringify(payloadModal.payload, null, 2));
+                  setCopiedPayload(true);
+                  setTimeout(() => setCopiedPayload(false), 2000);
+                }}
+                className="inline-flex items-center gap-1 bg-white px-2.5 py-1 rounded text-xs font-bold text-slate-700 border border-slate-200 hover:bg-slate-50 shrink-0 ml-2"
+              >
+                {copiedPayload ? (
+                  <>
+                    <CheckCheck className="h-3.5 w-3.5 text-emerald-600" />
+                    <span className="text-emerald-700">Copied!</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="h-3.5 w-3.5 text-slate-500" />
+                    <span>Copy JSON</span>
+                  </>
+                )}
+              </button>
+            </div>
+
+            <pre className="bg-slate-900 text-emerald-400 p-4 rounded-xl text-[11px] font-mono overflow-x-auto max-h-96">
+              {JSON.stringify(payloadModal.payload, null, 2)}
+            </pre>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+              <Button type="button" variant="secondary" onClick={() => setPayloadModal(null)}>
+                Close
+              </Button>
             </div>
           </div>
         </Modal>

@@ -52,6 +52,23 @@ export async function POST(req: NextRequest) {
       createdById,
       createdByName,
     });
+
+    // Check if company has FBR auto-sync enabled
+    try {
+      const { getFbrConfig, transmitSaleToFbr } = await import("@/services/fbrService");
+      const fbrConfig = await getFbrConfig(businessId);
+      if ((body.autoSyncFbr || fbrConfig.autoSync) && sale.paymentStatus === "PAID") {
+        const fbrResult = await transmitSaleToFbr(sale.id);
+        return NextResponse.json({
+          success: true,
+          data: fbrResult.sale || sale,
+          fbr: fbrResult,
+        });
+      }
+    } catch (fbrErr) {
+      console.warn("FBR auto-sync notification:", fbrErr);
+    }
+
     return NextResponse.json({ success: true, data: sale });
   } catch (error: any) {
     // If PostgreSQL server is offline, apply the exact accounting & stock rules to fallbackStore

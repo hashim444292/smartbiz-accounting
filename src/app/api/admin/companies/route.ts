@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { fallbackStore, storeAddCompany } from "@/lib/fallbackStore";
 import { getSession } from "@/lib/auth";
+import { saveFbrConfig } from "@/services/fbrService";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +23,7 @@ export async function GET() {
       const companies = await prisma.business.findMany({
         orderBy: { createdAt: "desc" },
         include: {
+          settings: true,
           _count: {
             select: {
               members: true,
@@ -33,53 +35,71 @@ export async function GET() {
         },
       });
 
-      const formatted = companies.map((c) => ({
-        id: c.id,
-        name: c.name,
-        ownerName: c.ownerName,
-        phone: c.phone || "—",
-        email: c.email || "—",
-        address: c.address || "—",
-        city: c.city || "Karachi",
-        province: c.province || "Sindh",
-        ntn: c.ntn || "—",
-        strn: c.strn || "—",
-        businessType: c.businessType || "Enterprise",
-        defaultHsCode: c.defaultHsCode || "8517.13",
-        defaultUom: c.defaultUom || "pcs",
-        defaultTaxProfile: c.defaultTaxProfile || "Standard 18%",
-        defaultSalesTax: Number(c.defaultSalesTax ?? 18),
-        defaultFurtherTax: Number(c.defaultFurtherTax ?? 3),
-        defaultExtraTax: Number(c.defaultExtraTax ?? 0),
-        currency: c.currency,
-        currencySymbol: c.currencySymbol,
-        defaultPaymentTerms: c.defaultPaymentTerms,
-        defaultTaxRate: Number(c.defaultTaxRate),
-        monthlyFee: Number((c as any).monthlyFee ?? 5000),
-        billingPlan: (c as any).billingPlan || "Standard Monthly",
-        subscriptionStatus: (c as any).subscriptionStatus || "ACTIVE",
-        enabledModules: (c as any).enabledModules || [
-          "sales",
-          "purchases",
-          "inventory",
-          "accounting",
-          "compliance",
-          "reports",
-          "aiEntry",
-          "bulkImport",
-        ],
-        billingCycleStart: (c as any).billingCycleStart || c.createdAt,
-        billingCycleEnd: (c as any).billingCycleEnd || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-        lastPaymentDate: (c as any).lastPaymentDate || c.createdAt,
-        lastPaymentAmount: Number((c as any).lastPaymentAmount ?? 5000),
-        createdAt: c.createdAt,
-        counts: {
-          users: c._count.members,
-          products: c._count.products,
-          sales: c._count.sales,
-          customers: c._count.customers,
-        },
-      }));
+      const formatted = companies.map((c) => {
+        const fbrMap: Record<string, string> = {};
+        ((c as any).settings || []).forEach((s: any) => {
+          fbrMap[s.key] = s.value;
+        });
+        const fbrToken = fbrMap["fbr_token"] || "";
+        const fbrEnv = fbrMap["fbr_env"] || "sandbox";
+        const fbrPosId = fbrMap["fbr_pos_id"] || "POS-101";
+        const fbrScenarioId = fbrMap["fbr_scenario_id"] || "SN000";
+        const fbrAutoSync = fbrMap["fbr_auto_sync"] === "true";
+
+        return {
+          id: c.id,
+          name: c.name,
+          ownerName: c.ownerName,
+          phone: c.phone || "—",
+          email: c.email || "—",
+          address: c.address || "—",
+          city: c.city || "Karachi",
+          province: c.province || "Sindh",
+          ntn: c.ntn || "—",
+          strn: c.strn || "—",
+          businessType: c.businessType || "Enterprise",
+          defaultHsCode: c.defaultHsCode || "8517.13",
+          defaultUom: c.defaultUom || "pcs",
+          defaultTaxProfile: c.defaultTaxProfile || "Standard 18%",
+          defaultSalesTax: Number(c.defaultSalesTax ?? 18),
+          defaultFurtherTax: Number(c.defaultFurtherTax ?? 3),
+          defaultExtraTax: Number(c.defaultExtraTax ?? 0),
+          currency: c.currency,
+          currencySymbol: c.currencySymbol,
+          defaultPaymentTerms: c.defaultPaymentTerms,
+          defaultTaxRate: Number(c.defaultTaxRate),
+          monthlyFee: Number((c as any).monthlyFee ?? 5000),
+          billingPlan: (c as any).billingPlan || "Standard Monthly",
+          subscriptionStatus: (c as any).subscriptionStatus || "ACTIVE",
+          fbrToken,
+          fbrEnv,
+          fbrPosId,
+          fbrScenarioId,
+          fbrAutoSync,
+          fbrStatus: fbrToken ? "CONFIGURED" : "PENDING_SETUP",
+          enabledModules: (c as any).enabledModules || [
+            "sales",
+            "purchases",
+            "inventory",
+            "accounting",
+            "compliance",
+            "reports",
+            "aiEntry",
+            "bulkImport",
+          ],
+          billingCycleStart: (c as any).billingCycleStart || c.createdAt,
+          billingCycleEnd: (c as any).billingCycleEnd || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+          lastPaymentDate: (c as any).lastPaymentDate || c.createdAt,
+          lastPaymentAmount: Number((c as any).lastPaymentAmount ?? 5000),
+          createdAt: c.createdAt,
+          counts: {
+            users: c._count.members,
+            products: c._count.products,
+            sales: c._count.sales,
+            customers: c._count.customers,
+          },
+        };
+      });
 
       return NextResponse.json({ success: true, data: formatted });
     } catch {
@@ -238,16 +258,37 @@ export async function POST(req: NextRequest) {
         },
       });
 
+      // Save FBR Digital Invoicing Configuration
+      if (body.fbrToken || body.fbrEnv || body.fbrPosId || body.fbrScenarioId || body.fbrAutoSync !== undefined) {
+        await saveFbrConfig(newBiz.id, {
+          token: body.fbrToken || "",
+          environment: body.fbrEnv || "sandbox",
+          posId: body.fbrPosId || "POS-101",
+          scenarioId: body.fbrScenarioId || "SN000",
+          autoSync: Boolean(body.fbrAutoSync),
+          sellerNtn: ntn,
+          sellerBusinessName: name,
+          sellerProvince: province,
+          sellerAddress: address,
+        });
+      }
+
       return NextResponse.json({
         success: true,
         data: {
           ...newBiz,
+          fbrToken: body.fbrToken || "",
+          fbrEnv: body.fbrEnv || "sandbox",
+          fbrPosId: body.fbrPosId || "POS-101",
+          fbrScenarioId: body.fbrScenarioId || "SN000",
+          fbrAutoSync: Boolean(body.fbrAutoSync),
+          fbrStatus: body.fbrToken ? "CONFIGURED" : "PENDING_SETUP",
           monthlyFee: Number(monthlyFee),
           billingPlan,
           enabledModules: modules,
           billingCycleEnd: billingCycleEnd || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
         },
-        message: "Company created successfully",
+        message: "Company created successfully with FBR Digital Invoicing profile",
       });
     } catch {
       // Fallback

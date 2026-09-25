@@ -102,6 +102,11 @@ export default function CompaniesManagementPage() {
     billingPlan: "Standard Monthly",
     billingCycleEnd: "",
     canCreateBranches: false,
+    fbrToken: "",
+    fbrEnv: "sandbox",
+    fbrPosId: "POS-101",
+    fbrScenarioId: "SN000",
+    fbrAutoSync: false,
     enabledModules: [
       "sales",
       "purchases",
@@ -117,6 +122,33 @@ export default function CompaniesManagementPage() {
   const [formData, setFormData] = useState(initialFormState);
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [testingFbr, setTestingFbr] = useState(false);
+  const [fbrTestMessage, setFbrTestMessage] = useState<{ success: boolean; text: string } | null>(null);
+
+  const testFbrConnection = async (token: string, env: string) => {
+    setTestingFbr(true);
+    setFbrTestMessage(null);
+    try {
+      const res = await fetch("/api/compliance/fbr", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "test_connection", token, environment: env }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        setFbrTestMessage({ success: true, text: "FBR Gateway Connection Verified! Token is valid." });
+      } else {
+        setFbrTestMessage({
+          success: false,
+          text: json.data?.message || json.error || `HTTP ${json.data?.statusCode || 401} response from FBR Gateway`,
+        });
+      }
+    } catch (err: any) {
+      setFbrTestMessage({ success: false, text: err.message });
+    } finally {
+      setTestingFbr(false);
+    }
+  };
 
   const toggleModule = (modId: string) => {
     setFormData((prev: any) => {
@@ -348,6 +380,11 @@ export default function CompaniesManagementPage() {
       billingPlan: comp.billingPlan || "Standard Monthly",
       billingCycleEnd: comp.billingCycleEnd ? comp.billingCycleEnd.slice(0, 10) : "",
       canCreateBranches: Boolean(comp.canCreateBranches),
+      fbrToken: comp.fbrToken || "",
+      fbrEnv: comp.fbrEnv || "sandbox",
+      fbrPosId: comp.fbrPosId || "POS-101",
+      fbrScenarioId: comp.fbrScenarioId || "SN000",
+      fbrAutoSync: Boolean(comp.fbrAutoSync),
       enabledModules: comp.enabledModules || [
         "sales",
         "purchases",
@@ -1345,6 +1382,105 @@ export default function CompaniesManagementPage() {
                 />
               </div>
 
+              {/* FBR Digital Invoicing (DI) API Profile */}
+              <div className="p-3.5 rounded-xl border border-indigo-200 bg-indigo-50/50 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-indigo-950">
+                    <Shield className="h-4 w-4 text-indigo-600" />
+                    <span>FBR Digital Invoicing (DI) API Configuration</span>
+                  </div>
+                  <span className="rounded bg-indigo-100 text-indigo-800 text-[10px] font-bold px-2 py-0.5 font-mono">
+                    gw.fbr.gov.pk
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                      Gateway Environment
+                    </label>
+                    <select
+                      value={formData.fbrEnv}
+                      onChange={(e) => setFormData({ ...formData, fbrEnv: e.target.value })}
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:border-indigo-500 focus:outline-none"
+                    >
+                      <option value="sandbox">🧪 Sandbox Test (_sb)</option>
+                      <option value="production">🏢 Live Production</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                      Scenario ID
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="SN000"
+                      value={formData.fbrScenarioId}
+                      onChange={(e) => setFormData({ ...formData, fbrScenarioId: e.target.value })}
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-mono text-slate-900 focus:border-indigo-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                    FBR Bearer Security Token
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="Paste FBR Bearer Token here..."
+                      value={formData.fbrToken}
+                      onChange={(e) => setFormData({ ...formData, fbrToken: e.target.value })}
+                      className="flex-1 px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-mono text-slate-900 focus:border-indigo-500 focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => testFbrConnection(formData.fbrToken, formData.fbrEnv)}
+                      disabled={testingFbr}
+                      className="px-3 py-2 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-xl text-xs font-bold hover:bg-indigo-100 shrink-0"
+                    >
+                      {testingFbr ? "Testing..." : "Test FBR Gateway"}
+                    </button>
+                  </div>
+                  {fbrTestMessage && (
+                    <p
+                      className={`text-[11px] font-medium mt-1.5 p-2 rounded-lg border ${
+                        fbrTestMessage.success
+                          ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                          : "bg-amber-50 text-amber-900 border-amber-200"
+                      }`}
+                    >
+                      {fbrTestMessage.text}
+                    </p>
+                  )}
+                  <p className="text-[10px] text-slate-500 mt-1">
+                    Endpoint: <code>https://gw.fbr.gov.pk/di_data/v1/di/postinvoicedata_sb</code>
+                  </p>
+                </div>
+
+                <div className="flex items-center justify-between pt-1">
+                  <div>
+                    <span className="text-xs font-bold text-slate-800 block">
+                      Auto-Sync Invoices to FBR on Post
+                    </span>
+                    <span className="text-[10px] text-slate-500">
+                      Instantly hit FBR when a sale invoice is posted with full payment
+                    </span>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(formData.fbrAutoSync)}
+                      onChange={(e) => setFormData({ ...formData, fbrAutoSync: e.target.checked })}
+                      className="sr-only peer"
+                    />
+                    <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
+                  </label>
+                </div>
+              </div>
+
               <div className="pt-3 flex items-center justify-end gap-2 border-t border-slate-100">
                 <button
                   type="button"
@@ -1600,6 +1736,105 @@ export default function CompaniesManagementPage() {
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                     className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:border-indigo-500 focus:outline-none"
                   />
+                </div>
+              </div>
+
+              {/* FBR Digital Invoicing (DI) API Profile */}
+              <div className="p-3.5 rounded-xl border border-indigo-200 bg-indigo-50/50 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-indigo-950">
+                    <Shield className="h-4 w-4 text-indigo-600" />
+                    <span>FBR Digital Invoicing (DI) API Configuration</span>
+                  </div>
+                  <span className="rounded bg-indigo-100 text-indigo-800 text-[10px] font-bold px-2 py-0.5 font-mono">
+                    gw.fbr.gov.pk
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                      Gateway Environment
+                    </label>
+                    <select
+                      value={formData.fbrEnv}
+                      onChange={(e) => setFormData({ ...formData, fbrEnv: e.target.value })}
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:border-indigo-500 focus:outline-none"
+                    >
+                      <option value="sandbox">🧪 Sandbox Test (_sb)</option>
+                      <option value="production">🏢 Live Production</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                      Scenario ID
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="SN000"
+                      value={formData.fbrScenarioId}
+                      onChange={(e) => setFormData({ ...formData, fbrScenarioId: e.target.value })}
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-mono text-slate-900 focus:border-indigo-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                    FBR Bearer Security Token
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="Paste FBR Bearer Token here..."
+                      value={formData.fbrToken}
+                      onChange={(e) => setFormData({ ...formData, fbrToken: e.target.value })}
+                      className="flex-1 px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-mono text-slate-900 focus:border-indigo-500 focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => testFbrConnection(formData.fbrToken, formData.fbrEnv)}
+                      disabled={testingFbr}
+                      className="px-3 py-2 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-xl text-xs font-bold hover:bg-indigo-100 shrink-0"
+                    >
+                      {testingFbr ? "Testing..." : "Test FBR Gateway"}
+                    </button>
+                  </div>
+                  {fbrTestMessage && (
+                    <p
+                      className={`text-[11px] font-medium mt-1.5 p-2 rounded-lg border ${
+                        fbrTestMessage.success
+                          ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                          : "bg-amber-50 text-amber-900 border-amber-200"
+                      }`}
+                    >
+                      {fbrTestMessage.text}
+                    </p>
+                  )}
+                  <p className="text-[10px] text-slate-500 mt-1">
+                    Endpoint: <code>https://gw.fbr.gov.pk/di_data/v1/di/postinvoicedata_sb</code>
+                  </p>
+                </div>
+
+                <div className="flex items-center justify-between pt-1">
+                  <div>
+                    <span className="text-xs font-bold text-slate-800 block">
+                      Auto-Sync Invoices to FBR on Post
+                    </span>
+                    <span className="text-[10px] text-slate-500">
+                      Instantly hit FBR when a sale invoice is posted with full payment
+                    </span>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(formData.fbrAutoSync)}
+                      onChange={(e) => setFormData({ ...formData, fbrAutoSync: e.target.checked })}
+                      className="sr-only peer"
+                    />
+                    <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
+                  </label>
                 </div>
               </div>
 
