@@ -199,6 +199,8 @@ export default function PaymentsPage() {
         setShowReceiptModal(false);
         setAmount(0);
         invalidateCache("/api/payments");
+        invalidateCache("/api/sales");
+        invalidateCache("/api/customers");
         fetchPayments();
       } else {
         alert(json.error);
@@ -240,6 +242,8 @@ export default function PaymentsPage() {
         setShowDisburseModal(false);
         setAmount(0);
         invalidateCache("/api/payments");
+        invalidateCache("/api/purchases");
+        invalidateCache("/api/suppliers");
         fetchPayments();
       } else {
         alert(json.error);

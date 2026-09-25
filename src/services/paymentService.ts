@@ -268,11 +268,38 @@ export async function recordSupplierPayment(input: RecordSupplierPaymentInput) {
       },
     });
 
-    // 2. Handle purchase invoice allocations
-    if (input.allocations && input.allocations.length > 0) {
+    // 2. Handle purchase invoice allocations (Explicit or FIFO Auto-Allocation)
+    let allocationsToProcess: Array<{ purchaseId: string; amount: Decimal.Value }> = input.allocations
+      ? [...input.allocations]
+      : [];
+
+    if (allocationsToProcess.length === 0) {
+      // Automatically allocate payment to oldest unpaid / partial purchases (FIFO)
+      const openPurchases = await tx.purchase.findMany({
+        where: {
+          supplierId,
+          businessId,
+          paymentStatus: { in: ["UNPAID", "PARTIAL"] },
+          remainingAmount: { gt: 0 },
+        },
+        orderBy: { date: "asc" },
+      });
+
+      let availableCash = paymentAmount;
+      for (const p of openPurchases) {
+        if (availableCash.lte(0)) break;
+        const rem = toDecimal(p.remainingAmount);
+        if (rem.lte(0)) continue;
+        const allocAmt = Decimal.min(availableCash, rem);
+        allocationsToProcess.push({ purchaseId: p.id, amount: allocAmt });
+        availableCash = availableCash.sub(allocAmt);
+      }
+    }
+
+    if (allocationsToProcess.length > 0) {
       let allocatedTotal = new Decimal(0);
 
-      for (const alloc of input.allocations) {
+      for (const alloc of allocationsToProcess) {
         const allocAmt = round2(alloc.amount);
         if (allocAmt.lte(0)) continue;
 
