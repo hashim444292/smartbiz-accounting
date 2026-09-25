@@ -182,6 +182,30 @@ export default function SalesPage() {
     d1.getMonth() === d2.getMonth() &&
     d1.getDate() === d2.getDate();
 
+  // KPI computations — from ALL sales (not filtered) so cards always show full picture
+  const postedSales = sales.filter((s) => s.status !== "CANCELLED");
+  const todayStart  = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+  const _weekDay    = now.getDay();
+  const weekStart   = new Date(now.getFullYear(), now.getMonth(), now.getDate() - _weekDay + (_weekDay === 0 ? -6 : 1), 0, 0, 0, 0);
+  const monthStart  = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+  const sumAmt = (arr: SaleRecord[]) => arr.reduce((a, s) => a + Number(s.totalAmount || 0), 0);
+  const sumPd  = (arr: SaleRecord[]) => arr.reduce((a, s) => a + Number(s.paidAmount  || 0), 0);
+  const todaySalesData   = postedSales.filter((s) => new Date(s.date) >= todayStart);
+  const weekSalesData    = postedSales.filter((s) => new Date(s.date) >= weekStart);
+  const monthSalesData   = postedSales.filter((s) => new Date(s.date) >= monthStart);
+  const kpiCards = [
+    { label: "Today's Sales",  urdu: "آج کی فروخت",         count: todaySalesData.length,   amt: sumAmt(todaySalesData),   paid: sumPd(todaySalesData),   c: "blue"    as const, emoji: "📅" },
+    { label: "This Week",      urdu: "اس ہفتے کی فروخت",    count: weekSalesData.length,    amt: sumAmt(weekSalesData),    paid: sumPd(weekSalesData),    c: "indigo"  as const, emoji: "📆" },
+    { label: "This Month",     urdu: "اس مہینے کی فروخت",   count: monthSalesData.length,   amt: sumAmt(monthSalesData),   paid: sumPd(monthSalesData),   c: "violet"  as const, emoji: "🗓️" },
+    { label: "Overall Sales",  urdu: "مجموعی فروخت",         count: postedSales.length,      amt: sumAmt(postedSales),      paid: sumPd(postedSales),      c: "emerald" as const, emoji: "📊" },
+  ];
+  const kpiColor = {
+    blue:    { border: "border-blue-100 dark:border-blue-900/40",    bg: "bg-blue-50/60 dark:bg-blue-950/20",    lbl: "text-blue-700 dark:text-blue-300",    val: "text-blue-900 dark:text-blue-100",    badge: "bg-blue-100 text-blue-700 dark:bg-blue-900/60 dark:text-blue-300" },
+    indigo:  { border: "border-indigo-100 dark:border-indigo-900/40",bg: "bg-indigo-50/60 dark:bg-indigo-950/20",lbl: "text-indigo-700 dark:text-indigo-300",val: "text-indigo-900 dark:text-indigo-100",badge: "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/60 dark:text-indigo-300" },
+    violet:  { border: "border-violet-100 dark:border-violet-900/40",bg: "bg-violet-50/60 dark:bg-violet-950/20",lbl: "text-violet-700 dark:text-violet-300",val: "text-violet-900 dark:text-violet-100",badge: "bg-violet-100 text-violet-700 dark:bg-violet-900/60 dark:text-violet-300" },
+    emerald: { border: "border-emerald-100 dark:border-emerald-900/40",bg: "bg-emerald-50/60 dark:bg-emerald-950/20",lbl: "text-emerald-700 dark:text-emerald-300",val: "text-emerald-900 dark:text-emerald-100",badge: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/60 dark:text-emerald-300" },
+  };
+
   // Filter Sales records
   const filteredSales = sales.filter((s) => {
     // 1. Search text filter
@@ -333,6 +357,38 @@ export default function SalesPage() {
             👑 Owner Multi-Outlet View
           </span>
         )}
+      </div>
+
+      {/* ── KPI Summary Cards ── */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {kpiCards.map((card) => {
+          const cl = kpiColor[card.c];
+          return (
+            <div
+              key={card.label}
+              className={`relative overflow-hidden rounded-2xl border ${cl.border} ${cl.bg} p-4 shadow-xs transition hover:shadow-sm`}
+            >
+              <div className="flex items-center justify-between mb-2">
+                <span className={`text-[11px] font-bold uppercase tracking-wide ${cl.lbl}`}>
+                  {card.emoji} {card.label}
+                </span>
+                <span className={`rounded-lg px-1.5 py-0.5 text-[10px] font-bold ${cl.badge}`}>
+                  {loading ? "…" : card.count} inv
+                </span>
+              </div>
+              <p className={`text-xl font-extrabold tabular-nums leading-tight ${cl.val}`}>
+                {loading ? "—" : formatMoney(card.amt)}
+              </p>
+              <p className="mt-1 text-[10px] text-slate-500 dark:text-slate-400">
+                Collected:{" "}
+                <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                  {loading ? "—" : formatMoney(card.paid)}
+                </span>
+              </p>
+              <p className={`mt-1.5 text-[10px] font-medium opacity-70 ${cl.lbl}`}>{card.urdu}</p>
+            </div>
+          );
+        })}
       </div>
 
       {/* Enhanced Filters Bar with Date, Status & Quick Pills */}
