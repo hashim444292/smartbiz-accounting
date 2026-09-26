@@ -769,13 +769,23 @@ export async function transmitSaleToFbr(
   }
 
   // 5. Update Sale in Database
+  const isFullyPaid = sale.paymentStatus === "PAID" || Number(sale.remainingAmount || 0) <= 0;
+  const updatedPaidAmount = isFullyPaid
+    ? Number(sale.paidAmount || 0) + additionalFee
+    : Number(sale.paidAmount || 0);
+  const updatedRemainingAmount = isFullyPaid
+    ? 0
+    : Math.max(0, Number(sale.remainingAmount) + additionalFee);
+
   try {
     const updated = await prisma.sale.update({
       where: { id: invoiceId },
       data: {
         posFee: 1.0,
         totalAmount: newTotal,
-        remainingAmount: Math.max(0, Number(sale.remainingAmount) + additionalFee),
+        paidAmount: updatedPaidAmount,
+        remainingAmount: updatedRemainingAmount,
+        paymentStatus: isFullyPaid ? "PAID" : sale.paymentStatus,
         fbrStatus: transmissionStatus,
         fbrInvoiceNumber: fbrInvNum,
         fbrQrCode: fbrQr,
@@ -810,11 +820,31 @@ export async function transmitSaleToFbr(
       fbrQrCode: fbrQr,
       message: transmissionMessage,
     };
-  } catch {
+  } catch (dbErr: any) {
+    console.error("Prisma sale update error after FBR transmission:", dbErr);
+    try {
+      await prisma.$executeRawUnsafe(
+        `UPDATE "Sale" SET "fbrStatus" = $1, "fbrInvoiceNumber" = $2, "fbrQrCode" = $3, "totalAmount" = $4, "paidAmount" = $5, "remainingAmount" = $6, "paymentStatus" = $7::"PaymentStatus", "posFee" = $8 WHERE id = $9`,
+        transmissionStatus,
+        fbrInvNum,
+        fbrQr,
+        newTotal,
+        updatedPaidAmount,
+        updatedRemainingAmount,
+        isFullyPaid ? "PAID" : sale.paymentStatus,
+        1.0,
+        invoiceId
+      );
+    } catch (rawErr) {
+      console.error("Raw SQL update error:", rawErr);
+    }
+
     // Fallback store update
     sale.posFee = 1.0;
     sale.totalAmount = newTotal;
-    sale.remainingAmount = Math.max(0, Number(sale.remainingAmount) + additionalFee);
+    sale.paidAmount = updatedPaidAmount;
+    sale.remainingAmount = updatedRemainingAmount;
+    sale.paymentStatus = isFullyPaid ? "PAID" : sale.paymentStatus;
     sale.fbrStatus = transmissionStatus;
     sale.fbrInvoiceNumber = fbrInvNum;
     sale.fbrQrCode = fbrQr;

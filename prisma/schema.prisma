@@ -380,6 +380,8 @@ model Sale {
   status          TransactionStatus @default(POSTED)
   fbrStatus       String?           @default("PENDING")
   fbrInvoiceNumber String?
+  fbrQrCode       String?
+  posFee          Decimal?          @default(0.00) @db.Decimal(15, 2)
   createdById     String?
   createdByName   String?
   updatedById     String?

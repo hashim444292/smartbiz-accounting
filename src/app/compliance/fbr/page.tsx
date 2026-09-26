@@ -1288,10 +1288,10 @@ export default function FbrCompliancePage() {
               <div className="flex justify-between items-start border-b border-slate-200 pb-3">
                 <div>
                   <h3 className="font-bold text-base text-slate-900">
-                    {activeCompany?.name || "ENTERPRISE BUSINESS PORTAL"}
+                    {fbrConfigForm.sellerBusinessName || activeCompany?.name || "ENTERPRISE BUSINESS PORTAL"}
                   </h3>
                   <p className="text-xs text-slate-500">
-                    STRN: 3277876123456 • NTN: 8192031-4 • POS ID: POS-101
+                    {(activeCompany as any)?.strn ? `STRN: ${(activeCompany as any).strn} • ` : ""}NTN: {fbrConfigForm.sellerNtn || (activeCompany as any)?.ntn || "N/A"}{fbrConfigForm.posId ? ` • POS ID: ${fbrConfigForm.posId}` : ""}
                   </p>
                   <p className="text-xs text-slate-500">
                     Buyer: <strong>{selectedReceiptInvoice.customerName}</strong>
@@ -1385,6 +1385,7 @@ export default function FbrCompliancePage() {
                   className="bg-emerald-600 hover:bg-emerald-700"
                   onClick={() => {
                     setSelectedReceiptInvoice(null);
+                    setActiveTab("SUCCESS");
                   }}
                 >
                   <Check className="h-4 w-4 mr-1.5" />
