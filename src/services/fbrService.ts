@@ -418,7 +418,7 @@ export function buildFbrPosPayload(
       Discount: round2(discount).toNumber(),
       FurtherTax: 0,
       InvoiceType: 1,
-      PCTCode: formatHsCode(item.hsCode || item.product?.hsCode || business?.defaultHsCode),
+      PCTCode: formatHsCode(item.hsCode || item.product?.hsCode || business?.defaultHsCode).replace(/\./g, ""),
     };
   });
 
@@ -428,7 +428,7 @@ export function buildFbrPosPayload(
 
   return {
     InvoiceNumber: "",
-    POSID: isNaN(posId) ? 822646 : posId,
+    POSID: isNaN(posId) ? 200871 : posId,
     USIN: sale.invoiceNumber,
     DateTime: new Date(sale.date || Date.now()).toISOString().replace("T", " ").slice(0, 19),
     BuyerNTN: buyerNtn,
@@ -456,7 +456,7 @@ export function buildFbrPosPayload(
         Discount: 0,
         FurtherTax: 0,
         InvoiceType: 1,
-        PCTCode: "8517.1300",
+        PCTCode: "85171300",
       },
     ],
   };
