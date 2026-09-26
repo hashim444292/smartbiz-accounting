@@ -105,7 +105,7 @@ export interface FbrConfig {
   enabled: boolean;
   token: string;
   environment: "sandbox" | "production";
-  integrationType: "DIGITAL_INVOICING" | "TIER1_POS";
+  integrationType: "DIGITAL_INVOICING" | "TIER1_POS" | "BOTH";
   posId: string;
   scenarioId: string;
   autoSync: boolean;
@@ -194,7 +194,7 @@ export async function getFbrConfig(businessId: string): Promise<FbrConfig> {
   const sellerProvince = getSetting("fbr_seller_province") || business?.province || "Sindh";
   const sellerAddress = getSetting("fbr_seller_address") || business?.address || "Karachi, Pakistan";
   const token = getSetting("fbr_token") || process.env.FBR_SANDBOX_TOKEN || "";
-  const integrationType = (getSetting("fbr_integration_type") || "DIGITAL_INVOICING") as "DIGITAL_INVOICING" | "TIER1_POS";
+  const integrationType = (getSetting("fbr_integration_type") || "DIGITAL_INVOICING") as "DIGITAL_INVOICING" | "TIER1_POS" | "BOTH";
   const environment = (getSetting("fbr_env") || "sandbox") as "sandbox" | "production";
   const posId = getSetting("fbr_pos_id") || "822646";
   const scenarioId = getSetting("fbr_scenario_id") || "SN000";
@@ -467,7 +467,7 @@ export async function testFbrToken(
   token: string,
   environment: "sandbox" | "production" = "sandbox",
   customPayload?: any,
-  integrationType: "DIGITAL_INVOICING" | "TIER1_POS" = "DIGITAL_INVOICING",
+  integrationType: "DIGITAL_INVOICING" | "TIER1_POS" | "BOTH" = "DIGITAL_INVOICING",
   posId?: string | number
 ) {
   const isPos = integrationType === "TIER1_POS";
@@ -665,7 +665,21 @@ export async function transmitSaleToFbr(
 
   // 2. Fetch FBR Configuration
   const config = await getFbrConfig(sale.businessId);
-  const isPos = config.integrationType === "TIER1_POS";
+  let isPos = config.integrationType === "TIER1_POS";
+  if (config.integrationType === "BOTH") {
+    const forcedEngine = (options as any).forceEngine || (options as any).engine;
+    if (forcedEngine === "TIER1_POS") {
+      isPos = true;
+    } else if (forcedEngine === "DIGITAL_INVOICING") {
+      isPos = false;
+    } else {
+      // Automatic routing: if customer has registered tax ID (NTN or CNIC) -> B2B Digital Invoicing (DI)
+      // Otherwise walk-in / retail counter sale -> Tier-1 Retail POS (IMS)
+      const hasTaxId = Boolean(sale.customer?.ntn || sale.customer?.cnic);
+      isPos = !hasTaxId;
+    }
+  }
+
   const token = (options.overrideToken || config.token || "").trim();
   const environment = config.environment || "sandbox";
   

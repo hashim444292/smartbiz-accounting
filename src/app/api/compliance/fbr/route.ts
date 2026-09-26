@@ -81,7 +81,12 @@ export async function POST(req: NextRequest) {
       }
 
       const config = await getFbrConfig(businessId);
-      const isPos = config.integrationType === "TIER1_POS";
+      let isPos = config.integrationType === "TIER1_POS";
+      if (config.integrationType === "BOTH") {
+        if (body.engine === "TIER1_POS") isPos = true;
+        else if (body.engine === "DIGITAL_INVOICING") isPos = false;
+        else isPos = !Boolean(sale.customer?.ntn || sale.customer?.cnic);
+      }
       const payload = isPos
         ? buildFbrPosPayload(sale, business, config)
         : buildFbrPayload(sale, business, config);

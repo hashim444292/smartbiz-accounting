@@ -1424,17 +1424,20 @@ export default function CompaniesManagementPage() {
                     onChange={(e) => setFormData({ ...formData, fbrIntegrationType: e.target.value })}
                     className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-bold text-indigo-950 focus:border-indigo-500 focus:outline-none"
                   >
-                    <option value="DIGITAL_INVOICING">🏷️ Digital Invoicing (DI) — Wholesale / B2B (gw.fbr.gov.pk)</option>
-                    <option value="TIER1_POS">🛒 Tier-1 Retail POS (IMS) — Counter / B2C (ims.fbr.gov.pk)</option>
+                    <option value="DIGITAL_INVOICING">🏷️ Digital Invoicing (DI) — Wholesale / B2B Only</option>
+                    <option value="TIER1_POS">🛒 Tier-1 Retail POS (IMS) — Counter / B2C Only</option>
+                    <option value="BOTH">⚡ Both (DI + Tier-1 POS) — B2B Wholesale & Retail Counter</option>
                   </select>
                   <p className="text-[10px] text-slate-500 mt-1">
                     {formData.fbrIntegrationType === "TIER1_POS"
                       ? "Transmits retail sales to FBR IMS POS gateway with Rs. 1 POS fee & 18-digit QR code verification."
+                      : formData.fbrIntegrationType === "BOTH"
+                      ? "Dual-Engine: B2B invoices with customer NTN/CNIC transmit to Digital Invoicing (DI), while walk-in retail sales transmit to Tier-1 POS (IMS)."
                       : "Transmits sales tax electronic invoices to FBR Digital Invoicing gateway with official tax schedules."}
                   </p>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className={`grid grid-cols-1 ${formData.fbrIntegrationType === "BOTH" ? "sm:grid-cols-3" : "sm:grid-cols-2"} gap-3`}>
                   <div>
                     <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
                       Gateway Environment
@@ -1449,22 +1452,35 @@ export default function CompaniesManagementPage() {
                     </select>
                   </div>
 
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
-                      {formData.fbrIntegrationType === "TIER1_POS" ? "POS Registration Number (POS ID) *" : "Scenario ID"}
-                    </label>
-                    <input
-                      type="text"
-                      placeholder={formData.fbrIntegrationType === "TIER1_POS" ? "e.g. 822646" : "SN000"}
-                      value={formData.fbrIntegrationType === "TIER1_POS" ? formData.fbrPosId : formData.fbrScenarioId}
-                      onChange={(e) =>
-                        formData.fbrIntegrationType === "TIER1_POS"
-                          ? setFormData({ ...formData, fbrPosId: e.target.value })
-                          : setFormData({ ...formData, fbrScenarioId: e.target.value })
-                      }
-                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-mono text-slate-900 focus:border-indigo-500 focus:outline-none"
-                    />
-                  </div>
+                  {(formData.fbrIntegrationType === "TIER1_POS" || formData.fbrIntegrationType === "BOTH") && (
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                        POS Registration ID *
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. 822646"
+                        value={formData.fbrPosId}
+                        onChange={(e) => setFormData({ ...formData, fbrPosId: e.target.value })}
+                        className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-mono text-slate-900 focus:border-indigo-500 focus:outline-none"
+                      />
+                    </div>
+                  )}
+
+                  {(formData.fbrIntegrationType === "DIGITAL_INVOICING" || formData.fbrIntegrationType === "BOTH") && (
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                        Scenario ID
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="SN000"
+                        value={formData.fbrScenarioId}
+                        onChange={(e) => setFormData({ ...formData, fbrScenarioId: e.target.value })}
+                        className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-mono text-slate-900 focus:border-indigo-500 focus:outline-none"
+                      />
+                    </div>
+                  )}
                 </div>
 
                 <div>
@@ -1799,19 +1815,46 @@ export default function CompaniesManagementPage() {
                 </div>
               </div>
 
-              {/* FBR Digital Invoicing (DI) API Profile */}
+              {/* FBR Compliance & Integration Profile */}
               <div className="p-3.5 rounded-xl border border-indigo-200 bg-indigo-50/50 space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5 text-xs font-bold text-indigo-950">
                     <Shield className="h-4 w-4 text-indigo-600" />
-                    <span>FBR Digital Invoicing (DI) API Configuration</span>
+                    <span>FBR Compliance & Fiscalization Configuration</span>
                   </div>
                   <span className="rounded bg-indigo-100 text-indigo-800 text-[10px] font-bold px-2 py-0.5 font-mono">
-                    gw.fbr.gov.pk
+                    {formData.fbrIntegrationType === "TIER1_POS"
+                      ? "ims.fbr.gov.pk"
+                      : formData.fbrIntegrationType === "BOTH"
+                      ? "gw + ims.fbr.gov.pk"
+                      : "gw.fbr.gov.pk"}
                   </span>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* Integration Mode / Engine */}
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                    FBR Integration Engine / Mode *
+                  </label>
+                  <select
+                    value={formData.fbrIntegrationType || "DIGITAL_INVOICING"}
+                    onChange={(e) => setFormData({ ...formData, fbrIntegrationType: e.target.value })}
+                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-bold text-indigo-950 focus:border-indigo-500 focus:outline-none"
+                  >
+                    <option value="DIGITAL_INVOICING">🏷️ Digital Invoicing (DI) — Wholesale / B2B Only</option>
+                    <option value="TIER1_POS">🛒 Tier-1 Retail POS (IMS) — Counter / B2C Only</option>
+                    <option value="BOTH">⚡ Both (DI + Tier-1 POS) — B2B Wholesale & Retail Counter</option>
+                  </select>
+                  <p className="text-[10px] text-slate-500 mt-1">
+                    {formData.fbrIntegrationType === "TIER1_POS"
+                      ? "Transmits retail sales to FBR IMS POS gateway with Rs. 1 POS fee & 18-digit QR code verification."
+                      : formData.fbrIntegrationType === "BOTH"
+                      ? "Dual-Engine: B2B invoices with customer NTN/CNIC transmit to Digital Invoicing (DI), while walk-in retail sales transmit to Tier-1 POS (IMS)."
+                      : "Transmits sales tax electronic invoices to FBR Digital Invoicing gateway with official tax schedules."}
+                  </p>
+                </div>
+
+                <div className={`grid grid-cols-1 ${formData.fbrIntegrationType === "BOTH" ? "sm:grid-cols-3" : "sm:grid-cols-2"} gap-3`}>
                   <div>
                     <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
                       Gateway Environment
@@ -1821,23 +1864,40 @@ export default function CompaniesManagementPage() {
                       onChange={(e) => setFormData({ ...formData, fbrEnv: e.target.value })}
                       className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:border-indigo-500 focus:outline-none"
                     >
-                      <option value="sandbox">🧪 Sandbox Test (_sb)</option>
+                      <option value="sandbox">🧪 Sandbox Test</option>
                       <option value="production">🏢 Live Production</option>
                     </select>
                   </div>
 
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
-                      Scenario ID
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="SN000"
-                      value={formData.fbrScenarioId}
-                      onChange={(e) => setFormData({ ...formData, fbrScenarioId: e.target.value })}
-                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-mono text-slate-900 focus:border-indigo-500 focus:outline-none"
-                    />
-                  </div>
+                  {(formData.fbrIntegrationType === "TIER1_POS" || formData.fbrIntegrationType === "BOTH") && (
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                        POS Registration ID *
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. 822646"
+                        value={formData.fbrPosId}
+                        onChange={(e) => setFormData({ ...formData, fbrPosId: e.target.value })}
+                        className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-mono text-slate-900 focus:border-indigo-500 focus:outline-none"
+                      />
+                    </div>
+                  )}
+
+                  {(formData.fbrIntegrationType === "DIGITAL_INVOICING" || formData.fbrIntegrationType === "BOTH") && (
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                        Scenario ID
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="SN000"
+                        value={formData.fbrScenarioId}
+                        onChange={(e) => setFormData({ ...formData, fbrScenarioId: e.target.value })}
+                        className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-mono text-slate-900 focus:border-indigo-500 focus:outline-none"
+                      />
+                    </div>
+                  )}
                 </div>
 
                 <div>
@@ -1847,14 +1907,21 @@ export default function CompaniesManagementPage() {
                   <div className="flex gap-2">
                     <input
                       type="text"
-                      placeholder="Paste FBR Bearer Token here..."
+                      placeholder="Paste FBR Bearer Token / Auth Key here..."
                       value={formData.fbrToken}
                       onChange={(e) => setFormData({ ...formData, fbrToken: e.target.value })}
                       className="flex-1 px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-mono text-slate-900 focus:border-indigo-500 focus:outline-none"
                     />
                     <button
                       type="button"
-                      onClick={() => testFbrConnection(formData.fbrToken, formData.fbrEnv)}
+                      onClick={() =>
+                        testFbrConnection(
+                          formData.fbrToken,
+                          formData.fbrEnv,
+                          formData.fbrIntegrationType,
+                          formData.fbrPosId
+                        )
+                      }
                       disabled={testingFbr}
                       className="px-3 py-2 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-xl text-xs font-bold hover:bg-indigo-100 shrink-0"
                     >
@@ -1873,7 +1940,20 @@ export default function CompaniesManagementPage() {
                     </p>
                   )}
                   <p className="text-[10px] text-slate-500 mt-1">
-                    Endpoint: <code>https://gw.fbr.gov.pk/di_data/v1/di/postinvoicedata_sb</code>
+                    Endpoint:{" "}
+                    <code>
+                      {formData.fbrIntegrationType === "TIER1_POS"
+                        ? formData.fbrEnv === "production"
+                          ? "https://ims.fbr.gov.pk/api/Live/PostData"
+                          : "https://gw.fbr.gov.pk/imsp/v1/api/Live/PostData"
+                        : formData.fbrIntegrationType === "BOTH"
+                        ? formData.fbrEnv === "production"
+                          ? "B2B: gw.fbr.gov.pk | POS: ims.fbr.gov.pk"
+                          : "B2B: di_data/postinvoicedata_sb | POS: imsp/v1/api/Live/PostData"
+                        : formData.fbrEnv === "production"
+                        ? "https://gw.fbr.gov.pk/di_data/v1/di/postinvoicedata"
+                        : "https://gw.fbr.gov.pk/di_data/v1/di/postinvoicedata_sb"}
+                    </code>
                   </p>
                 </div>
 

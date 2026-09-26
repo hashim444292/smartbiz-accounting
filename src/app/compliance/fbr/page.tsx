@@ -70,7 +70,7 @@ export default function FbrCompliancePage() {
   const [fbrConfigForm, setFbrConfigForm] = useState({
     token: "",
     environment: "sandbox",
-    integrationType: "DIGITAL_INVOICING" as "DIGITAL_INVOICING" | "TIER1_POS",
+    integrationType: "DIGITAL_INVOICING" as "DIGITAL_INVOICING" | "TIER1_POS" | "BOTH",
     posId: "822646",
     scenarioId: "SN000",
     autoSync: false,
@@ -1411,7 +1411,7 @@ export default function FbrCompliancePage() {
               <label className="block text-[11px] font-bold text-slate-800 uppercase tracking-wide">
                 FBR Integration Mode / Engine (طریقہ کار)
               </label>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 <button
                   type="button"
                   onClick={() => setFbrConfigForm({ ...fbrConfigForm, integrationType: "DIGITAL_INVOICING" })}
@@ -1425,7 +1425,7 @@ export default function FbrCompliancePage() {
                     <span>🏷️</span> Digital Invoicing (DI)
                   </p>
                   <p className="text-[10px] text-slate-500 mt-0.5 leading-snug">
-                    B2B & Wholesale. Full Sales Tax schedules & Scenario IDs.
+                    B2B Wholesale. Sales Tax schedules & Scenario IDs.
                   </p>
                 </button>
 
@@ -1442,7 +1442,24 @@ export default function FbrCompliancePage() {
                     <span>🛒</span> Tier-1 Retail POS (IMS)
                   </p>
                   <p className="text-[10px] text-slate-500 mt-0.5 leading-snug">
-                    B2C Point of Sale. Live sync, Rs. 1 POS fee & 18-digit QR code.
+                    B2C Counter POS. Rs. 1 POS fee & 18-digit QR code.
+                  </p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setFbrConfigForm({ ...fbrConfigForm, integrationType: "BOTH" })}
+                  className={`p-2.5 rounded-xl border text-left transition ${
+                    fbrConfigForm.integrationType === "BOTH"
+                      ? "bg-blue-50 border-blue-600 ring-2 ring-blue-500/20 shadow-xs"
+                      : "bg-slate-50/60 border-slate-200 hover:bg-slate-50"
+                  }`}
+                >
+                  <p className="font-bold text-xs text-blue-950 flex items-center gap-1">
+                    <span>⚡</span> Both (DI + Retail POS)
+                  </p>
+                  <p className="text-[10px] text-slate-500 mt-0.5 leading-snug">
+                    Dual Mode: B2B to DI, Walk-in retail to POS IMS.
                   </p>
                 </button>
               </div>
@@ -1453,7 +1470,11 @@ export default function FbrCompliancePage() {
               <div className="flex items-center justify-between">
                 <span className="font-bold text-indigo-950">Gateway Environment</span>
                 <span className="rounded bg-indigo-200/80 px-2 py-0.5 text-[10px] font-bold text-indigo-900 font-mono">
-                  {fbrConfigForm.integrationType === "TIER1_POS" ? "ims.fbr.gov.pk / gw.fbr.gov.pk" : "gw.fbr.gov.pk"}
+                  {fbrConfigForm.integrationType === "TIER1_POS"
+                    ? "ims.fbr.gov.pk / gw.fbr.gov.pk"
+                    : fbrConfigForm.integrationType === "BOTH"
+                    ? "gw + ims.fbr.gov.pk"
+                    : "gw.fbr.gov.pk"}
                 </span>
               </div>
               <div className="grid grid-cols-2 gap-2">
@@ -1526,7 +1547,7 @@ export default function FbrCompliancePage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
-                  POS Registration ID {fbrConfigForm.integrationType === "TIER1_POS" ? "*" : ""}
+                  POS Registration ID {fbrConfigForm.integrationType !== "DIGITAL_INVOICING" ? "*" : ""}
                 </label>
                 <input
                   type="text"
