@@ -56,6 +56,7 @@ export async function PUT(
       if (
         body.fbrToken !== undefined ||
         body.fbrEnv !== undefined ||
+        body.fbrIntegrationType !== undefined ||
         body.fbrPosId !== undefined ||
         body.fbrScenarioId !== undefined ||
         body.fbrAutoSync !== undefined
@@ -63,6 +64,7 @@ export async function PUT(
         fbrConfig = await saveFbrConfig(id, {
           token: body.fbrToken,
           environment: body.fbrEnv,
+          integrationType: body.fbrIntegrationType,
           posId: body.fbrPosId,
           scenarioId: body.fbrScenarioId,
           autoSync: body.fbrAutoSync !== undefined ? Boolean(body.fbrAutoSync) : undefined,

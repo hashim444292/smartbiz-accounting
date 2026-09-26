@@ -70,7 +70,8 @@ export default function FbrCompliancePage() {
   const [fbrConfigForm, setFbrConfigForm] = useState({
     token: "",
     environment: "sandbox",
-    posId: "POS-101",
+    integrationType: "DIGITAL_INVOICING" as "DIGITAL_INVOICING" | "TIER1_POS",
+    posId: "822646",
     scenarioId: "SN000",
     autoSync: false,
     sellerNtn: "",
@@ -109,7 +110,8 @@ export default function FbrCompliancePage() {
       setFbrConfigForm({
         token: complianceData.config.token || "",
         environment: complianceData.config.environment || "sandbox",
-        posId: complianceData.config.posId || "POS-101",
+        integrationType: complianceData.config.integrationType || "DIGITAL_INVOICING",
+        posId: complianceData.config.posId || "822646",
         scenarioId: complianceData.config.scenarioId || "SN000",
         autoSync: Boolean(complianceData.config.autoSync),
         sellerNtn: complianceData.config.sellerNtn || activeCompany?.ntn || "",
@@ -131,7 +133,7 @@ export default function FbrCompliancePage() {
       });
       const json = await res.json();
       if (json.success) {
-        setActionMessage({ type: "success", text: "FBR Digital Invoicing settings saved successfully." });
+        setActionMessage({ type: "success", text: "FBR Integration settings saved successfully." });
         setFbrConfigModal(false);
         loadCompliance();
       } else {
@@ -154,6 +156,8 @@ export default function FbrCompliancePage() {
           action: "test_connection",
           token: fbrConfigForm.token,
           environment: fbrConfigForm.environment,
+          integrationType: fbrConfigForm.integrationType,
+          posId: fbrConfigForm.posId,
         }),
       });
       const json = await res.json();
@@ -529,10 +533,13 @@ export default function FbrCompliancePage() {
             <div className="flex items-center gap-2 flex-wrap">
               <span className="flex h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
               <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-                FBR Digital Invoicing (DI) API Gateway
+                FBR Gateway: {complianceData?.config?.integrationType === "TIER1_POS" ? "Tier-1 Retail POS (IMS)" : "Digital Invoicing (DI)"}
               </span>
               <span className="rounded bg-indigo-100 px-2 py-0.5 text-[10px] font-bold text-indigo-800 uppercase font-mono">
-                {complianceData?.config?.environment === "production" ? "LIVE PRODUCTION" : "SANDBOX SB"}
+                {complianceData?.config?.environment === "production" ? "LIVE PRODUCTION" : "SANDBOX"}
+              </span>
+              <span className="rounded bg-purple-100 px-2 py-0.5 text-[10px] font-bold text-purple-800 uppercase font-mono">
+                {complianceData?.config?.integrationType === "TIER1_POS" ? "🛒 POS Retail (B2C)" : "🏷️ Digital Invoicing (B2B)"}
               </span>
               {complianceData?.config?.token ? (
                 <span className="rounded bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
@@ -548,7 +555,11 @@ export default function FbrCompliancePage() {
               <span>
                 <strong>Post URL:</strong>{" "}
                 <code className="bg-slate-100 px-1 py-0.5 rounded text-indigo-700">
-                  {complianceData?.config?.environment === "production"
+                  {complianceData?.config?.integrationType === "TIER1_POS"
+                    ? complianceData?.config?.environment === "production"
+                      ? "https://ims.fbr.gov.pk/api/Live/PostData"
+                      : "https://gw.fbr.gov.pk/imsp/v1/api/Live/PostData"
+                    : complianceData?.config?.environment === "production"
                     ? "https://gw.fbr.gov.pk/di_data/v1/di/postinvoicedata"
                     : "https://gw.fbr.gov.pk/di_data/v1/di/postinvoicedata_sb"}
                 </code>
@@ -557,10 +568,15 @@ export default function FbrCompliancePage() {
                 <strong>Seller NTN:</strong>{" "}
                 {complianceData?.config?.sellerNtn || activeCompany?.ntn || "0000000000000"}
               </span>
-              <span>
-                <strong>Scenario ID:</strong>{" "}
-                {complianceData?.config?.scenarioId || "SN000"}
-              </span>
+              {complianceData?.config?.integrationType === "TIER1_POS" ? (
+                <span>
+                  <strong>POS ID:</strong> {complianceData?.config?.posId || "822646"}
+                </span>
+              ) : (
+                <span>
+                  <strong>Scenario ID:</strong> {complianceData?.config?.scenarioId || "SN000"}
+                </span>
+              )}
               <span>
                 <strong>Auto-Sync on Post:</strong>{" "}
                 {complianceData?.config?.autoSync ? (
@@ -1385,16 +1401,59 @@ export default function FbrCompliancePage() {
         <Modal
           isOpen={true}
           onClose={() => setFbrConfigModal(false)}
-          title="FBR Digital Invoicing (DI) API Configuration"
-          description="Configure your official FBR Digital Invoicing Bearer Token and gateway parameters."
+          title="FBR Compliance & Tax Gateway Configuration"
+          description="Configure your official FBR credentials and select whether this company transmits via Digital Invoicing (DI) or Tier-1 Retail POS (IMS)."
           maxWidth="lg"
         >
           <form onSubmit={handleSaveFbrConfig} className="space-y-4 text-xs">
+            {/* Mode / Integration Engine */}
+            <div className="rounded-xl border border-indigo-200 bg-white p-3 space-y-2">
+              <label className="block text-[11px] font-bold text-slate-800 uppercase tracking-wide">
+                FBR Integration Mode / Engine (طریقہ کار)
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setFbrConfigForm({ ...fbrConfigForm, integrationType: "DIGITAL_INVOICING" })}
+                  className={`p-2.5 rounded-xl border text-left transition ${
+                    fbrConfigForm.integrationType === "DIGITAL_INVOICING"
+                      ? "bg-indigo-50 border-indigo-600 ring-2 ring-indigo-500/20 shadow-xs"
+                      : "bg-slate-50/60 border-slate-200 hover:bg-slate-50"
+                  }`}
+                >
+                  <p className="font-bold text-xs text-indigo-950 flex items-center gap-1">
+                    <span>🏷️</span> Digital Invoicing (DI)
+                  </p>
+                  <p className="text-[10px] text-slate-500 mt-0.5 leading-snug">
+                    B2B & Wholesale. Full Sales Tax schedules & Scenario IDs.
+                  </p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setFbrConfigForm({ ...fbrConfigForm, integrationType: "TIER1_POS" })}
+                  className={`p-2.5 rounded-xl border text-left transition ${
+                    fbrConfigForm.integrationType === "TIER1_POS"
+                      ? "bg-purple-50 border-purple-600 ring-2 ring-purple-500/20 shadow-xs"
+                      : "bg-slate-50/60 border-slate-200 hover:bg-slate-50"
+                  }`}
+                >
+                  <p className="font-bold text-xs text-purple-950 flex items-center gap-1">
+                    <span>🛒</span> Tier-1 Retail POS (IMS)
+                  </p>
+                  <p className="text-[10px] text-slate-500 mt-0.5 leading-snug">
+                    B2C Point of Sale. Live sync, Rs. 1 POS fee & 18-digit QR code.
+                  </p>
+                </button>
+              </div>
+            </div>
+
+            {/* Gateway Environment */}
             <div className="rounded-xl border border-indigo-200 bg-indigo-50/60 p-3.5 space-y-2">
               <div className="flex items-center justify-between">
                 <span className="font-bold text-indigo-950">Gateway Environment</span>
                 <span className="rounded bg-indigo-200/80 px-2 py-0.5 text-[10px] font-bold text-indigo-900 font-mono">
-                  gw.fbr.gov.pk
+                  {fbrConfigForm.integrationType === "TIER1_POS" ? "ims.fbr.gov.pk / gw.fbr.gov.pk" : "gw.fbr.gov.pk"}
                 </span>
               </div>
               <div className="grid grid-cols-2 gap-2">
@@ -1423,10 +1482,14 @@ export default function FbrCompliancePage() {
               </div>
               <p className="text-[10px] text-slate-500 font-mono">
                 Active Endpoint:{" "}
-                <span className="text-indigo-700 font-bold">
-                  {fbrConfigForm.environment === "production"
-                    ? "https://gw.fbr.gov.pk/di_data/v1/di/postinvoicedata"
-                    : "https://gw.fbr.gov.pk/di_data/v1/di/postinvoicedata_sb"}
+                <span className="text-indigo-700 font-bold break-all">
+                  {fbrConfigForm.integrationType === "TIER1_POS"
+                    ? (fbrConfigForm.environment === "production"
+                        ? "https://ims.fbr.gov.pk/api/Live/PostData"
+                        : "https://gw.fbr.gov.pk/imsp/v1/api/Live/PostData")
+                    : (fbrConfigForm.environment === "production"
+                        ? "https://gw.fbr.gov.pk/di_data/v1/di/postinvoicedata"
+                        : "https://gw.fbr.gov.pk/di_data/v1/di/postinvoicedata_sb")}
                 </span>
               </p>
             </div>
@@ -1463,7 +1526,25 @@ export default function FbrCompliancePage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
-                  Scenario ID
+                  POS Registration ID {fbrConfigForm.integrationType === "TIER1_POS" ? "*" : ""}
+                </label>
+                <input
+                  type="text"
+                  placeholder="822646"
+                  value={fbrConfigForm.posId}
+                  onChange={(e) => setFbrConfigForm({ ...fbrConfigForm, posId: e.target.value })}
+                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-mono text-slate-900 focus:border-indigo-500 focus:outline-none"
+                />
+                <p className="text-[10px] text-slate-500 mt-0.5">
+                  {fbrConfigForm.integrationType === "TIER1_POS"
+                    ? "Official POS ID registered on e.fbr.gov.pk (e.g. 822646)"
+                    : "Assigned by FBR for this branch/till"}
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                  Scenario ID {fbrConfigForm.integrationType === "DIGITAL_INVOICING" ? "(DI)" : "(Optional)"}
                 </label>
                 <input
                   type="text"
@@ -1473,20 +1554,6 @@ export default function FbrCompliancePage() {
                   className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-mono text-slate-900 focus:border-indigo-500 focus:outline-none"
                 />
                 <p className="text-[10px] text-slate-500 mt-0.5">Standard default: SN000</p>
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
-                  POS ID
-                </label>
-                <input
-                  type="text"
-                  placeholder="POS-101"
-                  value={fbrConfigForm.posId}
-                  onChange={(e) => setFbrConfigForm({ ...fbrConfigForm, posId: e.target.value })}
-                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-mono text-slate-900 focus:border-indigo-500 focus:outline-none"
-                />
-                <p className="text-[10px] text-slate-500 mt-0.5">Assigned by FBR for this branch/till</p>
               </div>
             </div>
 

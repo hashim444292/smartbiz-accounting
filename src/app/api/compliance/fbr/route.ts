@@ -8,6 +8,9 @@ import {
   saveFbrConfig,
   getFbrConfig,
   buildFbrPayload,
+  buildFbrPosPayload,
+  FBR_ENDPOINTS,
+  FBR_POS_ENDPOINTS,
 } from "@/services/fbrService";
 import { prisma } from "@/lib/prisma";
 import { fallbackStore } from "@/lib/fallbackStore";
@@ -17,8 +20,11 @@ export const dynamic = "force-dynamic";
 export async function GET(req: NextRequest) {
   try {
     const businessId = await getActiveBusinessId(req);
-    const overview = await getFbrComplianceOverview(businessId);
-    return NextResponse.json({ success: true, data: overview });
+    const [overview, config] = await Promise.all([
+      getFbrComplianceOverview(businessId),
+      getFbrConfig(businessId),
+    ]);
+    return NextResponse.json({ success: true, data: { ...overview, config } });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
@@ -31,8 +37,8 @@ export async function POST(req: NextRequest) {
 
     // 1. Test FBR Sandbox or Production Gateway Connection
     if (body.action === "test_connection") {
-      const { token, environment = "sandbox", payload } = body;
-      const result = await testFbrToken(token, environment, payload);
+      const { token, environment = "sandbox", payload, integrationType, posId } = body;
+      const result = await testFbrToken(token, environment, payload, integrationType, posId);
       return NextResponse.json({
         success: result.success,
         data: result,
@@ -75,17 +81,22 @@ export async function POST(req: NextRequest) {
       }
 
       const config = await getFbrConfig(businessId);
-      const payload = buildFbrPayload(sale, business, config);
+      const isPos = config.integrationType === "TIER1_POS";
+      const payload = isPos
+        ? buildFbrPosPayload(sale, business, config)
+        : buildFbrPayload(sale, business, config);
+
+      const endpoint = isPos
+        ? FBR_POS_ENDPOINTS[config.environment].postInvoice
+        : FBR_ENDPOINTS[config.environment].postInvoice;
 
       return NextResponse.json({
         success: true,
         data: {
           payload,
           config,
-          endpoint:
-            config.environment === "production"
-              ? "https://gw.fbr.gov.pk/di_data/v1/di/postinvoicedata"
-              : "https://gw.fbr.gov.pk/di_data/v1/di/postinvoicedata_sb",
+          integrationType: config.integrationType,
+          endpoint,
         },
       });
     }

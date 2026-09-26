@@ -34,10 +34,11 @@ export default function SettingsPage() {
   const [defaultSalesTax, setDefaultSalesTax] = useState(activeCompany?.defaultSalesTax || 18);
   const [defaultFurtherTax, setDefaultFurtherTax] = useState(activeCompany?.defaultFurtherTax || 3);
 
-  // FBR Digital Invoicing State
+  // FBR Digital Invoicing & POS State
   const [fbrToken, setFbrToken] = useState("");
   const [fbrEnv, setFbrEnv] = useState<"sandbox" | "production">("sandbox");
-  const [fbrPosId, setFbrPosId] = useState("POS-101");
+  const [fbrIntegrationType, setFbrIntegrationType] = useState<"DIGITAL_INVOICING" | "TIER1_POS">("DIGITAL_INVOICING");
+  const [fbrPosId, setFbrPosId] = useState("822646");
   const [fbrScenarioId, setFbrScenarioId] = useState("SN000");
   const [fbrAutoSync, setFbrAutoSync] = useState(false);
   const [fbrSellerNtn, setFbrSellerNtn] = useState(activeCompany?.ntn || "");
@@ -57,6 +58,7 @@ export default function SettingsPage() {
           const cfg = json.data.config;
           if (cfg.token) setFbrToken(cfg.token);
           if (cfg.environment) setFbrEnv(cfg.environment);
+          if (cfg.integrationType) setFbrIntegrationType(cfg.integrationType);
           if (cfg.posId) setFbrPosId(cfg.posId);
           if (cfg.scenarioId) setFbrScenarioId(cfg.scenarioId);
           if (cfg.autoSync !== undefined) setFbrAutoSync(Boolean(cfg.autoSync));
@@ -100,6 +102,7 @@ export default function SettingsPage() {
           config: {
             token: fbrToken,
             environment: fbrEnv,
+            integrationType: fbrIntegrationType,
             posId: fbrPosId,
             scenarioId: fbrScenarioId,
             autoSync: fbrAutoSync,
@@ -135,6 +138,8 @@ export default function SettingsPage() {
           action: "test_connection",
           token: fbrToken,
           environment: fbrEnv,
+          integrationType: fbrIntegrationType,
+          posId: fbrPosId,
         }),
       });
       const json = await res.json();
@@ -496,6 +501,48 @@ export default function SettingsPage() {
             </div>
           )}
 
+          {/* Integration Mode / Engine */}
+          <div className="rounded-xl border border-indigo-200 bg-white p-4 space-y-2">
+            <label className="block text-xs font-bold text-slate-800 uppercase tracking-wide">
+              FBR Integration Engine / Mode (طریقہ کار)
+            </label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setFbrIntegrationType("DIGITAL_INVOICING")}
+                className={`p-3 rounded-xl border text-left transition ${
+                  fbrIntegrationType === "DIGITAL_INVOICING"
+                    ? "bg-indigo-50/70 border-indigo-600 ring-2 ring-indigo-500/20 shadow-xs"
+                    : "bg-slate-50/50 border-slate-200 hover:bg-slate-50"
+                }`}
+              >
+                <p className="font-bold text-xs text-indigo-950 flex items-center gap-1.5">
+                  <span>🏷️</span> Digital Invoicing (DI)
+                </p>
+                <p className="text-[10px] text-slate-600 mt-1">
+                  B2B & Wholesale (gw.fbr.gov.pk/di_data). Official Sales Tax schedules & Scenario IDs.
+                </p>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setFbrIntegrationType("TIER1_POS")}
+                className={`p-3 rounded-xl border text-left transition ${
+                  fbrIntegrationType === "TIER1_POS"
+                    ? "bg-purple-50/70 border-purple-600 ring-2 ring-purple-500/20 shadow-xs"
+                    : "bg-slate-50/50 border-slate-200 hover:bg-slate-50"
+                }`}
+              >
+                <p className="font-bold text-xs text-purple-950 flex items-center gap-1.5">
+                  <span>🛒</span> Tier-1 Retail POS (IMS)
+                </p>
+                <p className="text-[10px] text-slate-600 mt-1">
+                  B2C & Counter Retail (ims.fbr.gov.pk). Automated Rs. 1 POS fee & 18-digit verification QR code.
+                </p>
+              </button>
+            </div>
+          </div>
+
           {/* Gateway Environment Box */}
           <div className="rounded-xl border border-indigo-200 bg-indigo-50/50 p-4 space-y-3">
             <div className="flex items-center justify-between">
@@ -503,7 +550,7 @@ export default function SettingsPage() {
                 Target Gateway Environment
               </span>
               <span className="text-[10px] font-mono text-indigo-800 bg-white px-2 py-0.5 rounded border border-indigo-200">
-                Current: {fbrEnv === "production" ? "PRODUCTION" : "SANDBOX (_sb)"}
+                Mode: {fbrIntegrationType === "TIER1_POS" ? "RETAIL POS (IMS)" : "DIGITAL INVOICING (DI)"} | {fbrEnv === "production" ? "PRODUCTION" : "SANDBOX"}
               </span>
             </div>
 
@@ -522,7 +569,9 @@ export default function SettingsPage() {
                   <span className="font-bold text-xs text-slate-900">Sandbox Testing Environment</span>
                 </div>
                 <code className="text-[10px] text-indigo-700 font-mono block break-all">
-                  https://gw.fbr.gov.pk/di_data/v1/di/postinvoicedata_sb
+                  {fbrIntegrationType === "TIER1_POS"
+                    ? "https://gw.fbr.gov.pk/imsp/v1/api/Live/PostData"
+                    : "https://gw.fbr.gov.pk/di_data/v1/di/postinvoicedata_sb"}
                 </code>
               </button>
 
@@ -540,7 +589,9 @@ export default function SettingsPage() {
                   <span className="font-bold text-xs text-slate-900">Live Production Gateway</span>
                 </div>
                 <code className="text-[10px] text-indigo-700 font-mono block break-all">
-                  https://gw.fbr.gov.pk/di_data/v1/di/postinvoicedata
+                  {fbrIntegrationType === "TIER1_POS"
+                    ? "https://ims.fbr.gov.pk/api/Live/PostData"
+                    : "https://gw.fbr.gov.pk/di_data/v1/di/postinvoicedata"}
                 </code>
               </button>
             </div>

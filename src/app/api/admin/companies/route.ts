@@ -42,7 +42,8 @@ export async function GET() {
         });
         const fbrToken = fbrMap["fbr_token"] || "";
         const fbrEnv = fbrMap["fbr_env"] || "sandbox";
-        const fbrPosId = fbrMap["fbr_pos_id"] || "POS-101";
+        const fbrIntegrationType = fbrMap["fbr_integration_type"] || "DIGITAL_INVOICING";
+        const fbrPosId = fbrMap["fbr_pos_id"] || "822646";
         const fbrScenarioId = fbrMap["fbr_scenario_id"] || "SN000";
         const fbrAutoSync = fbrMap["fbr_auto_sync"] === "true";
 
@@ -73,6 +74,7 @@ export async function GET() {
           subscriptionStatus: (c as any).subscriptionStatus || "ACTIVE",
           fbrToken,
           fbrEnv,
+          fbrIntegrationType,
           fbrPosId,
           fbrScenarioId,
           fbrAutoSync,
@@ -259,11 +261,12 @@ export async function POST(req: NextRequest) {
       });
 
       // Save FBR Digital Invoicing Configuration
-      if (body.fbrToken || body.fbrEnv || body.fbrPosId || body.fbrScenarioId || body.fbrAutoSync !== undefined) {
+      if (body.fbrToken || body.fbrEnv || body.fbrIntegrationType || body.fbrPosId || body.fbrScenarioId || body.fbrAutoSync !== undefined) {
         await saveFbrConfig(newBiz.id, {
           token: body.fbrToken || "",
           environment: body.fbrEnv || "sandbox",
-          posId: body.fbrPosId || "POS-101",
+          integrationType: body.fbrIntegrationType || "DIGITAL_INVOICING",
+          posId: body.fbrPosId || "822646",
           scenarioId: body.fbrScenarioId || "SN000",
           autoSync: Boolean(body.fbrAutoSync),
           sellerNtn: ntn,
@@ -279,7 +282,8 @@ export async function POST(req: NextRequest) {
           ...newBiz,
           fbrToken: body.fbrToken || "",
           fbrEnv: body.fbrEnv || "sandbox",
-          fbrPosId: body.fbrPosId || "POS-101",
+          fbrIntegrationType: body.fbrIntegrationType || "DIGITAL_INVOICING",
+          fbrPosId: body.fbrPosId || "822646",
           fbrScenarioId: body.fbrScenarioId || "SN000",
           fbrAutoSync: Boolean(body.fbrAutoSync),
           fbrStatus: body.fbrToken ? "CONFIGURED" : "PENDING_SETUP",
