@@ -148,6 +148,10 @@ export default function CompaniesManagementPage() {
           environment: env,
           integrationType,
           posId,
+          sellerNtn: formData.ntn,
+          sellerBusinessName: formData.name,
+          sellerProvince: formData.province,
+          sellerAddress: formData.address,
         }),
       });
       const json = await res.json();

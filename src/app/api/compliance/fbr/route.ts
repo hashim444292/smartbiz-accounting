@@ -37,8 +37,27 @@ export async function POST(req: NextRequest) {
 
     // 1. Test FBR Sandbox or Production Gateway Connection
     if (body.action === "test_connection") {
-      const { token, environment = "sandbox", payload, integrationType, posId } = body;
-      const result = await testFbrToken(token, environment, payload, integrationType, posId);
+      const config = await getFbrConfig(businessId);
+      const token = body.token || config.token;
+      const environment = body.environment || config.environment || "sandbox";
+      const integrationType = body.integrationType || config.integrationType || "DIGITAL_INVOICING";
+      const posId = body.posId || config.posId;
+      const sellerNtn = body.sellerNtn || config.sellerNtn;
+      const sellerName = body.sellerName || body.sellerBusinessName || config.sellerBusinessName;
+      const sellerProvince = body.sellerProvince || config.sellerProvince;
+      const sellerAddress = body.sellerAddress || config.sellerAddress;
+
+      const result = await testFbrToken(
+        token,
+        environment,
+        body.payload,
+        integrationType,
+        posId,
+        sellerNtn,
+        sellerName,
+        sellerProvince,
+        sellerAddress
+      );
       return NextResponse.json({
         success: result.success,
         data: result,

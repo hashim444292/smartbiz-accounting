@@ -479,7 +479,11 @@ export async function testFbrToken(
   environment: "sandbox" | "production" = "sandbox",
   customPayload?: any,
   integrationType: "DIGITAL_INVOICING" | "TIER1_POS" | "BOTH" = "DIGITAL_INVOICING",
-  posId?: string | number
+  posId?: string | number,
+  sellerNtn?: string,
+  sellerName?: string,
+  sellerProvince?: string,
+  sellerAddress?: string
 ) {
   const isPos = integrationType === "TIER1_POS";
   const url = isPos
@@ -496,12 +500,14 @@ export async function testFbrToken(
     };
   }
 
+  const cleanNtn = (sellerNtn || "4428410").replace(/[^0-9]/g, "");
+
   const samplePayload =
     customPayload ||
     (isPos
       ? {
           InvoiceNumber: "",
-          POSID: Number(posId || 822646),
+          POSID: Number(posId || 200871),
           USIN: "TEST-" + Date.now(),
           DateTime: new Date().toISOString().replace("T", " ").slice(0, 19),
           TotalSaleValue: 1000,
@@ -524,30 +530,30 @@ export async function testFbrToken(
               Discount: 0,
               FurtherTax: 0,
               InvoiceType: 1,
-              PCTCode: "8517.1300",
+              PCTCode: "85171300",
             },
           ],
         }
       : {
           invoiceType: "Sale Invoice",
           invoiceDate: formatFbrDate(),
-          sellerNTNCNIC: "0000000000000",
-          sellerBusinessName: "SmartBiz Enterprise",
-          sellerProvince: "Sindh",
-          sellerAddress: "Saddar, Karachi",
-          buyerNTNCNIC: "0000000000000",
+          sellerNTNCNIC: cleanNtn,
+          sellerBusinessName: sellerName || "Shakeel mobiles",
+          sellerProvince: sellerProvince || "Sindh",
+          sellerAddress: sellerAddress || "R-70 rehman villas",
+          buyerNTNCNIC: "4210100000000",
           buyerBusinessName: "Walk-in Buyer",
           buyerProvince: "Sindh",
           buyerAddress: "Karachi",
           buyerRegistrationType: "Unregistered",
-          invoiceRefNo: "TEST-INV-001",
-          scenarioId: "SN000",
+          invoiceRefNo: "TEST-INV-" + Date.now(),
+          scenarioId: "SN002",
           items: [
             {
-              hsCode: "8517.1300",
+              hsCode: "8517.1390",
               productDescription: "Smartphone Accessories",
               rate: "18%",
-              uoM: "Numbers",
+              uoM: "Numbers, pieces, units",
               quantity: 1,
               totalValues: 1180,
               valueSalesExcludingST: 1000,
@@ -559,7 +565,7 @@ export async function testFbrToken(
               sroScheduleNo: "",
               fedPayable: 0,
               discount: 0,
-              saleType: "Goods",
+              saleType: "Goods at standard rate (default)",
               sroItemSerialNo: "",
             },
           ],
@@ -601,6 +607,25 @@ export async function testFbrToken(
           endpoint: url,
           fbrResponse: json,
         };
+      }
+      if (json?.validationResponse) {
+        if (json.validationResponse.status === "Valid" || json.validationResponse.statusCode === "00") {
+          return {
+            success: true,
+            statusCode: 200,
+            message: "FBR Digital Invoicing Gateway Connection Successful! Token and Seller NTN verified.",
+            endpoint: url,
+            fbrResponse: json,
+          };
+        } else {
+          return {
+            success: false,
+            statusCode: 400,
+            message: json.validationResponse.error || "FBR DI validation rejected.",
+            endpoint: url,
+            fbrResponse: json,
+          };
+        }
       }
       return {
         success: true,

@@ -140,6 +140,10 @@ export default function SettingsPage() {
           environment: fbrEnv,
           integrationType: fbrIntegrationType,
           posId: fbrPosId,
+          sellerNtn: fbrSellerNtn || activeCompany?.ntn,
+          sellerBusinessName: activeCompany?.name,
+          sellerProvince: fbrSellerProvince || activeCompany?.province,
+          sellerAddress: fbrSellerAddress || activeCompany?.address,
         }),
       });
       const json = await res.json();

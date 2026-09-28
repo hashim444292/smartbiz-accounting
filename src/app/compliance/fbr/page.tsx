@@ -158,6 +158,10 @@ export default function FbrCompliancePage() {
           environment: fbrConfigForm.environment,
           integrationType: fbrConfigForm.integrationType,
           posId: fbrConfigForm.posId,
+          sellerNtn: fbrConfigForm.sellerNtn,
+          sellerBusinessName: fbrConfigForm.sellerBusinessName,
+          sellerProvince: fbrConfigForm.sellerProvince,
+          sellerAddress: fbrConfigForm.sellerAddress,
         }),
       });
       const json = await res.json();
