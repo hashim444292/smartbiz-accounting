@@ -154,7 +154,10 @@ export default function FbrCompliancePage() {
   const handleTestSandbox = async () => {
     setTestingConnection(true);
     let effectiveNtn = (fbrConfigForm.sellerNtn || "4428410").replace(/[^0-9]/g, "");
-    if (!effectiveNtn || /^0+$/.test(effectiveNtn) || effectiveNtn.length < 5) {
+    if (effectiveNtn.length === 8) {
+      effectiveNtn = effectiveNtn.slice(0, 7);
+    }
+    if (!effectiveNtn || /^0+$/.test(effectiveNtn) || effectiveNtn.length < 7) {
       effectiveNtn = "4428410";
     }
     try {

@@ -172,6 +172,19 @@ export function generateFbrQrCode(invoiceNumber: string, totalAmount: number, po
   return `https://e.fbr.gov.pk/verify?inv=${encodeURIComponent(invoiceNumber)}&pos=${encodeURIComponent(posId)}&amt=${totalAmount}`;
 }
 
+export function cleanFbrNtn(raw?: string | null): string {
+  if (!raw) return "4428410";
+  let digits = raw.trim().replace(/[^0-9]/g, "");
+  // 8 digits: e.g. 44284101 from 4428410-1. FBR DI requires exactly 7 digits NTN
+  if (digits.length === 8) {
+    digits = digits.slice(0, 7);
+  }
+  if (!digits || /^0+$/.test(digits) || digits.length < 7) {
+    return "4428410";
+  }
+  return digits;
+}
+
 // ── FBR CONFIGURATION MANAGEMENT ────────────────────────────────────────────
 export async function getFbrConfig(businessId: string): Promise<FbrConfig> {
   let business: any = null;
@@ -189,12 +202,7 @@ export async function getFbrConfig(businessId: string): Promise<FbrConfig> {
     return s ? s.value : defaultVal;
   };
 
-  let rawNtn = getSetting("fbr_seller_ntn") || business?.ntn || "4428410-1";
-  const digits = rawNtn.replace(/[^0-9]/g, "");
-  if (!digits || /^0+$/.test(digits) || digits.length < 5) {
-    rawNtn = "4428410-1";
-  }
-  const sellerNtn = rawNtn;
+  const sellerNtn = cleanFbrNtn(getSetting("fbr_seller_ntn") || business?.ntn || "4428410");
   const sellerBusinessName = getSetting("fbr_seller_name") || (business?.name && !business.name.includes("Enterprise") ? business.name : "Shakeel mobiles");
   const sellerProvince = getSetting("fbr_seller_province") || business?.province || "Sindh";
   const sellerAddress = getSetting("fbr_seller_address") || business?.address || "R-70 rehman villas, Karachi";
@@ -297,11 +305,7 @@ export function buildFbrPayload(
   business: any,
   config?: Partial<FbrConfig>
 ): FbrDigitalInvoicePayload {
-  let cleanSellerNTN = (config?.sellerNtn || business?.ntn || "4428410").replace(/[^0-9]/g, "");
-  if (!cleanSellerNTN || /^0+$/.test(cleanSellerNTN) || cleanSellerNTN.length < 5) {
-    cleanSellerNTN = "4428410";
-  }
-  const sellerNTN = cleanSellerNTN;
+  const sellerNTN = cleanFbrNtn(config?.sellerNtn || business?.ntn);
   const sellerBusinessName = config?.sellerBusinessName || (business?.name && !business.name.includes("Enterprise") ? business.name : "Shakeel mobiles");
   const sellerProvince = config?.sellerProvince || business?.province || "Sindh";
   const sellerAddress = config?.sellerAddress || business?.address || "R-70 rehman villas, Karachi";
@@ -509,10 +513,7 @@ export async function testFbrToken(
     };
   }
 
-  let cleanNtn = (sellerNtn || "").replace(/[^0-9]/g, "");
-  if (!cleanNtn || /^0+$/.test(cleanNtn) || cleanNtn.length < 5) {
-    cleanNtn = "4428410";
-  }
+  const cleanNtn = cleanFbrNtn(sellerNtn);
 
   const samplePayload =
     customPayload ||
