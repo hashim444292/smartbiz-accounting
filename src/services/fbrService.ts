@@ -264,8 +264,9 @@ export async function saveFbrConfig(businessId: string, config: Partial<FbrConfi
 
 // ── FORMAT HS CODE (4.4 digits) ─────────────────────────────────────────────
 export function formatHsCode(raw?: string | null): string {
-  if (!raw || !raw.trim()) return "8517.1300";
-  const cleaned = raw.trim().replace(/[^0-9.]/g, "");
+  if (!raw || !raw.trim()) return "8517.1390";
+  let cleaned = raw.trim().replace(/[^0-9.]/g, "");
+  if (cleaned === "8517.1300" || cleaned === "85171300" || cleaned === "8517.13") return "8517.1390";
   if (cleaned.includes(".")) {
     const [head, tail] = cleaned.split(".");
     return `${head.padStart(4, "0").slice(0, 4)}.${(tail || "00").padEnd(4, "0").slice(0, 4)}`;
@@ -285,21 +286,31 @@ export function formatFbrDate(dateInput?: string | Date): string {
   return `${year}-${month}-${day}`;
 }
 
-// ── BUILD OFFICIAL FBR PAYLOAD ──────────────────────────────────────────────
+// ── BUILD OFFICIAL FBR PAYLOAD (DIGITAL INVOICING) ──────────────────────────
 export function buildFbrPayload(
   sale: any,
   business: any,
   config?: Partial<FbrConfig>
 ): FbrDigitalInvoicePayload {
-  const sellerNTN = config?.sellerNtn || business?.ntn || "0000000000000";
+  const sellerNTN = (config?.sellerNtn || business?.ntn || "0000000").replace(/[^0-9]/g, "");
   const sellerBusinessName = config?.sellerBusinessName || business?.name || "Business Enterprise";
   const sellerProvince = config?.sellerProvince || business?.province || "Sindh";
   const sellerAddress = config?.sellerAddress || business?.address || "Karachi, Pakistan";
-  const scenarioId = config?.scenarioId || "SN000";
 
   const customer = sale.customer || null;
-  const buyerNTN = customer?.ntn || "0000000000000";
-  const isRegistered = buyerNTN && buyerNTN !== "0000000000000" && buyerNTN.trim().length >= 7;
+  const rawBuyerNTN = (customer?.ntn || "").trim();
+  const rawBuyerCNIC = (customer?.cnic || "").trim();
+  const isRegistered = Boolean(rawBuyerNTN && rawBuyerNTN !== "0000000" && rawBuyerNTN.length >= 7);
+
+  const buyerNTNCNIC = isRegistered
+    ? rawBuyerNTN.replace(/[^0-9]/g, "")
+    : (rawBuyerCNIC.replace(/[^0-9]/g, "") || "4210100000000");
+
+  let scenarioId = config?.scenarioId;
+  if (!scenarioId || scenarioId === "SN000") {
+    scenarioId = isRegistered ? "SN001" : "SN002";
+  }
+
   const buyerName = sale.customerName || customer?.name || "Walk-in Customer";
   const buyerProvince = customer?.province || sellerProvince;
   const buyerAddress = customer?.address || sellerAddress;
@@ -318,7 +329,7 @@ export function buildFbrPayload(
       hsCode: formatHsCode(item.hsCode || item.product?.hsCode || business?.defaultHsCode),
       productDescription: item.productName || item.product?.name || "Retail Merchandise",
       rate: `${taxRateVal}%`,
-      uoM: item.product?.uom || business?.defaultUom || "Numbers",
+      uoM: "Numbers, pieces, units",
       quantity: qty,
       totalValues: totalLineValue,
       valueSalesExcludingST: round2(lineSubtotal).toNumber(),
@@ -330,7 +341,7 @@ export function buildFbrPayload(
       sroScheduleNo: "",
       fedPayable: 0,
       discount: round2(discount).toNumber(),
-      saleType: "Goods",
+      saleType: "Goods at standard rate (default)",
       sroItemSerialNo: "",
     };
   });
@@ -343,7 +354,7 @@ export function buildFbrPayload(
       hsCode: formatHsCode(business?.defaultHsCode),
       productDescription: "General Merchandise Sale",
       rate: "18%",
-      uoM: "Numbers",
+      uoM: "Numbers, pieces, units",
       quantity: 1,
       totalValues: round2(sub + st).toNumber(),
       valueSalesExcludingST: round2(sub).toNumber(),
@@ -355,7 +366,7 @@ export function buildFbrPayload(
       sroScheduleNo: "",
       fedPayable: 0,
       discount: Number(sale.discountAmount || 0),
-      saleType: "Goods",
+      saleType: "Goods at standard rate (default)",
       sroItemSerialNo: "",
     });
   }
@@ -367,7 +378,7 @@ export function buildFbrPayload(
     sellerBusinessName,
     sellerProvince,
     sellerAddress,
-    buyerNTNCNIC: buyerNTN,
+    buyerNTNCNIC,
     buyerBusinessName: buyerName,
     buyerProvince,
     buyerAddress,
@@ -692,13 +703,17 @@ export async function transmitSaleToFbr(
     ? buildFbrPosPayload(sale, business, config)
     : buildFbrPayload(sale, business, config);
 
-  // Add Rs. 1/- POS fee [SRO 1006(I)]
+  // Add Rs. 1/- POS fee [SRO 1006(I)] - Only applicable to Retail POS
   const currentFee = Number((sale as any).posFee || 0);
-  const additionalFee = currentFee >= 1 ? 0 : 1.0;
+  const additionalFee = isPos ? (currentFee >= 1 ? 0 : 1.0) : 0;
   const newTotal = Number(sale.totalAmount) + additionalFee;
 
-  let fbrInvNum = `FBR-POS-${new Date().getFullYear()}-${Math.floor(100000 + Math.random() * 900000)}`;
-  let fbrQr = generateFbrQrCode(fbrInvNum, newTotal, config.posId);
+  let fbrInvNum = isPos
+    ? `FBR-POS-${new Date().getFullYear()}-${Math.floor(100000 + Math.random() * 900000)}`
+    : `FBR-DI-${new Date().getFullYear()}-${Math.floor(100000 + Math.random() * 900000)}`;
+  let fbrQr = isPos
+    ? generateFbrQrCode(fbrInvNum, newTotal, config.posId)
+    : `https://e.fbr.gov.pk/verify?inv=${encodeURIComponent(fbrInvNum)}`;
   let liveFbrResponse: any = null;
   let transmissionStatus: "SUCCESS" | "FAILED" = "SUCCESS";
   let transmissionMessage = "";
@@ -738,17 +753,25 @@ export async function transmitSaleToFbr(
             transmissionMessage = `Live FBR POS Gateway HTTP 200 response: ${liveFbrResponse.Response || "Submitted"}.`;
           }
         } else {
-          transmissionStatus = "SUCCESS";
-          // Extract FBR Invoice Number & QR Code from FBR's real response
-          if (liveFbrResponse.invoiceNumber) {
-            fbrInvNum = liveFbrResponse.invoiceNumber;
+          // Digital Invoicing (B2B DI)
+          if (liveFbrResponse.validationResponse?.status === "Invalid") {
+            transmissionStatus = "FAILED";
+            const firstErr = liveFbrResponse.validationResponse.invoiceStatuses?.[0]?.error || liveFbrResponse.validationResponse.error || "Digital Invoicing validation failed.";
+            transmissionMessage = `FBR DI validation error: ${firstErr}`;
+          } else {
+            transmissionStatus = "SUCCESS";
+            if (liveFbrResponse.invoiceNumber) {
+              fbrInvNum = liveFbrResponse.invoiceNumber;
+            }
+            if (liveFbrResponse.qrCode) {
+              fbrQr = liveFbrResponse.qrCode;
+            } else if (liveFbrResponse.validationResponse?.qrCode) {
+              fbrQr = liveFbrResponse.validationResponse.qrCode;
+            } else {
+              fbrQr = `https://e.fbr.gov.pk/verify?inv=${encodeURIComponent(fbrInvNum)}`;
+            }
+            transmissionMessage = `Live FBR Digital Invoicing Gateway confirmed: Invoice #${fbrInvNum} acknowledged.`;
           }
-          if (liveFbrResponse.qrCode) {
-            fbrQr = liveFbrResponse.qrCode;
-          } else if (liveFbrResponse.validationResponse?.qrCode) {
-            fbrQr = liveFbrResponse.validationResponse.qrCode;
-          }
-          transmissionMessage = `Live FBR Gateway (${environment.toUpperCase()}) confirmed: Invoice #${fbrInvNum} acknowledged.`;
         }
       } else {
         transmissionStatus = "FAILED";
