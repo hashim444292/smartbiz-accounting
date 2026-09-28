@@ -107,6 +107,7 @@ export default function CreateSalePage() {
   const [walkInName, setWalkInName] = useState<string>("");
   const [walkInPhone, setWalkInPhone] = useState<string>("");
   const [buyerTaxStatus, setBuyerTaxStatus] = useState<BuyerTaxStatus>("EXEMPT");
+  const [fbrInvoiceType, setFbrInvoiceType] = useState<"TIER1_POS" | "DIGITAL_INVOICING">("TIER1_POS");
   const [date, setDate] = useState<string>(new Date().toISOString().split("T")[0]);
 
   // Line Items State
@@ -404,8 +405,8 @@ export default function CreateSalePage() {
       ? round2(toDecimal(taxableAmount).mul(0.03)).toNumber()
       : 0;
 
-  // POS Fee is 0 initially (charged only upon manual FBR hit in FBR tab)
-  const posFee = 0.0;
+  // POS Service Charge (SRO 1006(I)): Rs. 1.00 for Retail POS; Rs. 0.00 for Digital Invoicing (statutory tax % only)
+  const posFee = fbrInvoiceType === "TIER1_POS" ? 1.0 : 0.0;
 
   // Total Payable at creation time
   const totalPayable = taxableAmount + gstAmount + furtherTaxAmount + posFee;
@@ -624,7 +625,8 @@ export default function CreateSalePage() {
         salesTax: gstAmount,
         furtherTax: furtherTaxAmount,
         extraTax: 0,
-        posFee: 0, // No POS fee added upfront
+        posFee: posFee,
+        invoiceType: fbrInvoiceType,
         paidAmount: actualPaid,
         paymentMethod: actualPaid > 0 ? paymentMethod : "CREDIT",
         notes: notes.trim() || undefined,
@@ -661,7 +663,8 @@ export default function CreateSalePage() {
         taxableAmount,
         gstAmount,
         furtherTaxAmount,
-        posFee: 0,
+        posFee: posFee,
+        fbrInvoiceType,
         totalPayable,
         actualPaid,
         remainingReceivable: remaining,
@@ -839,12 +842,18 @@ export default function CreateSalePage() {
                       if (!val) {
                         setCustomerName("Walk in (Walk in)");
                         handleBuyerTaxStatusChange("EXEMPT");
+                        setFbrInvoiceType("TIER1_POS");
                       } else {
                         const c = customers.find((cust) => cust.id === val);
                         if (c) {
                           setCustomerName(c.name);
                           if (c.taxStatus === "REGISTERED" || c.taxStatus === "EXEMPT" || c.taxStatus === "UNREGISTERED") {
                             handleBuyerTaxStatusChange(c.taxStatus);
+                          }
+                          if (c.taxStatus === "REGISTERED" || (c as any).ntn) {
+                            setFbrInvoiceType("DIGITAL_INVOICING");
+                          } else {
+                            setFbrInvoiceType("TIER1_POS");
                           }
                         }
                       }
@@ -959,6 +968,46 @@ export default function CreateSalePage() {
                 <p className="text-[11px] text-slate-400">
                   Determines statutory sales tax rate and Section 3(1A) Further Tax
                 </p>
+              </div>
+            </div>
+
+            {/* FBR Invoice Engine Selector (Retail POS vs Digital Invoicing) */}
+            <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+              <div>
+                <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                  Compliance Channel:
+                </span>
+                <span className="ml-2 text-[11px] text-slate-500 dark:text-slate-400">
+                  {fbrInvoiceType === "TIER1_POS" 
+                    ? "Retail Counter POS: Includes statutory Rs. 1.00 POS service charge (SRO 1006(I))" 
+                    : "Digital Invoicing (B2B): Rs. 0.00 POS fee (Statutory GST % applies)"}
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700">
+                <button
+                  type="button"
+                  onClick={() => setFbrInvoiceType("TIER1_POS")}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
+                    fbrInvoiceType === "TIER1_POS"
+                      ? "bg-white text-indigo-700 shadow-xs dark:bg-slate-900 dark:text-indigo-400 font-extrabold"
+                      : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
+                  }`}
+                >
+                  <Receipt className="h-3.5 w-3.5" />
+                  <span>Retail POS (+Rs. 1 Fee)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFbrInvoiceType("DIGITAL_INVOICING")}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
+                    fbrInvoiceType === "DIGITAL_INVOICING"
+                      ? "bg-white text-blue-700 shadow-xs dark:bg-slate-900 dark:text-blue-400 font-extrabold"
+                      : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
+                  }`}
+                >
+                  <Building2 className="h-3.5 w-3.5" />
+                  <span>Digital Invoicing (Rs. 0 POS Fee)</span>
+                </button>
               </div>
             </div>
           </div>
@@ -1487,21 +1536,35 @@ export default function CreateSalePage() {
                     </span>
                   </div>
 
-                  {/* FBR POS Fee [SRO 1006(I)] Rs. 0.00 until Hit */}
-                  <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50/80 p-2.5 text-slate-700 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-300">
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-semibold">FBR POS Fee [SRO 1006(I)]</span>
-                      <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
-                        Pending FBR Hit
+                  {/* FBR Compliance Fee */}
+                  {fbrInvoiceType === "TIER1_POS" ? (
+                    <div className="flex items-center justify-between rounded-xl border border-indigo-200 bg-indigo-50/80 p-2.5 text-indigo-900 dark:border-indigo-900/50 dark:bg-indigo-950/40 dark:text-indigo-200">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-semibold">FBR POS Fee [SRO 1006(I)]</span>
+                        <span className="rounded bg-indigo-200/80 px-1.5 py-0.5 text-[10px] font-bold text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200">
+                          Retail POS
+                        </span>
+                      </div>
+                      <span className="font-bold tabular-nums text-xs text-indigo-700 dark:text-indigo-300">
+                        PKR 1.00
                       </span>
                     </div>
-                    <span className="font-mono text-[11px] text-slate-500">
-                      Rs 0.00 (Rs. 1/- charged when hit)
-                    </span>
-                  </div>
+                  ) : (
+                    <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50/80 p-2.5 text-slate-700 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-300">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-semibold">FBR Digital Invoicing Fee</span>
+                        <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-bold text-blue-800 dark:bg-blue-900/40 dark:text-blue-300">
+                          Digital Invoicing (B2B)
+                        </span>
+                      </div>
+                      <span className="font-mono text-[11px] text-slate-500">
+                        Rs 0.00 (Statutory Tax % only)
+                      </span>
+                    </div>
+                  )}
                 </div>
 
-                {/* Total Payable Block (WITHOUT Rs. 1 added upfront) */}
+                {/* Total Payable Block */}
                 <div className="border-t border-slate-200 pt-4 dark:border-slate-800">
                   <div className="flex items-baseline justify-between">
                     <div>
@@ -1509,7 +1572,7 @@ export default function CreateSalePage() {
                         Total Payable
                       </div>
                       <div className="text-[11px] text-slate-400">
-                        Net goods + federal sales taxes
+                        {fbrInvoiceType === "TIER1_POS" ? "Net goods + sales taxes + Rs. 1 POS fee" : "Net goods + federal sales taxes"}
                       </div>
                     </div>
                     <div className="text-right">

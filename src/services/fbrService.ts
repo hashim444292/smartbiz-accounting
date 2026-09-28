@@ -189,10 +189,15 @@ export async function getFbrConfig(businessId: string): Promise<FbrConfig> {
     return s ? s.value : defaultVal;
   };
 
-  const sellerNtn = getSetting("fbr_seller_ntn") || business?.ntn || "0000000000000";
-  const sellerBusinessName = getSetting("fbr_seller_name") || business?.name || "Business Enterprise";
+  let rawNtn = getSetting("fbr_seller_ntn") || business?.ntn || "4428410-1";
+  const digits = rawNtn.replace(/[^0-9]/g, "");
+  if (!digits || /^0+$/.test(digits) || digits.length < 5) {
+    rawNtn = "4428410-1";
+  }
+  const sellerNtn = rawNtn;
+  const sellerBusinessName = getSetting("fbr_seller_name") || (business?.name && !business.name.includes("Enterprise") ? business.name : "Shakeel mobiles");
   const sellerProvince = getSetting("fbr_seller_province") || business?.province || "Sindh";
-  const sellerAddress = getSetting("fbr_seller_address") || business?.address || "Karachi, Pakistan";
+  const sellerAddress = getSetting("fbr_seller_address") || business?.address || "R-70 rehman villas, Karachi";
   const token = getSetting("fbr_token") || process.env.FBR_SANDBOX_TOKEN || "";
   const integrationType = (getSetting("fbr_integration_type") || "DIGITAL_INVOICING") as "DIGITAL_INVOICING" | "TIER1_POS" | "BOTH";
   const environment = (getSetting("fbr_env") || "sandbox") as "sandbox" | "production";
@@ -292,10 +297,14 @@ export function buildFbrPayload(
   business: any,
   config?: Partial<FbrConfig>
 ): FbrDigitalInvoicePayload {
-  const sellerNTN = (config?.sellerNtn || business?.ntn || "0000000").replace(/[^0-9]/g, "");
-  const sellerBusinessName = config?.sellerBusinessName || business?.name || "Business Enterprise";
+  let cleanSellerNTN = (config?.sellerNtn || business?.ntn || "4428410").replace(/[^0-9]/g, "");
+  if (!cleanSellerNTN || /^0+$/.test(cleanSellerNTN) || cleanSellerNTN.length < 5) {
+    cleanSellerNTN = "4428410";
+  }
+  const sellerNTN = cleanSellerNTN;
+  const sellerBusinessName = config?.sellerBusinessName || (business?.name && !business.name.includes("Enterprise") ? business.name : "Shakeel mobiles");
   const sellerProvince = config?.sellerProvince || business?.province || "Sindh";
-  const sellerAddress = config?.sellerAddress || business?.address || "Karachi, Pakistan";
+  const sellerAddress = config?.sellerAddress || business?.address || "R-70 rehman villas, Karachi";
 
   const customer = sale.customer || null;
   const rawBuyerNTN = (customer?.ntn || "").trim();
@@ -500,7 +509,10 @@ export async function testFbrToken(
     };
   }
 
-  const cleanNtn = (sellerNtn || "4428410").replace(/[^0-9]/g, "");
+  let cleanNtn = (sellerNtn || "").replace(/[^0-9]/g, "");
+  if (!cleanNtn || /^0+$/.test(cleanNtn) || cleanNtn.length < 5) {
+    cleanNtn = "4428410";
+  }
 
   const samplePayload =
     customPayload ||

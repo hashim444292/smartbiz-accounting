@@ -53,20 +53,19 @@ export async function POST(req: NextRequest) {
       createdByName,
     });
 
-    // Check if company has FBR auto-sync enabled
-    try {
-      const { getFbrConfig, transmitSaleToFbr } = await import("@/services/fbrService");
-      const fbrConfig = await getFbrConfig(businessId);
-      if ((body.autoSyncFbr || fbrConfig.autoSync) && sale.paymentStatus === "PAID") {
+    // Newly created invoices stay in Queue (PENDING) until user transmits them individually or batch
+    if (body.directTransmit === true && sale.paymentStatus === "PAID") {
+      try {
+        const { transmitSaleToFbr } = await import("@/services/fbrService");
         const fbrResult = await transmitSaleToFbr(sale.id);
         return NextResponse.json({
           success: true,
           data: fbrResult.sale || sale,
           fbr: fbrResult,
         });
+      } catch (fbrErr) {
+        console.warn("FBR direct transmit notification:", fbrErr);
       }
-    } catch (fbrErr) {
-      console.warn("FBR auto-sync notification:", fbrErr);
     }
 
     return NextResponse.json({ success: true, data: sale });

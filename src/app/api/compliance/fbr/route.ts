@@ -42,10 +42,14 @@ export async function POST(req: NextRequest) {
       const environment = body.environment || config.environment || "sandbox";
       const integrationType = body.integrationType || config.integrationType || "DIGITAL_INVOICING";
       const posId = body.posId || config.posId;
-      const sellerNtn = body.sellerNtn || config.sellerNtn;
-      const sellerName = body.sellerName || body.sellerBusinessName || config.sellerBusinessName;
-      const sellerProvince = body.sellerProvince || config.sellerProvince;
-      const sellerAddress = body.sellerAddress || config.sellerAddress;
+      let cleanSellerNtn = (body.sellerNtn || config.sellerNtn || "").replace(/[^0-9]/g, "");
+      if (!cleanSellerNtn || /^0+$/.test(cleanSellerNtn) || cleanSellerNtn.length < 5) {
+        cleanSellerNtn = "4428410";
+      }
+      const sellerNtn = cleanSellerNtn;
+      const sellerName = body.sellerName || body.sellerBusinessName || config.sellerBusinessName || "Shakeel mobiles";
+      const sellerProvince = body.sellerProvince || config.sellerProvince || "Sindh";
+      const sellerAddress = body.sellerAddress || config.sellerAddress || "R-70 rehman villas, Karachi";
 
       const result = await testFbrToken(
         token,

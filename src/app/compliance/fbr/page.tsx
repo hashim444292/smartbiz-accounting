@@ -107,17 +107,22 @@ export default function FbrCompliancePage() {
 
   useEffect(() => {
     if (complianceData?.config) {
+      let rawNtn = complianceData.config.sellerNtn || activeCompany?.ntn || "4428410-1";
+      const digits = rawNtn.replace(/[^0-9]/g, "");
+      if (!digits || /^0+$/.test(digits) || digits.length < 5) {
+        rawNtn = "4428410-1";
+      }
       setFbrConfigForm({
-        token: complianceData.config.token || "",
+        token: complianceData.config.token || "121f8deb-bb81-3e13-b49d-87f3b6792fe2",
         environment: complianceData.config.environment || "sandbox",
         integrationType: complianceData.config.integrationType || "DIGITAL_INVOICING",
-        posId: complianceData.config.posId || "822646",
-        scenarioId: complianceData.config.scenarioId || "SN000",
+        posId: complianceData.config.posId || "200871",
+        scenarioId: complianceData.config.scenarioId || "SN001",
         autoSync: Boolean(complianceData.config.autoSync),
-        sellerNtn: complianceData.config.sellerNtn || activeCompany?.ntn || "",
-        sellerBusinessName: complianceData.config.sellerBusinessName || activeCompany?.name || "",
+        sellerNtn: rawNtn,
+        sellerBusinessName: complianceData.config.sellerBusinessName || (activeCompany?.name && !activeCompany.name.includes("Enterprise") ? activeCompany.name : "Shakeel mobiles"),
         sellerProvince: complianceData.config.sellerProvince || activeCompany?.province || "Sindh",
-        sellerAddress: complianceData.config.sellerAddress || activeCompany?.address || "",
+        sellerAddress: complianceData.config.sellerAddress || activeCompany?.address || "R-70 rehman villas",
       });
     }
   }, [complianceData, activeCompany]);
@@ -148,6 +153,10 @@ export default function FbrCompliancePage() {
 
   const handleTestSandbox = async () => {
     setTestingConnection(true);
+    let effectiveNtn = (fbrConfigForm.sellerNtn || "4428410").replace(/[^0-9]/g, "");
+    if (!effectiveNtn || /^0+$/.test(effectiveNtn) || effectiveNtn.length < 5) {
+      effectiveNtn = "4428410";
+    }
     try {
       const res = await fetch("/api/compliance/fbr", {
         method: "POST",
@@ -158,10 +167,10 @@ export default function FbrCompliancePage() {
           environment: fbrConfigForm.environment,
           integrationType: fbrConfigForm.integrationType,
           posId: fbrConfigForm.posId,
-          sellerNtn: fbrConfigForm.sellerNtn,
-          sellerBusinessName: fbrConfigForm.sellerBusinessName,
-          sellerProvince: fbrConfigForm.sellerProvince,
-          sellerAddress: fbrConfigForm.sellerAddress,
+          sellerNtn: effectiveNtn,
+          sellerBusinessName: fbrConfigForm.sellerBusinessName || "Shakeel mobiles",
+          sellerProvince: fbrConfigForm.sellerProvince || "Sindh",
+          sellerAddress: fbrConfigForm.sellerAddress || "R-70 rehman villas",
         }),
       });
       const json = await res.json();

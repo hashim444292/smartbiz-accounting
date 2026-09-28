@@ -214,6 +214,7 @@ export async function createAndPostSale(input: CreateSaleInput) {
         salesTax: salesTaxVal.toNumber(),
         furtherTax: furtherTaxVal.toNumber(),
         extraTax: extraTaxVal.toNumber(),
+        posFee: posFee.toNumber(),
         totalAmount: totalAmount.toNumber(),
         paidAmount: paidAmount.toNumber(),
         remainingAmount: remainingAmount.toNumber(),
