@@ -251,15 +251,17 @@ export default function SettingsPage() {
           <span>Tax & Product Defaults</span>
         </button>
 
-        <button
-          onClick={() => setActiveTab("FBR")}
-          className={`flex-1 flex items-center justify-center gap-2 rounded-lg py-2 text-xs font-semibold transition ${
-            activeTab === "FBR" ? "bg-white text-indigo-700 font-bold shadow-xs" : "text-slate-600 hover:bg-white/60 hover:text-slate-900"
-          }`}
-        >
-          <Shield className="h-4 w-4" />
-          <span>FBR Digital Invoicing</span>
-        </button>
+        {isSuperAdmin && (
+          <button
+            onClick={() => setActiveTab("FBR")}
+            className={`flex-1 flex items-center justify-center gap-2 rounded-lg py-2 text-xs font-semibold transition ${
+              activeTab === "FBR" ? "bg-white text-indigo-700 font-bold shadow-xs" : "text-slate-600 hover:bg-white/60 hover:text-slate-900"
+            }`}
+          >
+            <Shield className="h-4 w-4" />
+            <span>FBR Digital Invoicing</span>
+          </button>
+        )}
 
         {isSuperAdmin && (
           <button
@@ -482,7 +484,7 @@ export default function SettingsPage() {
       )}
 
       {/* TAB: FBR DIGITAL INVOICING */}
-      {activeTab === "FBR" && (
+      {isSuperAdmin && activeTab === "FBR" && (
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-xs space-y-5">
           <div className="border-b border-slate-100 pb-3 flex items-center justify-between">
             <div>

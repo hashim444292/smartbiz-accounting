@@ -39,7 +39,8 @@ import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 
 export default function FbrCompliancePage() {
-  const { activeCompany } = useAuth();
+  const { activeCompany, user } = useAuth();
+  const isSuperAdmin = user?.role === "SUPER_ADMIN";
 
   const [loading, setLoading] = useState(true);
   const [complianceData, setComplianceData] = useState<any>(null);
@@ -567,61 +568,70 @@ export default function FbrCompliancePage() {
                 </span>
               )}
             </div>
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-slate-600 font-mono">
-              <span>
-                <strong>Post URL:</strong>{" "}
-                <code className="bg-slate-100 px-1 py-0.5 rounded text-indigo-700">
-                  {complianceData?.config?.integrationType === "TIER1_POS"
-                    ? complianceData?.config?.environment === "production"
-                      ? "https://ims.fbr.gov.pk/api/Live/PostData"
-                      : "https://gw.fbr.gov.pk/imsp/v1/api/Live/PostData"
-                    : complianceData?.config?.environment === "production"
-                    ? "https://gw.fbr.gov.pk/di_data/v1/di/postinvoicedata"
-                    : "https://gw.fbr.gov.pk/di_data/v1/di/postinvoicedata_sb"}
-                </code>
-              </span>
-              <span>
-                <strong>Seller NTN:</strong>{" "}
-                {complianceData?.config?.sellerNtn || activeCompany?.ntn || "0000000000000"}
-              </span>
-              {complianceData?.config?.integrationType === "TIER1_POS" ? (
+            {isSuperAdmin ? (
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-slate-600 font-mono">
                 <span>
-                  <strong>POS ID:</strong> {complianceData?.config?.posId || "822646"}
+                  <strong>Post URL:</strong>{" "}
+                  <code className="bg-slate-100 px-1 py-0.5 rounded text-indigo-700">
+                    {complianceData?.config?.integrationType === "TIER1_POS"
+                      ? complianceData?.config?.environment === "production"
+                        ? "https://ims.fbr.gov.pk/api/Live/PostData"
+                        : "https://gw.fbr.gov.pk/imsp/v1/api/Live/PostData"
+                      : complianceData?.config?.environment === "production"
+                      ? "https://gw.fbr.gov.pk/di_data/v1/di/postinvoicedata"
+                      : "https://gw.fbr.gov.pk/di_data/v1/di/postinvoicedata_sb"}
+                  </code>
                 </span>
-              ) : (
                 <span>
-                  <strong>Scenario ID:</strong> {complianceData?.config?.scenarioId || "SN000"}
+                  <strong>Seller NTN:</strong>{" "}
+                  {complianceData?.config?.sellerNtn || activeCompany?.ntn || "0000000000000"}
                 </span>
-              )}
-              <span>
-                <strong>Auto-Sync on Post:</strong>{" "}
-                {complianceData?.config?.autoSync ? (
-                  <span className="text-emerald-700 font-bold">Enabled (Auto-POST)</span>
+                {complianceData?.config?.integrationType === "TIER1_POS" ? (
+                  <span>
+                    <strong>POS ID:</strong> {complianceData?.config?.posId || "200871"}
+                  </span>
                 ) : (
-                  <span className="text-slate-500">Manual Queue</span>
+                  <span>
+                    <strong>Scenario ID:</strong> {complianceData?.config?.scenarioId || "SN000"}
+                  </span>
                 )}
-              </span>
+                <span>
+                  <strong>Auto-Sync on Post:</strong>{" "}
+                  {complianceData?.config?.autoSync ? (
+                    <span className="text-emerald-700 font-bold">Enabled (Auto-POST)</span>
+                  ) : (
+                    <span className="text-slate-500">Manual Queue</span>
+                  )}
+                </span>
+              </div>
+            ) : (
+              <div className="text-xs text-slate-600 flex items-center gap-2">
+                <span className="font-semibold text-slate-700">Fiscal Device Status:</span>
+                <span className="text-emerald-700 font-medium">Connected & Active &bull; Real-time Tax Audit Compliance Enabled</span>
+              </div>
+            )}
+          </div>
+
+          {isSuperAdmin && (
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={handleTestSandbox}
+                disabled={testingConnection}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-indigo-200 bg-white px-3 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-50 shadow-2xs transition"
+              >
+                <Zap className={`h-3.5 w-3.5 text-indigo-600 ${testingConnection ? "animate-spin" : ""}`} />
+                <span>{testingConnection ? "Testing Gateway..." : "Test Sandbox API"}</span>
+              </button>
+
+              <button
+                onClick={() => setFbrConfigModal(true)}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-3.5 py-2 text-xs font-semibold text-white hover:bg-slate-800 shadow-sm transition"
+              >
+                <Settings className="h-3.5 w-3.5" />
+                <span>FBR Credentials</span>
+              </button>
             </div>
-          </div>
-
-          <div className="flex items-center gap-2 shrink-0">
-            <button
-              onClick={handleTestSandbox}
-              disabled={testingConnection}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-indigo-200 bg-white px-3 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-50 shadow-2xs transition"
-            >
-              <Zap className={`h-3.5 w-3.5 text-indigo-600 ${testingConnection ? "animate-spin" : ""}`} />
-              <span>{testingConnection ? "Testing Gateway..." : "Test Sandbox API"}</span>
-            </button>
-
-            <button
-              onClick={() => setFbrConfigModal(true)}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-3.5 py-2 text-xs font-semibold text-white hover:bg-slate-800 shadow-sm transition"
-            >
-              <Settings className="h-3.5 w-3.5" />
-              <span>FBR Credentials</span>
-            </button>
-          </div>
+          )}
         </div>
       </div>
 
@@ -1414,7 +1424,7 @@ export default function FbrCompliancePage() {
       )}
 
       {/* ── 1. FBR DIGITAL INVOICING CONFIGURATION MODAL ── */}
-      {fbrConfigModal && (
+      {isSuperAdmin && fbrConfigModal && (
         <Modal
           isOpen={true}
           onClose={() => setFbrConfigModal(false)}

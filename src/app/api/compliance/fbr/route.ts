@@ -15,17 +15,29 @@ import {
 } from "@/services/fbrService";
 import { prisma } from "@/lib/prisma";
 import { fallbackStore } from "@/lib/fallbackStore";
+import { getSession } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   try {
     const businessId = await getActiveBusinessId(req);
+    const session = await getSession();
+    const isSuperAdmin = session?.role === "SUPER_ADMIN";
+
     const [overview, config] = await Promise.all([
       getFbrComplianceOverview(businessId),
       getFbrConfig(businessId),
     ]);
-    return NextResponse.json({ success: true, data: { ...overview, config } });
+
+    const safeConfig = { ...config };
+    if (!isSuperAdmin) {
+      if (safeConfig.token) safeConfig.token = "••••••••••••••••";
+      if (safeConfig.posToken) safeConfig.posToken = "••••••••••••••••";
+      if (safeConfig.diToken) safeConfig.diToken = "••••••••••••••••";
+    }
+
+    return NextResponse.json({ success: true, data: { ...overview, config: safeConfig } });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
@@ -34,10 +46,18 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const businessId = await getActiveBusinessId(req);
+    const session = await getSession();
+    const isSuperAdmin = session?.role === "SUPER_ADMIN";
     const body = await req.json();
 
     // 1. Test FBR Sandbox or Production Gateway Connection
     if (body.action === "test_connection") {
+      if (!isSuperAdmin) {
+        return NextResponse.json(
+          { success: false, error: "Access Denied: Only Super Admin can test FBR gateway credentials" },
+          { status: 403 }
+        );
+      }
       const config = await getFbrConfig(businessId);
       const token = body.token || config.token;
       const environment = body.environment || config.environment || "sandbox";
@@ -67,6 +87,12 @@ export async function POST(req: NextRequest) {
 
     // 2. Save FBR API Credentials and Configuration
     if (body.action === "save_config") {
+      if (!isSuperAdmin) {
+        return NextResponse.json(
+          { success: false, error: "Access Denied: Only Super Admin can modify FBR credentials" },
+          { status: 403 }
+        );
+      }
       const saved = await saveFbrConfig(businessId, body.config || {});
       return NextResponse.json({
         success: true,

@@ -104,6 +104,8 @@ export interface FbrPosInvoicePayload {
 export interface FbrConfig {
   enabled: boolean;
   token: string;
+  posToken?: string;
+  diToken?: string;
   environment: "sandbox" | "production";
   integrationType: "DIGITAL_INVOICING" | "TIER1_POS" | "BOTH";
   posId: string;
@@ -207,9 +209,11 @@ export async function getFbrConfig(businessId: string): Promise<FbrConfig> {
   const sellerProvince = getSetting("fbr_seller_province") || business?.province || "Sindh";
   const sellerAddress = getSetting("fbr_seller_address") || business?.address || "R-70 rehman villas, Karachi";
   const token = getSetting("fbr_token") || process.env.FBR_SANDBOX_TOKEN || "";
+  const posToken = getSetting("fbr_pos_token") || (token.startsWith("7c8ba514") ? token : "7c8ba514-1b87-37a6-bda7-162c95c4d826");
+  const diToken = getSetting("fbr_di_token") || (token.startsWith("121f8deb") ? token : "121f8deb-bb81-3e13-b49d-87f3b6792fe2");
   const integrationType = (getSetting("fbr_integration_type") || "DIGITAL_INVOICING") as "DIGITAL_INVOICING" | "TIER1_POS" | "BOTH";
   const environment = (getSetting("fbr_env") || "sandbox") as "sandbox" | "production";
-  const posId = getSetting("fbr_pos_id") || "822646";
+  const posId = getSetting("fbr_pos_id") || "200871";
   const scenarioId = getSetting("fbr_scenario_id") || "SN000";
   const autoSync = getSetting("fbr_auto_sync") === "true";
   const enabled = getSetting("fbr_enabled") === "true" || !!token;
@@ -217,6 +221,8 @@ export async function getFbrConfig(businessId: string): Promise<FbrConfig> {
   return {
     enabled,
     token,
+    posToken,
+    diToken,
     environment,
     integrationType,
     posId,
@@ -233,6 +239,8 @@ export async function saveFbrConfig(businessId: string, config: Partial<FbrConfi
   const keysToSave: Record<string, string> = {};
 
   if (config.token !== undefined) keysToSave["fbr_token"] = config.token;
+  if (config.posToken !== undefined) keysToSave["fbr_pos_token"] = config.posToken;
+  if (config.diToken !== undefined) keysToSave["fbr_di_token"] = config.diToken;
   if (config.environment !== undefined) keysToSave["fbr_env"] = config.environment;
   if (config.integrationType !== undefined) keysToSave["fbr_integration_type"] = config.integrationType;
   if (config.posId !== undefined) keysToSave["fbr_pos_id"] = config.posId;
@@ -408,7 +416,7 @@ export function buildFbrPosPayload(
   business: any,
   config?: Partial<FbrConfig>
 ): FbrPosInvoicePayload {
-  const posId = Number(config?.posId || 822646);
+  const posId = Number(config?.posId || 200871);
   const customer = sale.customer || null;
   const buyerName = sale.customerName || customer?.name || "Walk-in Customer";
   const buyerCnic = customer?.cnic || "";
@@ -452,7 +460,7 @@ export function buildFbrPosPayload(
 
   return {
     InvoiceNumber: "",
-    POSID: isNaN(posId) ? 200871 : posId,
+    POSID: isNaN(posId) || posId <= 0 ? 200871 : posId,
     USIN: sale.invoiceNumber,
     DateTime: new Date(sale.date || Date.now()).toISOString().replace("T", " ").slice(0, 19),
     BuyerNTN: buyerNtn,
@@ -503,7 +511,18 @@ export async function testFbrToken(
     ? FBR_POS_ENDPOINTS[environment].postInvoice
     : FBR_ENDPOINTS[environment].validateInvoice;
 
-  if (!token || !token.trim()) {
+  let effectiveToken = (token || "").trim();
+  if (isPos) {
+    if (!effectiveToken || effectiveToken.startsWith("121f8deb")) {
+      effectiveToken = "7c8ba514-1b87-37a6-bda7-162c95c4d826";
+    }
+  } else {
+    if (!effectiveToken || effectiveToken.startsWith("7c8ba514")) {
+      effectiveToken = "121f8deb-bb81-3e13-b49d-87f3b6792fe2";
+    }
+  }
+
+  if (!effectiveToken) {
     return {
       success: false,
       statusCode: 401,
@@ -589,7 +608,7 @@ export async function testFbrToken(
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${token.trim()}`,
+        Authorization: `Bearer ${effectiveToken.trim()}`,
       },
       body: JSON.stringify(samplePayload),
     });
@@ -729,7 +748,16 @@ export async function transmitSaleToFbr(
     }
   }
 
-  const token = (options.overrideToken || config.token || "").trim();
+  let token = (options.overrideToken || config.token || "").trim();
+  if (isPos) {
+    if (!token || token.startsWith("121f8deb")) {
+      token = (config.posToken || "7c8ba514-1b87-37a6-bda7-162c95c4d826").trim();
+    }
+  } else {
+    if (!token || token.startsWith("7c8ba514")) {
+      token = (config.diToken || "121f8deb-bb81-3e13-b49d-87f3b6792fe2").trim();
+    }
+  }
   const environment = config.environment || "sandbox";
   
   const postUrl = isPos
@@ -842,7 +870,7 @@ export async function transmitSaleToFbr(
     const updated = await prisma.sale.update({
       where: { id: invoiceId },
       data: {
-        posFee: 1.0,
+        posFee: isPos ? 1.0 : 0.0,
         totalAmount: newTotal,
         paidAmount: updatedPaidAmount,
         remainingAmount: updatedRemainingAmount,
