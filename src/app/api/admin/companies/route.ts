@@ -257,8 +257,16 @@ export async function POST(req: NextRequest) {
           defaultPaymentTerms: Number(defaultPaymentTerms) || 30,
           defaultTaxRate: Number(defaultTaxRate) || 18,
           negativeStockPolicy: Boolean(negativeStockPolicy),
+          monthlyFee: Number(monthlyFee) || 5000,
         },
       });
+
+      // Save monthly fee to AppSetting as well
+      await prisma.appSetting.upsert({
+        where: { businessId_key: { businessId: newBiz.id, key: "monthly_fee" } },
+        update: { value: String(monthlyFee || 5000) },
+        create: { businessId: newBiz.id, key: "monthly_fee", value: String(monthlyFee || 5000) },
+      }).catch(() => null);
 
       // Save FBR Digital Invoicing Configuration
       if (body.fbrToken || body.fbrEnv || body.fbrIntegrationType || body.fbrPosId || body.fbrScenarioId || body.fbrAutoSync !== undefined) {

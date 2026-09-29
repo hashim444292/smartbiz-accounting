@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -489,6 +489,39 @@ export default function CompaniesManagementPage() {
     return true;
   });
 
+  // Calculate live MRR & ARR from actual client companies
+  const computedMRR = useMemo(() => {
+    return companies.reduce((sum, c) => sum + (Number(c.monthlyFee) || 0), 0);
+  }, [companies]);
+  const computedARR = computedMRR * 12;
+
+  const { activeCount, overdueCount, renewalsDueThisWeek, pendingDueAmount } = useMemo(() => {
+    let active = 0;
+    let overdue = 0;
+    let dueSoon = 0;
+    let pendingDue = 0;
+    const now = new Date();
+    companies.forEach((c) => {
+      const fee = Number(c.monthlyFee) || 0;
+      if (!c.billingCycleEnd) {
+        active++;
+        return;
+      }
+      const end = new Date(c.billingCycleEnd);
+      if (end < now) {
+        overdue++;
+        pendingDue += fee;
+      } else {
+        active++;
+        const diffDays = Math.round((end.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+        if (diffDays <= 7) {
+          dueSoon++;
+        }
+      }
+    });
+    return { activeCount: active, overdueCount: overdue, renewalsDueThisWeek: dueSoon, pendingDueAmount: pendingDue };
+  }, [companies]);
+
   if (user && user.role !== "SUPER_ADMIN") {
     return (
       <div className="p-12 text-center">
@@ -570,13 +603,13 @@ export default function CompaniesManagementPage() {
             </div>
             <div className="mt-2 flex items-baseline gap-2">
               <span className="text-2xl font-black text-slate-900">
-                Rs {Number(billingStats?.totalMRR || 19000).toLocaleString()}
+                Rs {computedMRR.toLocaleString()}
               </span>
               <span className="text-[11px] font-semibold text-slate-500">/ month</span>
             </div>
             <p className="mt-1 text-[11px] text-emerald-600 font-semibold flex items-center gap-1">
               <TrendingUp className="h-3 w-3" />
-              <span>Projected ARR: Rs {Number((billingStats?.totalMRR || 19000) * 12).toLocaleString()}</span>
+              <span>Projected ARR: Rs {computedARR.toLocaleString()}</span>
             </p>
           </CardContent>
         </Card>
@@ -599,7 +632,7 @@ export default function CompaniesManagementPage() {
               <span className="text-[11px] font-semibold text-slate-500">received</span>
             </div>
             <p className="mt-1 text-[11px] text-slate-500">
-              {billingStats?.activeCount || 0} active subscriptions up to date
+              {activeCount} active subscriptions up to date
             </p>
           </CardContent>
         </Card>
@@ -617,12 +650,12 @@ export default function CompaniesManagementPage() {
             </div>
             <div className="mt-2 flex items-baseline gap-2">
               <span className="text-2xl font-black text-amber-600">
-                Rs {Number(billingStats?.pendingDueAmount || 0).toLocaleString()}
+                Rs {pendingDueAmount.toLocaleString()}
               </span>
               <span className="text-[11px] font-semibold text-slate-500">pending</span>
             </div>
             <p className="mt-1 text-[11px] text-amber-700 font-semibold">
-              {billingStats?.renewalsDueThisWeek || 0} company renewing within 7 days
+              {renewalsDueThisWeek} company renewing within 7 days
             </p>
           </CardContent>
         </Card>
@@ -643,9 +676,9 @@ export default function CompaniesManagementPage() {
               <span className="text-[11px] font-semibold text-slate-500">tenants</span>
             </div>
             <div className="mt-1 flex items-center gap-1.5 text-[11px]">
-              <span className="font-bold text-emerald-600">{billingStats?.activeCount || 0} Active</span>
+              <span className="font-bold text-emerald-600">{activeCount} Active</span>
               <span className="text-slate-300">•</span>
-              <span className="font-bold text-rose-600">{billingStats?.overdueCount || 0} Overdue</span>
+              <span className="font-bold text-rose-600">{overdueCount} Overdue</span>
             </div>
           </CardContent>
         </Card>
@@ -800,9 +833,7 @@ export default function CompaniesManagementPage() {
                             Rs {Number(comp.monthlyFee || 5000).toLocaleString()}{" "}
                             <span className="text-[10px] font-normal text-slate-500">/ mo</span>
                           </p>
-                          <span className="inline-block mt-0.5 text-[9px] font-bold px-1.5 py-0.2 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">
-                            {comp.billingPlan || "Standard Monthly"}
-                          </span>
+                          <span className="text-[10px] text-slate-400">Monthly Billing</span>
                         </td>
 
                         {/* Month End / Next Renewal Date */}
@@ -1189,45 +1220,31 @@ export default function CompaniesManagementPage() {
               </div>
 
               {/* SaaS Subscription & Monthly Fee Section */}
-              <div className="p-3.5 rounded-xl border border-emerald-200 bg-emerald-50/50 space-y-3">
+              <div className="p-3.5 rounded-xl border border-emerald-200 bg-emerald-50/50 space-y-2">
                 <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-900">
                   <CreditCard className="h-4 w-4 text-emerald-600" />
-                  <span>SaaS Subscription & Monthly Billing Settings</span>
+                  <span>SaaS Monthly Subscription Fee</span>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
-                      Monthly Fee (PKR) *
-                    </label>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                    Monthly Fee (PKR) *
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3.5 top-2.5 text-xs font-bold text-slate-400">Rs</span>
                     <input
                       type="number"
                       required
-                      placeholder="e.g. 5000"
+                      min="0"
+                      placeholder="e.g. 12000"
                       value={formData.monthlyFee}
                       onChange={(e) => setFormData({ ...formData, monthlyFee: e.target.value })}
-                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 font-bold focus:border-emerald-500 focus:outline-none"
+                      className="w-full pl-10 pr-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 font-bold focus:border-emerald-500 focus:outline-none"
                     />
-                    <p className="text-[10px] text-slate-500 mt-1">
-                      Amount charged to this client on a monthly basis.
-                    </p>
                   </div>
-
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
-                      Subscription Plan
-                    </label>
-                    <select
-                      value={formData.billingPlan}
-                      onChange={(e) => setFormData({ ...formData, billingPlan: e.target.value })}
-                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:border-emerald-500 focus:outline-none"
-                    >
-                      <option value="Standard Monthly">Standard Monthly</option>
-                      <option value="Enterprise Pro">Enterprise Pro</option>
-                      <option value="Retail Growth">Retail Growth</option>
-                      <option value="Custom Plan">Custom Plan</option>
-                    </select>
-                  </div>
+                  <p className="text-[10px] text-slate-500 mt-1">
+                    Custom monthly fee charged to this client organization (e.g. Rs 12,000 / month).
+                  </p>
                 </div>
               </div>
 
@@ -1649,34 +1666,22 @@ export default function CompaniesManagementPage() {
                   <span>SaaS Subscription & Monthly Billing</span>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
-                      Monthly Fee (PKR)
+                      Monthly Fee (PKR) *
                     </label>
-                    <input
-                      type="number"
-                      required
-                      value={formData.monthlyFee}
-                      onChange={(e) => setFormData({ ...formData, monthlyFee: e.target.value })}
-                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 font-bold focus:border-emerald-500 focus:outline-none"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
-                      Subscription Plan
-                    </label>
-                    <select
-                      value={formData.billingPlan}
-                      onChange={(e) => setFormData({ ...formData, billingPlan: e.target.value })}
-                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:border-emerald-500 focus:outline-none"
-                    >
-                      <option value="Standard Monthly">Standard Monthly</option>
-                      <option value="Enterprise Pro">Enterprise Pro</option>
-                      <option value="Retail Growth">Retail Growth</option>
-                      <option value="Custom Plan">Custom Plan</option>
-                    </select>
+                    <div className="relative">
+                      <span className="absolute left-3 top-2 text-xs font-bold text-slate-400">Rs</span>
+                      <input
+                        type="number"
+                        required
+                        min="0"
+                        value={formData.monthlyFee}
+                        onChange={(e) => setFormData({ ...formData, monthlyFee: e.target.value })}
+                        className="w-full pl-9 pr-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 font-bold focus:border-emerald-500 focus:outline-none"
+                      />
+                    </div>
                   </div>
 
                   <div>

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
 import {
   fallbackStore,
   storeRecordSubscriptionPayment,
@@ -16,6 +17,43 @@ export async function GET() {
         { success: false, error: "Access denied. SaaS billing is strictly restricted to Super Admin." },
         { status: 403 }
       );
+    }
+
+    try {
+      const dbBusinesses = await prisma.business.findMany({
+        select: {
+          id: true,
+          name: true,
+          monthlyFee: true,
+          createdAt: true,
+        },
+      });
+
+      if (dbBusinesses.length > 0) {
+        const totalMRR = dbBusinesses.reduce((sum, b) => sum + (b.monthlyFee !== null && b.monthlyFee !== undefined ? Number(b.monthlyFee) : 5000), 0);
+        const totalARR = totalMRR * 12;
+        const stats = {
+          totalCompanies: dbBusinesses.length,
+          totalMRR,
+          totalARR,
+          collectedThisMonth: 0,
+          pendingDueAmount: 0,
+          activeCount: dbBusinesses.length,
+          dueCount: 0,
+          overdueCount: 0,
+          renewalsDueThisWeek: 0,
+        };
+        const payments = fallbackStore.subscriptionPayments || [];
+
+        return NextResponse.json({
+          success: true,
+          stats,
+          payments,
+          companiesCount: dbBusinesses.length,
+        });
+      }
+    } catch (dbErr) {
+      console.warn("Could not query businesses for billing stats from DB, using fallback:", dbErr);
     }
 
     const stats = storeGetBillingStats();

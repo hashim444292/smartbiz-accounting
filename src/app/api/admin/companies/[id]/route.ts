@@ -48,8 +48,17 @@ export async function PUT(
           defaultTaxRate: body.defaultTaxRate !== undefined ? Number(body.defaultTaxRate) : undefined,
           negativeStockPolicy: body.negativeStockPolicy !== undefined ? Boolean(body.negativeStockPolicy) : undefined,
           canCreateBranches: body.canCreateBranches !== undefined ? Boolean(body.canCreateBranches) : undefined,
+          monthlyFee: body.monthlyFee !== undefined ? Number(body.monthlyFee) : undefined,
         },
       });
+
+      if (body.monthlyFee !== undefined) {
+        await prisma.appSetting.upsert({
+          where: { businessId_key: { businessId: id, key: "monthly_fee" } },
+          update: { value: String(body.monthlyFee) },
+          create: { businessId: id, key: "monthly_fee", value: String(body.monthlyFee) },
+        }).catch(() => null);
+      }
 
       // Update FBR Digital Invoicing Configuration
       let fbrConfig = null;

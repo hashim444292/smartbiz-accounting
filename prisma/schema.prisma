@@ -127,6 +127,7 @@ model Business {
   defaultSalesTax     Decimal              @default(18.00) @db.Decimal(5, 2)
   defaultFurtherTax   Decimal              @default(3.00) @db.Decimal(5, 2)
   defaultExtraTax     Decimal              @default(0.00) @db.Decimal(5, 2)
+  monthlyFee          Decimal              @default(5000.00) @db.Decimal(10, 2)
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
 

@@ -31,6 +31,14 @@ export default function AdminDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [switchingCompanyId, setSwitchingCompanyId] = useState<string | null>(null);
 
+  const dynamicMRR = React.useMemo(() => {
+    if (companies && companies.length > 0) {
+      return companies.reduce((sum, c) => sum + (Number(c.monthlyFee) || 0), 0);
+    }
+    return Number(billingStats?.totalMRR) || 0;
+  }, [companies, billingStats]);
+  const dynamicARR = dynamicMRR * 12;
+
   useEffect(() => {
     async function loadAdminData() {
       try {
@@ -218,7 +226,7 @@ export default function AdminDashboardPage() {
                   Total Monthly Revenue (MRR)
                 </p>
                 <p className="text-2xl font-black text-slate-900 dark:text-white mt-1">
-                  Rs {Number(billingStats?.totalMRR || 19000).toLocaleString()}
+                  Rs {dynamicMRR.toLocaleString()}
                 </p>
               </div>
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 text-amber-600 dark:bg-amber-900/40">
@@ -227,7 +235,7 @@ export default function AdminDashboardPage() {
             </div>
             <p className="text-[11px] text-emerald-600 font-semibold mt-3 flex items-center justify-between">
               <span>Rs {Number(billingStats?.collectedThisMonth || 0).toLocaleString()} collected</span>
-              <span className="text-slate-400">ARR: Rs {Number((billingStats?.totalMRR || 19000) * 12).toLocaleString()}</span>
+              <span className="text-slate-400">ARR: Rs {dynamicARR.toLocaleString()}</span>
             </p>
           </CardContent>
         </Card>
