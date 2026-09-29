@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
   try {
     const businessId = await getActiveBusinessId(req);
     const session = await getSession();
-    const isSuperAdmin = session?.role === "SUPER_ADMIN";
+    const canManageFbr = session?.role === "SUPER_ADMIN" || session?.role === "OWNER_ADMIN";
 
     const [overview, config] = await Promise.all([
       getFbrComplianceOverview(businessId),
@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
     ]);
 
     const safeConfig = { ...config };
-    if (!isSuperAdmin) {
+    if (!canManageFbr) {
       if (safeConfig.token) safeConfig.token = "••••••••••••••••";
       if (safeConfig.posToken) safeConfig.posToken = "••••••••••••••••";
       if (safeConfig.diToken) safeConfig.diToken = "••••••••••••••••";
@@ -47,14 +47,14 @@ export async function POST(req: NextRequest) {
   try {
     const businessId = await getActiveBusinessId(req);
     const session = await getSession();
-    const isSuperAdmin = session?.role === "SUPER_ADMIN";
+    const canManageFbr = session?.role === "SUPER_ADMIN" || session?.role === "OWNER_ADMIN";
     const body = await req.json();
 
     // 1. Test FBR Sandbox or Production Gateway Connection
     if (body.action === "test_connection") {
-      if (!isSuperAdmin) {
+      if (!canManageFbr) {
         return NextResponse.json(
-          { success: false, error: "Access Denied: Only Super Admin can test FBR gateway credentials" },
+          { success: false, error: "Access Denied: Only Super Admin or Business Owner can test FBR gateway credentials" },
           { status: 403 }
         );
       }
@@ -87,9 +87,9 @@ export async function POST(req: NextRequest) {
 
     // 2. Save FBR API Credentials and Configuration
     if (body.action === "save_config") {
-      if (!isSuperAdmin) {
+      if (!canManageFbr) {
         return NextResponse.json(
-          { success: false, error: "Access Denied: Only Super Admin can modify FBR credentials" },
+          { success: false, error: "Access Denied: Only Super Admin or Business Owner can modify FBR credentials" },
           { status: 403 }
         );
       }

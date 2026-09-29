@@ -208,11 +208,21 @@ export default function CreateSalePage() {
         const branchToPass = isBranchLocked ? user?.branchId : (saleBranchId || effectiveBranch);
         if (branchToPass) headers["x-branch-id"] = branchToPass;
 
-        const [metaJson, prodJson, custJson] = await Promise.all([
+        const [metaJson, prodJson, custJson, fbrJson] = await Promise.all([
           smartFetch("/api/products?meta=true", { headers, ttlMs: 60000 }).catch(() => ({})),
           smartFetch("/api/products?limit=100", { headers, ttlMs: 25000 }).catch(() => ({})),
           smartFetch("/api/customers", { headers, ttlMs: 25000 }).catch(() => ({})),
+          smartFetch("/api/compliance/fbr", { headers, ttlMs: 15000 }).catch(() => ({})),
         ]);
+
+        if (fbrJson?.success && fbrJson?.data?.config) {
+          const cfg = fbrJson.data.config;
+          if (cfg.integrationType === "DIGITAL_INVOICING") {
+            setFbrInvoiceType("DIGITAL_INVOICING");
+          } else if (cfg.integrationType === "TIER1_POS") {
+            setFbrInvoiceType("TIER1_POS");
+          }
+        }
 
         // 1. Organization & Categories
         let currentOrgHs = "8517.13";

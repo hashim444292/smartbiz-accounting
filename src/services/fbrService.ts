@@ -772,10 +772,10 @@ export async function transmitSaleToFbr(
     ? buildFbrPosPayload(sale, business, config)
     : buildFbrPayload(sale, business, config);
 
-  // Add Rs. 1/- POS fee [SRO 1006(I)] - Only applicable to Retail POS
+  // Add Rs. 1/- POS fee [SRO 1006(I)] - Only applicable to Retail POS; Rs. 0 for Digital Invoicing
   const currentFee = Number((sale as any).posFee || 0);
-  const additionalFee = isPos ? (currentFee >= 1 ? 0 : 1.0) : 0;
-  const newTotal = Number(sale.totalAmount) + additionalFee;
+  const additionalFee = isPos ? (currentFee >= 1 ? 0 : 1.0) : (currentFee > 0 ? -currentFee : 0);
+  const newTotal = Math.max(0, Number(sale.totalAmount) + additionalFee);
 
   let fbrInvNum = isPos
     ? `FBR-POS-${new Date().getFullYear()}-${Math.floor(100000 + Math.random() * 900000)}`

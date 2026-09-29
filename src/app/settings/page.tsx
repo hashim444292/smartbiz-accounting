@@ -12,6 +12,7 @@ import { BrandPageLoader } from "@/components/ui/loader";
 export default function SettingsPage() {
   const { user, activeCompany, isLoading, refreshSession } = useAuth();
   const isSuperAdmin = user?.role === "SUPER_ADMIN";
+  const canManageFbr = user?.role === "SUPER_ADMIN" || (user?.role as string) === "OWNER_ADMIN";
   const [activeTab, setActiveTab] = useState<"PROFILE" | "DEFAULTS" | "FBR" | "USERS" | "AUDIT">("PROFILE");
   const [saved, setSaved] = useState(false);
   const [defaultsSaved, setDefaultsSaved] = useState(false);
@@ -251,7 +252,7 @@ export default function SettingsPage() {
           <span>Tax & Product Defaults</span>
         </button>
 
-        {isSuperAdmin && (
+        {canManageFbr && (
           <button
             onClick={() => setActiveTab("FBR")}
             className={`flex-1 flex items-center justify-center gap-2 rounded-lg py-2 text-xs font-semibold transition ${
@@ -484,7 +485,7 @@ export default function SettingsPage() {
       )}
 
       {/* TAB: FBR DIGITAL INVOICING */}
-      {isSuperAdmin && activeTab === "FBR" && (
+      {canManageFbr && activeTab === "FBR" && (
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-xs space-y-5">
           <div className="border-b border-slate-100 pb-3 flex items-center justify-between">
             <div>
