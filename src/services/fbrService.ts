@@ -585,8 +585,8 @@ export async function testFbrToken(
           scenarioId: "SN002",
           items: [
             {
-              hsCode: "8517.1390",
-              productDescription: "Smartphone Accessories",
+              hsCode: "8504.4090",
+              productDescription: "Fast Charger 25W",
               rate: "18%",
               uoM: "Numbers, pieces, units",
               quantity: 1,
