@@ -17,11 +17,93 @@ import {
   X,
   Key,
   LogIn,
+  Receipt,
+  ShoppingCart,
+  ShoppingBag,
+  Wallet,
+  Coins,
+  Boxes,
+  Truck,
+  Package,
+  BarChart3,
+  BookOpen,
+  Sparkles,
+  Store,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/context/AuthContext";
 import { BrandPageLoader, TableSkeleton } from "@/components/ui/loader";
+
+const USER_FEATURE_MODULES = [
+  { id: "sales", label: "Sales & Invoicing", urdu: "سیلز اور انوائس بلز", desc: "کسٹمر بلنگ اور انوائسز", icon: Receipt },
+  { id: "pos", label: "POS Counter (بل کاؤنٹر)", urdu: "پی او ایس ریٹیل بلنگ", desc: "فاسٹ ریٹیل کاؤنٹر اور بارکوڈ اسکین", icon: ShoppingCart },
+  { id: "purchases", label: "Purchases & Bills", urdu: "خریداری اور سپلائر بلز", desc: "سپلائر بلنگ اور پرچیز واؤچرز", icon: ShoppingBag },
+  { id: "payments", label: "Cash & Payments", urdu: "پیسے وصولی و ادائیگی", desc: "کسٹمر کیش وصولی اور سپلائر ادائیگیاں", icon: Wallet },
+  { id: "expenses", label: "Daily Expenses", urdu: "دکان کے روزمرہ خرچے", desc: "چائے، بجلی، کرایہ، متفرق اخراجات", icon: Coins },
+  { id: "inventory", label: "Inventory & Stock", urdu: "اسٹاک اور گودام مینجمنٹ", desc: "اسٹاک کاؤنٹ اور ویئرہاؤس موومنٹ", icon: Boxes },
+  { id: "customers", label: "Customers (Khata)", urdu: "گاہکوں کا ادھار کھاتہ", desc: "گاہکوں کا لیجر، ادھار اور بیلنس", icon: Users },
+  { id: "suppliers", label: "Suppliers (Khata)", urdu: "سپلائرز کا ادھار کھاتہ", desc: "سپلائرز کا کھاتہ اور واجب الادا رقوم", icon: Truck },
+  { id: "products", label: "Products & Rates", urdu: "سامان و ریٹ لسٹ", desc: "آئٹم لسٹ، قیمتیں اور بارکوڈز", icon: Package },
+  { id: "reports", label: "Closing & Reports", urdu: "کھاتہ بندش و منافع رپورٹ", desc: "روزمرہ رجسٹر، نفع نقصان اور بیلنس شیٹ", icon: BarChart3 },
+  { id: "compliance", label: "FBR POS Digital", urdu: "FBR ڈیجیٹل انوائسنگ", desc: "ایف بی آر لائیو انوائسنگ و کیو آر کوڈ", icon: ShieldCheck },
+  { id: "accounting", label: "General Ledger", urdu: "ڈبل انٹری جنرل لیجر", desc: "چارٹ آف اکاؤنٹس، جرنل واؤچرز، لیجر", icon: BookOpen },
+  { id: "aiEntry", label: "AI Invoice Reader", urdu: "AI بل اسکینر", desc: "کیمرہ یا فائل سے خودکار بل اسکیننگ", icon: Sparkles },
+  { id: "branches", label: "Sub-Branches", urdu: "آؤٹ لیٹس و برانچز", desc: "متعدد دکانیں اور برانچز کا انتظام", icon: Store },
+];
+
+const ROLE_PRESETS = [
+  {
+    name: "Cashier / POS",
+    urdu: "کیشیئر / کاؤنٹر",
+    role: "STAFF",
+    modules: ["sales", "pos", "customers", "products"],
+  },
+  {
+    name: "Salesman",
+    urdu: "سیلز نمائندہ",
+    role: "STAFF",
+    modules: ["sales", "pos", "customers", "products", "payments"],
+  },
+  {
+    name: "Accountant",
+    urdu: "اکاؤنٹنٹ",
+    role: "ACCOUNTANT",
+    modules: [
+      "sales",
+      "pos",
+      "purchases",
+      "payments",
+      "expenses",
+      "customers",
+      "suppliers",
+      "products",
+      "reports",
+      "accounting",
+    ],
+  },
+  {
+    name: "Full Manager",
+    urdu: "منیجر (تمام اختیارات)",
+    role: "OWNER_ADMIN",
+    modules: [
+      "sales",
+      "pos",
+      "purchases",
+      "payments",
+      "expenses",
+      "inventory",
+      "customers",
+      "suppliers",
+      "products",
+      "reports",
+      "compliance",
+      "accounting",
+      "aiEntry",
+      "branches",
+    ],
+  },
+];
 
 export default function UsersManagementPage() {
   const router = useRouter();
@@ -30,6 +112,7 @@ export default function UsersManagementPage() {
   const [companies, setCompanies] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [companyFilter, setCompanyFilter] = useState<string>("ALL");
   const [modalOpen, setModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<any | null>(null);
@@ -42,6 +125,7 @@ export default function UsersManagementPage() {
     password: "",
     role: "STAFF",
     companyIds: [] as string[],
+    allowedModules: ["sales", "pos", "customers", "products"] as string[],
   });
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -93,6 +177,7 @@ export default function UsersManagementPage() {
           password: "",
           role: "STAFF",
           companyIds: [],
+          allowedModules: ["sales", "pos", "customers", "products"],
         });
         await fetchUsersAndCompanies();
       } else {
@@ -139,7 +224,11 @@ export default function UsersManagementPage() {
       return;
     }
 
-    if (!confirm(`Are you sure you want to delete user "${name}"? Access will be immediately revoked.`)) {
+    if (
+      !confirm(
+        `Are you sure you want to delete user "${name}"? Access will be immediately revoked.`
+      )
+    ) {
       return;
     }
 
@@ -148,6 +237,7 @@ export default function UsersManagementPage() {
         method: "DELETE",
       });
       const data = await res.json();
+
       if (data.success) {
         await fetchUsersAndCompanies();
       } else {
@@ -161,12 +251,35 @@ export default function UsersManagementPage() {
   const openEditModal = (u: any) => {
     setSelectedUser(u);
     const assignedIds = u.companies ? u.companies.map((c: any) => c.id) : [];
+    
+    // Determine initial allowed modules for edit
+    let initialModules = ["sales", "pos", "customers", "products"];
+    if (Array.isArray(u.allowedModules) && u.allowedModules.length > 0) {
+      initialModules = u.allowedModules;
+    } else if (u.role === "SUPER_ADMIN" || u.role === "OWNER_ADMIN") {
+      initialModules = USER_FEATURE_MODULES.map((m) => m.id);
+    } else if (u.role === "ACCOUNTANT") {
+      initialModules = [
+        "sales",
+        "pos",
+        "purchases",
+        "payments",
+        "expenses",
+        "customers",
+        "suppliers",
+        "products",
+        "reports",
+        "accounting",
+      ];
+    }
+
     setFormData({
       name: u.name || "",
       email: u.email || "",
       password: "",
       role: u.role || "STAFF",
       companyIds: assignedIds,
+      allowedModules: initialModules,
     });
     setEditModalOpen(true);
   };
@@ -183,7 +296,25 @@ export default function UsersManagementPage() {
     });
   };
 
-  const [companyFilter, setCompanyFilter] = useState<string>("ALL");
+  const toggleModuleSelection = (modId: string) => {
+    setFormData((prev) => {
+      const exists = prev.allowedModules.includes(modId);
+      return {
+        ...prev,
+        allowedModules: exists
+          ? prev.allowedModules.filter((item) => item !== modId)
+          : [...prev.allowedModules, modId],
+      };
+    });
+  };
+
+  const applyRolePreset = (preset: (typeof ROLE_PRESETS)[0]) => {
+    setFormData((prev) => ({
+      ...prev,
+      role: preset.role,
+      allowedModules: [...preset.modules],
+    }));
+  };
 
   const roleBadgeColor = (role?: string) => {
     switch (role) {
@@ -262,10 +393,10 @@ export default function UsersManagementPage() {
           </Link>
           <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white flex items-center gap-2.5">
             <Users className="h-6 w-6 text-purple-600" />
-            <span>User Accounts & Role Permissions Management</span>
+            <span>User Accounts & Module Permissions Management</span>
           </h1>
           <p className="text-xs text-slate-500 mt-0.5">
-            Add team members, configure system roles (Admin, Owner, Accountant, Cashier), and assign corporate access.
+            Add team members, select exact tabs/features each user can access (POS, Sales, Purchases, Khata, Ledger), and assign corporate access.
           </p>
         </div>
 
@@ -277,6 +408,7 @@ export default function UsersManagementPage() {
               password: "",
               role: "STAFF",
               companyIds: companies.length > 0 ? [companies[0].id] : [],
+              allowedModules: ["sales", "pos", "customers", "products"],
             });
             setFormError(null);
             setModalOpen(true);
@@ -335,6 +467,7 @@ export default function UsersManagementPage() {
               <tr className="border-b border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-900 text-slate-500">
                 <th className="py-3.5 px-4 font-bold uppercase tracking-wider">User Profile</th>
                 <th className="py-3.5 px-4 font-bold uppercase tracking-wider">System Role</th>
+                <th className="py-3.5 px-4 font-bold uppercase tracking-wider">Allowed Modules (اختیارات)</th>
                 <th className="py-3.5 px-4 font-bold uppercase tracking-wider">Assigned Companies</th>
                 <th className="py-3.5 px-4 font-bold uppercase tracking-wider">Joined</th>
                 <th className="py-3.5 px-4 font-bold uppercase tracking-wider text-right">Actions</th>
@@ -343,6 +476,7 @@ export default function UsersManagementPage() {
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {filtered.map((u) => {
                 const isSelf = currentLoggedUser?.userId === u.id;
+                const hasModules = Array.isArray(u.allowedModules) && u.allowedModules.length > 0;
                 return (
                   <tr key={u.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-900/60 transition">
                     <td className="py-3.5 px-4">
@@ -375,7 +509,48 @@ export default function UsersManagementPage() {
                     </td>
 
                     <td className="py-3.5 px-4">
-                      <div className="flex flex-wrap gap-1 max-w-[280px]">
+                      <div className="flex flex-col gap-1 max-w-[280px]">
+                        {u.role === "SUPER_ADMIN" ? (
+                          <span className="text-[11px] font-semibold text-purple-600 dark:text-purple-400">
+                            ⭐ Full System Admin (Unrestricted)
+                          </span>
+                        ) : hasModules ? (
+                          <div>
+                            <div className="flex items-center gap-1.5 mb-1">
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 dark:bg-indigo-950/60 dark:text-indigo-300 dark:border-indigo-800">
+                                <ShieldCheck className="h-3 w-3" />
+                                <span>{u.allowedModules.length} Modules Allowed</span>
+                              </span>
+                            </div>
+                            <div className="flex flex-wrap gap-1">
+                              {u.allowedModules.slice(0, 4).map((modId: string) => {
+                                const found = USER_FEATURE_MODULES.find((m) => m.id === modId);
+                                return (
+                                  <span
+                                    key={modId}
+                                    className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[10px] font-medium text-slate-600 dark:text-slate-400"
+                                  >
+                                    {found ? found.label.split(" ")[0] : modId}
+                                  </span>
+                                );
+                              })}
+                              {u.allowedModules.length > 4 && (
+                                <span className="text-[10px] text-slate-400 font-semibold self-center">
+                                  +{u.allowedModules.length - 4} more
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="text-[11px] text-slate-400 italic">
+                            Default Standard Permissions
+                          </span>
+                        )}
+                      </div>
+                    </td>
+
+                    <td className="py-3.5 px-4">
+                      <div className="flex flex-wrap gap-1 max-w-[240px]">
                         {u.companies && u.companies.length > 0 ? (
                           u.companies.map((c: any) => (
                             <span
@@ -445,7 +620,7 @@ export default function UsersManagementPage() {
 
               {filtered.length === 0 && !loading && (
                 <tr>
-                  <td colSpan={5} className="py-8 text-center text-slate-400 text-xs">
+                  <td colSpan={6} className="py-8 text-center text-slate-400 text-xs">
                     No users found matching your search query.
                   </td>
                 </tr>
@@ -457,16 +632,21 @@ export default function UsersManagementPage() {
 
       {/* Add User Modal */}
       {modalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
-          <div className="w-full max-w-lg rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden animate-in zoom-in-95">
-            <div className="flex items-center justify-between p-5 border-b border-slate-100 dark:border-slate-800">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
+          <div className="w-full max-w-2xl max-h-[92vh] flex flex-col rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden animate-in zoom-in-95">
+            <div className="flex items-center justify-between p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 shrink-0">
               <div className="flex items-center gap-2.5">
                 <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">
                   <Users className="h-4 w-4" />
                 </div>
-                <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-                  Add New User Account
-                </h3>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                    Add New User Account (نیا صارف اکاؤنٹ بنائیں)
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    Define account credentials, select allowed feature tabs, and assign companies.
+                  </p>
+                </div>
               </div>
               <button
                 onClick={() => setModalOpen(false)}
@@ -477,28 +657,29 @@ export default function UsersManagementPage() {
             </div>
 
             {formError && (
-              <div className="m-4 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2">
+              <div className="m-4 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2 shrink-0">
                 <AlertCircle className="h-4 w-4 shrink-0" />
                 <span>{formError}</span>
               </div>
             )}
 
-            <form onSubmit={handleCreateUser} className="p-5 space-y-3.5">
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase mb-1">
-                  Full Name *
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Asad Ullah"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs focus:ring-2 focus:ring-purple-500"
-                />
-              </div>
+            <form onSubmit={handleCreateUser} className="p-4 sm:p-5 space-y-4 overflow-y-auto flex-1 scrollbar-thin">
+              {/* Credentials */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase mb-1">
+                    Full Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Asad Ullah"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs focus:ring-2 focus:ring-purple-500"
+                  />
+                </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase mb-1">
                     Email Address *
@@ -528,67 +709,186 @@ export default function UsersManagementPage() {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase mb-1">
-                  Assigned System Role *
-                </label>
-                <select
-                  value={formData.role}
-                  onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs focus:ring-2 focus:ring-purple-500"
-                >
-                  <option value="STAFF">STAFF (Cashier / POS Invoices / AI Data Entry)</option>
-                  <option value="ACCOUNTANT">ACCOUNTANT (Sales, Purchases, Expenses, Full Reports, Journals)</option>
-                  <option value="OWNER_ADMIN">OWNER_ADMIN (Complete Business & Team Management)</option>
-                  <option value="SUPER_ADMIN">SUPER_ADMIN (Admin Portal & All Companies Unrestricted)</option>
-                </select>
-              </div>
-
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase">
-                    Assign Company Access
-                  </label>
-                  <div className="flex items-center gap-2 text-[10px]">
+              {/* Granular Module Checkboxes Section */}
+              <div className="space-y-2 border-t border-slate-100 dark:border-slate-800 pt-3">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-900 dark:text-slate-100 uppercase">
+                      Module & Tab Access Rights (اختیارات و ٹیب رسائی) *
+                    </label>
+                    <p className="text-[10px] text-slate-500">
+                      پورٹل کے وہ تمام ٹیبز چیک کریں جن کی رسائی اس صارف کو دینی ہے (مثلاً POS، Sales، Purchases وغیرہ)
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-[11px]">
                     <button
                       type="button"
-                      onClick={() => setFormData({ ...formData, companyIds: companies.map((c) => c.id) })}
-                      className="text-purple-600 hover:underline font-semibold"
+                      onClick={() =>
+                        setFormData({
+                          ...formData,
+                          allowedModules: USER_FEATURE_MODULES.map((m) => m.id),
+                        })
+                      }
+                      className="px-2 py-0.5 rounded-md bg-purple-50 hover:bg-purple-100 text-purple-700 font-bold border border-purple-200 transition text-[10px]"
                     >
-                      Select All
+                      Select All (تمام)
                     </button>
-                    <span className="text-slate-300">|</span>
                     <button
                       type="button"
-                      onClick={() => setFormData({ ...formData, companyIds: [] })}
-                      className="text-slate-500 hover:underline"
+                      onClick={() => setFormData({ ...formData, allowedModules: [] })}
+                      className="px-2 py-0.5 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-600 font-medium transition text-[10px]"
                     >
-                      Clear
+                      Clear (خالی)
                     </button>
                   </div>
                 </div>
-                <p className="text-[10px] text-slate-500 mb-1.5">
-                  Select one or more companies this user can access. Multiple users can share the same company with different roles.
-                </p>
-                <div className="space-y-1.5 max-h-36 overflow-y-auto border border-slate-200 dark:border-slate-700 rounded-xl p-2.5 bg-slate-50 dark:bg-slate-800/60">
-                  {companies.map((c) => {
-                    const checked = formData.companyIds.includes(c.id);
+
+                {/* Quick Role Presets */}
+                <div className="bg-slate-50 dark:bg-slate-800/60 p-2.5 rounded-2xl border border-slate-200/80 dark:border-slate-700/80">
+                  <div className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1.5 flex items-center gap-1">
+                    <span>⚡ Quick Role Presets (فوری کردار منتخب کریں):</span>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {ROLE_PRESETS.map((preset) => {
+                      const isSelected =
+                        formData.role === preset.role &&
+                        preset.modules.every((m) => formData.allowedModules.includes(m)) &&
+                        formData.allowedModules.length === preset.modules.length;
+                      return (
+                        <button
+                          key={preset.name}
+                          type="button"
+                          onClick={() => applyRolePreset(preset)}
+                          className={`px-2.5 py-1 rounded-xl text-[11px] font-bold border transition flex items-center gap-1.5 ${
+                            isSelected
+                              ? "bg-purple-600 text-white border-purple-600 shadow-sm"
+                              : "bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-purple-300 hover:bg-purple-50/50"
+                          }`}
+                        >
+                          <span>{preset.name}</span>
+                          <span className="text-[9px] opacity-80 font-normal">({preset.urdu})</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Checkboxes Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-56 overflow-y-auto p-2 border border-slate-200 dark:border-slate-700 rounded-2xl bg-white dark:bg-slate-900/60">
+                  {USER_FEATURE_MODULES.map((mod) => {
+                    const isChecked = formData.allowedModules.includes(mod.id);
+                    const ModIcon = mod.icon;
                     return (
-                      <label
-                        key={c.id}
-                        className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300 cursor-pointer p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded"
+                      <div
+                        key={mod.id}
+                        onClick={() => toggleModuleSelection(mod.id)}
+                        className={`flex items-start gap-2.5 p-2 rounded-xl border text-xs cursor-pointer select-none transition ${
+                          isChecked
+                            ? "bg-purple-50/80 dark:bg-purple-950/40 border-purple-300 dark:border-purple-700/80 text-purple-900 dark:text-purple-100 shadow-xs"
+                            : "bg-white dark:bg-slate-800/40 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"
+                        }`}
                       >
                         <input
                           type="checkbox"
-                          checked={checked}
-                          onChange={() => toggleCompanySelection(c.id)}
-                          className="rounded text-purple-600 focus:ring-purple-500"
+                          checked={isChecked}
+                          onChange={() => {}}
+                          className="mt-0.5 rounded text-purple-600 focus:ring-purple-500 h-4 w-4 shrink-0"
                         />
-                        <span className="font-semibold">{c.name}</span>
-                        <span className="text-[10px] text-slate-400">({c.currency || "PKR"})</span>
-                      </label>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-1">
+                            <span className="font-bold text-[11px] truncate flex items-center gap-1.5">
+                              <ModIcon className="h-3 w-3 text-purple-600 shrink-0" />
+                              <span>{mod.label}</span>
+                            </span>
+                            <span className="text-[9px] font-semibold text-slate-400 shrink-0 font-urdu">
+                              {mod.urdu}
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                            {mod.desc}
+                          </p>
+                        </div>
+                      </div>
                     );
                   })}
+                </div>
+                <div className="flex items-center justify-between text-[10px] text-slate-500 px-1">
+                  <span>
+                    منتخب شدہ ٹیبز:{" "}
+                    <strong className="text-purple-600 font-bold">
+                      {formData.allowedModules.length}
+                    </strong>{" "}
+                    / {USER_FEATURE_MODULES.length}
+                  </span>
+                  <span className="italic text-slate-400">
+                    صارف لاگ ان ہو کر صرف انہی منتخب ٹیبز کو دیکھ سکے گا
+                  </span>
+                </div>
+              </div>
+
+              {/* Underlying System Role */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 border-t border-slate-100 dark:border-slate-800 pt-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase mb-1">
+                    System Security Role
+                  </label>
+                  <select
+                    value={formData.role}
+                    onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs focus:ring-2 focus:ring-purple-500 font-semibold"
+                  >
+                    <option value="STAFF">STAFF (Cashier / POS Operator / Field Staff)</option>
+                    <option value="ACCOUNTANT">ACCOUNTANT (Accounts & Financial Management)</option>
+                    <option value="OWNER_ADMIN">OWNER_ADMIN (Shop Owner / General Manager)</option>
+                    <option value="SUPER_ADMIN">SUPER_ADMIN (Platform Administrator)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase">
+                      Assign Company Access
+                    </label>
+                    <div className="flex items-center gap-1.5 text-[10px]">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setFormData({ ...formData, companyIds: companies.map((c) => c.id) })
+                        }
+                        className="text-purple-600 hover:underline font-semibold"
+                      >
+                        All
+                      </button>
+                      <span className="text-slate-300">|</span>
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, companyIds: [] })}
+                        className="text-slate-500 hover:underline"
+                      >
+                        None
+                      </button>
+                    </div>
+                  </div>
+                  <div className="space-y-1 max-h-24 overflow-y-auto border border-slate-200 dark:border-slate-700 rounded-xl p-2 bg-slate-50 dark:bg-slate-800/60">
+                    {companies.map((c) => {
+                      const checked = formData.companyIds.includes(c.id);
+                      return (
+                        <label
+                          key={c.id}
+                          className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300 cursor-pointer p-0.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => toggleCompanySelection(c.id)}
+                            className="rounded text-purple-600 focus:ring-purple-500 h-3.5 w-3.5"
+                          />
+                          <span className="font-semibold text-[11px] truncate">{c.name}</span>
+                          <span className="text-[9px] text-slate-400">({c.currency || "PKR"})</span>
+                        </label>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
 
@@ -615,16 +915,21 @@ export default function UsersManagementPage() {
 
       {/* Edit User Modal */}
       {editModalOpen && selectedUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
-          <div className="w-full max-w-lg rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden animate-in zoom-in-95">
-            <div className="flex items-center justify-between p-5 border-b border-slate-100 dark:border-slate-800">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
+          <div className="w-full max-w-2xl max-h-[92vh] flex flex-col rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden animate-in zoom-in-95">
+            <div className="flex items-center justify-between p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 shrink-0">
               <div className="flex items-center gap-2.5">
                 <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">
                   <Edit2 className="h-4 w-4" />
                 </div>
-                <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-                  Edit User & Permissions ({selectedUser.name})
-                </h3>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                    Edit User & Permissions ({selectedUser.name})
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    Modify feature tab access rights, system roles, and assigned businesses.
+                  </p>
+                </div>
               </div>
               <button
                 onClick={() => setEditModalOpen(false)}
@@ -635,27 +940,28 @@ export default function UsersManagementPage() {
             </div>
 
             {formError && (
-              <div className="m-4 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2">
+              <div className="m-4 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2 shrink-0">
                 <AlertCircle className="h-4 w-4 shrink-0" />
                 <span>{formError}</span>
               </div>
             )}
 
-            <form onSubmit={handleUpdateUser} className="p-5 space-y-3.5">
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase mb-1">
-                  Full Name *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs focus:ring-2 focus:ring-purple-500"
-                />
-              </div>
+            <form onSubmit={handleUpdateUser} className="p-4 sm:p-5 space-y-4 overflow-y-auto flex-1 scrollbar-thin">
+              {/* Credentials */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase mb-1">
+                    Full Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs focus:ring-2 focus:ring-purple-500"
+                  />
+                </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase mb-1">
                     Email Address *
@@ -683,67 +989,186 @@ export default function UsersManagementPage() {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase mb-1">
-                  System Role
-                </label>
-                <select
-                  value={formData.role}
-                  onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs focus:ring-2 focus:ring-purple-500"
-                >
-                  <option value="STAFF">STAFF (Cashier / POS Invoices / AI Data Entry)</option>
-                  <option value="ACCOUNTANT">ACCOUNTANT (Sales, Purchases, Expenses, Full Reports, Journals)</option>
-                  <option value="OWNER_ADMIN">OWNER_ADMIN (Complete Business & Team Management)</option>
-                  <option value="SUPER_ADMIN">SUPER_ADMIN (Admin Portal & All Companies Unrestricted)</option>
-                </select>
-              </div>
-
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase">
-                    Assigned Companies
-                  </label>
-                  <div className="flex items-center gap-2 text-[10px]">
+              {/* Granular Module Checkboxes Section */}
+              <div className="space-y-2 border-t border-slate-100 dark:border-slate-800 pt-3">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-900 dark:text-slate-100 uppercase">
+                      Module & Tab Access Rights (اختیارات و ٹیب رسائی) *
+                    </label>
+                    <p className="text-[10px] text-slate-500">
+                      کسٹمر پورٹل کے وہ تمام ٹیبز چیک کریں جن کی رسائی اس صارف کو دینی ہے (مثلاً POS، Sales، Purchases وغیرہ)
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-[11px]">
                     <button
                       type="button"
-                      onClick={() => setFormData({ ...formData, companyIds: companies.map((c) => c.id) })}
-                      className="text-purple-600 hover:underline font-semibold"
+                      onClick={() =>
+                        setFormData({
+                          ...formData,
+                          allowedModules: USER_FEATURE_MODULES.map((m) => m.id),
+                        })
+                      }
+                      className="px-2 py-0.5 rounded-md bg-purple-50 hover:bg-purple-100 text-purple-700 font-bold border border-purple-200 transition text-[10px]"
                     >
-                      Select All
+                      Select All (تمام)
                     </button>
-                    <span className="text-slate-300">|</span>
                     <button
                       type="button"
-                      onClick={() => setFormData({ ...formData, companyIds: [] })}
-                      className="text-slate-500 hover:underline"
+                      onClick={() => setFormData({ ...formData, allowedModules: [] })}
+                      className="px-2 py-0.5 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-600 font-medium transition text-[10px]"
                     >
-                      Clear
+                      Clear (خالی)
                     </button>
                   </div>
                 </div>
-                <p className="text-[10px] text-slate-500 mb-1.5">
-                  Select which companies this user can access. Multiple users can share the same company.
-                </p>
-                <div className="space-y-1.5 max-h-36 overflow-y-auto border border-slate-200 dark:border-slate-700 rounded-xl p-2.5 bg-slate-50 dark:bg-slate-800/60">
-                  {companies.map((c) => {
-                    const checked = formData.companyIds.includes(c.id);
+
+                {/* Quick Role Presets */}
+                <div className="bg-slate-50 dark:bg-slate-800/60 p-2.5 rounded-2xl border border-slate-200/80 dark:border-slate-700/80">
+                  <div className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1.5 flex items-center gap-1">
+                    <span>⚡ Quick Role Presets (فوری کردار منتخب کریں):</span>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {ROLE_PRESETS.map((preset) => {
+                      const isSelected =
+                        formData.role === preset.role &&
+                        preset.modules.every((m) => formData.allowedModules.includes(m)) &&
+                        formData.allowedModules.length === preset.modules.length;
+                      return (
+                        <button
+                          key={preset.name}
+                          type="button"
+                          onClick={() => applyRolePreset(preset)}
+                          className={`px-2.5 py-1 rounded-xl text-[11px] font-bold border transition flex items-center gap-1.5 ${
+                            isSelected
+                              ? "bg-purple-600 text-white border-purple-600 shadow-sm"
+                              : "bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-purple-300 hover:bg-purple-50/50"
+                          }`}
+                        >
+                          <span>{preset.name}</span>
+                          <span className="text-[9px] opacity-80 font-normal">({preset.urdu})</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Checkboxes Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-56 overflow-y-auto p-2 border border-slate-200 dark:border-slate-700 rounded-2xl bg-white dark:bg-slate-900/60">
+                  {USER_FEATURE_MODULES.map((mod) => {
+                    const isChecked = formData.allowedModules.includes(mod.id);
+                    const ModIcon = mod.icon;
                     return (
-                      <label
-                        key={c.id}
-                        className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300 cursor-pointer p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded"
+                      <div
+                        key={mod.id}
+                        onClick={() => toggleModuleSelection(mod.id)}
+                        className={`flex items-start gap-2.5 p-2 rounded-xl border text-xs cursor-pointer select-none transition ${
+                          isChecked
+                            ? "bg-purple-50/80 dark:bg-purple-950/40 border-purple-300 dark:border-purple-700/80 text-purple-900 dark:text-purple-100 shadow-xs"
+                            : "bg-white dark:bg-slate-800/40 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"
+                        }`}
                       >
                         <input
                           type="checkbox"
-                          checked={checked}
-                          onChange={() => toggleCompanySelection(c.id)}
-                          className="rounded text-purple-600 focus:ring-purple-500"
+                          checked={isChecked}
+                          onChange={() => {}}
+                          className="mt-0.5 rounded text-purple-600 focus:ring-purple-500 h-4 w-4 shrink-0"
                         />
-                        <span className="font-semibold">{c.name}</span>
-                        <span className="text-[10px] text-slate-400">({c.currency || "PKR"})</span>
-                      </label>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-1">
+                            <span className="font-bold text-[11px] truncate flex items-center gap-1.5">
+                              <ModIcon className="h-3 w-3 text-purple-600 shrink-0" />
+                              <span>{mod.label}</span>
+                            </span>
+                            <span className="text-[9px] font-semibold text-slate-400 shrink-0 font-urdu">
+                              {mod.urdu}
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                            {mod.desc}
+                          </p>
+                        </div>
+                      </div>
                     );
                   })}
+                </div>
+                <div className="flex items-center justify-between text-[10px] text-slate-500 px-1">
+                  <span>
+                    منتخب شدہ ٹیبز:{" "}
+                    <strong className="text-purple-600 font-bold">
+                      {formData.allowedModules.length}
+                    </strong>{" "}
+                    / {USER_FEATURE_MODULES.length}
+                  </span>
+                  <span className="italic text-slate-400">
+                    صارف لاگ ان ہو کر صرف انہی منتخب ٹیبز کو دیکھ سکے گا
+                  </span>
+                </div>
+              </div>
+
+              {/* Underlying System Role & Companies */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 border-t border-slate-100 dark:border-slate-800 pt-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase mb-1">
+                    System Security Role
+                  </label>
+                  <select
+                    value={formData.role}
+                    onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs focus:ring-2 focus:ring-purple-500 font-semibold"
+                  >
+                    <option value="STAFF">STAFF (Cashier / POS Operator / Field Staff)</option>
+                    <option value="ACCOUNTANT">ACCOUNTANT (Accounts & Financial Management)</option>
+                    <option value="OWNER_ADMIN">OWNER_ADMIN (Shop Owner / General Manager)</option>
+                    <option value="SUPER_ADMIN">SUPER_ADMIN (Platform Administrator)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase">
+                      Assigned Companies
+                    </label>
+                    <div className="flex items-center gap-1.5 text-[10px]">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setFormData({ ...formData, companyIds: companies.map((c) => c.id) })
+                        }
+                        className="text-purple-600 hover:underline font-semibold"
+                      >
+                        All
+                      </button>
+                      <span className="text-slate-300">|</span>
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, companyIds: [] })}
+                        className="text-slate-500 hover:underline"
+                      >
+                        None
+                      </button>
+                    </div>
+                  </div>
+                  <div className="space-y-1 max-h-24 overflow-y-auto border border-slate-200 dark:border-slate-700 rounded-xl p-2 bg-slate-50 dark:bg-slate-800/60">
+                    {companies.map((c) => {
+                      const checked = formData.companyIds.includes(c.id);
+                      return (
+                        <label
+                          key={c.id}
+                          className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300 cursor-pointer p-0.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => toggleCompanySelection(c.id)}
+                            className="rounded text-purple-600 focus:ring-purple-500 h-3.5 w-3.5"
+                          />
+                          <span className="font-semibold text-[11px] truncate">{c.name}</span>
+                          <span className="text-[9px] text-slate-400">({c.currency || "PKR"})</span>
+                        </label>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
 

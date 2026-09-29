@@ -28,6 +28,7 @@ export interface UserProfile {
   branchName?: string | null;
   canCreateBranches?: boolean;
   isSwitched?: boolean;
+  allowedModules?: string[];
 }
 
 export interface Company {

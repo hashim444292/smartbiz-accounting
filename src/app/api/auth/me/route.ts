@@ -70,6 +70,15 @@ export async function GET(req: NextRequest) {
         branches = fallbackStore.branches ? fallbackStore.branches.filter((b) => b.businessId === activeCompany.id && b.isActive) : [];
       }
 
+      let dbUserModules: string[] = [];
+      try {
+        const u = await prisma.user.findUnique({
+          where: { id: session.userId },
+          select: { allowedModules: true },
+        });
+        if (u?.allowedModules) dbUserModules = u.allowedModules;
+      } catch {}
+
       const liveUser = fallbackStore.users.find((u) => u.id === session.userId);
 
       return NextResponse.json({
@@ -82,6 +91,7 @@ export async function GET(req: NextRequest) {
           branchId: liveUser?.branchId !== undefined ? liveUser.branchId : (session.branchId || null),
           branchName: liveUser?.branchName !== undefined ? liveUser.branchName : (session.branchName || null),
           canCreateBranches: Boolean(activeCompany?.canCreateBranches),
+          allowedModules: dbUserModules.length > 0 ? dbUserModules : (liveUser?.allowedModules || session.allowedModules || []),
         },
         activeCompany: activeCompany || {
           id: session.businessId,

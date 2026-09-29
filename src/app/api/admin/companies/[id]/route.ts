@@ -49,6 +49,9 @@ export async function PUT(
           negativeStockPolicy: body.negativeStockPolicy !== undefined ? Boolean(body.negativeStockPolicy) : undefined,
           canCreateBranches: body.canCreateBranches !== undefined ? Boolean(body.canCreateBranches) : undefined,
           monthlyFee: body.monthlyFee !== undefined ? Number(body.monthlyFee) : undefined,
+          billingCycleStart: body.billingCycleStart ? new Date(body.billingCycleStart) : undefined,
+          billingCycleEnd: body.billingCycleEnd ? new Date(body.billingCycleEnd) : undefined,
+          paymentStatus: body.paymentStatus !== undefined ? body.paymentStatus : undefined,
         },
       });
 
@@ -57,6 +60,14 @@ export async function PUT(
           where: { businessId_key: { businessId: id, key: "monthly_fee" } },
           update: { value: String(body.monthlyFee) },
           create: { businessId: id, key: "monthly_fee", value: String(body.monthlyFee) },
+        }).catch(() => null);
+      }
+
+      if (body.paymentStatus !== undefined) {
+        await prisma.appSetting.upsert({
+          where: { businessId_key: { businessId: id, key: "billing_payment_status" } },
+          update: { value: body.paymentStatus },
+          create: { businessId: id, key: "billing_payment_status", value: body.paymentStatus },
         }).catch(() => null);
       }
 

@@ -29,6 +29,7 @@ export async function GET() {
         name: u.name,
         email: u.email,
         role: u.role,
+        allowedModules: u.allowedModules || [],
         createdAt: u.createdAt,
         companies: u.memberships.map((m) => ({
           id: m.business.id,
@@ -49,6 +50,7 @@ export async function GET() {
           name: u.name,
           email: u.email,
           role: u.role,
+          allowedModules: u.allowedModules || [],
           createdAt: u.createdAt,
           companies: assignedCompanies.map((c) => ({
             id: c.id,
@@ -79,7 +81,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { name, email, password, role, companyIds } = body;
+    const { name, email, password, role, companyIds, allowedModules } = body;
 
     if (!name || !email) {
       return NextResponse.json(
@@ -107,6 +109,7 @@ export async function POST(req: NextRequest) {
           email: cleanEmail,
           passwordHash,
           role: role || "STAFF",
+          allowedModules: Array.isArray(allowedModules) ? allowedModules : [],
         },
       });
 
@@ -145,6 +148,7 @@ export async function POST(req: NextRequest) {
         email: cleanEmail,
         password: password || "password123",
         role: role || "STAFF",
+        allowedModules: Array.isArray(allowedModules) ? allowedModules : [],
         companyIds: Array.isArray(companyIds) && companyIds.length > 0 ? companyIds : [fallbackStore.activeBusinessId],
       });
 

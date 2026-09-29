@@ -72,6 +72,7 @@ export async function GET() {
           monthlyFee: Number((c as any).monthlyFee ?? 5000),
           billingPlan: (c as any).billingPlan || "Standard Monthly",
           subscriptionStatus: (c as any).subscriptionStatus || "ACTIVE",
+          paymentStatus: c.paymentStatus || "UNPAID",
           fbrToken,
           fbrEnv,
           fbrIntegrationType,
@@ -89,8 +90,8 @@ export async function GET() {
             "aiEntry",
             "bulkImport",
           ],
-          billingCycleStart: (c as any).billingCycleStart || c.createdAt,
-          billingCycleEnd: (c as any).billingCycleEnd || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+          billingCycleStart: c.billingCycleStart ? c.billingCycleStart.toISOString() : c.createdAt.toISOString(),
+          billingCycleEnd: c.billingCycleEnd ? c.billingCycleEnd.toISOString() : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
           lastPaymentDate: (c as any).lastPaymentDate || c.createdAt,
           lastPaymentAmount: Number((c as any).lastPaymentAmount ?? 5000),
           createdAt: c.createdAt,
@@ -208,7 +209,9 @@ export async function POST(req: NextRequest) {
       negativeStockPolicy = false,
       monthlyFee = 5000,
       billingPlan = "Standard Monthly",
+      billingCycleStart,
       billingCycleEnd,
+      paymentStatus = "UNPAID",
       enabledModules,
     } = body;
 
@@ -234,6 +237,11 @@ export async function POST(req: NextRequest) {
 
     // Try DB
     try {
+      const parsedStart = billingCycleStart ? new Date(billingCycleStart) : new Date();
+      const parsedEnd = billingCycleEnd
+        ? new Date(billingCycleEnd)
+        : new Date(parsedStart.getTime() + 30 * 24 * 60 * 60 * 1000);
+
       const newBiz = await prisma.business.create({
         data: {
           name,
@@ -258,6 +266,9 @@ export async function POST(req: NextRequest) {
           defaultTaxRate: Number(defaultTaxRate) || 18,
           negativeStockPolicy: Boolean(negativeStockPolicy),
           monthlyFee: Number(monthlyFee) || 5000,
+          billingCycleStart: parsedStart,
+          billingCycleEnd: parsedEnd,
+          paymentStatus: paymentStatus || "UNPAID",
         },
       });
 
@@ -266,6 +277,12 @@ export async function POST(req: NextRequest) {
         where: { businessId_key: { businessId: newBiz.id, key: "monthly_fee" } },
         update: { value: String(monthlyFee || 5000) },
         create: { businessId: newBiz.id, key: "monthly_fee", value: String(monthlyFee || 5000) },
+      }).catch(() => null);
+
+      await prisma.appSetting.upsert({
+        where: { businessId_key: { businessId: newBiz.id, key: "billing_payment_status" } },
+        update: { value: paymentStatus || "UNPAID" },
+        create: { businessId: newBiz.id, key: "billing_payment_status", value: paymentStatus || "UNPAID" },
       }).catch(() => null);
 
       // Save FBR Digital Invoicing Configuration
@@ -328,7 +345,9 @@ export async function POST(req: NextRequest) {
         negativeStockPolicy,
         monthlyFee: Number(monthlyFee),
         billingPlan,
-        billingCycleEnd,
+        billingCycleStart: billingCycleStart || new Date().toISOString(),
+        billingCycleEnd: billingCycleEnd || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+        paymentStatus: paymentStatus || "UNPAID",
         enabledModules: modules,
       });
 

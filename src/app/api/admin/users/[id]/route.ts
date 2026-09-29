@@ -20,7 +20,7 @@ export async function PUT(
 
     const { id } = params;
     const body = await req.json();
-    const { name, role, email, password, companyIds } = body;
+    const { name, role, email, password, companyIds, allowedModules } = body;
 
     // Database update
     try {
@@ -29,6 +29,7 @@ export async function PUT(
       if (role) updateData.role = role;
       if (email) updateData.email = email.toLowerCase().trim();
       if (password) updateData.passwordHash = await hashPassword(password);
+      if (Array.isArray(allowedModules)) updateData.allowedModules = allowedModules;
 
       const updated = await prisma.user.update({
         where: { id },
@@ -61,6 +62,7 @@ export async function PUT(
       if (email) updates.email = email.toLowerCase().trim();
       if (password) updates.password = password;
       if (Array.isArray(companyIds)) updates.companyIds = companyIds;
+      if (Array.isArray(allowedModules)) updates.allowedModules = allowedModules;
 
       const updated = storeUpdateUser(id, updates);
       if (!updated) {

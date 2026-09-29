@@ -47,6 +47,7 @@ export async function POST(req: NextRequest) {
             branchId: user.branchId || null,
             branchName: (user as any).branch?.name || null,
             canCreateBranches: Boolean((primaryBusiness as any)?.canCreateBranches),
+            allowedModules: user.allowedModules || [],
           };
 
           const token = signSessionToken(payload);

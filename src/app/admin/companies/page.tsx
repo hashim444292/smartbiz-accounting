@@ -100,7 +100,9 @@ export default function CompaniesManagementPage() {
     defaultTaxRate: "18",
     monthlyFee: "5000",
     billingPlan: "Standard Monthly",
-    billingCycleEnd: "",
+    billingCycleStart: new Date().toISOString().slice(0, 10),
+    billingCycleEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+    paymentStatus: "UNPAID",
     canCreateBranches: false,
     fbrToken: "",
     fbrEnv: "sandbox",
@@ -401,7 +403,9 @@ export default function CompaniesManagementPage() {
       defaultTaxRate: String(comp.defaultTaxRate || 18),
       monthlyFee: String(comp.monthlyFee || 5000),
       billingPlan: comp.billingPlan || "Standard Monthly",
+      billingCycleStart: comp.billingCycleStart ? comp.billingCycleStart.slice(0, 10) : "",
       billingCycleEnd: comp.billingCycleEnd ? comp.billingCycleEnd.slice(0, 10) : "",
+      paymentStatus: comp.paymentStatus || "UNPAID",
       canCreateBranches: Boolean(comp.canCreateBranches),
       fbrToken: comp.fbrToken || "",
       fbrEnv: comp.fbrEnv || "sandbox",
@@ -482,9 +486,10 @@ export default function CompaniesManagementPage() {
     if (statusFilter === "ALL") return true;
 
     const remaining = getDaysRemaining(c.billingCycleEnd);
-    if (statusFilter === "OVERDUE") return remaining.isOverdue;
+    const isUnpaid = c.paymentStatus === "UNPAID" || c.paymentStatus === "PENDING";
+    if (statusFilter === "OVERDUE") return isUnpaid || remaining.isOverdue;
     if (statusFilter === "DUE") return remaining.isDueSoon;
-    if (statusFilter === "ACTIVE") return !remaining.isOverdue && !remaining.isDueSoon;
+    if (statusFilter === "ACTIVE") return !isUnpaid && !remaining.isOverdue;
 
     return true;
   });
@@ -503,12 +508,18 @@ export default function CompaniesManagementPage() {
     const now = new Date();
     companies.forEach((c) => {
       const fee = Number(c.monthlyFee) || 0;
+      const isUnpaid = c.paymentStatus === "UNPAID" || c.paymentStatus === "PENDING";
       if (!c.billingCycleEnd) {
-        active++;
+        if (isUnpaid) {
+          overdue++;
+          pendingDue += fee;
+        } else {
+          active++;
+        }
         return;
       }
       const end = new Date(c.billingCycleEnd);
-      if (end < now) {
+      if (isUnpaid || end < now) {
         overdue++;
         pendingDue += fee;
       } else {
@@ -816,14 +827,14 @@ export default function CompaniesManagementPage() {
                           <p className="text-[11px] text-slate-500">{comp.phone}</p>
                         </td>
 
-                        {/* Registered Date (kab se register howe) */}
+                        {/* Registered Date & Billing Start */}
                         <td className="py-3.5 px-4">
                           <div className="flex items-center gap-1.5 text-slate-700">
                             <Calendar className="h-3.5 w-3.5 text-slate-400" />
-                            <span className="font-medium">{formatDate(comp.createdAt)}</span>
+                            <span className="font-bold text-xs">{formatDate(comp.billingCycleStart || comp.createdAt)}</span>
                           </div>
                           <p className="text-[10px] text-slate-400 mt-0.5">
-                            {comp.city || "Karachi"}, {comp.province || "Sindh"}
+                            Billing Start • {comp.city || "Karachi"}
                           </p>
                         </td>
 
@@ -853,7 +864,12 @@ export default function CompaniesManagementPage() {
 
                         {/* Subscription Status */}
                         <td className="py-3.5 px-4 text-center">
-                          {remaining.isOverdue ? (
+                          {comp.paymentStatus === "UNPAID" || comp.paymentStatus === "PENDING" ? (
+                            <span className="bg-amber-50 text-amber-800 border border-amber-300 text-[10px] font-bold px-2 py-0.5 rounded inline-flex items-center gap-1 shadow-2xs">
+                              <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
+                              <span>PENDING PAYMENT</span>
+                            </span>
+                          ) : remaining.isOverdue ? (
                             <span className="bg-rose-50 text-rose-700 border border-rose-200 text-[10px] font-bold px-2 py-0.5 rounded">
                               OVERDUE
                             </span>
@@ -880,11 +896,15 @@ export default function CompaniesManagementPage() {
                             {/* Record Payment / Renew Month Button */}
                             <button
                               onClick={() => openRenewModal(comp)}
-                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-bold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition shadow-2xs"
-                              title="Record Monthly Payment & Renew"
+                              className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-bold border transition shadow-2xs ${
+                                comp.paymentStatus === "UNPAID" || comp.paymentStatus === "PENDING"
+                                  ? "bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100"
+                                  : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200"
+                              }`}
+                              title={comp.paymentStatus === "UNPAID" ? "Mark Fee Paid & Renew" : "Record Monthly Payment & Renew"}
                             >
                               <Banknote className="h-3.5 w-3.5 text-emerald-600" />
-                              <span>Renew / Pay</span>
+                              <span>{comp.paymentStatus === "UNPAID" ? "Collect & Mark Paid" : "Renew / Pay"}</span>
                             </button>
 
                             {!isActive && (
@@ -1220,31 +1240,133 @@ export default function CompaniesManagementPage() {
               </div>
 
               {/* SaaS Subscription & Monthly Fee Section */}
-              <div className="p-3.5 rounded-xl border border-emerald-200 bg-emerald-50/50 space-y-2">
-                <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-900">
-                  <CreditCard className="h-4 w-4 text-emerald-600" />
-                  <span>SaaS Monthly Subscription Fee</span>
+              <div className="p-3.5 rounded-xl border border-emerald-200 bg-emerald-50/50 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-900">
+                    <CreditCard className="h-4 w-4 text-emerald-600" />
+                    <span>SaaS Monthly Subscription & Billing Lifecycle (ماہانہ فیس و بلنگ تاریخ)</span>
+                  </div>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-white border border-emerald-300 text-emerald-800">
+                    SaaS Billing Control
+                  </span>
                 </div>
 
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
-                    Monthly Fee (PKR) *
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-3.5 top-2.5 text-xs font-bold text-slate-400">Rs</span>
-                    <input
-                      type="number"
-                      required
-                      min="0"
-                      placeholder="e.g. 12000"
-                      value={formData.monthlyFee}
-                      onChange={(e) => setFormData({ ...formData, monthlyFee: e.target.value })}
-                      className="w-full pl-10 pr-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 font-bold focus:border-emerald-500 focus:outline-none"
-                    />
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {/* Monthly Fee */}
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                      Monthly Fee (PKR) *
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3.5 top-2.5 text-xs font-bold text-slate-400">Rs</span>
+                      <input
+                        type="number"
+                        required
+                        min="0"
+                        placeholder="e.g. 12000"
+                        value={formData.monthlyFee}
+                        onChange={(e) => setFormData({ ...formData, monthlyFee: e.target.value })}
+                        className="w-full pl-10 pr-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 font-bold focus:border-emerald-500 focus:outline-none"
+                      />
+                    </div>
                   </div>
-                  <p className="text-[10px] text-slate-500 mt-1">
-                    Custom monthly fee charged to this client organization (e.g. Rs 12,000 / month).
-                  </p>
+
+                  {/* Billing Start Date */}
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                      Billing Start Date (بلنگ شروع) *
+                    </label>
+                    <input
+                      type="date"
+                      required
+                      value={formData.billingCycleStart}
+                      onChange={(e) => {
+                        const newStart = e.target.value;
+                        let autoEnd = formData.billingCycleEnd;
+                        if (newStart) {
+                          const d = new Date(newStart);
+                          d.setDate(d.getDate() + 30);
+                          autoEnd = d.toISOString().slice(0, 10);
+                        }
+                        setFormData({ ...formData, billingCycleStart: newStart, billingCycleEnd: autoEnd });
+                      }}
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:border-emerald-500 focus:outline-none font-medium"
+                    />
+                    <p className="text-[9px] text-slate-500 mt-0.5">
+                      Mid-month aane par yahan se start date select karein.
+                    </p>
+                  </div>
+
+                  {/* Next Renewal Due Date */}
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                      Next Renewal Due (اگلی تجدید) *
+                    </label>
+                    <input
+                      type="date"
+                      required
+                      value={formData.billingCycleEnd}
+                      onChange={(e) => setFormData({ ...formData, billingCycleEnd: e.target.value })}
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:border-emerald-500 focus:outline-none font-medium"
+                    />
+                    <p className="text-[9px] text-slate-500 mt-0.5">
+                      Next month is date par payment due hogi.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Payment Status on Registration */}
+                <div className="pt-2 border-t border-emerald-100">
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1.5">
+                    Initial Payment Status (رجسٹریشن کے وقت فیس موصول ہوئی؟) *
+                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <label
+                      className={`flex items-center gap-2.5 p-2.5 rounded-xl border cursor-pointer transition ${
+                        formData.paymentStatus === "UNPAID"
+                          ? "bg-amber-50 border-amber-300 text-amber-900 shadow-2xs font-bold"
+                          : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="registerPaymentStatus"
+                        value="UNPAID"
+                        checked={formData.paymentStatus === "UNPAID"}
+                        onChange={() => setFormData({ ...formData, paymentStatus: "UNPAID" })}
+                        className="text-amber-600 focus:ring-amber-500"
+                      />
+                      <div className="text-xs">
+                        <span className="block font-bold">Unpaid / Pending (ادا نہیں ہوا)</span>
+                        <span className="text-[10px] text-slate-500 block font-normal">
+                          Client kal ya baad mein payment karega (direct Paid nahi hoga).
+                        </span>
+                      </div>
+                    </label>
+
+                    <label
+                      className={`flex items-center gap-2.5 p-2.5 rounded-xl border cursor-pointer transition ${
+                        formData.paymentStatus === "PAID"
+                          ? "bg-emerald-50 border-emerald-300 text-emerald-900 shadow-2xs font-bold"
+                          : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="registerPaymentStatus"
+                        value="PAID"
+                        checked={formData.paymentStatus === "PAID"}
+                        onChange={() => setFormData({ ...formData, paymentStatus: "PAID" })}
+                        className="text-emerald-600 focus:ring-emerald-500"
+                      />
+                      <div className="text-xs">
+                        <span className="block font-bold">Paid on Registration (ادا ہو گیا)</span>
+                        <span className="text-[10px] text-slate-500 block font-normal">
+                          Client ne registration ke waqt hi fees ada kar di hai.
+                        </span>
+                      </div>
+                    </label>
+                  </div>
                 </div>
               </div>
 
@@ -1661,12 +1783,14 @@ export default function CompaniesManagementPage() {
 
               {/* SaaS Subscription & Monthly Fee Section */}
               <div className="p-3.5 rounded-xl border border-emerald-200 bg-emerald-50/50 space-y-3">
-                <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-900">
-                  <CreditCard className="h-4 w-4 text-emerald-600" />
-                  <span>SaaS Subscription & Monthly Billing</span>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-900">
+                    <CreditCard className="h-4 w-4 text-emerald-600" />
+                    <span>SaaS Subscription & Monthly Billing (ماہانہ فیس و بلنگ تاریخ)</span>
+                  </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
                     <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
                       Monthly Fee (PKR) *
@@ -1686,14 +1810,80 @@ export default function CompaniesManagementPage() {
 
                   <div>
                     <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
-                      Next Renewal Due
+                      Billing Start Date (بلنگ شروع)
+                    </label>
+                    <input
+                      type="date"
+                      value={formData.billingCycleStart}
+                      onChange={(e) => setFormData({ ...formData, billingCycleStart: e.target.value })}
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:border-emerald-500 focus:outline-none font-medium"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                      Next Renewal Due (اگلی تجدید)
                     </label>
                     <input
                       type="date"
                       value={formData.billingCycleEnd}
                       onChange={(e) => setFormData({ ...formData, billingCycleEnd: e.target.value })}
-                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:border-emerald-500 focus:outline-none"
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:border-emerald-500 focus:outline-none font-medium"
                     />
+                  </div>
+                </div>
+
+                {/* Current Payment Status */}
+                <div className="pt-2 border-t border-emerald-100">
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1.5">
+                    Current Payment Status (فیس کی ادائیگی کی موجودہ صورتحال) *
+                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <label
+                      className={`flex items-center gap-2 p-2.5 rounded-xl border cursor-pointer transition ${
+                        formData.paymentStatus === "UNPAID"
+                          ? "bg-amber-50 border-amber-300 text-amber-900 shadow-2xs font-bold"
+                          : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="editPaymentStatus"
+                        value="UNPAID"
+                        checked={formData.paymentStatus === "UNPAID"}
+                        onChange={() => setFormData({ ...formData, paymentStatus: "UNPAID" })}
+                        className="text-amber-600 focus:ring-amber-500"
+                      />
+                      <div className="text-xs">
+                        <span className="block font-bold">Unpaid / Pending (ادا نہیں ہوا)</span>
+                        <span className="text-[10px] text-slate-500 block font-normal">
+                          Client ki taraf se payment baqi hai.
+                        </span>
+                      </div>
+                    </label>
+
+                    <label
+                      className={`flex items-center gap-2 p-2.5 rounded-xl border cursor-pointer transition ${
+                        formData.paymentStatus === "PAID"
+                          ? "bg-emerald-50 border-emerald-300 text-emerald-900 shadow-2xs font-bold"
+                          : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="editPaymentStatus"
+                        value="PAID"
+                        checked={formData.paymentStatus === "PAID"}
+                        onChange={() => setFormData({ ...formData, paymentStatus: "PAID" })}
+                        className="text-emerald-600 focus:ring-emerald-500"
+                      />
+                      <div className="text-xs">
+                        <span className="block font-bold">Paid & Active (ادا ہو گیا)</span>
+                        <span className="text-[10px] text-slate-500 block font-normal">
+                          Is maah ki fess ada ho chuki hai.
+                        </span>
+                      </div>
+                    </label>
                   </div>
                 </div>
               </div>

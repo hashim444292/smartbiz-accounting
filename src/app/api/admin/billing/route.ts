@@ -111,6 +111,31 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Also update PostgreSQL Business record
+    try {
+      const now = new Date();
+      const currentBiz = await prisma.business.findUnique({ where: { id: businessId } });
+      const currentEnd = currentBiz?.billingCycleEnd ? new Date(currentBiz.billingCycleEnd) : now;
+      const baseDate = currentEnd > now ? currentEnd : now;
+      const newEnd = new Date(baseDate.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+      await prisma.business.update({
+        where: { id: businessId },
+        data: {
+          paymentStatus: "PAID",
+          billingCycleEnd: newEnd,
+        },
+      });
+
+      await prisma.appSetting.upsert({
+        where: { businessId_key: { businessId, key: "billing_payment_status" } },
+        update: { value: "PAID" },
+        create: { businessId, key: "billing_payment_status", value: "PAID" },
+      }).catch(() => null);
+    } catch (dbErr) {
+      console.warn("Could not update business paymentStatus in DB:", dbErr);
+    }
+
     const stats = storeGetBillingStats();
 
     return NextResponse.json({

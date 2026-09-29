@@ -91,6 +91,7 @@ model User {
   role            Role             @default(OWNER_ADMIN)
   isBranchManager Boolean          @default(false)
   branchId        String?
+  allowedModules  String[]         @default([])
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
   memberships     BusinessMember[]
@@ -128,6 +129,9 @@ model Business {
   defaultFurtherTax   Decimal              @default(3.00) @db.Decimal(5, 2)
   defaultExtraTax     Decimal              @default(0.00) @db.Decimal(5, 2)
   monthlyFee          Decimal              @default(5000.00) @db.Decimal(10, 2)
+  billingCycleStart   DateTime?            @default(now())
+  billingCycleEnd     DateTime?
+  paymentStatus       String?              @default("UNPAID")
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
 

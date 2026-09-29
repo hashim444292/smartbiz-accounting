@@ -20,6 +20,7 @@ export interface SessionPayload {
   branchName?: string | null;
   canCreateBranches?: boolean;
   isSwitched?: boolean;
+  allowedModules?: string[];
 }
 
 export async function hashPassword(password: string): Promise<string> {

@@ -23,6 +23,7 @@ import {
   Settings,
   Store,
   History,
+  ShoppingCart,
   ChevronLeft,
   ChevronRight,
   ArrowLeft,
@@ -38,6 +39,7 @@ interface NavItem {
   badge?: string;
   roles?: string[];
   moduleKey?: string;
+  userPermKey?: string;
 }
 
 interface NavGroup {
@@ -55,35 +57,36 @@ const TENANT_NAVIGATION_GROUPS: NavGroup[] = [
   {
     section: "روزمرہ کا کام • DAILY WORK",
     items: [
-      { name: "Sales & Invoices", sublabel: "مال بیچیں (کسٹمر بل)", href: "/sales", icon: Receipt, moduleKey: "sales" },
-      { name: "Purchases & Bills", sublabel: "مال خریدیں (سپلائر بل)", href: "/purchases", icon: ShoppingBag, moduleKey: "purchases" },
-      { name: "Cash & Payments", sublabel: "پیسے وصولی و ادائیگی", href: "/payments", icon: Wallet, moduleKey: "accounting" },
-      { name: "Daily Expenses", sublabel: "دکان کے روزمرہ خرچے", href: "/expenses", icon: Coins, moduleKey: "accounting" },
+      { name: "Sales & Invoices", sublabel: "مال بیچیں (کسٹمر بل)", href: "/sales", icon: Receipt, moduleKey: "sales", userPermKey: "sales" },
+      { name: "POS Counter (بل کاؤنٹر)", sublabel: "فاسٹ پی او ایس بلنگ", href: "/sales/create", icon: ShoppingCart, moduleKey: "sales", userPermKey: "pos" },
+      { name: "Purchases & Bills", sublabel: "مال خریدیں (سپلائر بل)", href: "/purchases", icon: ShoppingBag, moduleKey: "purchases", userPermKey: "purchases" },
+      { name: "Cash & Payments", sublabel: "پیسے وصولی و ادائیگی", href: "/payments", icon: Wallet, moduleKey: "accounting", userPermKey: "payments" },
+      { name: "Daily Expenses", sublabel: "دکان کے روزمرہ خرچے", href: "/expenses", icon: Coins, moduleKey: "accounting", userPermKey: "expenses" },
     ],
   },
   {
     section: "کھاتہ و اسٹاک • STOCK & KHATA",
     items: [
-      { name: "Inventory & Stock", sublabel: "دکان کا مال و اسٹاک", href: "/inventory", icon: Boxes, moduleKey: "inventory" },
-      { name: "Customers (Receivables)", sublabel: "گاہکوں کا ادھار کھاتہ", href: "/customers", icon: Users, moduleKey: "sales" },
-      { name: "Suppliers (Payables)", sublabel: "سپلائرز کا ادھار کھاتہ", href: "/suppliers", icon: Truck, moduleKey: "purchases" },
-      { name: "Products & Rates", sublabel: "سامان و آئٹم ریٹ لسٹ", href: "/products", icon: Package, moduleKey: "inventory" },
+      { name: "Inventory & Stock", sublabel: "دکان کا مال و اسٹاک", href: "/inventory", icon: Boxes, moduleKey: "inventory", userPermKey: "inventory" },
+      { name: "Customers (Receivables)", sublabel: "گاہکوں کا ادھار کھاتہ", href: "/customers", icon: Users, moduleKey: "sales", userPermKey: "customers" },
+      { name: "Suppliers (Payables)", sublabel: "سپلائرز کا ادھار کھاتہ", href: "/suppliers", icon: Truck, moduleKey: "purchases", userPermKey: "suppliers" },
+      { name: "Products & Rates", sublabel: "سامان و آئٹم ریٹ لسٹ", href: "/products", icon: Package, moduleKey: "inventory", userPermKey: "products" },
     ],
   },
   {
     section: "ٹیکس اور رپورٹس • REPORTS & TAX",
     items: [
-      { name: "Closing & Reports", sublabel: "کھاتہ بندش و منافع رپورٹ", href: "/reports", icon: BarChart3, roles: ["SUPER_ADMIN", "OWNER_ADMIN", "ACCOUNTANT"], moduleKey: "reports" },
-      { name: "FBR POS Digital", sublabel: "FBR ڈیجیٹل انوائسنگ", href: "/compliance/fbr", icon: ShieldCheck, badge: "FBR Live", moduleKey: "compliance" },
-      { name: "General Ledger", sublabel: "ڈبل انٹری جنرل لیجر", href: "/accounting", icon: BookOpen, roles: ["SUPER_ADMIN", "OWNER_ADMIN", "ACCOUNTANT"], moduleKey: "accounting" },
-      { name: "AI Invoice Reader", sublabel: "انوائس اسکینر", href: "/ai-entry", icon: Sparkles, moduleKey: "aiEntry" },
+      { name: "Closing & Reports", sublabel: "کھاتہ بندش و منافع رپورٹ", href: "/reports", icon: BarChart3, roles: ["SUPER_ADMIN", "OWNER_ADMIN", "ACCOUNTANT"], moduleKey: "reports", userPermKey: "reports" },
+      { name: "FBR POS Digital", sublabel: "FBR ڈیجیٹل انوائسنگ", href: "/compliance/fbr", icon: ShieldCheck, badge: "FBR Live", moduleKey: "compliance", userPermKey: "compliance" },
+      { name: "General Ledger", sublabel: "ڈبل انٹری جنرل لیجر", href: "/accounting", icon: BookOpen, roles: ["SUPER_ADMIN", "OWNER_ADMIN", "ACCOUNTANT"], moduleKey: "accounting", userPermKey: "accounting" },
+      { name: "AI Invoice Reader", sublabel: "انوائس اسکینر", href: "/ai-entry", icon: Sparkles, moduleKey: "aiEntry", userPermKey: "aiEntry" },
     ],
   },
   {
     section: "ادارہ و ترتیبات • ORGANIZATION",
     items: [
-      { name: "Sub-Branches", sublabel: "آؤٹ لیٹس و برانچز", href: "/branches", icon: Store, roles: ["SUPER_ADMIN", "OWNER_ADMIN"] },
-      { name: "Activity Log", sublabel: "آڈٹ ٹریک لاگ", href: "/audit-logs", icon: History, roles: ["SUPER_ADMIN", "OWNER_ADMIN", "ACCOUNTANT"] },
+      { name: "Sub-Branches", sublabel: "آؤٹ لیٹس و برانچز", href: "/branches", icon: Store, roles: ["SUPER_ADMIN", "OWNER_ADMIN"], userPermKey: "branches" },
+      { name: "Activity Log", sublabel: "آڈٹ ٹریک لاگ", href: "/audit-logs", icon: History, roles: ["SUPER_ADMIN", "OWNER_ADMIN", "ACCOUNTANT"], userPermKey: "accounting" },
       { name: "Settings & Defaults", sublabel: "کمپنی سیٹنگز", href: "/settings", icon: Settings, roles: ["SUPER_ADMIN", "OWNER_ADMIN"] },
     ],
   },
@@ -241,16 +244,30 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
         <div className="flex-1 overflow-y-auto px-3 py-3.5 space-y-4 scrollbar-thin">
           {currentGroups.map((group) => {
             const filteredItems = group.items.filter((item) => {
-              // 1. Role filter
-              if (item.roles && userRole !== "SUPER_ADMIN" && !item.roles.includes(userRole)) {
-                return false;
-              }
-              // 2. Module gating per company
+              // 1. Company-level module gating
               if (item.moduleKey && activeCompany?.enabledModules) {
                 if (!activeCompany.enabledModules.includes(item.moduleKey)) {
                   return false;
                 }
               }
+
+              // 2. User-level granular module permissions (Decisive when defined)
+              if (userRole !== "SUPER_ADMIN" && user?.allowedModules && user.allowedModules.length > 0) {
+                if (item.userPermKey) {
+                  return user.allowedModules.includes(item.userPermKey);
+                }
+                // Items without userPermKey (e.g. Settings, Dashboard) fall back to role requirement
+                if (item.roles && !item.roles.includes(userRole)) {
+                  return false;
+                }
+                return true;
+              }
+
+              // 3. Fallback standard system role filter (if no granular user permissions are set)
+              if (item.roles && userRole !== "SUPER_ADMIN" && !item.roles.includes(userRole)) {
+                return false;
+              }
+
               return true;
             });
 
