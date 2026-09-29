@@ -277,7 +277,7 @@ export default function FbrCompliancePage() {
       const data = await res.json();
 
       if (!data.success) {
-        throw new Error(data.error || "Failed to transmit invoice to FBR");
+        throw new Error(data.message || data.error || "Failed to transmit invoice to FBR");
       }
 
       setActionMessage({

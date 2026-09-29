@@ -328,8 +328,11 @@ export function buildFbrPayload(
     : (rawBuyerCNIC.replace(/[^0-9]/g, "") || "4210100000000");
 
   let scenarioId = config?.scenarioId;
-  if (!scenarioId || scenarioId === "SN000") {
-    scenarioId = isRegistered ? "SN001" : "SN002";
+  if (!isRegistered) {
+    // Unregistered / walk-in buyers can NEVER use SN001 in FBR DI
+    scenarioId = "SN002";
+  } else if (!scenarioId || scenarioId === "SN000" || scenarioId === "SN002") {
+    scenarioId = "SN001";
   }
 
   const buyerName = sale.customerName || customer?.name || "Walk-in Customer";

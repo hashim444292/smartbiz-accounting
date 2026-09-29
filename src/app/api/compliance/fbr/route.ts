@@ -166,6 +166,7 @@ export async function POST(req: NextRequest) {
         payload: result.payload,
         fbrResponse: result.fbrResponse,
         message: result.message || `Invoice transmitted to FBR successfully.`,
+        error: result.success ? undefined : (result.message || "Failed to transmit invoice to FBR"),
       });
     }
 
