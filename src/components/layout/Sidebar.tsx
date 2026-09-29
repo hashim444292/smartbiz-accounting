@@ -58,7 +58,7 @@ const TENANT_NAVIGATION_GROUPS: NavGroup[] = [
     section: "روزمرہ کا کام • DAILY WORK",
     items: [
       { name: "Sales & Invoices", sublabel: "مال بیچیں (کسٹمر بل)", href: "/sales", icon: Receipt, moduleKey: "sales", userPermKey: "sales" },
-      { name: "POS Counter (بل کاؤنٹر)", sublabel: "فاسٹ پی او ایس بلنگ", href: "/sales/create", icon: ShoppingCart, moduleKey: "sales", userPermKey: "pos" },
+      { name: "POS Counter (بل کاؤنٹر)", sublabel: "فاسٹ پی او ایس بلنگ", href: "/sales/create", icon: ShoppingCart, moduleKey: "pos", userPermKey: "pos" },
       { name: "Purchases & Bills", sublabel: "مال خریدیں (سپلائر بل)", href: "/purchases", icon: ShoppingBag, moduleKey: "purchases", userPermKey: "purchases" },
       { name: "Cash & Payments", sublabel: "پیسے وصولی و ادائیگی", href: "/payments", icon: Wallet, moduleKey: "accounting", userPermKey: "payments" },
       { name: "Daily Expenses", sublabel: "دکان کے روزمرہ خرچے", href: "/expenses", icon: Coins, moduleKey: "accounting", userPermKey: "expenses" },

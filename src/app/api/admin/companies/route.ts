@@ -73,6 +73,7 @@ export async function GET() {
           billingPlan: (c as any).billingPlan || "Standard Monthly",
           subscriptionStatus: (c as any).subscriptionStatus || "ACTIVE",
           paymentStatus: c.paymentStatus || "UNPAID",
+          packageType: (c as any).packageType || "FULL_SUITE",
           fbrToken,
           fbrEnv,
           fbrIntegrationType,
@@ -80,16 +81,21 @@ export async function GET() {
           fbrScenarioId,
           fbrAutoSync,
           fbrStatus: fbrToken ? "CONFIGURED" : "PENDING_SETUP",
-          enabledModules: (c as any).enabledModules || [
-            "sales",
-            "purchases",
-            "inventory",
-            "accounting",
-            "compliance",
-            "reports",
-            "aiEntry",
-            "bulkImport",
-          ],
+          enabledModules: (c as any).enabledModules && (c as any).enabledModules.length > 0
+            ? (c as any).enabledModules
+            : (c as any).packageType === "ACCOUNTING_ONLY"
+              ? ["sales", "purchases", "inventory", "accounting", "reports", "aiEntry", "bulkImport"]
+              : [
+                  "sales",
+                  "pos",
+                  "purchases",
+                  "inventory",
+                  "accounting",
+                  "compliance",
+                  "reports",
+                  "aiEntry",
+                  "bulkImport",
+                ],
           billingCycleStart: c.billingCycleStart ? c.billingCycleStart.toISOString() : c.createdAt.toISOString(),
           billingCycleEnd: c.billingCycleEnd ? c.billingCycleEnd.toISOString() : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
           lastPaymentDate: (c as any).lastPaymentDate || c.createdAt,
@@ -212,6 +218,7 @@ export async function POST(req: NextRequest) {
       billingCycleStart,
       billingCycleEnd,
       paymentStatus = "UNPAID",
+      packageType = "FULL_SUITE",
       enabledModules,
     } = body;
 
@@ -222,18 +229,23 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const modules = Array.isArray(enabledModules) && enabledModules.length > 0
-      ? enabledModules
-      : [
-          "sales",
-          "purchases",
-          "inventory",
-          "accounting",
-          "compliance",
-          "reports",
-          "aiEntry",
-          "bulkImport",
-        ];
+    const computedModules = Array.isArray(enabledModules) && enabledModules.length > 0
+      ? (packageType === "ACCOUNTING_ONLY" 
+          ? enabledModules.filter((m: string) => m !== "pos" && m !== "compliance")
+          : enabledModules)
+      : (packageType === "ACCOUNTING_ONLY"
+          ? ["sales", "purchases", "inventory", "accounting", "reports", "aiEntry", "bulkImport"]
+          : [
+              "sales",
+              "pos",
+              "purchases",
+              "inventory",
+              "accounting",
+              "compliance",
+              "reports",
+              "aiEntry",
+              "bulkImport",
+            ]);
 
     // Try DB
     try {
@@ -269,6 +281,8 @@ export async function POST(req: NextRequest) {
           billingCycleStart: parsedStart,
           billingCycleEnd: parsedEnd,
           paymentStatus: paymentStatus || "UNPAID",
+          packageType: packageType || "FULL_SUITE",
+          enabledModules: computedModules,
         },
       });
 
@@ -283,6 +297,12 @@ export async function POST(req: NextRequest) {
         where: { businessId_key: { businessId: newBiz.id, key: "billing_payment_status" } },
         update: { value: paymentStatus || "UNPAID" },
         create: { businessId: newBiz.id, key: "billing_payment_status", value: paymentStatus || "UNPAID" },
+      }).catch(() => null);
+
+      await prisma.appSetting.upsert({
+        where: { businessId_key: { businessId: newBiz.id, key: "software_package_type" } },
+        update: { value: packageType || "FULL_SUITE" },
+        create: { businessId: newBiz.id, key: "software_package_type", value: packageType || "FULL_SUITE" },
       }).catch(() => null);
 
       // Save FBR Digital Invoicing Configuration
@@ -314,7 +334,8 @@ export async function POST(req: NextRequest) {
           fbrStatus: body.fbrToken ? "CONFIGURED" : "PENDING_SETUP",
           monthlyFee: Number(monthlyFee),
           billingPlan,
-          enabledModules: modules,
+          packageType: packageType || "FULL_SUITE",
+          enabledModules: computedModules,
           billingCycleEnd: billingCycleEnd || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
         },
         message: "Company created successfully with FBR Digital Invoicing profile",
@@ -348,7 +369,8 @@ export async function POST(req: NextRequest) {
         billingCycleStart: billingCycleStart || new Date().toISOString(),
         billingCycleEnd: billingCycleEnd || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
         paymentStatus: paymentStatus || "UNPAID",
-        enabledModules: modules,
+        packageType: packageType || "FULL_SUITE",
+        enabledModules: computedModules,
       });
 
       return NextResponse.json({

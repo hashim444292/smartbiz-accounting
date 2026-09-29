@@ -52,8 +52,18 @@ export async function PUT(
           billingCycleStart: body.billingCycleStart ? new Date(body.billingCycleStart) : undefined,
           billingCycleEnd: body.billingCycleEnd ? new Date(body.billingCycleEnd) : undefined,
           paymentStatus: body.paymentStatus !== undefined ? body.paymentStatus : undefined,
+          packageType: body.packageType !== undefined ? body.packageType : undefined,
+          enabledModules: body.enabledModules !== undefined ? body.enabledModules : undefined,
         },
       });
+
+      if (body.packageType !== undefined) {
+        await prisma.appSetting.upsert({
+          where: { businessId_key: { businessId: id, key: "software_package_type" } },
+          update: { value: body.packageType },
+          create: { businessId: id, key: "software_package_type", value: body.packageType },
+        }).catch(() => null);
+      }
 
       if (body.monthlyFee !== undefined) {
         await prisma.appSetting.upsert({

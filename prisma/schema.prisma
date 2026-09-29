@@ -132,6 +132,8 @@ model Business {
   billingCycleStart   DateTime?            @default(now())
   billingCycleEnd     DateTime?
   paymentStatus       String?              @default("UNPAID")
+  packageType         String?              @default("FULL_SUITE")
+  enabledModules      String[]             @default([])
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
 

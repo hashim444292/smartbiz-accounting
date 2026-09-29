@@ -15,7 +15,6 @@ import {
   Building2,
   AlertCircle,
   X,
-  Key,
   LogIn,
   Receipt,
   ShoppingCart,
@@ -31,7 +30,6 @@ import {
   Store,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/context/AuthContext";
 import { BrandPageLoader, TableSkeleton } from "@/components/ui/loader";
 
@@ -71,7 +69,6 @@ const ROLE_PRESETS = [
     role: "ACCOUNTANT",
     modules: [
       "sales",
-      "pos",
       "purchases",
       "payments",
       "expenses",
@@ -156,16 +153,47 @@ export default function UsersManagementPage() {
     fetchUsersAndCompanies();
   }, []);
 
+  // Check assigned companies for current form state
+  const assignedCompanies = companies.filter((c) => formData.companyIds.includes(c.id));
+
+  // Determine if POS and DI (Digital Invoicing) are allowed based on selected company/companies
+  const isPosOrDiAllowed =
+    assignedCompanies.length === 0 ||
+    assignedCompanies.some(
+      (c) =>
+        c.packageType === "FULL_SUITE" ||
+        (c.enabledModules &&
+          (c.enabledModules.includes("pos") || c.enabledModules.includes("compliance")))
+    );
+
+  // Available feature modules filtered strictly according to company package
+  const availableModules = isPosOrDiAllowed
+    ? USER_FEATURE_MODULES
+    : USER_FEATURE_MODULES.filter((m) => m.id !== "pos" && m.id !== "compliance");
+
+  // Available role presets filtered according to company package
+  const availableRolePresets = isPosOrDiAllowed
+    ? ROLE_PRESETS
+    : ROLE_PRESETS.filter((p) => p.name !== "Cashier / POS").map((p) => ({
+        ...p,
+        modules: p.modules.filter((m) => m !== "pos" && m !== "compliance"),
+      }));
+
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
     setSubmitting(true);
 
     try {
+      // Ensure no forbidden modules if company is Accounting Only
+      const sanitizedModules = isPosOrDiAllowed
+        ? formData.allowedModules
+        : formData.allowedModules.filter((m) => m !== "pos" && m !== "compliance");
+
       const res = await fetch("/api/admin/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({ ...formData, allowedModules: sanitizedModules }),
       });
       const data = await res.json();
 
@@ -177,7 +205,7 @@ export default function UsersManagementPage() {
           password: "",
           role: "STAFF",
           companyIds: [],
-          allowedModules: ["sales", "pos", "customers", "products"],
+          allowedModules: ["sales", "customers", "products"],
         });
         await fetchUsersAndCompanies();
       } else {
@@ -197,10 +225,14 @@ export default function UsersManagementPage() {
     setSubmitting(true);
 
     try {
+      const sanitizedModules = isPosOrDiAllowed
+        ? formData.allowedModules
+        : formData.allowedModules.filter((m) => m !== "pos" && m !== "compliance");
+
       const res = await fetch(`/api/admin/users/${selectedUser.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({ ...formData, allowedModules: sanitizedModules }),
       });
       const data = await res.json();
 
@@ -251,17 +283,28 @@ export default function UsersManagementPage() {
   const openEditModal = (u: any) => {
     setSelectedUser(u);
     const assignedIds = u.companies ? u.companies.map((c: any) => c.id) : [];
-    
-    // Determine initial allowed modules for edit
-    let initialModules = ["sales", "pos", "customers", "products"];
+    const assigned = companies.filter((c) => assignedIds.includes(c.id));
+    const allowsPos =
+      assigned.length === 0 ||
+      assigned.some(
+        (c) =>
+          c.packageType === "FULL_SUITE" ||
+          (c.enabledModules &&
+            (c.enabledModules.includes("pos") || c.enabledModules.includes("compliance")))
+      );
+
+    let initialModules = allowsPos ? ["sales", "pos", "customers", "products"] : ["sales", "customers", "products"];
     if (Array.isArray(u.allowedModules) && u.allowedModules.length > 0) {
-      initialModules = u.allowedModules;
+      initialModules = allowsPos
+        ? u.allowedModules
+        : u.allowedModules.filter((m: string) => m !== "pos" && m !== "compliance");
     } else if (u.role === "SUPER_ADMIN" || u.role === "OWNER_ADMIN") {
-      initialModules = USER_FEATURE_MODULES.map((m) => m.id);
+      initialModules = allowsPos
+        ? USER_FEATURE_MODULES.map((m) => m.id)
+        : USER_FEATURE_MODULES.filter((m) => m.id !== "pos" && m.id !== "compliance").map((m) => m.id);
     } else if (u.role === "ACCOUNTANT") {
       initialModules = [
         "sales",
-        "pos",
         "purchases",
         "payments",
         "expenses",
@@ -287,11 +330,28 @@ export default function UsersManagementPage() {
   const toggleCompanySelection = (id: string) => {
     setFormData((prev) => {
       const exists = prev.companyIds.includes(id);
+      const nextIds = exists
+        ? prev.companyIds.filter((item) => item !== id)
+        : [...prev.companyIds, id];
+
+      const assigned = companies.filter((c) => nextIds.includes(c.id));
+      const allowsPos =
+        assigned.length === 0 ||
+        assigned.some(
+          (c) =>
+            c.packageType === "FULL_SUITE" ||
+            (c.enabledModules &&
+              (c.enabledModules.includes("pos") || c.enabledModules.includes("compliance")))
+        );
+
+      const nextAllowed = allowsPos
+        ? prev.allowedModules
+        : prev.allowedModules.filter((m) => m !== "pos" && m !== "compliance");
+
       return {
         ...prev,
-        companyIds: exists
-          ? prev.companyIds.filter((item) => item !== id)
-          : [...prev.companyIds, id],
+        companyIds: nextIds,
+        allowedModules: nextAllowed,
       };
     });
   };
@@ -402,13 +462,22 @@ export default function UsersManagementPage() {
 
         <button
           onClick={() => {
+            const firstComp = companies.length > 0 ? companies[0] : null;
+            const allowsPos =
+              !firstComp ||
+              firstComp.packageType === "FULL_SUITE" ||
+              (firstComp.enabledModules &&
+                (firstComp.enabledModules.includes("pos") || firstComp.enabledModules.includes("compliance")));
+
             setFormData({
               name: "",
               email: "",
               password: "",
               role: "STAFF",
-              companyIds: companies.length > 0 ? [companies[0].id] : [],
-              allowedModules: ["sales", "pos", "customers", "products"],
+              companyIds: firstComp ? [firstComp.id] : [],
+              allowedModules: allowsPos
+                ? ["sales", "pos", "customers", "products"]
+                : ["sales", "customers", "products"],
             });
             setFormError(null);
             setModalOpen(true);
@@ -447,7 +516,7 @@ export default function UsersManagementPage() {
               <option value="ALL">All Companies</option>
               {companies.map((c) => (
                 <option key={c.id} value={c.id}>
-                  {c.name}
+                  {c.name} {c.packageType === "ACCOUNTING_ONLY" ? "(Accounting Only)" : "(Full Suite)"}
                 </option>
               ))}
             </select>
@@ -559,6 +628,11 @@ export default function UsersManagementPage() {
                             >
                               <Building2 className="h-3 w-3 text-blue-500" />
                               <span className="truncate max-w-[120px]">{c.name}</span>
+                              {c.packageType === "ACCOUNTING_ONLY" && (
+                                <span className="text-[8px] bg-blue-100 text-blue-800 dark:bg-blue-900/60 dark:text-blue-300 px-1 rounded font-bold">
+                                  Acc
+                                </span>
+                              )}
                             </span>
                           ))
                         ) : (
@@ -644,7 +718,7 @@ export default function UsersManagementPage() {
                     Add New User Account (نیا صارف اکاؤنٹ بنائیں)
                   </h3>
                   <p className="text-[11px] text-slate-500">
-                    Define account credentials, select allowed feature tabs, and assign companies.
+                    Enter credentials, assign company, and select allowed feature modules.
                   </p>
                 </div>
               </div>
@@ -709,6 +783,99 @@ export default function UsersManagementPage() {
                 </div>
               </div>
 
+              {/* Step 2: Assign Company Access First (Drives available modules) */}
+              <div className="border-t border-slate-100 dark:border-slate-800 pt-3">
+                <div className="flex items-center justify-between mb-1">
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-900 dark:text-slate-100 uppercase block">
+                      Assign Company Access (کمپنی منتخب کریں) *
+                    </label>
+                    <p className="text-[10px] text-slate-500">
+                      کمپنی منتخب کرنے پر اس کے پیکیج (Accounting Only یا Full Suite) کے مطابق اختیارات نظر آئیں گے۔
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-[10px]">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setFormData({ ...formData, companyIds: companies.map((c) => c.id) })
+                      }
+                      className="text-purple-600 hover:underline font-semibold"
+                    >
+                      All
+                    </button>
+                    <span className="text-slate-300">|</span>
+                    <button
+                      type="button"
+                      onClick={() => setFormData({ ...formData, companyIds: [] })}
+                      className="text-slate-500 hover:underline"
+                    >
+                      None
+                    </button>
+                  </div>
+                </div>
+                <div className="space-y-1.5 max-h-28 overflow-y-auto border border-slate-200 dark:border-slate-700 rounded-2xl p-2.5 bg-slate-50 dark:bg-slate-800/60">
+                  {companies.map((c) => {
+                    const checked = formData.companyIds.includes(c.id);
+                    const isAccOnly =
+                      c.packageType === "ACCOUNTING_ONLY" ||
+                      (c.enabledModules &&
+                        !c.enabledModules.includes("pos") &&
+                        !c.enabledModules.includes("compliance"));
+                    return (
+                      <label
+                        key={c.id}
+                        className={`flex items-center justify-between p-1.5 rounded-xl border text-xs cursor-pointer transition ${
+                          checked
+                            ? "bg-purple-50 dark:bg-purple-950/40 border-purple-300 text-purple-900 dark:text-purple-100 font-bold"
+                            : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => toggleCompanySelection(c.id)}
+                            className="rounded text-purple-600 focus:ring-purple-500 h-3.5 w-3.5"
+                          />
+                          <span className="truncate">{c.name}</span>
+                          <span className="text-[10px] text-slate-400 font-normal">({c.currency || "PKR"})</span>
+                        </div>
+                        <span
+                          className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
+                            isAccOnly
+                              ? "bg-blue-100 text-blue-800 dark:bg-blue-900/60 dark:text-blue-300"
+                              : "bg-purple-100 text-purple-800 dark:bg-purple-900/60 dark:text-purple-300"
+                          }`}
+                        >
+                          {isAccOnly ? "📘 Accounting Only" : "🚀 Full Suite"}
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Package Feedback Alert */}
+              {!isPosOrDiAllowed ? (
+                <div className="p-3 rounded-2xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 text-blue-900 dark:text-blue-200 text-xs flex items-start gap-2.5">
+                  <AlertCircle className="h-4 w-4 shrink-0 text-blue-600 mt-0.5" />
+                  <div>
+                    <span className="font-bold block">کمپنی کا پیکیج: صرف اکاؤنٹنگ (Accounting Only)</span>
+                    <span className="text-[11px] text-blue-700 dark:text-blue-300">
+                      اس کمپنی کے پاس صرف اکاؤنٹنگ اور کھاتہ کا پیکیج ہے۔ لہٰذا نیچے سے POS ریٹیل کاؤنٹر اور FBR ڈیجیٹل انوائسنگ (DI) کے اختیارات خودکار ہٹا دیے گئے ہیں۔
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-2.5 rounded-2xl bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800 text-purple-900 dark:text-purple-200 text-xs flex items-center gap-2">
+                  <ShieldCheck className="h-4 w-4 shrink-0 text-purple-600" />
+                  <span className="text-[11px]">
+                    <strong>کمپنی کا پیکیج Full Enterprise Suite ہے:</strong> POS کاؤنٹر، FBR ڈیجیٹل انوائسنگ مع تمام اکاؤنٹنگ اختیارات تفویض کیے جا سکتے ہیں۔
+                  </span>
+                </div>
+              )}
+
               {/* Granular Module Checkboxes Section */}
               <div className="space-y-2 border-t border-slate-100 dark:border-slate-800 pt-3">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5">
@@ -717,7 +884,7 @@ export default function UsersManagementPage() {
                       Module & Tab Access Rights (اختیارات و ٹیب رسائی) *
                     </label>
                     <p className="text-[10px] text-slate-500">
-                      پورٹل کے وہ تمام ٹیبز چیک کریں جن کی رسائی اس صارف کو دینی ہے (مثلاً POS، Sales، Purchases وغیرہ)
+                      پورٹل کے وہ تمام ٹیبز چیک کریں جن کی رسائی اس صارف کو دینی ہے:
                     </p>
                   </div>
                   <div className="flex items-center gap-1.5 text-[11px]">
@@ -726,7 +893,7 @@ export default function UsersManagementPage() {
                       onClick={() =>
                         setFormData({
                           ...formData,
-                          allowedModules: USER_FEATURE_MODULES.map((m) => m.id),
+                          allowedModules: availableModules.map((m) => m.id),
                         })
                       }
                       className="px-2 py-0.5 rounded-md bg-purple-50 hover:bg-purple-100 text-purple-700 font-bold border border-purple-200 transition text-[10px]"
@@ -749,7 +916,7 @@ export default function UsersManagementPage() {
                     <span>⚡ Quick Role Presets (فوری کردار منتخب کریں):</span>
                   </div>
                   <div className="flex flex-wrap gap-1.5">
-                    {ROLE_PRESETS.map((preset) => {
+                    {availableRolePresets.map((preset) => {
                       const isSelected =
                         formData.role === preset.role &&
                         preset.modules.every((m) => formData.allowedModules.includes(m)) &&
@@ -775,7 +942,7 @@ export default function UsersManagementPage() {
 
                 {/* Checkboxes Grid */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-56 overflow-y-auto p-2 border border-slate-200 dark:border-slate-700 rounded-2xl bg-white dark:bg-slate-900/60">
-                  {USER_FEATURE_MODULES.map((mod) => {
+                  {availableModules.map((mod) => {
                     const isChecked = formData.allowedModules.includes(mod.id);
                     const ModIcon = mod.icon;
                     return (
@@ -818,7 +985,7 @@ export default function UsersManagementPage() {
                     <strong className="text-purple-600 font-bold">
                       {formData.allowedModules.length}
                     </strong>{" "}
-                    / {USER_FEATURE_MODULES.length}
+                    / {availableModules.length}
                   </span>
                   <span className="italic text-slate-400">
                     صارف لاگ ان ہو کر صرف انہی منتخب ٹیبز کو دیکھ سکے گا
@@ -827,69 +994,20 @@ export default function UsersManagementPage() {
               </div>
 
               {/* Underlying System Role */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 border-t border-slate-100 dark:border-slate-800 pt-3">
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase mb-1">
-                    System Security Role
-                  </label>
-                  <select
-                    value={formData.role}
-                    onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs focus:ring-2 focus:ring-purple-500 font-semibold"
-                  >
-                    <option value="STAFF">STAFF (Cashier / POS Operator / Field Staff)</option>
-                    <option value="ACCOUNTANT">ACCOUNTANT (Accounts & Financial Management)</option>
-                    <option value="OWNER_ADMIN">OWNER_ADMIN (Shop Owner / General Manager)</option>
-                    <option value="SUPER_ADMIN">SUPER_ADMIN (Platform Administrator)</option>
-                  </select>
-                </div>
-
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase">
-                      Assign Company Access
-                    </label>
-                    <div className="flex items-center gap-1.5 text-[10px]">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setFormData({ ...formData, companyIds: companies.map((c) => c.id) })
-                        }
-                        className="text-purple-600 hover:underline font-semibold"
-                      >
-                        All
-                      </button>
-                      <span className="text-slate-300">|</span>
-                      <button
-                        type="button"
-                        onClick={() => setFormData({ ...formData, companyIds: [] })}
-                        className="text-slate-500 hover:underline"
-                      >
-                        None
-                      </button>
-                    </div>
-                  </div>
-                  <div className="space-y-1 max-h-24 overflow-y-auto border border-slate-200 dark:border-slate-700 rounded-xl p-2 bg-slate-50 dark:bg-slate-800/60">
-                    {companies.map((c) => {
-                      const checked = formData.companyIds.includes(c.id);
-                      return (
-                        <label
-                          key={c.id}
-                          className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300 cursor-pointer p-0.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={() => toggleCompanySelection(c.id)}
-                            className="rounded text-purple-600 focus:ring-purple-500 h-3.5 w-3.5"
-                          />
-                          <span className="font-semibold text-[11px] truncate">{c.name}</span>
-                          <span className="text-[9px] text-slate-400">({c.currency || "PKR"})</span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                </div>
+              <div className="border-t border-slate-100 dark:border-slate-800 pt-3">
+                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase mb-1">
+                  System Security Role
+                </label>
+                <select
+                  value={formData.role}
+                  onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs focus:ring-2 focus:ring-purple-500 font-semibold"
+                >
+                  <option value="STAFF">STAFF (Cashier / Operator / Field Staff)</option>
+                  <option value="ACCOUNTANT">ACCOUNTANT (Accounts & Financial Management)</option>
+                  <option value="OWNER_ADMIN">OWNER_ADMIN (Shop Owner / General Manager)</option>
+                  <option value="SUPER_ADMIN">SUPER_ADMIN (Platform Administrator)</option>
+                </select>
               </div>
 
               <div className="pt-3 flex items-center justify-end gap-2 border-t border-slate-100 dark:border-slate-800">
@@ -989,6 +1107,99 @@ export default function UsersManagementPage() {
                 </div>
               </div>
 
+              {/* Assign Company Access */}
+              <div className="border-t border-slate-100 dark:border-slate-800 pt-3">
+                <div className="flex items-center justify-between mb-1">
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-900 dark:text-slate-100 uppercase block">
+                      Assigned Companies (کمپنی رسائی)
+                    </label>
+                    <p className="text-[10px] text-slate-500">
+                      کمپنی منتخب کرنے پر اس کے پیکیج (Accounting Only یا Full Suite) کے مطابق اختیارات نظر آئیں گے۔
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-[10px]">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setFormData({ ...formData, companyIds: companies.map((c) => c.id) })
+                      }
+                      className="text-purple-600 hover:underline font-semibold"
+                    >
+                      All
+                    </button>
+                    <span className="text-slate-300">|</span>
+                    <button
+                      type="button"
+                      onClick={() => setFormData({ ...formData, companyIds: [] })}
+                      className="text-slate-500 hover:underline"
+                    >
+                      None
+                    </button>
+                  </div>
+                </div>
+                <div className="space-y-1.5 max-h-28 overflow-y-auto border border-slate-200 dark:border-slate-700 rounded-2xl p-2.5 bg-slate-50 dark:bg-slate-800/60">
+                  {companies.map((c) => {
+                    const checked = formData.companyIds.includes(c.id);
+                    const isAccOnly =
+                      c.packageType === "ACCOUNTING_ONLY" ||
+                      (c.enabledModules &&
+                        !c.enabledModules.includes("pos") &&
+                        !c.enabledModules.includes("compliance"));
+                    return (
+                      <label
+                        key={c.id}
+                        className={`flex items-center justify-between p-1.5 rounded-xl border text-xs cursor-pointer transition ${
+                          checked
+                            ? "bg-purple-50 dark:bg-purple-950/40 border-purple-300 text-purple-900 dark:text-purple-100 font-bold"
+                            : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => toggleCompanySelection(c.id)}
+                            className="rounded text-purple-600 focus:ring-purple-500 h-3.5 w-3.5"
+                          />
+                          <span className="truncate">{c.name}</span>
+                          <span className="text-[10px] text-slate-400 font-normal">({c.currency || "PKR"})</span>
+                        </div>
+                        <span
+                          className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
+                            isAccOnly
+                              ? "bg-blue-100 text-blue-800 dark:bg-blue-900/60 dark:text-blue-300"
+                              : "bg-purple-100 text-purple-800 dark:bg-purple-900/60 dark:text-purple-300"
+                          }`}
+                        >
+                          {isAccOnly ? "📘 Accounting Only" : "🚀 Full Suite"}
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Package Feedback Alert */}
+              {!isPosOrDiAllowed ? (
+                <div className="p-3 rounded-2xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 text-blue-900 dark:text-blue-200 text-xs flex items-start gap-2.5">
+                  <AlertCircle className="h-4 w-4 shrink-0 text-blue-600 mt-0.5" />
+                  <div>
+                    <span className="font-bold block">کمپنی کا پیکیج: صرف اکاؤنٹنگ (Accounting Only)</span>
+                    <span className="text-[11px] text-blue-700 dark:text-blue-300">
+                      اس کمپنی کے پاس صرف اکاؤنٹنگ اور کھاتہ کا پیکیج ہے۔ لہٰذا نیچے سے POS ریٹیل کاؤنٹر اور FBR ڈیجیٹل انوائسنگ (DI) کے اختیارات خودکار ہٹا دیے گئے ہیں۔
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-2.5 rounded-2xl bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800 text-purple-900 dark:text-purple-200 text-xs flex items-center gap-2">
+                  <ShieldCheck className="h-4 w-4 shrink-0 text-purple-600" />
+                  <span className="text-[11px]">
+                    <strong>کمپنی کا پیکیج Full Enterprise Suite ہے:</strong> POS کاؤنٹر، FBR ڈیجیٹل انوائسنگ مع تمام اکاؤنٹنگ اختیارات تفویض کیے جا سکتے ہیں۔
+                  </span>
+                </div>
+              )}
+
               {/* Granular Module Checkboxes Section */}
               <div className="space-y-2 border-t border-slate-100 dark:border-slate-800 pt-3">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5">
@@ -997,7 +1208,7 @@ export default function UsersManagementPage() {
                       Module & Tab Access Rights (اختیارات و ٹیب رسائی) *
                     </label>
                     <p className="text-[10px] text-slate-500">
-                      کسٹمر پورٹل کے وہ تمام ٹیبز چیک کریں جن کی رسائی اس صارف کو دینی ہے (مثلاً POS، Sales، Purchases وغیرہ)
+                      پورٹل کے وہ تمام ٹیبز چیک کریں جن کی رسائی اس صارف کو دینی ہے:
                     </p>
                   </div>
                   <div className="flex items-center gap-1.5 text-[11px]">
@@ -1006,7 +1217,7 @@ export default function UsersManagementPage() {
                       onClick={() =>
                         setFormData({
                           ...formData,
-                          allowedModules: USER_FEATURE_MODULES.map((m) => m.id),
+                          allowedModules: availableModules.map((m) => m.id),
                         })
                       }
                       className="px-2 py-0.5 rounded-md bg-purple-50 hover:bg-purple-100 text-purple-700 font-bold border border-purple-200 transition text-[10px]"
@@ -1029,7 +1240,7 @@ export default function UsersManagementPage() {
                     <span>⚡ Quick Role Presets (فوری کردار منتخب کریں):</span>
                   </div>
                   <div className="flex flex-wrap gap-1.5">
-                    {ROLE_PRESETS.map((preset) => {
+                    {availableRolePresets.map((preset) => {
                       const isSelected =
                         formData.role === preset.role &&
                         preset.modules.every((m) => formData.allowedModules.includes(m)) &&
@@ -1055,7 +1266,7 @@ export default function UsersManagementPage() {
 
                 {/* Checkboxes Grid */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-56 overflow-y-auto p-2 border border-slate-200 dark:border-slate-700 rounded-2xl bg-white dark:bg-slate-900/60">
-                  {USER_FEATURE_MODULES.map((mod) => {
+                  {availableModules.map((mod) => {
                     const isChecked = formData.allowedModules.includes(mod.id);
                     const ModIcon = mod.icon;
                     return (
@@ -1098,7 +1309,7 @@ export default function UsersManagementPage() {
                     <strong className="text-purple-600 font-bold">
                       {formData.allowedModules.length}
                     </strong>{" "}
-                    / {USER_FEATURE_MODULES.length}
+                    / {availableModules.length}
                   </span>
                   <span className="italic text-slate-400">
                     صارف لاگ ان ہو کر صرف انہی منتخب ٹیبز کو دیکھ سکے گا
@@ -1106,70 +1317,21 @@ export default function UsersManagementPage() {
                 </div>
               </div>
 
-              {/* Underlying System Role & Companies */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 border-t border-slate-100 dark:border-slate-800 pt-3">
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase mb-1">
-                    System Security Role
-                  </label>
-                  <select
-                    value={formData.role}
-                    onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs focus:ring-2 focus:ring-purple-500 font-semibold"
-                  >
-                    <option value="STAFF">STAFF (Cashier / POS Operator / Field Staff)</option>
-                    <option value="ACCOUNTANT">ACCOUNTANT (Accounts & Financial Management)</option>
-                    <option value="OWNER_ADMIN">OWNER_ADMIN (Shop Owner / General Manager)</option>
-                    <option value="SUPER_ADMIN">SUPER_ADMIN (Platform Administrator)</option>
-                  </select>
-                </div>
-
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase">
-                      Assigned Companies
-                    </label>
-                    <div className="flex items-center gap-1.5 text-[10px]">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setFormData({ ...formData, companyIds: companies.map((c) => c.id) })
-                        }
-                        className="text-purple-600 hover:underline font-semibold"
-                      >
-                        All
-                      </button>
-                      <span className="text-slate-300">|</span>
-                      <button
-                        type="button"
-                        onClick={() => setFormData({ ...formData, companyIds: [] })}
-                        className="text-slate-500 hover:underline"
-                      >
-                        None
-                      </button>
-                    </div>
-                  </div>
-                  <div className="space-y-1 max-h-24 overflow-y-auto border border-slate-200 dark:border-slate-700 rounded-xl p-2 bg-slate-50 dark:bg-slate-800/60">
-                    {companies.map((c) => {
-                      const checked = formData.companyIds.includes(c.id);
-                      return (
-                        <label
-                          key={c.id}
-                          className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300 cursor-pointer p-0.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={() => toggleCompanySelection(c.id)}
-                            className="rounded text-purple-600 focus:ring-purple-500 h-3.5 w-3.5"
-                          />
-                          <span className="font-semibold text-[11px] truncate">{c.name}</span>
-                          <span className="text-[9px] text-slate-400">({c.currency || "PKR"})</span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                </div>
+              {/* Underlying System Role */}
+              <div className="border-t border-slate-100 dark:border-slate-800 pt-3">
+                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase mb-1">
+                  System Security Role
+                </label>
+                <select
+                  value={formData.role}
+                  onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs focus:ring-2 focus:ring-purple-500 font-semibold"
+                >
+                  <option value="STAFF">STAFF (Cashier / Operator / Field Staff)</option>
+                  <option value="ACCOUNTANT">ACCOUNTANT (Accounts & Financial Management)</option>
+                  <option value="OWNER_ADMIN">OWNER_ADMIN (Shop Owner / General Manager)</option>
+                  <option value="SUPER_ADMIN">SUPER_ADMIN (Platform Administrator)</option>
+                </select>
               </div>
 
               <div className="pt-3 flex items-center justify-end gap-2 border-t border-slate-100 dark:border-slate-800">

@@ -110,8 +110,10 @@ export default function CompaniesManagementPage() {
     fbrPosId: "822646",
     fbrScenarioId: "SN000",
     fbrAutoSync: false,
+    packageType: "FULL_SUITE" as "ACCOUNTING_ONLY" | "FULL_SUITE",
     enabledModules: [
       "sales",
+      "pos",
       "purchases",
       "inventory",
       "accounting",
@@ -413,8 +415,13 @@ export default function CompaniesManagementPage() {
       fbrPosId: comp.fbrPosId || "822646",
       fbrScenarioId: comp.fbrScenarioId || "SN000",
       fbrAutoSync: Boolean(comp.fbrAutoSync),
+      packageType: (comp.packageType === "ACCOUNTING_ONLY" || 
+        (comp.enabledModules && !comp.enabledModules.includes("compliance") && !comp.enabledModules.includes("pos")))
+        ? "ACCOUNTING_ONLY"
+        : "FULL_SUITE",
       enabledModules: comp.enabledModules || [
         "sales",
+        "pos",
         "purchases",
         "inventory",
         "accounting",
@@ -803,9 +810,15 @@ export default function CompaniesManagementPage() {
                                 HS {comp.defaultHsCode}
                               </span>
                             )}
-                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-200">
-                              🛡️ {comp.enabledModules ? `${comp.enabledModules.length}/8` : "8/8"} Modules
-                            </span>
+                            {comp.packageType === "ACCOUNTING_ONLY" || (comp.enabledModules && !comp.enabledModules.includes("compliance") && !comp.enabledModules.includes("pos")) ? (
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200">
+                                📘 Accounting Only (صرف اکاؤنٹنگ)
+                              </span>
+                            ) : (
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-200">
+                                🚀 Full Suite: Accounting + POS + DI
+                              </span>
+                            )}
                             <button
                               type="button"
                               onClick={() => handleToggleMultiBranch(comp)}
@@ -1370,46 +1383,137 @@ export default function CompaniesManagementPage() {
                 </div>
               </div>
 
-              {/* Feature Modules Entitlement / Gating */}
-              <div className="p-3.5 rounded-xl border border-purple-200 bg-purple-50/40 space-y-3">
+              {/* Software Package & Edition (2 Clean Options) */}
+              <div className="p-4 rounded-2xl border border-purple-200 bg-purple-50/30 dark:bg-purple-950/20 dark:border-purple-800/60 space-y-3">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5 text-xs font-bold text-purple-900">
+                  <div className="flex items-center gap-2 text-xs font-bold text-purple-950 dark:text-purple-200">
                     <Shield className="h-4 w-4 text-purple-600" />
-                    <span>Company Feature Access & Modules ("kis company ko kitna access dena hai")</span>
+                    <span className="uppercase tracking-wider">Software Package & Edition (سافٹ ویئر پیکیج منتخب کریں) *</span>
                   </div>
-                  <span className="text-[10px] font-bold text-purple-700 bg-purple-100 px-2 py-0.5 rounded-full">
-                    {formData.enabledModules?.length || 0} / {AVAILABLE_MODULES.length} Selected
+                  <span className="text-[10px] font-bold text-purple-700 bg-purple-100 dark:bg-purple-900/60 dark:text-purple-300 px-2.5 py-0.5 rounded-full">
+                    2 Plans Available
                   </span>
                 </div>
-                <p className="text-[11px] text-slate-600">
-                  Select which software modules are unlocked for this company. Disabled modules will be hidden from their sidebar.
+                <p className="text-[11px] text-slate-600 dark:text-slate-400">
+                  منتخب کریں کہ کلائنٹ صرف اکاؤنٹنگ کے لیے سافٹ ویئر لے رہا ہے یا مکمل سافٹ ویئر مع POS اور FBR ڈیجیٹل انوائسنگ:
                 </p>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {AVAILABLE_MODULES.map((mod) => {
-                    const isChecked = formData.enabledModules?.includes(mod.id);
-                    return (
-                      <label
-                        key={mod.id}
-                        className={`flex items-start gap-2.5 p-2.5 rounded-xl border cursor-pointer transition ${
-                          isChecked
-                            ? "bg-white border-purple-300 shadow-2xs"
-                            : "bg-slate-50/60 border-slate-200 opacity-60 hover:opacity-100"
-                        }`}
-                      >
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Option 1: Accounting Only */}
+                  <div
+                    onClick={() =>
+                      setFormData({
+                        ...formData,
+                        packageType: "ACCOUNTING_ONLY",
+                        enabledModules: ["sales", "purchases", "inventory", "accounting", "reports", "aiEntry", "bulkImport"],
+                      })
+                    }
+                    className={`flex flex-col justify-between p-3.5 rounded-2xl border-2 cursor-pointer transition select-none ${
+                      formData.packageType === "ACCOUNTING_ONLY"
+                        ? "bg-white dark:bg-slate-900 border-blue-500 shadow-md ring-2 ring-blue-500/20"
+                        : "bg-white/60 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800 hover:border-slate-300 opacity-75"
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        <span className="px-2 py-0.5 rounded-md bg-blue-100 text-blue-800 dark:bg-blue-900/60 dark:text-blue-300 text-[10px] font-black uppercase tracking-wide">
+                          Option 1: Accounting Only
+                        </span>
                         <input
-                          type="checkbox"
-                          checked={isChecked}
-                          onChange={() => toggleModule(mod.id)}
-                          className="mt-0.5 rounded border-slate-300 text-purple-600 focus:ring-purple-500"
+                          type="radio"
+                          name="registerPackageType"
+                          value="ACCOUNTING_ONLY"
+                          checked={formData.packageType === "ACCOUNTING_ONLY"}
+                          onChange={() => {}}
+                          className="text-blue-600 focus:ring-blue-500 h-4 w-4"
                         />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-bold text-slate-900">{mod.label}</p>
-                          <p className="text-[10px] text-slate-500 leading-tight">{mod.desc}</p>
-                        </div>
-                      </label>
-                    );
-                  })}
+                      </div>
+                      <h4 className="text-xs font-black text-slate-900 dark:text-white flex items-center gap-1.5">
+                        <span>📘 صرف اکاؤنٹنگ سافٹ ویئر</span>
+                      </h4>
+                      <p className="text-[11px] text-slate-500 mt-1">
+                        خالص اکاؤنٹنگ، ادھار کھاتہ، خریداری، روزمرہ اخراجات، اسٹاک، نفع نقصان اور بیلنس شیٹ۔
+                      </p>
+                    </div>
+
+                    <div className="mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800 space-y-1 text-[10px]">
+                      <div className="text-emerald-600 font-semibold flex items-center gap-1">
+                        ✓ ڈبل انٹری جنرل لیجر و کھاتہ
+                      </div>
+                      <div className="text-emerald-600 font-semibold flex items-center gap-1">
+                        ✓ خریداری، اخراجات، کسٹمر/سپلائر لیجر
+                      </div>
+                      <div className="text-rose-500 font-medium flex items-center gap-1">
+                        ✗ POS ریٹیل کاؤنٹر شامل نہیں
+                      </div>
+                      <div className="text-rose-500 font-medium flex items-center gap-1">
+                        ✗ FBR ڈیجیٹل انوائسنگ شامل نہیں
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Option 2: Full Enterprise Suite */}
+                  <div
+                    onClick={() =>
+                      setFormData({
+                        ...formData,
+                        packageType: "FULL_SUITE",
+                        enabledModules: [
+                          "sales",
+                          "pos",
+                          "purchases",
+                          "inventory",
+                          "accounting",
+                          "compliance",
+                          "reports",
+                          "aiEntry",
+                          "bulkImport",
+                        ],
+                      })
+                    }
+                    className={`flex flex-col justify-between p-3.5 rounded-2xl border-2 cursor-pointer transition select-none ${
+                      formData.packageType === "FULL_SUITE"
+                        ? "bg-white dark:bg-slate-900 border-purple-600 shadow-md ring-2 ring-purple-600/20"
+                        : "bg-white/60 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800 hover:border-slate-300 opacity-75"
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        <span className="px-2 py-0.5 rounded-md bg-purple-100 text-purple-800 dark:bg-purple-900/60 dark:text-purple-300 text-[10px] font-black uppercase tracking-wide">
+                          Option 2: Full Suite (Recommended)
+                        </span>
+                        <input
+                          type="radio"
+                          name="registerPackageType"
+                          value="FULL_SUITE"
+                          checked={formData.packageType === "FULL_SUITE"}
+                          onChange={() => {}}
+                          className="text-purple-600 focus:ring-purple-500 h-4 w-4"
+                        />
+                      </div>
+                      <h4 className="text-xs font-black text-slate-900 dark:text-white flex items-center gap-1.5">
+                        <span>🚀 مکمل سافٹ ویئر (Accounting + POS + DI)</span>
+                      </h4>
+                      <p className="text-[11px] text-slate-500 mt-1">
+                        تمام سہولیات شامل: ریٹیل POS بلنگ کاؤنٹر، FBR لائیو ڈیجیٹل انوائسنگ مع QR رسید + مکمل اکاؤنٹنگ۔
+                      </p>
+                    </div>
+
+                    <div className="mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800 space-y-1 text-[10px]">
+                      <div className="text-emerald-600 font-semibold flex items-center gap-1">
+                        ✓ تمام اکاؤنٹنگ، کھاتہ و جنرل لیجر
+                      </div>
+                      <div className="text-emerald-600 font-semibold flex items-center gap-1">
+                        ✓ فاسٹ ریٹیل POS کاؤنٹر و بارکوڈ
+                      </div>
+                      <div className="text-purple-600 font-bold flex items-center gap-1">
+                        ✓ FBR POS و ڈیجیٹل انوائسنگ (QR کوڈ)
+                      </div>
+                      <div className="text-emerald-600 font-semibold flex items-center gap-1">
+                        ✓ مال اسکینر، ملٹی برانچ و تمام رپورٹس
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -1888,46 +1992,137 @@ export default function CompaniesManagementPage() {
                 </div>
               </div>
 
-              {/* Feature Modules Entitlement / Gating */}
-              <div className="p-3.5 rounded-xl border border-purple-200 bg-purple-50/40 space-y-3">
+              {/* Software Package & Edition (2 Clean Options) */}
+              <div className="p-4 rounded-2xl border border-purple-200 bg-purple-50/30 dark:bg-purple-950/20 dark:border-purple-800/60 space-y-3">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5 text-xs font-bold text-purple-900">
+                  <div className="flex items-center gap-2 text-xs font-bold text-purple-950 dark:text-purple-200">
                     <Shield className="h-4 w-4 text-purple-600" />
-                    <span>Company Feature Access & Modules ("kis company ko kitna access dena hai")</span>
+                    <span className="uppercase tracking-wider">Software Package & Edition (سافٹ ویئر پیکیج) *</span>
                   </div>
-                  <span className="text-[10px] font-bold text-purple-700 bg-purple-100 px-2 py-0.5 rounded-full">
-                    {formData.enabledModules?.length || 0} / {AVAILABLE_MODULES.length} Selected
+                  <span className="text-[10px] font-bold text-purple-700 bg-purple-100 dark:bg-purple-900/60 dark:text-purple-300 px-2.5 py-0.5 rounded-full">
+                    2 Plans Available
                   </span>
                 </div>
-                <p className="text-[11px] text-slate-600">
-                  Select which software modules are unlocked for this company. Disabled modules will be hidden from their sidebar.
+                <p className="text-[11px] text-slate-600 dark:text-slate-400">
+                  اس کمپنی کا پیکیج منتخب یا تبدیل کریں:
                 </p>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {AVAILABLE_MODULES.map((mod) => {
-                    const isChecked = formData.enabledModules?.includes(mod.id);
-                    return (
-                      <label
-                        key={mod.id}
-                        className={`flex items-start gap-2.5 p-2.5 rounded-xl border cursor-pointer transition ${
-                          isChecked
-                            ? "bg-white border-purple-300 shadow-2xs"
-                            : "bg-slate-50/60 border-slate-200 opacity-60 hover:opacity-100"
-                        }`}
-                      >
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Option 1: Accounting Only */}
+                  <div
+                    onClick={() =>
+                      setFormData({
+                        ...formData,
+                        packageType: "ACCOUNTING_ONLY",
+                        enabledModules: ["sales", "purchases", "inventory", "accounting", "reports", "aiEntry", "bulkImport"],
+                      })
+                    }
+                    className={`flex flex-col justify-between p-3.5 rounded-2xl border-2 cursor-pointer transition select-none ${
+                      formData.packageType === "ACCOUNTING_ONLY"
+                        ? "bg-white dark:bg-slate-900 border-blue-500 shadow-md ring-2 ring-blue-500/20"
+                        : "bg-white/60 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800 hover:border-slate-300 opacity-75"
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        <span className="px-2 py-0.5 rounded-md bg-blue-100 text-blue-800 dark:bg-blue-900/60 dark:text-blue-300 text-[10px] font-black uppercase tracking-wide">
+                          Option 1: Accounting Only
+                        </span>
                         <input
-                          type="checkbox"
-                          checked={isChecked}
-                          onChange={() => toggleModule(mod.id)}
-                          className="mt-0.5 rounded border-slate-300 text-purple-600 focus:ring-purple-500"
+                          type="radio"
+                          name="editPackageType"
+                          value="ACCOUNTING_ONLY"
+                          checked={formData.packageType === "ACCOUNTING_ONLY"}
+                          onChange={() => {}}
+                          className="text-blue-600 focus:ring-blue-500 h-4 w-4"
                         />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-bold text-slate-900">{mod.label}</p>
-                          <p className="text-[10px] text-slate-500 leading-tight">{mod.desc}</p>
-                        </div>
-                      </label>
-                    );
-                  })}
+                      </div>
+                      <h4 className="text-xs font-black text-slate-900 dark:text-white flex items-center gap-1.5">
+                        <span>📘 صرف اکاؤنٹنگ سافٹ ویئر</span>
+                      </h4>
+                      <p className="text-[11px] text-slate-500 mt-1">
+                        خالص اکاؤنٹنگ، ادھار کھاتہ، خریداری، روزمرہ اخراجات، اسٹاک، نفع نقصان اور بیلنس شیٹ۔
+                      </p>
+                    </div>
+
+                    <div className="mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800 space-y-1 text-[10px]">
+                      <div className="text-emerald-600 font-semibold flex items-center gap-1">
+                        ✓ ڈبل انٹری جنرل لیجر و کھاتہ
+                      </div>
+                      <div className="text-emerald-600 font-semibold flex items-center gap-1">
+                        ✓ خریداری، اخراجات، کسٹمر/سپلائر لیجر
+                      </div>
+                      <div className="text-rose-500 font-medium flex items-center gap-1">
+                        ✗ POS ریٹیل کاؤنٹر شامل نہیں
+                      </div>
+                      <div className="text-rose-500 font-medium flex items-center gap-1">
+                        ✗ FBR ڈیجیٹل انوائسنگ شامل نہیں
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Option 2: Full Enterprise Suite */}
+                  <div
+                    onClick={() =>
+                      setFormData({
+                        ...formData,
+                        packageType: "FULL_SUITE",
+                        enabledModules: [
+                          "sales",
+                          "pos",
+                          "purchases",
+                          "inventory",
+                          "accounting",
+                          "compliance",
+                          "reports",
+                          "aiEntry",
+                          "bulkImport",
+                        ],
+                      })
+                    }
+                    className={`flex flex-col justify-between p-3.5 rounded-2xl border-2 cursor-pointer transition select-none ${
+                      formData.packageType === "FULL_SUITE"
+                        ? "bg-white dark:bg-slate-900 border-purple-600 shadow-md ring-2 ring-purple-600/20"
+                        : "bg-white/60 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800 hover:border-slate-300 opacity-75"
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        <span className="px-2 py-0.5 rounded-md bg-purple-100 text-purple-800 dark:bg-purple-900/60 dark:text-purple-300 text-[10px] font-black uppercase tracking-wide">
+                          Option 2: Full Suite (Recommended)
+                        </span>
+                        <input
+                          type="radio"
+                          name="editPackageType"
+                          value="FULL_SUITE"
+                          checked={formData.packageType === "FULL_SUITE"}
+                          onChange={() => {}}
+                          className="text-purple-600 focus:ring-purple-500 h-4 w-4"
+                        />
+                      </div>
+                      <h4 className="text-xs font-black text-slate-900 dark:text-white flex items-center gap-1.5">
+                        <span>🚀 مکمل سافٹ ویئر (Accounting + POS + DI)</span>
+                      </h4>
+                      <p className="text-[11px] text-slate-500 mt-1">
+                        تمام سہولیات شامل: ریٹیل POS بلنگ کاؤنٹر، FBR لائیو ڈیجیٹل انوائسنگ مع QR رسید + مکمل اکاؤنٹنگ۔
+                      </p>
+                    </div>
+
+                    <div className="mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800 space-y-1 text-[10px]">
+                      <div className="text-emerald-600 font-semibold flex items-center gap-1">
+                        ✓ تمام اکاؤنٹنگ، کھاتہ و جنرل لیجر
+                      </div>
+                      <div className="text-emerald-600 font-semibold flex items-center gap-1">
+                        ✓ فاسٹ ریٹیل POS کاؤنٹر و بارکوڈ
+                      </div>
+                      <div className="text-purple-600 font-bold flex items-center gap-1">
+                        ✓ FBR POS و ڈیجیٹل انوائسنگ (QR کوڈ)
+                      </div>
+                      <div className="text-emerald-600 font-semibold flex items-center gap-1">
+                        ✓ مال اسکینر، ملٹی برانچ و تمام رپورٹس
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
 
