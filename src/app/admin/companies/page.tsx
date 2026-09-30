@@ -294,10 +294,25 @@ export default function CompaniesManagementPage() {
     setSubmitting(true);
 
     try {
+      const isAcctOnly = formData.packageType === "ACCOUNTING_ONLY";
+      const payload = {
+        ...formData,
+        defaultHsCode: isAcctOnly ? "" : formData.defaultHsCode,
+        ntn: isAcctOnly ? "" : formData.ntn,
+        strn: isAcctOnly ? "" : formData.strn,
+        fbrToken: isAcctOnly ? "" : formData.fbrToken,
+        fbrPosId: isAcctOnly ? "" : formData.fbrPosId,
+        fbrScenarioId: isAcctOnly ? "" : formData.fbrScenarioId,
+        fbrAutoSync: isAcctOnly ? false : formData.fbrAutoSync,
+        enabledModules: isAcctOnly
+          ? (formData.enabledModules || []).filter((m: string) => m !== "pos" && m !== "compliance")
+          : formData.enabledModules,
+      };
+
       const res = await fetch("/api/admin/companies", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
 
@@ -322,10 +337,25 @@ export default function CompaniesManagementPage() {
     setSubmitting(true);
 
     try {
+      const isAcctOnly = formData.packageType === "ACCOUNTING_ONLY";
+      const payload = {
+        ...formData,
+        defaultHsCode: isAcctOnly ? "" : formData.defaultHsCode,
+        ntn: isAcctOnly ? "" : formData.ntn,
+        strn: isAcctOnly ? "" : formData.strn,
+        fbrToken: isAcctOnly ? "" : formData.fbrToken,
+        fbrPosId: isAcctOnly ? "" : formData.fbrPosId,
+        fbrScenarioId: isAcctOnly ? "" : formData.fbrScenarioId,
+        fbrAutoSync: isAcctOnly ? false : formData.fbrAutoSync,
+        enabledModules: isAcctOnly
+          ? (formData.enabledModules || []).filter((m: string) => m !== "pos" && m !== "compliance")
+          : formData.enabledModules,
+      };
+
       const res = await fetch(`/api/admin/companies/${selectedCompany.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
 
@@ -1539,45 +1569,47 @@ export default function CompaniesManagementPage() {
                 </p>
               </div>
 
-              {/* Critical Default HS Code & UOM */}
-              <div className="p-3.5 rounded-xl border border-indigo-200 bg-indigo-50/50 space-y-3">
-                <div className="flex items-center gap-1.5 text-xs font-bold text-indigo-900">
-                  <Layers className="h-4 w-4 text-indigo-600" />
-                  <span>Client Default Classification & Tariff</span>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
-                      Default HS Code *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="e.g. 8517.13"
-                      value={formData.defaultHsCode}
-                      onChange={(e) => setFormData({ ...formData, defaultHsCode: e.target.value })}
-                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 font-mono focus:border-indigo-500 focus:outline-none"
-                    />
-                    <p className="text-[10px] text-slate-500 mt-1">
-                      New products & imports for this client will inherit this tariff code by default.
-                    </p>
+              {/* Critical Default HS Code & UOM - Only for Full Suite */}
+              {formData.packageType === "FULL_SUITE" && (
+                <div className="p-3.5 rounded-xl border border-indigo-200 bg-indigo-50/50 space-y-3">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-indigo-900">
+                    <Layers className="h-4 w-4 text-indigo-600" />
+                    <span>Client Default Classification & Tariff</span>
                   </div>
 
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
-                      Default UOM
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="e.g. pcs"
-                      value={formData.defaultUom}
-                      onChange={(e) => setFormData({ ...formData, defaultUom: e.target.value })}
-                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:border-indigo-500 focus:outline-none"
-                    />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                        Default HS Code *
+                      </label>
+                      <input
+                        type="text"
+                        required={formData.packageType === "FULL_SUITE"}
+                        placeholder="e.g. 8517.13"
+                        value={formData.defaultHsCode}
+                        onChange={(e) => setFormData({ ...formData, defaultHsCode: e.target.value })}
+                        className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 font-mono focus:border-indigo-500 focus:outline-none"
+                      />
+                      <p className="text-[10px] text-slate-500 mt-1">
+                        New products & imports for this client will inherit this tariff code by default.
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                        Default UOM
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. pcs"
+                        value={formData.defaultUom}
+                        onChange={(e) => setFormData({ ...formData, defaultUom: e.target.value })}
+                        className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:border-indigo-500 focus:outline-none"
+                      />
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
@@ -1608,33 +1640,36 @@ export default function CompaniesManagementPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
-                    National Tax Number (NTN)
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g. 1234567-8"
-                    value={formData.ntn}
-                    onChange={(e) => setFormData({ ...formData, ntn: e.target.value })}
-                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 font-mono focus:border-indigo-500 focus:outline-none"
-                  />
-                </div>
+              {/* NTN & STRN - Only for Full Suite */}
+              {formData.packageType === "FULL_SUITE" && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                      National Tax Number (NTN)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. 1234567-8"
+                      value={formData.ntn}
+                      onChange={(e) => setFormData({ ...formData, ntn: e.target.value })}
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 font-mono focus:border-indigo-500 focus:outline-none"
+                    />
+                  </div>
 
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
-                    Sales Tax Reg. (STRN)
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g. 17-00-1234-567-89"
-                    value={formData.strn}
-                    onChange={(e) => setFormData({ ...formData, strn: e.target.value })}
-                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 font-mono focus:border-indigo-500 focus:outline-none"
-                  />
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                      Sales Tax Reg. (STRN)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. 17-00-1234-567-89"
+                      value={formData.strn}
+                      onChange={(e) => setFormData({ ...formData, strn: e.target.value })}
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 font-mono focus:border-indigo-500 focus:outline-none"
+                    />
+                  </div>
                 </div>
-              </div>
+              )}
 
               <div>
                 <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
@@ -1649,160 +1684,162 @@ export default function CompaniesManagementPage() {
                 />
               </div>
 
-              {/* FBR Compliance & Integration Profile */}
-              <div className="p-3.5 rounded-xl border border-indigo-200 bg-indigo-50/50 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5 text-xs font-bold text-indigo-950">
-                    <Shield className="h-4 w-4 text-indigo-600" />
-                    <span>FBR Compliance & Fiscalization Configuration</span>
+              {/* FBR Compliance & Integration Profile - Only for Full Suite */}
+              {formData.packageType === "FULL_SUITE" && (
+                <div className="p-3.5 rounded-xl border border-indigo-200 bg-indigo-50/50 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-indigo-950">
+                      <Shield className="h-4 w-4 text-indigo-600" />
+                      <span>FBR Compliance & Fiscalization Configuration</span>
+                    </div>
+                    <span className="rounded bg-indigo-100 text-indigo-800 text-[10px] font-bold px-2 py-0.5 font-mono">
+                      {formData.fbrIntegrationType === "TIER1_POS" ? "ims.fbr.gov.pk" : "gw.fbr.gov.pk"}
+                    </span>
                   </div>
-                  <span className="rounded bg-indigo-100 text-indigo-800 text-[10px] font-bold px-2 py-0.5 font-mono">
-                    {formData.fbrIntegrationType === "TIER1_POS" ? "ims.fbr.gov.pk" : "gw.fbr.gov.pk"}
-                  </span>
-                </div>
 
-                {/* Integration Mode / Engine */}
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
-                    FBR Integration Engine / Mode *
-                  </label>
-                  <select
-                    value={formData.fbrIntegrationType || "DIGITAL_INVOICING"}
-                    onChange={(e) => setFormData({ ...formData, fbrIntegrationType: e.target.value })}
-                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-bold text-indigo-950 focus:border-indigo-500 focus:outline-none"
-                  >
-                    <option value="DIGITAL_INVOICING">🏷️ Digital Invoicing (DI) — Wholesale / B2B Only</option>
-                    <option value="TIER1_POS">🛒 Tier-1 Retail POS (IMS) — Counter / B2C Only</option>
-                    <option value="BOTH">⚡ Both (DI + Tier-1 POS) — B2B Wholesale & Retail Counter</option>
-                  </select>
-                  <p className="text-[10px] text-slate-500 mt-1">
-                    {formData.fbrIntegrationType === "TIER1_POS"
-                      ? "Transmits retail sales to FBR IMS POS gateway with Rs. 1 POS fee & 18-digit QR code verification."
-                      : formData.fbrIntegrationType === "BOTH"
-                      ? "Dual-Engine: B2B invoices with customer NTN/CNIC transmit to Digital Invoicing (DI), while walk-in retail sales transmit to Tier-1 POS (IMS)."
-                      : "Transmits sales tax electronic invoices to FBR Digital Invoicing gateway with official tax schedules."}
-                  </p>
-                </div>
-
-                <div className={`grid grid-cols-1 ${formData.fbrIntegrationType === "BOTH" ? "sm:grid-cols-3" : "sm:grid-cols-2"} gap-3`}>
+                  {/* Integration Mode / Engine */}
                   <div>
                     <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
-                      Gateway Environment
+                      FBR Integration Engine / Mode *
                     </label>
                     <select
-                      value={formData.fbrEnv}
-                      onChange={(e) => setFormData({ ...formData, fbrEnv: e.target.value })}
-                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:border-indigo-500 focus:outline-none"
+                      value={formData.fbrIntegrationType || "DIGITAL_INVOICING"}
+                      onChange={(e) => setFormData({ ...formData, fbrIntegrationType: e.target.value })}
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-bold text-indigo-950 focus:border-indigo-500 focus:outline-none"
                     >
-                      <option value="sandbox">🧪 Sandbox Test</option>
-                      <option value="production">🏢 Live Production</option>
+                      <option value="DIGITAL_INVOICING">🏷️ Digital Invoicing (DI) — Wholesale / B2B Only</option>
+                      <option value="TIER1_POS">🛒 Tier-1 Retail POS (IMS) — Counter / B2C Only</option>
+                      <option value="BOTH">⚡ Both (DI + Tier-1 POS) — B2B Wholesale & Retail Counter</option>
                     </select>
-                  </div>
-
-                  {(formData.fbrIntegrationType === "TIER1_POS" || formData.fbrIntegrationType === "BOTH") && (
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
-                        POS Registration ID *
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="e.g. 822646"
-                        value={formData.fbrPosId}
-                        onChange={(e) => setFormData({ ...formData, fbrPosId: e.target.value })}
-                        className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-mono text-slate-900 focus:border-indigo-500 focus:outline-none"
-                      />
-                    </div>
-                  )}
-
-                  {(formData.fbrIntegrationType === "DIGITAL_INVOICING" || formData.fbrIntegrationType === "BOTH") && (
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
-                        Scenario ID
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="SN000"
-                        value={formData.fbrScenarioId}
-                        onChange={(e) => setFormData({ ...formData, fbrScenarioId: e.target.value })}
-                        className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-mono text-slate-900 focus:border-indigo-500 focus:outline-none"
-                      />
-                    </div>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
-                    FBR Bearer Security Token
-                  </label>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      placeholder="Paste FBR Bearer Token / Auth Key here..."
-                      value={formData.fbrToken}
-                      onChange={(e) => setFormData({ ...formData, fbrToken: e.target.value })}
-                      className="flex-1 px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-mono text-slate-900 focus:border-indigo-500 focus:outline-none"
-                    />
-                    <button
-                      type="button"
-                      onClick={() =>
-                        testFbrConnection(
-                          formData.fbrToken,
-                          formData.fbrEnv,
-                          formData.fbrIntegrationType,
-                          formData.fbrPosId
-                        )
-                      }
-                      disabled={testingFbr}
-                      className="px-3 py-2 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-xl text-xs font-bold hover:bg-indigo-100 shrink-0"
-                    >
-                      {testingFbr ? "Testing..." : "Test FBR Gateway"}
-                    </button>
-                  </div>
-                  {fbrTestMessage && (
-                    <p
-                      className={`text-[11px] font-medium mt-1.5 p-2 rounded-lg border ${
-                        fbrTestMessage.success
-                          ? "bg-emerald-50 text-emerald-800 border-emerald-200"
-                          : "bg-amber-50 text-amber-900 border-amber-200"
-                      }`}
-                    >
-                      {fbrTestMessage.text}
-                    </p>
-                  )}
-                  <p className="text-[10px] text-slate-500 mt-1">
-                    Endpoint:{" "}
-                    <code>
+                    <p className="text-[10px] text-slate-500 mt-1">
                       {formData.fbrIntegrationType === "TIER1_POS"
-                        ? formData.fbrEnv === "production"
-                          ? "https://ims.fbr.gov.pk/api/Live/PostData"
-                          : "https://gw.fbr.gov.pk/imsp/v1/api/Live/PostData"
-                        : formData.fbrEnv === "production"
-                        ? "https://gw.fbr.gov.pk/di_data/v1/di/postinvoicedata"
-                        : "https://gw.fbr.gov.pk/di_data/v1/di/postinvoicedata_sb"}
-                    </code>
-                  </p>
-                </div>
-
-                <div className="flex items-center justify-between pt-1">
-                  <div>
-                    <span className="text-xs font-bold text-slate-800 block">
-                      Auto-Sync Invoices to FBR on Post
-                    </span>
-                    <span className="text-[10px] text-slate-500">
-                      Instantly hit FBR when a sale invoice is posted with full payment
-                    </span>
+                        ? "Transmits retail sales to FBR IMS POS gateway with Rs. 1 POS fee & 18-digit QR code verification."
+                        : formData.fbrIntegrationType === "BOTH"
+                        ? "Dual-Engine: B2B invoices with customer NTN/CNIC transmit to Digital Invoicing (DI), while walk-in retail sales transmit to Tier-1 POS (IMS)."
+                        : "Transmits sales tax electronic invoices to FBR Digital Invoicing gateway with official tax schedules."}
+                    </p>
                   </div>
-                  <label className="relative inline-flex items-center cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={Boolean(formData.fbrAutoSync)}
-                      onChange={(e) => setFormData({ ...formData, fbrAutoSync: e.target.checked })}
-                      className="sr-only peer"
-                    />
-                    <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
-                  </label>
+
+                  <div className={`grid grid-cols-1 ${formData.fbrIntegrationType === "BOTH" ? "sm:grid-cols-3" : "sm:grid-cols-2"} gap-3`}>
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                        Gateway Environment
+                      </label>
+                      <select
+                        value={formData.fbrEnv}
+                        onChange={(e) => setFormData({ ...formData, fbrEnv: e.target.value })}
+                        className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:border-indigo-500 focus:outline-none"
+                      >
+                        <option value="sandbox">🧪 Sandbox Test</option>
+                        <option value="production">🏢 Live Production</option>
+                      </select>
+                    </div>
+
+                    {(formData.fbrIntegrationType === "TIER1_POS" || formData.fbrIntegrationType === "BOTH") && (
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                          POS Registration ID *
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="e.g. 822646"
+                          value={formData.fbrPosId}
+                          onChange={(e) => setFormData({ ...formData, fbrPosId: e.target.value })}
+                          className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-mono text-slate-900 focus:border-indigo-500 focus:outline-none"
+                        />
+                      </div>
+                    )}
+
+                    {(formData.fbrIntegrationType === "DIGITAL_INVOICING" || formData.fbrIntegrationType === "BOTH") && (
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                          Scenario ID
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="SN000"
+                          value={formData.fbrScenarioId}
+                          onChange={(e) => setFormData({ ...formData, fbrScenarioId: e.target.value })}
+                          className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-mono text-slate-900 focus:border-indigo-500 focus:outline-none"
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                      FBR Bearer Security Token
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        placeholder="Paste FBR Bearer Token / Auth Key here..."
+                        value={formData.fbrToken}
+                        onChange={(e) => setFormData({ ...formData, fbrToken: e.target.value })}
+                        className="flex-1 px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-mono text-slate-900 focus:border-indigo-500 focus:outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={() =>
+                          testFbrConnection(
+                            formData.fbrToken,
+                            formData.fbrEnv,
+                            formData.fbrIntegrationType,
+                            formData.fbrPosId
+                          )
+                        }
+                        disabled={testingFbr}
+                        className="px-3 py-2 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-xl text-xs font-bold hover:bg-indigo-100 shrink-0"
+                      >
+                        {testingFbr ? "Testing..." : "Test FBR Gateway"}
+                      </button>
+                    </div>
+                    {fbrTestMessage && (
+                      <p
+                        className={`text-[11px] font-medium mt-1.5 p-2 rounded-lg border ${
+                          fbrTestMessage.success
+                            ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                            : "bg-amber-50 text-amber-900 border-amber-200"
+                        }`}
+                      >
+                        {fbrTestMessage.text}
+                      </p>
+                    )}
+                    <p className="text-[10px] text-slate-500 mt-1">
+                      Endpoint:{" "}
+                      <code>
+                        {formData.fbrIntegrationType === "TIER1_POS"
+                          ? formData.fbrEnv === "production"
+                            ? "https://ims.fbr.gov.pk/api/Live/PostData"
+                            : "https://gw.fbr.gov.pk/imsp/v1/api/Live/PostData"
+                          : formData.fbrEnv === "production"
+                          ? "https://gw.fbr.gov.pk/di_data/v1/di/postinvoicedata"
+                          : "https://gw.fbr.gov.pk/di_data/v1/di/postinvoicedata_sb"}
+                      </code>
+                    </p>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-1">
+                    <div>
+                      <span className="text-xs font-bold text-slate-800 block">
+                        Auto-Sync Invoices to FBR on Post
+                      </span>
+                      <span className="text-[10px] text-slate-500">
+                        Instantly hit FBR when a sale invoice is posted with full payment
+                      </span>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(formData.fbrAutoSync)}
+                        onChange={(e) => setFormData({ ...formData, fbrAutoSync: e.target.checked })}
+                        className="sr-only peer"
+                      />
+                      <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
+                    </label>
+                  </div>
                 </div>
-              </div>
+              )}
 
               <div className="pt-3 flex items-center justify-end gap-2 border-t border-slate-100">
                 <button
@@ -2148,40 +2185,42 @@ export default function CompaniesManagementPage() {
                 </p>
               </div>
 
-              {/* Classification */}
-              <div className="p-3.5 rounded-xl border border-indigo-200 bg-indigo-50/50 space-y-3">
-                <div className="flex items-center gap-1.5 text-xs font-bold text-indigo-900">
-                  <Layers className="h-4 w-4 text-indigo-600" />
-                  <span>Client Default Classification & Tariff</span>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
-                      Default HS Code *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={formData.defaultHsCode}
-                      onChange={(e) => setFormData({ ...formData, defaultHsCode: e.target.value })}
-                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 font-mono focus:border-indigo-500 focus:outline-none"
-                    />
+              {/* Classification - Only for Full Suite */}
+              {formData.packageType === "FULL_SUITE" && (
+                <div className="p-3.5 rounded-xl border border-indigo-200 bg-indigo-50/50 space-y-3">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-indigo-900">
+                    <Layers className="h-4 w-4 text-indigo-600" />
+                    <span>Client Default Classification & Tariff</span>
                   </div>
 
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
-                      Default UOM
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.defaultUom}
-                      onChange={(e) => setFormData({ ...formData, defaultUom: e.target.value })}
-                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:border-indigo-500 focus:outline-none"
-                    />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                        Default HS Code *
+                      </label>
+                      <input
+                        type="text"
+                        required={formData.packageType === "FULL_SUITE"}
+                        value={formData.defaultHsCode}
+                        onChange={(e) => setFormData({ ...formData, defaultHsCode: e.target.value })}
+                        className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 font-mono focus:border-indigo-500 focus:outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                        Default UOM
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.defaultUom}
+                        onChange={(e) => setFormData({ ...formData, defaultUom: e.target.value })}
+                        className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:border-indigo-500 focus:outline-none"
+                      />
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
@@ -2209,168 +2248,170 @@ export default function CompaniesManagementPage() {
                 </div>
               </div>
 
-              {/* FBR Compliance & Integration Profile */}
-              <div className="p-3.5 rounded-xl border border-indigo-200 bg-indigo-50/50 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5 text-xs font-bold text-indigo-950">
-                    <Shield className="h-4 w-4 text-indigo-600" />
-                    <span>FBR Compliance & Fiscalization Configuration</span>
+              {/* FBR Compliance & Integration Profile - Only for Full Suite */}
+              {formData.packageType === "FULL_SUITE" && (
+                <div className="p-3.5 rounded-xl border border-indigo-200 bg-indigo-50/50 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-indigo-950">
+                      <Shield className="h-4 w-4 text-indigo-600" />
+                      <span>FBR Compliance & Fiscalization Configuration</span>
+                    </div>
+                    <span className="rounded bg-indigo-100 text-indigo-800 text-[10px] font-bold px-2 py-0.5 font-mono">
+                      {formData.fbrIntegrationType === "TIER1_POS"
+                        ? "ims.fbr.gov.pk"
+                        : formData.fbrIntegrationType === "BOTH"
+                        ? "gw + ims.fbr.gov.pk"
+                        : "gw.fbr.gov.pk"}
+                    </span>
                   </div>
-                  <span className="rounded bg-indigo-100 text-indigo-800 text-[10px] font-bold px-2 py-0.5 font-mono">
-                    {formData.fbrIntegrationType === "TIER1_POS"
-                      ? "ims.fbr.gov.pk"
-                      : formData.fbrIntegrationType === "BOTH"
-                      ? "gw + ims.fbr.gov.pk"
-                      : "gw.fbr.gov.pk"}
-                  </span>
-                </div>
 
-                {/* Integration Mode / Engine */}
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
-                    FBR Integration Engine / Mode *
-                  </label>
-                  <select
-                    value={formData.fbrIntegrationType || "DIGITAL_INVOICING"}
-                    onChange={(e) => setFormData({ ...formData, fbrIntegrationType: e.target.value })}
-                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-bold text-indigo-950 focus:border-indigo-500 focus:outline-none"
-                  >
-                    <option value="DIGITAL_INVOICING">🏷️ Digital Invoicing (DI) — Wholesale / B2B Only</option>
-                    <option value="TIER1_POS">🛒 Tier-1 Retail POS (IMS) — Counter / B2C Only</option>
-                    <option value="BOTH">⚡ Both (DI + Tier-1 POS) — B2B Wholesale & Retail Counter</option>
-                  </select>
-                  <p className="text-[10px] text-slate-500 mt-1">
-                    {formData.fbrIntegrationType === "TIER1_POS"
-                      ? "Transmits retail sales to FBR IMS POS gateway with Rs. 1 POS fee & 18-digit QR code verification."
-                      : formData.fbrIntegrationType === "BOTH"
-                      ? "Dual-Engine: B2B invoices with customer NTN/CNIC transmit to Digital Invoicing (DI), while walk-in retail sales transmit to Tier-1 POS (IMS)."
-                      : "Transmits sales tax electronic invoices to FBR Digital Invoicing gateway with official tax schedules."}
-                  </p>
-                </div>
-
-                <div className={`grid grid-cols-1 ${formData.fbrIntegrationType === "BOTH" ? "sm:grid-cols-3" : "sm:grid-cols-2"} gap-3`}>
+                  {/* Integration Mode / Engine */}
                   <div>
                     <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
-                      Gateway Environment
+                      FBR Integration Engine / Mode *
                     </label>
                     <select
-                      value={formData.fbrEnv}
-                      onChange={(e) => setFormData({ ...formData, fbrEnv: e.target.value })}
-                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:border-indigo-500 focus:outline-none"
+                      value={formData.fbrIntegrationType || "DIGITAL_INVOICING"}
+                      onChange={(e) => setFormData({ ...formData, fbrIntegrationType: e.target.value })}
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-bold text-indigo-950 focus:border-indigo-500 focus:outline-none"
                     >
-                      <option value="sandbox">🧪 Sandbox Test</option>
-                      <option value="production">🏢 Live Production</option>
+                      <option value="DIGITAL_INVOICING">🏷️ Digital Invoicing (DI) — Wholesale / B2B Only</option>
+                      <option value="TIER1_POS">🛒 Tier-1 Retail POS (IMS) — Counter / B2C Only</option>
+                      <option value="BOTH">⚡ Both (DI + Tier-1 POS) — B2B Wholesale & Retail Counter</option>
                     </select>
-                  </div>
-
-                  {(formData.fbrIntegrationType === "TIER1_POS" || formData.fbrIntegrationType === "BOTH") && (
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
-                        POS Registration ID *
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="e.g. 822646"
-                        value={formData.fbrPosId}
-                        onChange={(e) => setFormData({ ...formData, fbrPosId: e.target.value })}
-                        className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-mono text-slate-900 focus:border-indigo-500 focus:outline-none"
-                      />
-                    </div>
-                  )}
-
-                  {(formData.fbrIntegrationType === "DIGITAL_INVOICING" || formData.fbrIntegrationType === "BOTH") && (
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
-                        Scenario ID
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="SN000"
-                        value={formData.fbrScenarioId}
-                        onChange={(e) => setFormData({ ...formData, fbrScenarioId: e.target.value })}
-                        className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-mono text-slate-900 focus:border-indigo-500 focus:outline-none"
-                      />
-                    </div>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
-                    FBR Bearer Security Token
-                  </label>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      placeholder="Paste FBR Bearer Token / Auth Key here..."
-                      value={formData.fbrToken}
-                      onChange={(e) => setFormData({ ...formData, fbrToken: e.target.value })}
-                      className="flex-1 px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-mono text-slate-900 focus:border-indigo-500 focus:outline-none"
-                    />
-                    <button
-                      type="button"
-                      onClick={() =>
-                        testFbrConnection(
-                          formData.fbrToken,
-                          formData.fbrEnv,
-                          formData.fbrIntegrationType,
-                          formData.fbrPosId
-                        )
-                      }
-                      disabled={testingFbr}
-                      className="px-3 py-2 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-xl text-xs font-bold hover:bg-indigo-100 shrink-0"
-                    >
-                      {testingFbr ? "Testing..." : "Test FBR Gateway"}
-                    </button>
-                  </div>
-                  {fbrTestMessage && (
-                    <p
-                      className={`text-[11px] font-medium mt-1.5 p-2 rounded-lg border ${
-                        fbrTestMessage.success
-                          ? "bg-emerald-50 text-emerald-800 border-emerald-200"
-                          : "bg-amber-50 text-amber-900 border-amber-200"
-                      }`}
-                    >
-                      {fbrTestMessage.text}
-                    </p>
-                  )}
-                  <p className="text-[10px] text-slate-500 mt-1">
-                    Endpoint:{" "}
-                    <code>
+                    <p className="text-[10px] text-slate-500 mt-1">
                       {formData.fbrIntegrationType === "TIER1_POS"
-                        ? formData.fbrEnv === "production"
-                          ? "https://ims.fbr.gov.pk/api/Live/PostData"
-                          : "https://gw.fbr.gov.pk/imsp/v1/api/Live/PostData"
+                        ? "Transmits retail sales to FBR IMS POS gateway with Rs. 1 POS fee & 18-digit QR code verification."
                         : formData.fbrIntegrationType === "BOTH"
-                        ? formData.fbrEnv === "production"
-                          ? "B2B: gw.fbr.gov.pk | POS: ims.fbr.gov.pk"
-                          : "B2B: di_data/postinvoicedata_sb | POS: imsp/v1/api/Live/PostData"
-                        : formData.fbrEnv === "production"
-                        ? "https://gw.fbr.gov.pk/di_data/v1/di/postinvoicedata"
-                        : "https://gw.fbr.gov.pk/di_data/v1/di/postinvoicedata_sb"}
-                    </code>
-                  </p>
-                </div>
-
-                <div className="flex items-center justify-between pt-1">
-                  <div>
-                    <span className="text-xs font-bold text-slate-800 block">
-                      Auto-Sync Invoices to FBR on Post
-                    </span>
-                    <span className="text-[10px] text-slate-500">
-                      Instantly hit FBR when a sale invoice is posted with full payment
-                    </span>
+                        ? "Dual-Engine: B2B invoices with customer NTN/CNIC transmit to Digital Invoicing (DI), while walk-in retail sales transmit to Tier-1 POS (IMS)."
+                        : "Transmits sales tax electronic invoices to FBR Digital Invoicing gateway with official tax schedules."}
+                    </p>
                   </div>
-                  <label className="relative inline-flex items-center cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={Boolean(formData.fbrAutoSync)}
-                      onChange={(e) => setFormData({ ...formData, fbrAutoSync: e.target.checked })}
-                      className="sr-only peer"
-                    />
-                    <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
-                  </label>
+
+                  <div className={`grid grid-cols-1 ${formData.fbrIntegrationType === "BOTH" ? "sm:grid-cols-3" : "sm:grid-cols-2"} gap-3`}>
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                        Gateway Environment
+                      </label>
+                      <select
+                        value={formData.fbrEnv}
+                        onChange={(e) => setFormData({ ...formData, fbrEnv: e.target.value })}
+                        className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:border-indigo-500 focus:outline-none"
+                      >
+                        <option value="sandbox">🧪 Sandbox Test</option>
+                        <option value="production">🏢 Live Production</option>
+                      </select>
+                    </div>
+
+                    {(formData.fbrIntegrationType === "TIER1_POS" || formData.fbrIntegrationType === "BOTH") && (
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                          POS Registration ID *
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="e.g. 822646"
+                          value={formData.fbrPosId}
+                          onChange={(e) => setFormData({ ...formData, fbrPosId: e.target.value })}
+                          className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-mono text-slate-900 focus:border-indigo-500 focus:outline-none"
+                        />
+                      </div>
+                    )}
+
+                    {(formData.fbrIntegrationType === "DIGITAL_INVOICING" || formData.fbrIntegrationType === "BOTH") && (
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                          Scenario ID
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="SN000"
+                          value={formData.fbrScenarioId}
+                          onChange={(e) => setFormData({ ...formData, fbrScenarioId: e.target.value })}
+                          className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-mono text-slate-900 focus:border-indigo-500 focus:outline-none"
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                      FBR Bearer Security Token
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        placeholder="Paste FBR Bearer Token / Auth Key here..."
+                        value={formData.fbrToken}
+                        onChange={(e) => setFormData({ ...formData, fbrToken: e.target.value })}
+                        className="flex-1 px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-mono text-slate-900 focus:border-indigo-500 focus:outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={() =>
+                          testFbrConnection(
+                            formData.fbrToken,
+                            formData.fbrEnv,
+                            formData.fbrIntegrationType,
+                            formData.fbrPosId
+                          )
+                        }
+                        disabled={testingFbr}
+                        className="px-3 py-2 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-xl text-xs font-bold hover:bg-indigo-100 shrink-0"
+                      >
+                        {testingFbr ? "Testing..." : "Test FBR Gateway"}
+                      </button>
+                    </div>
+                    {fbrTestMessage && (
+                      <p
+                        className={`text-[11px] font-medium mt-1.5 p-2 rounded-lg border ${
+                          fbrTestMessage.success
+                            ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                            : "bg-amber-50 text-amber-900 border-amber-200"
+                        }`}
+                      >
+                        {fbrTestMessage.text}
+                      </p>
+                    )}
+                    <p className="text-[10px] text-slate-500 mt-1">
+                      Endpoint:{" "}
+                      <code>
+                        {formData.fbrIntegrationType === "TIER1_POS"
+                          ? formData.fbrEnv === "production"
+                            ? "https://ims.fbr.gov.pk/api/Live/PostData"
+                            : "https://gw.fbr.gov.pk/imsp/v1/api/Live/PostData"
+                          : formData.fbrIntegrationType === "BOTH"
+                          ? formData.fbrEnv === "production"
+                            ? "B2B: gw.fbr.gov.pk | POS: ims.fbr.gov.pk"
+                            : "B2B: di_data/postinvoicedata_sb | POS: imsp/v1/api/Live/PostData"
+                          : formData.fbrEnv === "production"
+                          ? "https://gw.fbr.gov.pk/di_data/v1/di/postinvoicedata"
+                          : "https://gw.fbr.gov.pk/di_data/v1/di/postinvoicedata_sb"}
+                      </code>
+                    </p>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-1">
+                    <div>
+                      <span className="text-xs font-bold text-slate-800 block">
+                        Auto-Sync Invoices to FBR on Post
+                      </span>
+                      <span className="text-[10px] text-slate-500">
+                        Instantly hit FBR when a sale invoice is posted with full payment
+                      </span>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(formData.fbrAutoSync)}
+                        onChange={(e) => setFormData({ ...formData, fbrAutoSync: e.target.checked })}
+                        className="sr-only peer"
+                      />
+                      <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
+                    </label>
+                  </div>
                 </div>
-              </div>
+              )}
 
               <div className="pt-3 flex items-center justify-end gap-2 border-t border-slate-100">
                 <button

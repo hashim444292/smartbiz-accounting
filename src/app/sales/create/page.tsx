@@ -84,6 +84,7 @@ type PaymentMode = "FULL" | "PARTIAL" | "CREDIT";
 export default function CreateSalePage() {
   const router = useRouter();
   const { user, activeCompany, branches, selectedBranch, activeBranchId, isBranchLocked } = useAuth();
+  const isAccountingOnly = activeCompany?.packageType === "ACCOUNTING_ONLY" || (activeCompany?.enabledModules && !activeCompany.enabledModules.includes("compliance"));
   const effectiveBranch = isBranchLocked ? user?.branchId : (selectedBranch?.id || activeBranchId || null);
   const [saleBranchId, setSaleBranchId] = useState<string>("");
 
@@ -107,7 +108,7 @@ export default function CreateSalePage() {
   const [walkInName, setWalkInName] = useState<string>("");
   const [walkInPhone, setWalkInPhone] = useState<string>("");
   const [buyerTaxStatus, setBuyerTaxStatus] = useState<BuyerTaxStatus>("EXEMPT");
-  const [fbrInvoiceType, setFbrInvoiceType] = useState<"TIER1_POS" | "DIGITAL_INVOICING">("TIER1_POS");
+  const [fbrInvoiceType, setFbrInvoiceType] = useState<"TIER1_POS" | "DIGITAL_INVOICING">("DIGITAL_INVOICING");
   const [date, setDate] = useState<string>(new Date().toISOString().split("T")[0]);
 
   // Line Items State
@@ -208,15 +209,19 @@ export default function CreateSalePage() {
         const branchToPass = isBranchLocked ? user?.branchId : (saleBranchId || effectiveBranch);
         if (branchToPass) headers["x-branch-id"] = branchToPass;
 
+        const fetchFbr = isAccountingOnly
+          ? Promise.resolve({ success: false })
+          : smartFetch("/api/compliance/fbr", { headers, ttlMs: 15000 }).catch(() => ({}));
+
         const [metaJson, prodJson, custJson, fbrJson] = await Promise.all([
           smartFetch("/api/products?meta=true", { headers, ttlMs: 60000 }).catch(() => ({})),
           smartFetch("/api/products?limit=100", { headers, ttlMs: 25000 }).catch(() => ({})),
           smartFetch("/api/customers", { headers, ttlMs: 25000 }).catch(() => ({})),
-          smartFetch("/api/compliance/fbr", { headers, ttlMs: 15000 }).catch(() => ({})),
+          fetchFbr,
         ]);
 
-        if (fbrJson?.success && fbrJson?.data?.config) {
-          const cfg = fbrJson.data.config;
+        if (!isAccountingOnly && (fbrJson as any)?.success && (fbrJson as any)?.data?.config) {
+          const cfg = (fbrJson as any).data.config;
           if (cfg.integrationType === "DIGITAL_INVOICING") {
             setFbrInvoiceType("DIGITAL_INVOICING");
           } else if (cfg.integrationType === "TIER1_POS") {
@@ -415,8 +420,8 @@ export default function CreateSalePage() {
       ? round2(toDecimal(taxableAmount).mul(0.03)).toNumber()
       : 0;
 
-  // POS Service Charge (SRO 1006(I)): Rs. 1.00 for Retail POS; Rs. 0.00 for Digital Invoicing (statutory tax % only)
-  const posFee = fbrInvoiceType === "TIER1_POS" ? 1.0 : 0.0;
+  // POS Service Charge (SRO 1006(I)): Rs. 1.00 for Retail POS; Rs. 0.00 for Digital Invoicing & Pure Accounting
+  const posFee = isAccountingOnly ? 0.0 : (fbrInvoiceType === "TIER1_POS" ? 1.0 : 0.0);
 
   // Total Payable at creation time
   const totalPayable = taxableAmount + gstAmount + furtherTaxAmount + posFee;
@@ -635,12 +640,12 @@ export default function CreateSalePage() {
         salesTax: gstAmount,
         furtherTax: furtherTaxAmount,
         extraTax: 0,
-        posFee: posFee,
-        invoiceType: fbrInvoiceType,
+        posFee: isAccountingOnly ? 0 : posFee,
+        invoiceType: isAccountingOnly ? "STANDARD" : fbrInvoiceType,
         paidAmount: actualPaid,
         paymentMethod: actualPaid > 0 ? paymentMethod : "CREDIT",
         notes: notes.trim() || undefined,
-        fbrStatus: "PENDING",
+        fbrStatus: isAccountingOnly ? "NOT_APPLICABLE" : "PENDING",
         fbrInvoiceNumber: null,
         fbrQrCode: null,
       };
@@ -696,7 +701,11 @@ export default function CreateSalePage() {
       <div className="mx-auto max-w-7xl px-4 pt-12 sm:px-6 lg:px-8 space-y-6">
         <BrandPageLoader
           message="Loading Sales Invoice Terminal..."
-          submessage="Fetching customer directory, inventory catalog, and FBR fiscal rules..."
+          submessage={
+            isAccountingOnly
+              ? "Fetching customer directory, inventory catalog, and price list..."
+              : "Fetching customer directory, inventory catalog, and FBR fiscal rules..."
+          }
         />
       </div>
     );
@@ -717,7 +726,7 @@ export default function CreateSalePage() {
             <div>
               <div className="flex flex-wrap items-center gap-2.5">
                 <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-2xl">
-                  Create Sales Tax Invoice
+                  {isAccountingOnly ? "Create Sales Invoice" : "Create Sales Tax Invoice"}
                 </h1>
                 <span className="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
                   Commercial Sale
@@ -727,21 +736,25 @@ export default function CreateSalePage() {
                 </span>
               </div>
               <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                Cash, Partial Payment & Account Receivable (Credit) supported • Queued for manual FBR Invoicing
+                {isAccountingOnly
+                  ? "Cash, Partial Payment & Account Receivable (Credit) supported"
+                  : "Cash, Partial Payment & Account Receivable (Credit) supported • Queued for manual FBR Invoicing"}
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2.5">
-            <div className="inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50/80 px-3 py-1 text-xs font-semibold text-blue-700 dark:border-blue-900/40 dark:bg-blue-950/40 dark:text-blue-300">
-              <Lock className="h-3 w-3 text-blue-600 dark:text-blue-400" />
-              <span>Org Default HS: <strong className="font-mono font-bold">{orgHsCode}</strong></span>
+          {!isAccountingOnly && (
+            <div className="flex items-center gap-2.5">
+              <div className="inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50/80 px-3 py-1 text-xs font-semibold text-blue-700 dark:border-blue-900/40 dark:bg-blue-950/40 dark:text-blue-300">
+                <Lock className="h-3 w-3 text-blue-600 dark:text-blue-400" />
+                <span>Org Default HS: <strong className="font-mono font-bold">{orgHsCode}</strong></span>
+              </div>
+              <div className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/40 dark:text-amber-300">
+                <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                <span>FBR Invoicing Queue (Manual Hit)</span>
+              </div>
             </div>
-            <div className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/40 dark:text-amber-300">
-              <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
-              <span>FBR Invoicing Queue (Manual Hit)</span>
-            </div>
-          </div>
+          )}
         </div>
 
         {/* Active Branch Scope Indicator & Cashier Attribution */}
@@ -816,7 +829,7 @@ export default function CreateSalePage() {
                   <Lock className="absolute right-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
                 </div>
                 <p className="text-[11px] text-slate-400 italic">
-                  Sequential fiscal number generated on save
+                  {isAccountingOnly ? "Sequential invoice number generated on save" : "Sequential fiscal number generated on save"}
                 </p>
               </div>
 
@@ -852,7 +865,7 @@ export default function CreateSalePage() {
                       if (!val) {
                         setCustomerName("Walk in (Walk in)");
                         handleBuyerTaxStatusChange("EXEMPT");
-                        setFbrInvoiceType("TIER1_POS");
+                        if (!isAccountingOnly) setFbrInvoiceType("TIER1_POS");
                       } else {
                         const c = customers.find((cust) => cust.id === val);
                         if (c) {
@@ -860,10 +873,12 @@ export default function CreateSalePage() {
                           if (c.taxStatus === "REGISTERED" || c.taxStatus === "EXEMPT" || c.taxStatus === "UNREGISTERED") {
                             handleBuyerTaxStatusChange(c.taxStatus);
                           }
-                          if (c.taxStatus === "REGISTERED" || (c as any).ntn) {
-                            setFbrInvoiceType("DIGITAL_INVOICING");
-                          } else {
-                            setFbrInvoiceType("TIER1_POS");
+                          if (!isAccountingOnly) {
+                            if (c.taxStatus === "REGISTERED" || (c as any).ntn) {
+                              setFbrInvoiceType("DIGITAL_INVOICING");
+                            } else {
+                              setFbrInvoiceType("TIER1_POS");
+                            }
                           }
                         }
                       }
@@ -981,45 +996,47 @@ export default function CreateSalePage() {
               </div>
             </div>
 
-            {/* FBR Invoice Engine Selector (Retail POS vs Digital Invoicing) */}
-            <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-              <div>
-                <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                  Compliance Channel:
-                </span>
-                <span className="ml-2 text-[11px] text-slate-500 dark:text-slate-400">
-                  {fbrInvoiceType === "TIER1_POS" 
-                    ? "Retail Counter POS: Includes statutory Rs. 1.00 POS service charge (SRO 1006(I))" 
-                    : "Digital Invoicing (B2B): Rs. 0.00 POS fee (Statutory GST % applies)"}
-                </span>
+            {/* FBR Invoice Engine Selector (Retail POS vs Digital Invoicing) - Only for Full Suite */}
+            {!isAccountingOnly && (
+              <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                <div>
+                  <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                    Compliance Channel:
+                  </span>
+                  <span className="ml-2 text-[11px] text-slate-500 dark:text-slate-400">
+                    {fbrInvoiceType === "TIER1_POS" 
+                      ? "Retail Counter POS: Includes statutory Rs. 1.00 POS service charge (SRO 1006(I))" 
+                      : "Digital Invoicing (B2B): Rs. 0.00 POS fee (Statutory GST % applies)"}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700">
+                  <button
+                    type="button"
+                    onClick={() => setFbrInvoiceType("TIER1_POS")}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
+                      fbrInvoiceType === "TIER1_POS"
+                        ? "bg-white text-indigo-700 shadow-xs dark:bg-slate-900 dark:text-indigo-400 font-extrabold"
+                        : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
+                    }`}
+                  >
+                    <Receipt className="h-3.5 w-3.5" />
+                    <span>Retail POS (+Rs. 1 Fee)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFbrInvoiceType("DIGITAL_INVOICING")}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
+                      fbrInvoiceType === "DIGITAL_INVOICING"
+                        ? "bg-white text-blue-700 shadow-xs dark:bg-slate-900 dark:text-blue-400 font-extrabold"
+                        : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
+                    }`}
+                  >
+                    <Building2 className="h-3.5 w-3.5" />
+                    <span>Digital Invoicing (Rs. 0 POS Fee)</span>
+                  </button>
+                </div>
               </div>
-              <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700">
-                <button
-                  type="button"
-                  onClick={() => setFbrInvoiceType("TIER1_POS")}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
-                    fbrInvoiceType === "TIER1_POS"
-                      ? "bg-white text-indigo-700 shadow-xs dark:bg-slate-900 dark:text-indigo-400 font-extrabold"
-                      : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
-                  }`}
-                >
-                  <Receipt className="h-3.5 w-3.5" />
-                  <span>Retail POS (+Rs. 1 Fee)</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setFbrInvoiceType("DIGITAL_INVOICING")}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
-                    fbrInvoiceType === "DIGITAL_INVOICING"
-                      ? "bg-white text-blue-700 shadow-xs dark:bg-slate-900 dark:text-blue-400 font-extrabold"
-                      : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
-                  }`}
-                >
-                  <Building2 className="h-3.5 w-3.5" />
-                  <span>Digital Invoicing (Rs. 0 POS Fee)</span>
-                </button>
-              </div>
-            </div>
+            )}
           </div>
 
           {/* Line Items Table Section */}
@@ -1033,9 +1050,11 @@ export default function CreateSalePage() {
                 <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
                   {items.length} {items.length === 1 ? "Item" : "Items"}
                 </span>
-                <span className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2.5 py-0.5 text-xs font-semibold text-blue-700 dark:border-blue-900/50 dark:bg-blue-950/40 dark:text-blue-300">
-                  <Lock className="h-2.5 w-2.5" /> Locked Org HS: {orgHsCode}
-                </span>
+                {!isAccountingOnly && (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2.5 py-0.5 text-xs font-semibold text-blue-700 dark:border-blue-900/50 dark:bg-blue-950/40 dark:text-blue-300">
+                    <Lock className="h-2.5 w-2.5" /> Locked Org HS: {orgHsCode}
+                  </span>
+                )}
               </div>
 
               <Button
@@ -1546,31 +1565,33 @@ export default function CreateSalePage() {
                     </span>
                   </div>
 
-                  {/* FBR Compliance Fee */}
-                  {fbrInvoiceType === "TIER1_POS" ? (
-                    <div className="flex items-center justify-between rounded-xl border border-indigo-200 bg-indigo-50/80 p-2.5 text-indigo-900 dark:border-indigo-900/50 dark:bg-indigo-950/40 dark:text-indigo-200">
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-semibold">FBR POS Fee [SRO 1006(I)]</span>
-                        <span className="rounded bg-indigo-200/80 px-1.5 py-0.5 text-[10px] font-bold text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200">
-                          Retail POS
+                  {/* FBR Compliance Fee - Only for Full Suite */}
+                  {!isAccountingOnly && (
+                    fbrInvoiceType === "TIER1_POS" ? (
+                      <div className="flex items-center justify-between rounded-xl border border-indigo-200 bg-indigo-50/80 p-2.5 text-indigo-900 dark:border-indigo-900/50 dark:bg-indigo-950/40 dark:text-indigo-200">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-semibold">FBR POS Fee [SRO 1006(I)]</span>
+                          <span className="rounded bg-indigo-200/80 px-1.5 py-0.5 text-[10px] font-bold text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200">
+                            Retail POS
+                          </span>
+                        </div>
+                        <span className="font-bold tabular-nums text-xs text-indigo-700 dark:text-indigo-300">
+                          PKR 1.00
                         </span>
                       </div>
-                      <span className="font-bold tabular-nums text-xs text-indigo-700 dark:text-indigo-300">
-                        PKR 1.00
-                      </span>
-                    </div>
-                  ) : (
-                    <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50/80 p-2.5 text-slate-700 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-300">
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-semibold">FBR Digital Invoicing Fee</span>
-                        <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-bold text-blue-800 dark:bg-blue-900/40 dark:text-blue-300">
-                          Digital Invoicing (B2B)
+                    ) : (
+                      <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50/80 p-2.5 text-slate-700 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-300">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-semibold">FBR Digital Invoicing Fee</span>
+                          <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-bold text-blue-800 dark:bg-blue-900/40 dark:text-blue-300">
+                            Digital Invoicing (B2B)
+                          </span>
+                        </div>
+                        <span className="font-mono text-[11px] text-slate-500">
+                          Rs 0.00 (Statutory Tax % only)
                         </span>
                       </div>
-                      <span className="font-mono text-[11px] text-slate-500">
-                        Rs 0.00 (Statutory Tax % only)
-                      </span>
-                    </div>
+                    )
                   )}
                 </div>
 
@@ -1582,7 +1603,11 @@ export default function CreateSalePage() {
                         Total Payable
                       </div>
                       <div className="text-[11px] text-slate-400">
-                        {fbrInvoiceType === "TIER1_POS" ? "Net goods + sales taxes + Rs. 1 POS fee" : "Net goods + federal sales taxes"}
+                        {isAccountingOnly
+                          ? "Net goods + sales taxes"
+                          : fbrInvoiceType === "TIER1_POS"
+                          ? "Net goods + sales taxes + Rs. 1 POS fee"
+                          : "Net goods + federal sales taxes"}
                       </div>
                     </div>
                     <div className="text-right">
@@ -1695,7 +1720,11 @@ export default function CreateSalePage() {
                     isLoading={submitting}
                   >
                     <CheckCircle2 className="h-4 w-4 mr-2" />
-                    {submitting ? "Saving Invoice to Queue..." : "Generate Sale Invoice (Queue in FBR Tab)"}
+                    {submitting
+                      ? "Saving Invoice..."
+                      : isAccountingOnly
+                      ? "Generate Sale Invoice"
+                      : "Generate Sale Invoice (Queue in FBR Tab)"}
                   </Button>
                 </div>
               </div>
@@ -1828,24 +1857,26 @@ export default function CreateSalePage() {
               />
             </div>
 
-            <div className="sm:col-span-2">
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-                HS / PCT Code (FBR Fiscal Compliance)
-              </label>
-              <div className="relative mt-1">
-                <input
-                  type="text"
-                  value={newProductForm.hsCode}
-                  onChange={(e) => setNewProductForm({ ...newProductForm, hsCode: e.target.value })}
-                  placeholder={orgHsCode}
-                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-mono font-bold text-slate-800 focus:border-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-                />
-                <Lock className="absolute right-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
+            {!isAccountingOnly && (
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                  HS / PCT Code (FBR Fiscal Compliance)
+                </label>
+                <div className="relative mt-1">
+                  <input
+                    type="text"
+                    value={newProductForm.hsCode}
+                    onChange={(e) => setNewProductForm({ ...newProductForm, hsCode: e.target.value })}
+                    placeholder={orgHsCode}
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-mono font-bold text-slate-800 focus:border-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                  />
+                  <Lock className="absolute right-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
+                </div>
+                <p className="mt-1 text-[11px] text-slate-400">
+                  Default inherited from organization HS Code standard: <strong>{orgHsCode}</strong>
+                </p>
               </div>
-              <p className="mt-1 text-[11px] text-slate-400">
-                Default inherited from organization HS Code standard: <strong>{orgHsCode}</strong>
-              </p>
-            </div>
+            )}
           </div>
 
           <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
@@ -1991,12 +2022,12 @@ export default function CreateSalePage() {
         </form>
       </Modal>
 
-      {/* INVOICE SAVED & PLACED IN FBR QUEUE MODAL WITH RECEIVABLE DETAILS */}
+      {/* INVOICE SAVED MODAL WITH RECEIVABLE DETAILS */}
       {savedInvoiceResult && (
         <Modal
           isOpen={true}
           onClose={() => setSavedInvoiceResult(null)}
-          title="Sales Invoice Saved & Queued for FBR Invoicing"
+          title={isAccountingOnly ? "Sales Invoice Created & Saved Successfully" : "Sales Invoice Saved & Queued for FBR Invoicing"}
           description="Invoice is posted in your accounting ledger with real-time Accounts Receivable tracking."
           maxWidth="2xl"
         >
@@ -2033,7 +2064,7 @@ export default function CreateSalePage() {
             </div>
 
             {/* Financial Totals Breakdown Cards */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+            <div className={`grid ${isAccountingOnly ? "grid-cols-1 sm:grid-cols-3" : "grid-cols-2 sm:grid-cols-4"} gap-3 text-xs`}>
               <div className="p-3 rounded-xl bg-white border border-slate-200 shadow-2xs dark:bg-slate-900 dark:border-slate-800">
                 <span className="text-[10px] text-slate-400 font-bold uppercase">Total Invoice</span>
                 <p className="text-sm font-bold font-mono text-slate-900 dark:text-white mt-0.5">
@@ -2052,12 +2083,14 @@ export default function CreateSalePage() {
                   PKR {savedInvoiceResult.remainingReceivable?.toLocaleString("en-PK", { minimumFractionDigits: 2 })}
                 </p>
               </div>
-              <div className="p-3 rounded-xl bg-white border border-slate-200 shadow-2xs dark:bg-slate-900 dark:border-slate-800">
-                <span className="text-[10px] text-slate-400 font-bold uppercase">FBR POS Fee</span>
-                <p className="text-sm font-bold font-mono text-slate-500 mt-0.5">
-                  Rs 0.00 (Uncharged)
-                </p>
-              </div>
+              {!isAccountingOnly && (
+                <div className="p-3 rounded-xl bg-white border border-slate-200 shadow-2xs dark:bg-slate-900 dark:border-slate-800">
+                  <span className="text-[10px] text-slate-400 font-bold uppercase">FBR POS Fee</span>
+                  <p className="text-sm font-bold font-mono text-slate-500 mt-0.5">
+                    Rs 0.00 (Uncharged)
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Accounts Receivable Ledger Confirmation Banner */}
@@ -2073,19 +2106,21 @@ export default function CreateSalePage() {
               </div>
             )}
 
-            {/* FBR Status Explanation */}
-            <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3 text-xs text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
-              <span className="font-semibold text-slate-800 dark:text-slate-200">FBR Invoicing Status: </span>
-              {savedInvoiceResult.remainingReceivable > 0 ? (
-                <span className="text-amber-800 dark:text-amber-300 font-medium">
-                  This is a Partial / Credit sale. Under tax safeguards, it is placed in the FBR Tab under <strong>"Awaiting Full Payment"</strong> and blocked from FBR transmission until the customer pays the remaining balance of PKR {savedInvoiceResult.remainingReceivable?.toLocaleString()}.
-                </span>
-              ) : (
-                <span>
-                  This invoice is fully paid and queued in your FBR Invoicing tab under <strong>"Ready to Hit FBR"</strong> without upfront POS fee charges.
-                </span>
-              )}
-            </div>
+            {/* FBR Status Explanation - Only for Full Suite */}
+            {!isAccountingOnly && (
+              <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3 text-xs text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
+                <span className="font-semibold text-slate-800 dark:text-slate-200">FBR Invoicing Status: </span>
+                {savedInvoiceResult.remainingReceivable > 0 ? (
+                  <span className="text-amber-800 dark:text-amber-300 font-medium">
+                    This is a Partial / Credit sale. Under tax safeguards, it is placed in the FBR Tab under <strong>"Awaiting Full Payment"</strong> and blocked from FBR transmission until the customer pays the remaining balance of PKR {savedInvoiceResult.remainingReceivable?.toLocaleString()}.
+                  </span>
+                ) : (
+                  <span>
+                    This invoice is fully paid and queued in your FBR Invoicing tab under <strong>"Ready to Hit FBR"</strong> without upfront POS fee charges.
+                  </span>
+                )}
+              </div>
+            )}
 
             {/* Modal Actions */}
             <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-200 dark:border-slate-800">
@@ -2108,14 +2143,16 @@ export default function CreateSalePage() {
                 >
                   Create Another Invoice
                 </Button>
-                <Button
-                  type="button"
-                  variant="primary"
-                  className="bg-indigo-600 hover:bg-indigo-700 shadow-sm"
-                  onClick={() => router.push("/compliance/fbr")}
-                >
-                  <Zap className="h-4 w-4 mr-1.5" /> Open FBR Invoicing Tab
-                </Button>
+                {!isAccountingOnly && (
+                  <Button
+                    type="button"
+                    variant="primary"
+                    className="bg-indigo-600 hover:bg-indigo-700 shadow-sm"
+                    onClick={() => router.push("/compliance/fbr")}
+                  >
+                    <Zap className="h-4 w-4 mr-1.5" /> Open FBR Invoicing Tab
+                  </Button>
+                )}
               </div>
             </div>
           </div>

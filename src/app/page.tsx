@@ -26,6 +26,7 @@ import {
   Sparkles,
   ArrowDownLeft,
   ArrowUpRight,
+  Eye,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -53,6 +54,9 @@ type TableLayoutMode = "table" | "cards";
 export default function DashboardPage() {
   const router = useRouter();
   const { user, activeCompany, isInspectingClient, isLoading, switchBranch, isBranchLocked } = useAuth();
+  const isAccountingOnly =
+    activeCompany?.packageType === "ACCOUNTING_ONLY" ||
+    (activeCompany?.enabledModules && !activeCompany.enabledModules.includes("compliance"));
   const { range } = useDateRange();
   const { resolvedTheme } = useTheme();
   const [data, setData] = useState<any>(null);
@@ -137,7 +141,7 @@ export default function DashboardPage() {
   };
 
   const showAccounting = activeTab === "all" || activeTab === "accounting";
-  const showFbr = activeTab === "all" || activeTab === "fbr";
+  const showFbr = !isAccountingOnly && (activeTab === "all" || activeTab === "fbr");
 
   // Super Admin Platform Mode: Do NOT display customer books by default
   if (!isLoading && user?.role === "SUPER_ADMIN" && !isInspectingClient) {
@@ -172,13 +176,13 @@ export default function DashboardPage() {
         <div className="rounded-2xl border border-slate-200/80 bg-white p-4 sm:p-6 shadow-xs dark:border-slate-800/90 dark:bg-[#111827] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <div className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-200 px-2.5 py-0.5 text-xs font-bold mb-2 dark:bg-indigo-950/60 dark:text-indigo-300 dark:border-indigo-800">
-              <span>💼 POS & Cashier Terminal</span>
+              <span>{isAccountingOnly ? "📊 کھاتہ و بک کیپنگ (Business Accounting)" : "💼 POS & Cashier Terminal"}</span>
             </div>
             <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white font-sans">
               Welcome, {user.name} 👋
             </h1>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-              Active Client: <strong className="text-slate-800 dark:text-slate-200">{activeCompany?.name}</strong> • Retail POS & Invoicing
+              Active Client: <strong className="text-slate-800 dark:text-slate-200">{activeCompany?.name}</strong> • {isAccountingOnly ? "Business Accounting & Ledger" : "Retail POS & Invoicing"}
             </p>
           </div>
           <div className="flex flex-wrap gap-2 w-full sm:w-auto">
@@ -189,13 +193,23 @@ export default function DashboardPage() {
               <Receipt className="h-4 w-4" />
               <span>مال بیچیں (نیا بل بنائیں)</span>
             </Link>
-            <Link
-              href="/compliance/fbr"
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-xs font-bold text-white shadow-xs hover:bg-indigo-700 transition shadow-indigo-600/20"
-            >
-              <ShieldCheck className="h-4 w-4" />
-              <span>FBR POS انوائس</span>
-            </Link>
+            {!isAccountingOnly ? (
+              <Link
+                href="/compliance/fbr"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-xs font-bold text-white shadow-xs hover:bg-indigo-700 transition shadow-indigo-600/20"
+              >
+                <ShieldCheck className="h-4 w-4" />
+                <span>FBR POS انوائس</span>
+              </Link>
+            ) : (
+              <Link
+                href="/purchases/create"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-xs font-bold text-white shadow-xs hover:bg-indigo-700 transition shadow-indigo-600/20"
+              >
+                <Package className="h-4 w-4" />
+                <span>مال خریدیں (نیا بل)</span>
+              </Link>
+            )}
           </div>
         </div>
 
@@ -213,10 +227,10 @@ export default function DashboardPage() {
             </p>
           </div>
           <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs dark:border-slate-800/90 dark:bg-[#111827]">
-            <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold block">FBR کنکشن (Tax Sync)</span>
+            <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold block">{isAccountingOnly ? "اکاؤنٹنگ اسٹیٹس (Accounting Status)" : "FBR کنکشن (Tax Sync)"}</span>
             <p className="text-xl font-bold text-emerald-600 dark:text-emerald-400 font-mono mt-1 flex items-center gap-1.5">
               <CheckCircle2 className="h-5 w-5" />
-              <span>فعال و تصدیق شدہ (Active)</span>
+              <span>{isAccountingOnly ? "فعال و محفوظ (Active & Secure)" : "فعال و تصدیق شدہ (Active)"}</span>
             </p>
           </div>
         </div>
@@ -239,7 +253,11 @@ export default function DashboardPage() {
         {/* Central Brand Loading Animation */}
         <BrandPageLoader
           message="Loading Real-Time Financial Ledger..."
-          submessage="Synchronizing double-entry transactions, receivables, stock valuations, and FBR POS tax queue..."
+          submessage={
+            isAccountingOnly
+              ? "Synchronizing double-entry transactions, receivables, payables, and stock valuations..."
+              : "Synchronizing double-entry transactions, receivables, stock valuations, and FBR POS tax queue..."
+          }
           minHeight="min-h-[220px]"
         />
 
@@ -502,17 +520,19 @@ export default function DashboardPage() {
             <span className="sm:hidden">روکڑ کھاتہ</span>
             <span className="hidden sm:inline">روکڑ کھاتہ و بک کیپنگ (Accounting)</span>
           </button>
-          <button
-            onClick={() => setActiveTab("fbr")}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition whitespace-nowrap ${
-              activeTab === "fbr"
-                ? "bg-white text-emerald-700 shadow-2xs font-bold dark:bg-slate-800 dark:text-emerald-400"
-                : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200"
-            }`}
-          >
-            <span className="sm:hidden">FBR ٹیکس</span>
-            <span className="hidden sm:inline">FBR ٹیکس انوائسنگ (Tax POS)</span>
-          </button>
+          {!isAccountingOnly && (
+            <button
+              onClick={() => setActiveTab("fbr")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition whitespace-nowrap ${
+                activeTab === "fbr"
+                  ? "bg-white text-emerald-700 shadow-2xs font-bold dark:bg-slate-800 dark:text-emerald-400"
+                  : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200"
+              }`}
+            >
+              <span className="sm:hidden">FBR ٹیکس</span>
+              <span className="hidden sm:inline">FBR ٹیکس انوائسنگ (Tax POS)</span>
+            </button>
+          )}
         </div>
 
         <div className="text-[11px] text-slate-500 dark:text-slate-400 font-medium hidden md:block">
@@ -902,24 +922,26 @@ export default function DashboardPage() {
       {/* Visual Analytics & FBR Live Queue */}
       {(!isAsaanMode || activeTab === "fbr") && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
-          {/* Left 2 Cols: Revenue & Tax Trajectory Chart */}
+          {/* Left 2 Cols: Revenue & Trajectory Chart */}
           <div className="lg:col-span-2 rounded-2xl border border-slate-200/80 bg-white p-4 sm:p-6 shadow-xs dark:border-slate-800/90 dark:bg-[#111827]">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 mb-4 sm:mb-6">
               <div>
                 <h2 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white tracking-tight font-sans">
-                  Monthly Revenue & FBR POS Performance
+                  {isAccountingOnly ? "ماہانہ فروخت و آمدنی (Monthly Sales Performance)" : "Monthly Revenue & FBR POS Performance"}
                 </h2>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Gross Sales, Tax Collected, and Verified FBR Invoicing
+                  {isAccountingOnly ? "Net sales turnover and invoice performance" : "Gross Sales, Tax Collected, and Verified FBR Invoicing"}
                 </p>
               </div>
               <div className="flex items-center gap-3 sm:gap-4 text-xs font-semibold flex-wrap">
                 <span className="flex items-center gap-1.5 text-slate-700 dark:text-slate-300">
                   <span className="h-2.5 w-2.5 rounded-sm bg-indigo-600 shrink-0" /> Net Sales
                 </span>
-                <span className="flex items-center gap-1.5 text-slate-700 dark:text-slate-300">
-                  <span className="h-2.5 w-2.5 rounded-sm bg-emerald-500 shrink-0" /> FBR Compliant
-                </span>
+                {!isAccountingOnly && (
+                  <span className="flex items-center gap-1.5 text-slate-700 dark:text-slate-300">
+                    <span className="h-2.5 w-2.5 rounded-sm bg-emerald-500 shrink-0" /> FBR Compliant
+                  </span>
+                )}
               </div>
             </div>
 
@@ -960,92 +982,147 @@ export default function DashboardPage() {
                     formatter={(val: any) => [`Rs ${Number(val).toLocaleString()}`, ""]}
                   />
                   <Bar dataKey="sales" name="Net Sales" fill="#4f46e5" radius={[4, 4, 0, 0]} maxBarSize={22} />
-                  <Bar dataKey="fbrCompliant" name="FBR Compliant" fill="#10b981" radius={[4, 4, 0, 0]} maxBarSize={22} />
+                  {!isAccountingOnly && (
+                    <Bar dataKey="fbrCompliant" name="FBR Compliant" fill="#10b981" radius={[4, 4, 0, 0]} maxBarSize={22} />
+                  )}
                 </BarChart>
               </ResponsiveContainer>
             </div>
           </div>
 
-          {/* Right 1 Col: FBR Status & Action Center */}
-          <div className="rounded-2xl border border-slate-200/80 bg-white p-4 sm:p-6 shadow-xs dark:border-slate-800/90 dark:bg-[#111827] flex flex-col justify-between">
-            <div>
-              <div className="flex items-center justify-between pb-3.5 border-b border-slate-100 dark:border-slate-800">
-                <div className="flex items-center gap-2">
-                  <ShieldCheck className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
-                  <h3 className="text-sm font-bold text-slate-900 dark:text-white font-sans">FBR POS Live Status</h3>
+          {/* Right 1 Col: Quick Accounting Summary OR FBR Live Queue */}
+          {isAccountingOnly ? (
+            <div className="rounded-2xl border border-slate-200/80 bg-white p-4 sm:p-6 shadow-xs dark:border-slate-800/90 dark:bg-[#111827] flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between pb-3.5 border-b border-slate-100 dark:border-slate-800">
+                  <div className="flex items-center gap-2">
+                    <TrendingUp className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+                    <h3 className="text-sm font-bold text-slate-900 dark:text-white font-sans">کاروباری خلاصہ • Quick Overview</h3>
+                  </div>
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-2.5 py-0.5 text-[10px] font-bold text-blue-700 border border-blue-200 dark:bg-blue-950/60 dark:text-blue-300 dark:border-blue-800">
+                    <span className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse" />
+                    ACCOUNTING
+                  </span>
                 </div>
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[10px] font-bold text-emerald-700 border border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                  ACTIVE
-                </span>
+
+                <div className="mt-4 space-y-3.5">
+                  <div className="rounded-xl border border-slate-100 bg-slate-50/80 p-3 space-y-2 dark:border-slate-800 dark:bg-slate-900/60">
+                    <div className="flex justify-between text-xs text-slate-600 dark:text-slate-400">
+                      <span>ادارہ / بزنس:</span>
+                      <strong className="text-slate-900 dark:text-slate-100 font-sans">{activeCompany?.name}</strong>
+                    </div>
+                    <div className="flex justify-between text-xs text-slate-600 dark:text-slate-400">
+                      <span>کل جاری کردہ بل:</span>
+                      <strong className="text-slate-900 dark:text-slate-100 font-mono">{data?.recentInvoices?.length || 0} Bills</strong>
+                    </div>
+                    <div className="flex justify-between text-xs text-slate-600 dark:text-slate-400">
+                      <span>واجب الوصول (Receivables):</span>
+                      <strong className="text-indigo-600 dark:text-indigo-400 font-mono">Rs {Number(data?.receivablesTotal || 0).toLocaleString()}</strong>
+                    </div>
+                    <div className="flex justify-between text-xs text-slate-600 dark:text-slate-400">
+                      <span>واجب الادا (Payables):</span>
+                      <strong className="text-rose-600 dark:text-rose-400 font-mono">Rs {Number(data?.payablesTotal || 0).toLocaleString()}</strong>
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-dashed border-slate-200 p-4 text-center dark:border-slate-800">
+                    <CheckCircle2 className="h-6 w-6 text-emerald-500 mx-auto mb-1" />
+                    <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">لیجر و کھاتے اپ ڈیٹ ہیں</p>
+                    <p className="text-[10px] text-slate-400 dark:text-slate-500">Double-entry bookkeeping is active & balanced</p>
+                  </div>
+                </div>
               </div>
 
-              <div className="mt-4 space-y-3.5">
-                <div className="rounded-xl border border-slate-100 bg-slate-50/80 p-3 space-y-1.5 dark:border-slate-800 dark:bg-slate-900/60">
-                  <div className="flex justify-between text-xs text-slate-600 dark:text-slate-400">
-                    <span>POS Terminal ID:</span>
-                    <strong className="text-slate-900 dark:text-slate-100 font-mono">POS-KHI-001</strong>
+              <div className="pt-3.5 border-t border-slate-100 dark:border-slate-800 mt-4 flex gap-2">
+                <Link
+                  href="/reports"
+                  className="flex-1 rounded-xl bg-indigo-50 border border-indigo-200 py-2.5 text-center text-xs font-bold text-indigo-700 hover:bg-indigo-100 dark:border-indigo-800 dark:bg-indigo-950/50 dark:text-indigo-300 dark:hover:bg-indigo-900/50 transition"
+                >
+                  مکمل مالیاتی رپورٹیں &rarr;
+                </Link>
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-slate-200/80 bg-white p-4 sm:p-6 shadow-xs dark:border-slate-800/90 dark:bg-[#111827] flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between pb-3.5 border-b border-slate-100 dark:border-slate-800">
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                    <h3 className="text-sm font-bold text-slate-900 dark:text-white font-sans">FBR POS Live Status</h3>
                   </div>
-                  <div className="flex justify-between text-xs text-slate-600 dark:text-slate-400">
-                    <span>Organization NTN:</span>
-                    <strong className="text-slate-900 dark:text-slate-100 font-mono">{activeCompany?.ntn || "1234567-8"}</strong>
-                  </div>
-                  <div className="flex justify-between text-xs text-slate-600 dark:text-slate-400">
-                    <span>Tax Profile:</span>
-                    <strong className="text-slate-900 dark:text-slate-100 font-mono">Standard 18%</strong>
-                  </div>
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[10px] font-bold text-emerald-700 border border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    ACTIVE
+                  </span>
                 </div>
 
-                {/* Compliance Issues / Retries */}
-                <div>
-                  <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">
-                    Transmission Queue ({data?.complianceIssues?.length || 0})
-                  </h4>
-                  {data?.complianceIssues && data.complianceIssues.length > 0 ? (
-                    <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-                      {data.complianceIssues.map((issue: any) => (
-                        <div
-                          key={issue.invoiceId}
-                          className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-xs gap-2 dark:border-slate-800 dark:bg-slate-900/60"
-                        >
-                          <div className="min-w-0 pr-1">
-                            <p className="font-bold text-slate-900 dark:text-slate-100 truncate">
-                              {issue.invoiceNumber} • {issue.customerName}
-                            </p>
-                            <span className="text-[10px] text-amber-600 dark:text-amber-400 font-medium block truncate">
-                              {issue.reason || "Pending transmission batch"}
-                            </span>
-                          </div>
-                          <button
-                            onClick={() => handleRetryFbr(issue.invoiceId)}
-                            disabled={retryingId === issue.invoiceId}
-                            className="shrink-0 rounded-lg bg-indigo-600 px-2.5 py-1.5 text-[11px] font-bold text-white hover:bg-indigo-700 disabled:opacity-50 transition"
+                <div className="mt-4 space-y-3.5">
+                  <div className="rounded-xl border border-slate-100 bg-slate-50/80 p-3 space-y-1.5 dark:border-slate-800 dark:bg-slate-900/60">
+                    <div className="flex justify-between text-xs text-slate-600 dark:text-slate-400">
+                      <span>POS Terminal ID:</span>
+                      <strong className="text-slate-900 dark:text-slate-100 font-mono">POS-KHI-001</strong>
+                    </div>
+                    <div className="flex justify-between text-xs text-slate-600 dark:text-slate-400">
+                      <span>Organization NTN:</span>
+                      <strong className="text-slate-900 dark:text-slate-100 font-mono">{activeCompany?.ntn || "1234567-8"}</strong>
+                    </div>
+                    <div className="flex justify-between text-xs text-slate-600 dark:text-slate-400">
+                      <span>Tax Profile:</span>
+                      <strong className="text-slate-900 dark:text-slate-100 font-mono">Standard 18%</strong>
+                    </div>
+                  </div>
+
+                  {/* Compliance Issues / Retries */}
+                  <div>
+                    <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">
+                      Transmission Queue ({data?.complianceIssues?.length || 0})
+                    </h4>
+                    {data?.complianceIssues && data.complianceIssues.length > 0 ? (
+                      <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                        {data.complianceIssues.map((issue: any) => (
+                          <div
+                            key={issue.invoiceId}
+                            className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-xs gap-2 dark:border-slate-800 dark:bg-slate-900/60"
                           >
-                            {retryingId === issue.invoiceId ? "Retrying..." : "Retry"}
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="rounded-xl border border-dashed border-slate-200 p-4 text-center dark:border-slate-800">
-                      <CheckCircle2 className="h-6 w-6 text-emerald-500 mx-auto mb-1" />
-                      <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">All Invoices Synchronized</p>
-                      <p className="text-[10px] text-slate-400 dark:text-slate-500">Zero transmission backlogs detected</p>
-                    </div>
-                  )}
+                            <div className="min-w-0 pr-1">
+                              <p className="font-bold text-slate-900 dark:text-slate-100 truncate">
+                                {issue.invoiceNumber} • {issue.customerName}
+                              </p>
+                              <span className="text-[10px] text-amber-600 dark:text-amber-400 font-medium block truncate">
+                                {issue.reason || "Pending transmission batch"}
+                              </span>
+                            </div>
+                            <button
+                              onClick={() => handleRetryFbr(issue.invoiceId)}
+                              disabled={retryingId === issue.invoiceId}
+                              className="shrink-0 rounded-lg bg-indigo-600 px-2.5 py-1.5 text-[11px] font-bold text-white hover:bg-indigo-700 disabled:opacity-50 transition"
+                            >
+                              {retryingId === issue.invoiceId ? "Retrying..." : "Retry"}
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="rounded-xl border border-dashed border-slate-200 p-4 text-center dark:border-slate-800">
+                        <CheckCircle2 className="h-6 w-6 text-emerald-500 mx-auto mb-1" />
+                        <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">All Invoices Synchronized</p>
+                        <p className="text-[10px] text-slate-400 dark:text-slate-500">Zero transmission backlogs detected</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div className="pt-3.5 border-t border-slate-100 dark:border-slate-800 mt-4 flex gap-2">
-              <Link
-                href="/compliance/fbr"
-                className="flex-1 rounded-xl bg-indigo-50 border border-indigo-200 py-2.5 text-center text-xs font-bold text-indigo-700 hover:bg-indigo-100 dark:border-indigo-800 dark:bg-indigo-950/50 dark:text-indigo-300 dark:hover:bg-indigo-900/50 transition"
-              >
-                FBR Audit Center &rarr;
-              </Link>
+              <div className="pt-3.5 border-t border-slate-100 dark:border-slate-800 mt-4 flex gap-2">
+                <Link
+                  href="/compliance/fbr"
+                  className="flex-1 rounded-xl bg-indigo-50 border border-indigo-200 py-2.5 text-center text-xs font-bold text-indigo-700 hover:bg-indigo-100 dark:border-indigo-800 dark:bg-indigo-950/50 dark:text-indigo-300 dark:hover:bg-indigo-900/50 transition"
+                >
+                  FBR Audit Center &rarr;
+                </Link>
+              </div>
             </div>
-          </div>
+          )}
         </div>
       )}
 
@@ -1147,18 +1224,33 @@ export default function DashboardPage() {
                           {inv.customerName || "Walk-in Retail Customer"}
                         </span>
                       </div>
-                      <span
-                        className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${
-                          isSuccess
-                            ? "bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800"
-                            : isFailed
-                            ? "bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-800"
-                            : "bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800"
-                        }`}
-                      >
-                        {isSuccess && <CheckCircle2 className="h-2.5 w-2.5" />}
-                        {inv.fbrStatus || "PENDING"}
-                      </span>
+                      {isAccountingOnly ? (
+                        <span
+                          className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${
+                            inv.paymentStatus === "PAID"
+                              ? "bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800"
+                              : inv.paymentStatus === "PARTIAL"
+                              ? "bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800"
+                              : "bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-800"
+                          }`}
+                        >
+                          {inv.paymentStatus === "PAID" && <CheckCircle2 className="h-2.5 w-2.5" />}
+                          {inv.paymentStatus || "PAID"}
+                        </span>
+                      ) : (
+                        <span
+                          className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${
+                            isSuccess
+                              ? "bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800"
+                              : isFailed
+                              ? "bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-800"
+                              : "bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800"
+                          }`}
+                        >
+                          {isSuccess && <CheckCircle2 className="h-2.5 w-2.5" />}
+                          {inv.fbrStatus || "PENDING"}
+                        </span>
+                      )}
                     </div>
 
                     <div className="grid grid-cols-2 gap-2 text-xs pt-2 border-t border-slate-100 dark:border-slate-800">
@@ -1169,7 +1261,7 @@ export default function DashboardPage() {
                         </strong>
                       </div>
                       <div>
-                        <span className="text-[10px] text-slate-400 dark:text-slate-500 block">Tax (18% / 3%):</span>
+                        <span className="text-[10px] text-slate-400 dark:text-slate-500 block">{isAccountingOnly ? "Tax Amount:" : "Tax (18% / 3%):"}</span>
                         <strong className="text-indigo-600 dark:text-indigo-400 font-mono">
                           Rs {Number((inv.salesTax || 0) + (inv.furtherTax || 0)).toLocaleString()}
                         </strong>
@@ -1190,7 +1282,15 @@ export default function DashboardPage() {
                       </div>
 
                       <div>
-                        {inv.fbrQrCode ? (
+                        {isAccountingOnly ? (
+                          <Link
+                            href="/sales"
+                            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-bold text-indigo-600 hover:bg-slate-50 shadow-2xs dark:border-slate-700 dark:bg-slate-800 dark:text-indigo-300"
+                          >
+                            <Eye className="h-3 w-3" />
+                            <span>تفصیل دیکھیں</span>
+                          </Link>
+                        ) : inv.fbrQrCode ? (
                           <a
                             href={inv.fbrQrCode}
                             target="_blank"
@@ -1229,11 +1329,11 @@ export default function DashboardPage() {
                   <th className="py-3 px-4">Customer</th>
                   <th className="py-3 px-4 whitespace-nowrap">Date</th>
                   <th className="py-3 px-4 whitespace-nowrap">Subtotal</th>
-                  <th className="py-3 px-4 whitespace-nowrap">Tax (18% / 3%)</th>
+                  <th className="py-3 px-4 whitespace-nowrap">{isAccountingOnly ? "Tax" : "Tax (18% / 3%)"}</th>
                   <th className="py-3 px-4 whitespace-nowrap">Total Amount</th>
                   <th className="py-3 px-4 whitespace-nowrap">Payment</th>
-                  <th className="py-3 px-4 whitespace-nowrap">FBR Status</th>
-                  <th className="py-3 px-4 text-right whitespace-nowrap">Receipt / Action</th>
+                  {!isAccountingOnly && <th className="py-3 px-4 whitespace-nowrap">FBR Status</th>}
+                  <th className="py-3 px-4 text-right whitespace-nowrap">{isAccountingOnly ? "Action" : "Receipt / Action"}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
@@ -1273,22 +1373,32 @@ export default function DashboardPage() {
                             {inv.paymentMethod || "CASH"}
                           </span>
                         </td>
-                        <td className="py-3 px-4 whitespace-nowrap">
-                          <span
-                            className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
-                              isSuccess
-                                ? "bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800"
-                                : isFailed
-                                ? "bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-800"
-                                : "bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800"
-                            }`}
-                          >
-                            {isSuccess && <CheckCircle2 className="h-3 w-3" />}
-                            {inv.fbrStatus || "PENDING"}
-                          </span>
-                        </td>
+                        {!isAccountingOnly && (
+                          <td className="py-3 px-4 whitespace-nowrap">
+                            <span
+                              className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
+                                isSuccess
+                                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800"
+                                  : isFailed
+                                  ? "bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-800"
+                                  : "bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800"
+                              }`}
+                            >
+                              {isSuccess && <CheckCircle2 className="h-3 w-3" />}
+                              {inv.fbrStatus || "PENDING"}
+                            </span>
+                          </td>
+                        )}
                         <td className="py-3 px-4 text-right whitespace-nowrap">
-                          {inv.fbrQrCode ? (
+                          {isAccountingOnly ? (
+                            <Link
+                              href="/sales"
+                              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 shadow-2xs dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 transition"
+                            >
+                              <Eye className="h-3 w-3" />
+                              <span>بل دیکھیں</span>
+                            </Link>
+                          ) : inv.fbrQrCode ? (
                             <a
                               href={inv.fbrQrCode}
                               target="_blank"
@@ -1312,7 +1422,7 @@ export default function DashboardPage() {
                   })
                 ) : (
                   <tr>
-                    <td colSpan={9} className="py-8 text-center text-slate-400 text-xs dark:text-slate-500">
+                    <td colSpan={isAccountingOnly ? 8 : 9} className="py-8 text-center text-slate-400 text-xs dark:text-slate-500">
                       No transactions found for the selected period
                     </td>
                   </tr>

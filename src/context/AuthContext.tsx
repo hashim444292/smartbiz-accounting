@@ -58,6 +58,7 @@ export interface Company {
   billingCycleEnd?: string;
   canCreateBranches?: boolean;
   enabledModules?: string[];
+  packageType?: string;
 }
 
 interface AuthContextType {

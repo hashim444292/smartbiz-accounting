@@ -44,6 +44,7 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
     isBranchLocked,
     switchBranch,
   } = useAuth();
+  const isAccountingOnly = activeCompany?.packageType === "ACCOUNTING_ONLY" || (activeCompany?.enabledModules && !activeCompany.enabledModules.includes("compliance"));
   const { theme, resolvedTheme, setTheme, toggleTheme, font, setFont, fontOptions } = useTheme();
   const router = useRouter();
   const pathname = usePathname();
@@ -350,7 +351,7 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
                 <span className="block truncate font-bold leading-tight">
                   {activeCompany?.name || "Company Workspace"}
                 </span>
-                {activeCompany?.defaultHsCode && (
+                {!isAccountingOnly && activeCompany?.defaultHsCode && (
                   <span className="text-[10px] text-slate-400 font-mono hidden sm:inline">
                     HS: {activeCompany.defaultHsCode}
                   </span>
@@ -669,14 +670,24 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
             </Link>
           )}
 
-          {/* Quick Action: FBR POS Sale */}
-          <Link
-            href="/compliance/fbr"
-            className="hidden sm:inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-xs transition hover:bg-indigo-700 shadow-indigo-600/20"
-          >
-            <ShieldCheck className="h-3.5 w-3.5" />
-            <span>FBR POS Sale</span>
-          </Link>
+          {/* Quick Action: FBR POS Sale (Full Suite) or New Sale (Accounting) */}
+          {!isAccountingOnly ? (
+            <Link
+              href="/compliance/fbr"
+              className="hidden sm:inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-xs transition hover:bg-indigo-700 shadow-indigo-600/20"
+            >
+              <ShieldCheck className="h-3.5 w-3.5" />
+              <span>FBR POS Sale</span>
+            </Link>
+          ) : (
+            <Link
+              href="/sales/create"
+              className="hidden sm:inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-xs transition hover:bg-blue-700 shadow-blue-600/20"
+            >
+              <Receipt className="h-3.5 w-3.5" />
+              <span>New Sale</span>
+            </Link>
+          )}
 
           {/* User Badge & Profile with Dropdown */}
           <div className="relative pl-1 border-l border-slate-200 dark:border-slate-800" ref={userMenuRef}>
@@ -951,17 +962,19 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
                             <span className="font-semibold text-xs text-slate-900 group-hover:text-indigo-600 dark:text-white dark:group-hover:text-indigo-400">
                               {item.title}
                             </span>
-                            <span
-                              className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
-                                item.badge === "SUCCESS"
-                                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800"
-                                  : item.badge === "FAILED"
-                                  ? "bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-800"
-                                  : "bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800"
-                              }`}
-                            >
-                              FBR {item.badge}
-                            </span>
+                            {!isAccountingOnly && item.badge && (
+                              <span
+                                className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                                  item.badge === "SUCCESS"
+                                    ? "bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800"
+                                    : item.badge === "FAILED"
+                                    ? "bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-800"
+                                    : "bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800"
+                                }`}
+                              >
+                                FBR {item.badge}
+                              </span>
+                            )}
                           </div>
                           <p className="text-[11px] text-slate-500 dark:text-slate-400">{item.subtitle}</p>
                         </div>

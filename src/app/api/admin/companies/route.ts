@@ -306,8 +306,8 @@ export async function POST(req: NextRequest) {
         create: { businessId: newBiz.id, key: "software_package_type", value: packageType || "FULL_SUITE" },
       }).catch(() => null);
 
-      // Save FBR Digital Invoicing Configuration
-      if (body.fbrToken || body.fbrEnv || body.fbrIntegrationType || body.fbrPosId || body.fbrScenarioId || body.fbrAutoSync !== undefined) {
+      // Save FBR Digital Invoicing Configuration (Only for Full Suite)
+      if (packageType !== "ACCOUNTING_ONLY" && (body.fbrToken || body.fbrEnv || body.fbrIntegrationType || body.fbrPosId || body.fbrScenarioId || body.fbrAutoSync !== undefined)) {
         await saveFbrConfig(newBiz.id, {
           token: body.fbrToken || "",
           environment: body.fbrEnv || "sandbox",

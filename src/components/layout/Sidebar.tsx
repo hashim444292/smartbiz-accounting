@@ -131,6 +131,7 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
 
   const userRole = user?.role || "STAFF";
   const isPlatformMode = (userRole === "SUPER_ADMIN" || userRole === "ADMIN") && !isInspectingClient;
+  const isAccountingOnly = activeCompany?.packageType === "ACCOUNTING_ONLY" || (activeCompany?.enabledModules && !activeCompany.enabledModules.includes("compliance"));
 
   const platformGroups: NavGroup[] = PLATFORM_ADMIN_GROUPS.map((g) => ({
     ...g,
@@ -195,7 +196,7 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
                   </span>
                 </div>
                 <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
-                  {isPlatformMode ? "SaaS Multi-Tenant Admin" : "Accounting & FBR Suite"}
+                  {isPlatformMode ? "SaaS Multi-Tenant Admin" : isAccountingOnly ? "Business Accounting" : "Accounting & FBR Suite"}
                 </span>
               </div>
             )}
@@ -242,7 +243,7 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
                 {activeCompany.name}
               </p>
             </div>
-            {activeCompany.defaultHsCode && (
+            {!isAccountingOnly && activeCompany.defaultHsCode && (
               <span className="shrink-0 text-[10px] font-mono bg-white px-1.5 py-0.5 rounded-md text-indigo-700 border border-indigo-200 shadow-2xs dark:bg-slate-900 dark:text-indigo-300 dark:border-indigo-800">
                 HS {activeCompany.defaultHsCode}
               </span>
@@ -255,8 +256,11 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
           {currentGroups.map((group) => {
             const filteredItems = group.items.filter((item) => {
               // 1. Company-level module gating
-              if (item.moduleKey && activeCompany?.enabledModules) {
-                if (!activeCompany.enabledModules.includes(item.moduleKey)) {
+              if (item.moduleKey) {
+                if (isAccountingOnly && (item.moduleKey === "pos" || item.moduleKey === "compliance")) {
+                  return false;
+                }
+                if (activeCompany?.enabledModules && !activeCompany.enabledModules.includes(item.moduleKey)) {
                   return false;
                 }
               }
@@ -288,7 +292,9 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
                 {/* Section Header */}
                 {!isCollapsed ? (
                   <h3 className="px-2.5 text-[10px] font-bold tracking-wider text-slate-400 dark:text-slate-500 uppercase">
-                    {group.section}
+                    {group.section.includes("REPORTS & TAX") && isAccountingOnly
+                      ? "رپورٹس و لیجر • REPORTS & LEDGER"
+                      : group.section}
                   </h3>
                 ) : (
                   <div className="my-2 border-t border-slate-200 dark:border-slate-800 mx-2" />
@@ -386,7 +392,7 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
               <div className="flex items-center gap-2">
                 <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
                 <span className="font-semibold text-slate-700 dark:text-slate-300">
-                  {isPlatformMode ? "SaaS Multi-Tenant" : "FBR POS Live"}
+                  {isPlatformMode ? "SaaS Multi-Tenant" : isAccountingOnly ? "Accounting Active" : "FBR POS Live"}
                 </span>
               </div>
               <span className="font-mono text-[10px] text-slate-400 dark:text-slate-500">v3.2</span>

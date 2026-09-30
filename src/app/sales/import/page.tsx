@@ -23,6 +23,7 @@ import {
   Building
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/context/AuthContext";
 
 interface ParsedInvoiceRow {
   date: string;
@@ -45,6 +46,10 @@ interface ParsedInvoiceRow {
 
 export default function BulkSalesImportPage() {
   const router = useRouter();
+  const { activeCompany } = useAuth();
+  const isAccountingOnly =
+    activeCompany?.packageType === "ACCOUNTING_ONLY" ||
+    (activeCompany?.enabledModules && !activeCompany.enabledModules.includes("compliance"));
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [file, setFile] = useState<File | null>(null);
@@ -380,13 +385,15 @@ export default function BulkSalesImportPage() {
           </div>
 
           <div className="flex items-center gap-3 pt-2">
-            <Link
-              href="/compliance/fbr"
-              className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-bold text-white hover:bg-indigo-700 shadow-xs"
-            >
-              <Zap className="h-3.5 w-3.5" />
-              <span>Open FBR Invoicing Queue</span>
-            </Link>
+            {!isAccountingOnly && (
+              <Link
+                href="/compliance/fbr"
+                className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-bold text-white hover:bg-indigo-700 shadow-xs"
+              >
+                <Zap className="h-3.5 w-3.5" />
+                <span>Open FBR Invoicing Queue</span>
+              </Link>
+            )}
             <Link
               href="/sales"
               className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-800 hover:bg-slate-50 shadow-2xs"

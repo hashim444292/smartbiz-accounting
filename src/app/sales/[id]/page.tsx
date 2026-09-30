@@ -44,7 +44,7 @@ export default function SaleDetailPage() {
     return (
       <BrandPageLoader
         message="Loading Invoice Details..."
-        submessage="Retrieving customer ledger, line items, taxes, and FBR QR certificate..."
+        submessage="Retrieving customer ledger, line items, and invoice details..."
       />
     );
   }

@@ -89,7 +89,12 @@ export async function PUT(
 
       // Update FBR Digital Invoicing Configuration
       let fbrConfig = null;
-      if (
+      if (body.packageType === "ACCOUNTING_ONLY") {
+        await saveFbrConfig(id, {
+          token: "",
+          autoSync: false,
+        }).catch(() => null);
+      } else if (
         body.fbrToken !== undefined ||
         body.fbrEnv !== undefined ||
         body.fbrIntegrationType !== undefined ||
