@@ -42,6 +42,7 @@ interface SaleRecord {
   paymentStatus: "PAID" | "PARTIAL" | "UNPAID";
   paymentMethod: string;
   status: "DRAFT" | "POSTED" | "CANCELLED";
+  fbrStatus?: string;
   createdById?: string;
   createdByName?: string;
   isEdited?: boolean;
@@ -56,6 +57,9 @@ interface SaleRecord {
 
 export default function SalesPage() {
   const { user, activeCompany, branches, selectedBranch, activeBranchId, isBranchLocked } = useAuth();
+  const isAccountingOnly =
+    activeCompany?.packageType === "ACCOUNTING_ONLY" ||
+    (activeCompany?.enabledModules && !activeCompany.enabledModules.includes("compliance"));
   const effectiveBranch = isBranchLocked ? user?.branchId : (selectedBranch?.id || activeBranchId || null);
 
   const [sales, setSales] = useState<SaleRecord[]>([]);
@@ -575,9 +579,26 @@ export default function SalesPage() {
                   <tr key={sale.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition-colors">
                     <td className="px-4 py-3 font-semibold text-slate-900 dark:text-white">
                       <div className="flex flex-col gap-1 items-start">
-                        <Link href={`/sales/${sale.id}`} className="hover:underline text-blue-600 dark:text-blue-400 font-bold">
-                          {sale.invoiceNumber}
-                        </Link>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <Link href={`/sales/${sale.id}`} className="hover:underline text-blue-600 dark:text-blue-400 font-bold">
+                            {sale.invoiceNumber}
+                          </Link>
+                          {!isAccountingOnly && sale.fbrStatus && (
+                            sale.fbrStatus === "SUCCESS" ? (
+                              <span className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.2 text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800">
+                                🏛️ FBR Sync
+                              </span>
+                            ) : sale.fbrStatus === "PENDING" ? (
+                              <span className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.2 text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800">
+                                ⏳ FBR Queue
+                              </span>
+                            ) : sale.fbrStatus === "NOT_APPLICABLE" ? (
+                              <span className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.2 text-[9px] font-bold bg-slate-100 text-slate-600 border border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700">
+                                🏠 Local Sale
+                              </span>
+                            ) : null
+                          )}
+                        </div>
                         {sale.isEdited && (
                           <span
                             className="inline-flex items-center gap-1 rounded-md bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800 border border-amber-300 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800 cursor-help"

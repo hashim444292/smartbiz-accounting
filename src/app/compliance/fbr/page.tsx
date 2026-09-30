@@ -213,7 +213,9 @@ export default function FbrCompliancePage() {
 
   // All Invoices List
   const allInvoices: any[] = useMemo(() => {
-    return complianceData?.recentInvoices || [];
+    return (complianceData?.recentInvoices || []).filter(
+      (inv: any) => inv.fbrStatus !== "NOT_APPLICABLE"
+    );
   }, [complianceData]);
 
   // Invoices filtered by activeTab & search
@@ -229,6 +231,8 @@ export default function FbrCompliancePage() {
     } else if (activeTab === "SUCCESS") {
       // Transmitted & verified on FBR
       list = list.filter((inv) => inv.fbrStatus === "SUCCESS");
+    } else if (activeTab === "ALL") {
+      list = list.filter((inv) => inv.fbrStatus !== "NOT_APPLICABLE");
     }
 
     if (searchQuery.trim()) {

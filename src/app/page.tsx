@@ -1244,11 +1244,13 @@ export default function DashboardPage() {
                               ? "bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800"
                               : isFailed
                               ? "bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-800"
+                              : inv.fbrStatus === "NOT_APPLICABLE"
+                              ? "bg-slate-100 text-slate-600 border border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700"
                               : "bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800"
                           }`}
                         >
                           {isSuccess && <CheckCircle2 className="h-2.5 w-2.5" />}
-                          {inv.fbrStatus || "PENDING"}
+                          {inv.fbrStatus === "NOT_APPLICABLE" ? "LOCAL SALE" : (inv.fbrStatus || "PENDING")}
                         </span>
                       )}
                     </div>
@@ -1282,7 +1284,7 @@ export default function DashboardPage() {
                       </div>
 
                       <div>
-                        {isAccountingOnly ? (
+                        {isAccountingOnly || inv.fbrStatus === "NOT_APPLICABLE" ? (
                           <Link
                             href="/sales"
                             className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-bold text-indigo-600 hover:bg-slate-50 shadow-2xs dark:border-slate-700 dark:bg-slate-800 dark:text-indigo-300"
@@ -1381,16 +1383,18 @@ export default function DashboardPage() {
                                   ? "bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800"
                                   : isFailed
                                   ? "bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-800"
+                                  : inv.fbrStatus === "NOT_APPLICABLE"
+                                  ? "bg-slate-100 text-slate-600 border border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700"
                                   : "bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800"
                               }`}
                             >
                               {isSuccess && <CheckCircle2 className="h-3 w-3" />}
-                              {inv.fbrStatus || "PENDING"}
+                              {inv.fbrStatus === "NOT_APPLICABLE" ? "LOCAL SALE" : (inv.fbrStatus || "PENDING")}
                             </span>
                           </td>
                         )}
                         <td className="py-3 px-4 text-right whitespace-nowrap">
-                          {isAccountingOnly ? (
+                          {isAccountingOnly || inv.fbrStatus === "NOT_APPLICABLE" ? (
                             <Link
                               href="/sales"
                               className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 shadow-2xs dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 transition"

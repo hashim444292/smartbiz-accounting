@@ -959,11 +959,19 @@ export async function getFbrComplianceOverview(businessId: string) {
   let sales: any[] = [];
   try {
     sales = await prisma.sale.findMany({
-      where: { businessId },
+      where: {
+        businessId,
+        OR: [
+          { fbrStatus: null },
+          { fbrStatus: { in: ["PENDING", "SUCCESS", "FAILED"] } },
+        ],
+      },
       orderBy: { date: "desc" },
     });
   } catch {
-    sales = fallbackStore.sales.filter((s) => s.businessId === businessId);
+    sales = fallbackStore.sales.filter(
+      (s) => s.businessId === businessId && s.fbrStatus !== "NOT_APPLICABLE"
+    );
   }
 
   let totalNetSales = 0;
@@ -992,7 +1000,7 @@ export async function getFbrComplianceOverview(businessId: string) {
     const status = s.fbrStatus || "PENDING";
     if (status === "SUCCESS") successFbr++;
     else if (status === "FAILED") failedFbr++;
-    else pendingFbr++;
+    else if (status === "PENDING") pendingFbr++;
   }
 
   const totalInvoices = sales.length;
