@@ -26,24 +26,65 @@ export async function GET() {
           name: true,
           monthlyFee: true,
           createdAt: true,
+          billingCycleStart: true,
+          billingCycleEnd: true,
+          paymentStatus: true,
         },
       });
 
       if (dbBusinesses.length > 0) {
-        const totalMRR = dbBusinesses.reduce((sum, b) => sum + (b.monthlyFee !== null && b.monthlyFee !== undefined ? Number(b.monthlyFee) : 5000), 0);
+        const now = new Date();
+        const totalMRR = dbBusinesses.reduce(
+          (sum, b) =>
+            sum +
+            (b.monthlyFee !== null && b.monthlyFee !== undefined
+              ? Number(b.monthlyFee)
+              : 5000),
+          0
+        );
         const totalARR = totalMRR * 12;
+
+        const activeCount = dbBusinesses.filter((b) => b.paymentStatus === "PAID").length;
+        const dueCount = dbBusinesses.filter((b) => b.paymentStatus !== "PAID").length;
+        const pendingDueAmount = dbBusinesses
+          .filter((b) => b.paymentStatus !== "PAID")
+          .reduce(
+            (sum, b) =>
+              sum +
+              (b.monthlyFee !== null && b.monthlyFee !== undefined
+                ? Number(b.monthlyFee)
+                : 5000),
+            0
+          );
+
+        const overdueCount = dbBusinesses.filter(
+          (b) => b.billingCycleEnd && new Date(b.billingCycleEnd) < now
+        ).length;
+
+        const renewalsDueThisWeek = dbBusinesses.filter((b) => {
+          if (!b.billingCycleEnd) return false;
+          const end = new Date(b.billingCycleEnd);
+          const diffDays = (end.getTime() - now.getTime()) / (1000 * 3600 * 24);
+          return diffDays >= 0 && diffDays <= 7;
+        }).length;
+
+        const payments = fallbackStore.subscriptionPayments || [];
+        const currentMonthName = now.toLocaleString("default", { month: "long", year: "numeric" });
+        const collectedThisMonth = payments
+          .filter((p: any) => p.period === currentMonthName || (p.date && new Date(p.date).getMonth() === now.getMonth()))
+          .reduce((sum: number, p: any) => sum + Number(p.amount || 0), 0);
+
         const stats = {
           totalCompanies: dbBusinesses.length,
           totalMRR,
           totalARR,
-          collectedThisMonth: 0,
-          pendingDueAmount: 0,
-          activeCount: dbBusinesses.length,
-          dueCount: 0,
-          overdueCount: 0,
-          renewalsDueThisWeek: 0,
+          collectedThisMonth,
+          pendingDueAmount,
+          activeCount,
+          dueCount,
+          overdueCount,
+          renewalsDueThisWeek,
         };
-        const payments = fallbackStore.subscriptionPayments || [];
 
         return NextResponse.json({
           success: true,
@@ -93,56 +134,119 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const result = storeRecordSubscriptionPayment({
-      businessId,
-      amount: amount ? Number(amount) : undefined,
-      date,
-      period,
-      paymentMethod,
-      reference,
-      notes,
-      recordedBy: session?.name || "System Super Admin",
-    });
+    const now = new Date();
+    let currentBiz: any = null;
 
-    if (!result) {
+    // 1. Primary Lookup in PostgreSQL Database
+    try {
+      currentBiz = await prisma.business.findUnique({
+        where: { id: businessId },
+      });
+    } catch (dbErr) {
+      console.warn("Could not find business in DB, checking fallbackStore:", dbErr);
+    }
+
+    // 2. Secondary Lookup in fallbackStore
+    const fallbackComp = fallbackStore.companies.find((c) => c.id === businessId);
+
+    if (!currentBiz && !fallbackComp) {
       return NextResponse.json(
         { success: false, error: "Company not found in directory." },
         { status: 404 }
       );
     }
 
-    // Also update PostgreSQL Business record
-    try {
-      const now = new Date();
-      const currentBiz = await prisma.business.findUnique({ where: { id: businessId } });
-      const currentEnd = currentBiz?.billingCycleEnd ? new Date(currentBiz.billingCycleEnd) : now;
-      const baseDate = currentEnd > now ? currentEnd : now;
-      const newEnd = new Date(baseDate.getTime() + 30 * 24 * 60 * 60 * 1000);
+    const companyName = currentBiz?.name || fallbackComp?.name || "Client Organization";
+    const paymentAmount = amount
+      ? Number(amount)
+      : Number(currentBiz?.monthlyFee || fallbackComp?.monthlyFee || 5000);
+    const paymentDate = date || now.toISOString();
+    const billingPeriod =
+      period || now.toLocaleString("default", { month: "long", year: "numeric" });
 
-      await prisma.business.update({
-        where: { id: businessId },
-        data: {
-          paymentStatus: "PAID",
-          billingCycleEnd: newEnd,
-        },
-      });
+    // Calculate new billing cycle end (+30 days)
+    const currentEnd = currentBiz?.billingCycleEnd
+      ? new Date(currentBiz.billingCycleEnd)
+      : fallbackComp?.billingCycleEnd
+      ? new Date(fallbackComp.billingCycleEnd)
+      : now;
+    const baseDate = currentEnd > now ? currentEnd : now;
+    const nextEnd = new Date(baseDate.getTime() + 30 * 24 * 60 * 60 * 1000);
 
-      await prisma.appSetting.upsert({
-        where: { businessId_key: { businessId, key: "billing_payment_status" } },
-        update: { value: "PAID" },
-        create: { businessId, key: "billing_payment_status", value: "PAID" },
-      }).catch(() => null);
-    } catch (dbErr) {
-      console.warn("Could not update business paymentStatus in DB:", dbErr);
+    let updatedBiz: any = null;
+    if (currentBiz) {
+      try {
+        updatedBiz = await prisma.business.update({
+          where: { id: businessId },
+          data: {
+            paymentStatus: "PAID",
+            billingCycleStart: baseDate,
+            billingCycleEnd: nextEnd,
+            monthlyFee: amount ? Number(amount) : undefined,
+          },
+        });
+
+        await prisma.appSetting.upsert({
+          where: { businessId_key: { businessId, key: "billing_payment_status" } },
+          update: { value: "PAID" },
+          create: { businessId, key: "billing_payment_status", value: "PAID" },
+        }).catch(() => null);
+
+        if (amount) {
+          await prisma.appSetting.upsert({
+            where: { businessId_key: { businessId, key: "monthly_fee" } },
+            update: { value: String(amount) },
+            create: { businessId, key: "monthly_fee", value: String(amount) },
+          }).catch(() => null);
+        }
+      } catch (upErr) {
+        console.warn("Failed to update business in DB:", upErr);
+      }
     }
+
+    // Update in fallback store if present
+    if (fallbackComp) {
+      fallbackComp.subscriptionStatus = "ACTIVE";
+      fallbackComp.paymentStatus = "PAID";
+      fallbackComp.billingCycleStart = baseDate.toISOString();
+      fallbackComp.billingCycleEnd = nextEnd.toISOString();
+      fallbackComp.lastPaymentDate = paymentDate;
+      fallbackComp.lastPaymentAmount = paymentAmount;
+    }
+
+    // Generate subscription receipt for the ledger
+    const receipt = {
+      id: `SUB-REC-${Date.now().toString().slice(-6)}`,
+      receiptNumber: reference || `REC-${Date.now().toString().slice(-6)}`,
+      businessId,
+      companyName,
+      amount: paymentAmount,
+      paymentMethod: paymentMethod || "BANK",
+      period: billingPeriod,
+      date: paymentDate,
+      recordedBy: session?.name || "System Super Admin",
+      reference: reference || `REC-${Date.now().toString().slice(-6)}`,
+      notes: notes || `Monthly fee renewal for ${companyName} (${billingPeriod})`,
+      createdAt: paymentDate,
+    };
+
+    if (!fallbackStore.subscriptionPayments) {
+      fallbackStore.subscriptionPayments = [];
+    }
+    fallbackStore.subscriptionPayments.unshift(receipt);
 
     const stats = storeGetBillingStats();
 
     return NextResponse.json({
       success: true,
-      message: `Monthly subscription renewed for ${result.company.name}. New cycle end: ${new Date(result.company.billingCycleEnd).toLocaleDateString()}.`,
-      receipt: result.receipt,
-      company: result.company,
+      message: `Monthly subscription renewed for ${companyName}. New cycle end: ${nextEnd.toLocaleDateString()}.`,
+      receipt,
+      company: updatedBiz || fallbackComp || {
+        id: businessId,
+        name: companyName,
+        billingCycleEnd: nextEnd.toISOString(),
+        paymentStatus: "PAID",
+      },
       stats,
     });
   } catch (error: any) {
