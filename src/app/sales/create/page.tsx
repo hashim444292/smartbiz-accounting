@@ -26,6 +26,11 @@ import {
   AlertTriangle,
   BadgeAlert,
   Building2,
+  Package,
+  Layers,
+  FileText,
+  CheckCheck,
+  Loader2,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { smartFetch, invalidateCache } from "@/lib/clientCache";
@@ -158,6 +163,12 @@ export default function CreateSalePage() {
 
   // Success Modal State
   const [savedInvoiceResult, setSavedInvoiceResult] = useState<any | null>(null);
+
+  // Multi-Piece Split Invoicing State
+  const [invoiceSplitMode, setInvoiceSplitMode] = useState<"CONSOLIDATED" | "SPLIT_PER_PIECE">("CONSOLIDATED");
+  const [isSplitDecisionModalOpen, setIsSplitDecisionModalOpen] = useState<boolean>(false);
+  const [batchSavedResult, setBatchSavedResult] = useState<any | null>(null);
+  const [isProcessingSplit, setIsProcessingSplit] = useState<boolean>(false);
 
   // Selected Customer Object
   const selectedCustomer = useMemo(() => {
@@ -443,6 +454,48 @@ export default function CreateSalePage() {
 
   const remainingReceivable = Math.max(0, totalPayable - Number(paidAmount || 0));
 
+  // Total Pieces across all line items
+  const totalPieces = useMemo(() => {
+    return items.reduce((acc, it) => acc + (Number(it.quantity) || 0), 0);
+  }, [items]);
+
+  // Reset form to initial clean state immediately after creation
+  const resetForm = useCallback(() => {
+    setCustomerId("");
+    setCustomerName("Walk in (Walk in)");
+    setWalkInName("");
+    setWalkInPhone("");
+    setBuyerTaxStatus("EXEMPT");
+    setOverallDiscount(0);
+    setNotes("");
+    setPaymentMode("FULL");
+    setPaymentMethod("CASH");
+    setDate(new Date().toISOString().split("T")[0]);
+    setInvoiceSplitMode("CONSOLIDATED");
+    setError(null);
+
+    if (products.length > 0) {
+      const defaultProd = products[0];
+      const initialItem = recalculateItem(
+        {
+          productId: defaultProd.id,
+          productName: defaultProd.name,
+          sku: defaultProd.sku || "SKU-" + defaultProd.id,
+          hsCode: defaultProd.hsCode || orgHsCode,
+          uom: (defaultProd.uom || defaultProd.unit || "PCS").toUpperCase(),
+          quantity: 1,
+          unitPrice: Number(defaultProd.sellingPrice || 0),
+          discountPercent: 0,
+          availableStock: Number(defaultProd.currentStock || 10),
+        },
+        "EXEMPT"
+      );
+      setItems([initialItem]);
+    } else {
+      setItems([]);
+    }
+  }, [products, orgHsCode, recalculateItem]);
+
   // Change payment mode handler
   const handleSetPaymentMode = (mode: PaymentMode) => {
     setPaymentMode(mode);
@@ -579,7 +632,7 @@ export default function CreateSalePage() {
     }
   };
 
-  // Submit & Save Invoice (With full Accounts Receivable support)
+  // Submit & Save Invoice (With full Accounts Receivable & Multi-Piece Split Invoicing support)
   const handleSubmitInvoice = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -601,101 +654,246 @@ export default function CreateSalePage() {
       }
     }
 
-    try {
-      setSubmitting(true);
+    const actualPaid = paymentMode === "CREDIT" ? 0 : Number(paidAmount || 0);
+    const remaining = Math.max(0, totalPayable - actualPaid);
 
-      const actualPaid = paymentMode === "CREDIT" ? 0 : Number(paidAmount || 0);
-      const remaining = Math.max(0, totalPayable - actualPaid);
+    if (!customerId && remaining > 0 && !walkInName.trim()) {
+      setError("Please enter the Walk-in Customer's Name so the remaining receivable can be clearly tracked in their ledger.");
+      return;
+    }
 
-      if (!customerId && remaining > 0 && !walkInName.trim()) {
-        setError("Please enter the Walk-in Customer's Name so the remaining receivable can be clearly tracked in their ledger.");
-        return;
+    // When client has entered multiple pieces (totalPieces > 1):
+    // Prompt the user to confirm whether they want 1 single consolidated invoice or separate per-piece invoices
+    if (totalPieces > 1) {
+      setIsSplitDecisionModalOpen(true);
+      return;
+    }
+
+    // Default single invoice submission
+    await executeSubmit("CONSOLIDATED");
+  };
+
+  const executeSubmit = async (selectedMode: "CONSOLIDATED" | "SPLIT_PER_PIECE") => {
+    setIsSplitDecisionModalOpen(false);
+    setError(null);
+
+    const actualPaid = paymentMode === "CREDIT" ? 0 : Number(paidAmount || 0);
+    const remaining = Math.max(0, totalPayable - actualPaid);
+
+    const finalCustomerName = !customerId
+      ? (remaining > 0 && walkInName.trim() ? `${walkInName.trim()} (Walk-in)` : "Walk in (Walk in)")
+      : (customerName || "Walk in (Walk in)");
+
+    const operatingBranchId = isBranchLocked ? (user?.branchId || null) : (saleBranchId || effectiveBranch || null);
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (activeCompany?.id) headers["x-business-id"] = activeCompany.id;
+    if (operatingBranchId) headers["x-branch-id"] = operatingBranchId;
+
+    if (selectedMode === "CONSOLIDATED") {
+      try {
+        setSubmitting(true);
+
+        const payload = {
+          branchId: operatingBranchId,
+          createdById: user?.userId,
+          createdByName: user?.name,
+          date: new Date(date),
+          customerId: customerId || null,
+          customerName: finalCustomerName,
+          customerPhone: !customerId && remaining > 0 && walkInPhone.trim() ? walkInPhone.trim() : undefined,
+          buyerTaxStatus,
+          items: items.map((it) => ({
+            productId: it.productId || (products[0]?.id ?? "prod-default"),
+            productName: it.productName,
+            quantity: it.quantity,
+            unitPrice: it.unitPrice,
+            discount: it.discountAmount,
+            taxRate: it.taxRate,
+            hsCode: it.hsCode || orgHsCode,
+          })),
+          overallDiscount: Number(overallDiscount || 0),
+          taxAmount: gstAmount + furtherTaxAmount,
+          salesTax: gstAmount,
+          furtherTax: furtherTaxAmount,
+          extraTax: 0,
+          posFee: (isAccountingOnly || !postToFbr) ? 0 : posFee,
+          invoiceType: (isAccountingOnly || !postToFbr) ? "STANDARD" : fbrInvoiceType,
+          paidAmount: actualPaid,
+          paymentMethod: actualPaid > 0 ? paymentMethod : "CREDIT",
+          notes: notes.trim() || undefined,
+          fbrStatus: (isAccountingOnly || !postToFbr) ? "NOT_APPLICABLE" : "PENDING",
+          fbrInvoiceNumber: null,
+          fbrQrCode: null,
+        };
+
+        const res = await fetch("/api/sales", {
+          method: "POST",
+          headers,
+          body: JSON.stringify(payload),
+        });
+
+        const json = await res.json();
+        if (!json.success) {
+          throw new Error(json.error || "Failed to post sales invoice");
+        }
+
+        invalidateCache("/api/sales");
+        invalidateCache("/api/products");
+        invalidateCache("/api/dashboard");
+        invalidateCache("/api/accounting");
+        invalidateCache("/api/compliance/fbr");
+
+        // Save data for modal view BEFORE clearing form
+        const modalData = {
+          ...json.data,
+          grossSubtotal,
+          totalDiscount,
+          taxableAmount,
+          gstAmount,
+          furtherTaxAmount,
+          posFee: (isAccountingOnly || !postToFbr) ? 0 : posFee,
+          fbrInvoiceType,
+          postToFbr: !isAccountingOnly && postToFbr,
+          totalPayable,
+          actualPaid,
+          remainingReceivable: remaining,
+          paymentMode,
+          items: [...items],
+          customerName: finalCustomerName,
+          paymentMethod: actualPaid > 0 ? paymentMethod : "CREDIT",
+          date,
+        };
+
+        // IMMEDIATELY RESET FORM: completely clear previous data so user can never accidentally duplicate!
+        resetForm();
+
+        // Show Save & Queued Dialog
+        setSavedInvoiceResult(modalData);
+      } catch (err: any) {
+        setError(err.message || "Failed to save sales invoice");
+      } finally {
+        setSubmitting(false);
       }
+    } else {
+      // selectedMode === "SPLIT_PER_PIECE"
+      try {
+        setSubmitting(true);
+        setIsProcessingSplit(true);
 
-      const finalCustomerName = !customerId
-        ? (remaining > 0 && walkInName.trim() ? `${walkInName.trim()} (Walk-in)` : "Walk in (Walk in)")
-        : (customerName || "Walk in (Walk in)");
+        const splitPayloads: any[] = [];
+        let pieceIndex = 0;
 
-      const operatingBranchId = isBranchLocked ? (user?.branchId || null) : (saleBranchId || effectiveBranch || null);
+        for (const it of items) {
+          const qty = Math.max(1, Math.round(Number(it.quantity || 1)));
+          const unitPrice = Number(it.unitPrice || 0);
+          const itemDiscPerPiece = round2(toDecimal(it.discountAmount || 0).div(qty)).toNumber();
+          const overallDiscPerPiece = round2(toDecimal(Number(overallDiscount || 0)).div(totalPieces)).toNumber();
 
-      const payload = {
-        branchId: operatingBranchId,
-        createdById: user?.userId,
-        createdByName: user?.name,
-        date: new Date(date),
-        customerId: customerId || null,
-        customerName: finalCustomerName,
-        customerPhone: !customerId && remaining > 0 && walkInPhone.trim() ? walkInPhone.trim() : undefined,
-        buyerTaxStatus,
-        items: items.map((it) => ({
-          productId: it.productId || (products[0]?.id ?? "prod-default"),
-          productName: it.productName,
-          quantity: it.quantity,
-          unitPrice: it.unitPrice,
-          discount: it.discountAmount,
-          taxRate: it.taxRate,
-          hsCode: it.hsCode || orgHsCode,
-        })),
-        overallDiscount: Number(overallDiscount || 0),
-        taxAmount: gstAmount + furtherTaxAmount,
-        salesTax: gstAmount,
-        furtherTax: furtherTaxAmount,
-        extraTax: 0,
-        posFee: (isAccountingOnly || !postToFbr) ? 0 : posFee,
-        invoiceType: (isAccountingOnly || !postToFbr) ? "STANDARD" : fbrInvoiceType,
-        paidAmount: actualPaid,
-        paymentMethod: actualPaid > 0 ? paymentMethod : "CREDIT",
-        notes: notes.trim() || undefined,
-        fbrStatus: (isAccountingOnly || !postToFbr) ? "NOT_APPLICABLE" : "PENDING",
-        fbrInvoiceNumber: null,
-        fbrQrCode: null,
-      };
+          const pieceTaxable = Math.max(0, unitPrice - itemDiscPerPiece - overallDiscPerPiece);
+          const pieceGst = buyerTaxStatus === "EXEMPT" ? 0 : round2(toDecimal(pieceTaxable).mul(0.18)).toNumber();
+          const pieceFurther = buyerTaxStatus === "UNREGISTERED" ? round2(toDecimal(pieceTaxable).mul(0.03)).toNumber() : 0;
+          const piecePosFee = (isAccountingOnly || !postToFbr) ? 0 : (fbrInvoiceType === "TIER1_POS" ? 1.0 : 0.0);
+          const pieceTotal = pieceTaxable + pieceGst + pieceFurther + piecePosFee;
 
-      const headers: Record<string, string> = { "Content-Type": "application/json" };
-      if (activeCompany?.id) headers["x-business-id"] = activeCompany.id;
-      if (operatingBranchId) headers["x-branch-id"] = operatingBranchId;
+          let piecePaid = 0;
+          if (paymentMode === "FULL") {
+            piecePaid = pieceTotal;
+          } else if (paymentMode === "CREDIT") {
+            piecePaid = 0;
+          } else {
+            piecePaid = round2(toDecimal(actualPaid).div(totalPieces)).toNumber();
+          }
 
-      const res = await fetch("/api/sales", {
-        method: "POST",
-        headers,
-        body: JSON.stringify(payload),
-      });
+          for (let q = 0; q < qty; q++) {
+            pieceIndex++;
+            splitPayloads.push({
+              branchId: operatingBranchId,
+              createdById: user?.userId,
+              createdByName: user?.name,
+              date: new Date(date),
+              customerId: customerId || null,
+              customerName: finalCustomerName,
+              customerPhone: !customerId && remaining > 0 && walkInPhone.trim() ? walkInPhone.trim() : undefined,
+              buyerTaxStatus,
+              items: [
+                {
+                  productId: it.productId || (products[0]?.id ?? "prod-default"),
+                  productName: it.productName,
+                  quantity: 1,
+                  unitPrice: it.unitPrice,
+                  discount: itemDiscPerPiece,
+                  taxRate: it.taxRate,
+                  hsCode: it.hsCode || orgHsCode,
+                },
+              ],
+              overallDiscount: overallDiscPerPiece,
+              taxAmount: pieceGst + pieceFurther,
+              salesTax: pieceGst,
+              furtherTax: pieceFurther,
+              extraTax: 0,
+              posFee: piecePosFee,
+              invoiceType: (isAccountingOnly || !postToFbr) ? "STANDARD" : fbrInvoiceType,
+              paidAmount: piecePaid,
+              paymentMethod: piecePaid > 0 ? paymentMethod : "CREDIT",
+              notes: notes.trim()
+                ? `${notes.trim()} (Piece ${pieceIndex}/${totalPieces})`
+                : `Piece ${pieceIndex} of ${totalPieces}`,
+              fbrStatus: (isAccountingOnly || !postToFbr) ? "NOT_APPLICABLE" : "PENDING",
+              fbrInvoiceNumber: null,
+              fbrQrCode: null,
+            });
+          }
+        }
 
-      const json = await res.json();
-      if (!json.success) {
-        throw new Error(json.error || "Failed to post sales invoice");
+        const res = await fetch("/api/sales", {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            bulk: true,
+            invoices: splitPayloads,
+          }),
+        });
+
+        const json = await res.json();
+        if (!json.success) {
+          throw new Error(json.error || "Failed to post split invoices");
+        }
+
+        invalidateCache("/api/sales");
+        invalidateCache("/api/products");
+        invalidateCache("/api/dashboard");
+        invalidateCache("/api/accounting");
+        invalidateCache("/api/compliance/fbr");
+
+        const createdList: any[] = json.data || [];
+        const firstInv = createdList[0];
+        const lastInv = createdList[createdList.length - 1];
+
+        const batchModalData = {
+          totalCount: createdList.length,
+          firstInvoiceNumber: firstInv?.invoiceNumber || "INV-001",
+          lastInvoiceNumber: lastInv?.invoiceNumber || `INV-${String(createdList.length).padStart(3, "0")}`,
+          totalPieces,
+          totalAmount: totalPayable,
+          actualPaid,
+          remainingReceivable: remaining,
+          customerName: finalCustomerName,
+          paymentMode,
+          postToFbr: !isAccountingOnly && postToFbr,
+          invoices: createdList,
+        };
+
+        // IMMEDIATELY RESET FORM: clear all fields so background is clean!
+        resetForm();
+
+        // Show Batch Success Modal
+        setBatchSavedResult(batchModalData);
+      } catch (err: any) {
+        setError(err.message || "Failed to save split sales invoices");
+      } finally {
+        setSubmitting(false);
+        setIsProcessingSplit(false);
       }
-
-      invalidateCache("/api/sales");
-      invalidateCache("/api/products");
-      invalidateCache("/api/dashboard");
-      invalidateCache("/api/accounting");
-      invalidateCache("/api/compliance/fbr");
-
-      // Show Save & Queued Dialog with Accounts Receivable breakdown
-      setSavedInvoiceResult({
-        ...json.data,
-        grossSubtotal,
-        totalDiscount,
-        taxableAmount,
-        gstAmount,
-        furtherTaxAmount,
-        posFee: (isAccountingOnly || !postToFbr) ? 0 : posFee,
-        fbrInvoiceType,
-        postToFbr: !isAccountingOnly && postToFbr,
-        totalPayable,
-        actualPaid,
-        remainingReceivable: remaining,
-        paymentMode,
-        items,
-        customerName: finalCustomerName,
-        paymentMethod: actualPaid > 0 ? paymentMethod : "CREDIT",
-        date,
-      });
-    } catch (err: any) {
-      setError(err.message || "Failed to save sales invoice");
-    } finally {
-      setSubmitting(false);
     }
   };
 
@@ -1306,6 +1504,77 @@ export default function CreateSalePage() {
             </div>
           </div>
 
+          {/* Multi-Piece Invoicing Mode Card (Prompt when totalPieces > 1) */}
+          {totalPieces > 1 && (
+            <div className="rounded-2xl border-2 border-indigo-200 bg-indigo-50/70 p-5 dark:border-indigo-800 dark:bg-indigo-950/40 space-y-3.5 shadow-sm">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Package className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+                  <span className="font-bold text-sm text-indigo-950 dark:text-indigo-200">
+                    پیسز / تعداد کا انوائسنگ طریقہ (Multi-Piece Invoicing Mode)
+                  </span>
+                </div>
+                <span className="rounded-full bg-indigo-200/90 px-3 py-1 text-xs font-bold text-indigo-900 dark:bg-indigo-900 dark:text-indigo-200">
+                  کل {totalPieces} پیسز درج ہیں (Total: {totalPieces} Pieces)
+                </span>
+              </div>
+
+              <p className="text-xs text-indigo-900 dark:text-indigo-200 leading-relaxed">
+                آپ کے بل میں کل <strong>{totalPieces} پیسز</strong> درج ہیں۔ کیا آپ ان تمام کا ایک ہی مشترکہ بل بنانا چاہتے ہیں یا ہر پیس کا الگ الگ بل جنریٹ کرنا چاہتے ہیں؟
+              </p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                {/* Mode 1: Consolidated Single Invoice */}
+                <button
+                  type="button"
+                  onClick={() => setInvoiceSplitMode("CONSOLIDATED")}
+                  className={`flex items-start gap-3 p-3.5 rounded-xl border-2 text-left transition ${
+                    invoiceSplitMode === "CONSOLIDATED"
+                      ? "border-blue-600 bg-white shadow-sm ring-2 ring-blue-500/20 text-slate-900 dark:bg-slate-900 dark:text-white"
+                      : "border-slate-200 bg-white/70 hover:bg-white text-slate-600 dark:border-slate-800 dark:bg-slate-900/60"
+                  }`}
+                >
+                  <FileText className={`h-5 w-5 mt-0.5 shrink-0 ${invoiceSplitMode === "CONSOLIDATED" ? "text-blue-600" : "text-slate-400"}`} />
+                  <div>
+                    <div className="font-bold text-xs flex items-center gap-1.5 text-slate-900 dark:text-white">
+                      <span>ایک ہی مشترکہ انوائس (Single Consolidated)</span>
+                      {invoiceSplitMode === "CONSOLIDATED" && (
+                        <CheckCircle2 className="h-4 w-4 text-blue-600 ml-auto shrink-0" />
+                      )}
+                    </div>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                      تمام {totalPieces} پیسز کا صرف 1 بل بنے گا جس پر کل رقم PKR {totalPayable.toLocaleString("en-PK", { minimumFractionDigits: 2 })} درج ہوگی۔
+                    </p>
+                  </div>
+                </button>
+
+                {/* Mode 2: Split per piece */}
+                <button
+                  type="button"
+                  onClick={() => setInvoiceSplitMode("SPLIT_PER_PIECE")}
+                  className={`flex items-start gap-3 p-3.5 rounded-xl border-2 text-left transition ${
+                    invoiceSplitMode === "SPLIT_PER_PIECE"
+                      ? "border-indigo-600 bg-white shadow-sm ring-2 ring-indigo-500/20 text-slate-900 dark:bg-slate-900 dark:text-white"
+                      : "border-slate-200 bg-white/70 hover:bg-white text-slate-600 dark:border-slate-800 dark:bg-slate-900/60"
+                  }`}
+                >
+                  <Layers className={`h-5 w-5 mt-0.5 shrink-0 ${invoiceSplitMode === "SPLIT_PER_PIECE" ? "text-indigo-600" : "text-slate-400"}`} />
+                  <div>
+                    <div className="font-bold text-xs flex items-center gap-1.5 text-slate-900 dark:text-white">
+                      <span>ہر پیس کا الگ بل ({totalPieces} Separate Invoices)</span>
+                      {invoiceSplitMode === "SPLIT_PER_PIECE" && (
+                        <CheckCircle2 className="h-4 w-4 text-indigo-600 ml-auto shrink-0" />
+                      )}
+                    </div>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                      ہر پیس کا الگ الگ انوائس بنے گا (کل {totalPieces} بل بنیں گے {!isAccountingOnly && postToFbr ? "اور FBR میں الگ شوٹ ہوں گے" : "اور کھاتے میں درج ہوں گے"})۔
+                    </p>
+                  </div>
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Bottom Grid: Payment Methods & Guarantee (Left) vs Tax & Payment Summary (Right) */}
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
             {/* Left Column (7 cols): Payment Mode Selector + Settlement Method + Guarantee */}
@@ -1785,7 +2054,9 @@ export default function CreateSalePage() {
                   >
                     <CheckCircle2 className="h-4 w-4 mr-2" />
                     {submitting
-                      ? "Saving Invoice..."
+                      ? (isProcessingSplit ? `Generating ${totalPieces} Split Invoices...` : "Saving Invoice...")
+                      : totalPieces > 1 && invoiceSplitMode === "SPLIT_PER_PIECE"
+                      ? `Generate ${totalPieces} Separate Invoices (${totalPieces} الگ الگ بل بنائیں)`
                       : isAccountingOnly || !postToFbr
                       ? "Generate Sale Invoice (Local Ledger)"
                       : "Generate Sale Invoice (Queue in FBR Tab)"}
@@ -2086,6 +2357,194 @@ export default function CreateSalePage() {
         </form>
       </Modal>
 
+      {/* MULTI-PIECE INVOICING DECISION ASK MODAL */}
+      <Modal
+        isOpen={isSplitDecisionModalOpen}
+        onClose={() => setIsSplitDecisionModalOpen(false)}
+        title="انوائس جنریشن کا طریقہ منتخب کریں"
+        description="Select Invoicing Generation Mode for Multi-Piece Sale"
+        maxWidth="lg"
+      >
+        <div className="space-y-4">
+          <div className="rounded-2xl border border-indigo-200 bg-indigo-50/80 p-4 text-xs text-indigo-950 dark:border-indigo-900 dark:bg-indigo-950/40 dark:text-indigo-200 flex items-start gap-3">
+            <Package className="h-5 w-5 text-indigo-600 mt-0.5 shrink-0" />
+            <div className="space-y-1">
+              <p className="font-bold text-sm">
+                کل تعداد: {totalPieces} پیسز | کل رقم: PKR {totalPayable.toLocaleString("en-PK", { minimumFractionDigits: 2 })}
+              </p>
+              <p className="text-[11px] text-indigo-800/90 dark:text-indigo-300 leading-relaxed">
+                آپ کے بل میں کل <strong>{totalPieces} پیسز</strong> شامل ہیں۔ کیا آپ ان تمام کا ایک ہی مشترکہ بل بنانا چاہتے ہیں یا ہر پیس کا الگ الگ انوائس جنریٹ کرنا چاہتے ہیں؟
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+            {/* Option 1: Consolidated Single Invoice */}
+            <button
+              type="button"
+              onClick={() => executeSubmit("CONSOLIDATED")}
+              className="flex flex-col items-start p-4 rounded-2xl border-2 border-blue-500 bg-blue-50/50 hover:bg-blue-100/60 text-left transition group shadow-xs dark:bg-blue-950/30 dark:border-blue-700"
+            >
+              <div className="flex items-center gap-2 font-bold text-sm text-blue-950 dark:text-blue-200">
+                <FileText className="h-5 w-5 text-blue-600 shrink-0" />
+                <span>ایک ہی بل بنائیں</span>
+              </div>
+              <span className="text-[11px] font-bold text-blue-700 dark:text-blue-300 mt-0.5">
+                (1 Consolidated Invoice)
+              </span>
+              <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-2 leading-relaxed">
+                تمام {totalPieces} پیسز کا صرف <strong>1 مشترکہ بل</strong> بنے گا۔
+              </p>
+            </button>
+
+            {/* Option 2: Split per piece */}
+            <button
+              type="button"
+              onClick={() => executeSubmit("SPLIT_PER_PIECE")}
+              className="flex flex-col items-start p-4 rounded-2xl border-2 border-indigo-600 bg-indigo-50/60 hover:bg-indigo-100/60 text-left transition group shadow-xs dark:bg-indigo-950/40 dark:border-indigo-600"
+            >
+              <div className="flex items-center gap-2 font-bold text-sm text-indigo-950 dark:text-indigo-200">
+                <Layers className="h-5 w-5 text-indigo-600 shrink-0" />
+                <span>ہر پیس کا الگ بل بنائیں</span>
+              </div>
+              <span className="text-[11px] font-bold text-indigo-700 dark:text-indigo-300 mt-0.5">
+                ({totalPieces} Separate Invoices)
+              </span>
+              <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-2 leading-relaxed">
+                ہر پیس کا الگ بل بنے گا (کل <strong>{totalPieces} انوائسز</strong> بنیں گی {!isAccountingOnly && postToFbr ? "اور FBR میں الگ الگ شوٹ ہوں گی" : "اور کھاتے میں درج ہوں گی"})۔
+              </p>
+            </button>
+          </div>
+
+          <div className="flex justify-end pt-3 border-t border-slate-100 dark:border-slate-800">
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => setIsSplitDecisionModalOpen(false)}
+            >
+              منسوخ کریں (Cancel)
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* BATCH SEPARATE INVOICES CREATED SUCCESS MODAL */}
+      {batchSavedResult && (
+        <Modal
+          isOpen={true}
+          onClose={() => setBatchSavedResult(null)}
+          title={`${batchSavedResult.totalCount} انوائسز کامیابی کے ساتھ بن گئیں!`}
+          description={`${batchSavedResult.totalCount} Separate Invoices Generated Successfully`}
+          maxWidth="2xl"
+        >
+          <div className="space-y-5">
+            {/* Header Badge */}
+            <div className="flex items-center justify-between rounded-2xl bg-indigo-50 border border-indigo-200 p-4 text-indigo-900 dark:bg-indigo-950/40 dark:border-indigo-900 dark:text-indigo-200">
+              <div className="flex items-center gap-3">
+                <div className="rounded-full bg-indigo-600 p-2 text-white shadow-xs">
+                  <CheckCheck className="h-6 w-6" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-sm">
+                    {batchSavedResult.totalCount} الگ الگ انوائسز تیار ہو گئیں
+                  </h4>
+                  <p className="text-xs text-indigo-700 dark:text-indigo-300 font-mono mt-0.5">
+                    بل رینج: <strong>{batchSavedResult.firstInvoiceNumber}</strong> سے <strong>{batchSavedResult.lastInvoiceNumber}</strong>
+                  </p>
+                </div>
+              </div>
+              <div className="text-right">
+                <span className="text-[10px] uppercase font-bold text-slate-500 block">گاہک / کسٹمر:</span>
+                <span className="font-bold text-xs text-indigo-950 dark:text-indigo-200">
+                  {batchSavedResult.customerName}
+                </span>
+              </div>
+            </div>
+
+            {/* Summary Cards */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+              <div className="p-3 rounded-xl bg-white border border-slate-200 shadow-2xs dark:bg-slate-900 dark:border-slate-800">
+                <span className="text-[10px] text-slate-400 font-bold uppercase">کل انوائسز (Invoices)</span>
+                <p className="text-base font-bold font-mono text-indigo-600 dark:text-indigo-400 mt-0.5">
+                  {batchSavedResult.totalCount} بل
+                </p>
+              </div>
+              <div className="p-3 rounded-xl bg-white border border-slate-200 shadow-2xs dark:bg-slate-900 dark:border-slate-800">
+                <span className="text-[10px] text-slate-400 font-bold uppercase">کل رقم (Total Amount)</span>
+                <p className="text-sm font-bold font-mono text-slate-900 dark:text-white mt-0.5">
+                  PKR {batchSavedResult.totalAmount?.toLocaleString("en-PK", { minimumFractionDigits: 2 })}
+                </p>
+              </div>
+              <div className="p-3 rounded-xl bg-white border border-slate-200 shadow-2xs dark:bg-slate-900 dark:border-slate-800">
+                <span className="text-[10px] text-slate-400 font-bold uppercase">وصول شدہ (Paid)</span>
+                <p className="text-sm font-bold font-mono text-emerald-600 mt-0.5">
+                  PKR {batchSavedResult.actualPaid?.toLocaleString("en-PK", { minimumFractionDigits: 2 })}
+                </p>
+              </div>
+              <div className="p-3 rounded-xl bg-white border border-slate-200 shadow-2xs dark:bg-slate-900 dark:border-slate-800">
+                <span className="text-[10px] text-slate-400 font-bold uppercase">بقایا (Receivable)</span>
+                <p className="text-sm font-bold font-mono text-rose-600 mt-0.5">
+                  PKR {batchSavedResult.remainingReceivable?.toLocaleString("en-PK", { minimumFractionDigits: 2 })}
+                </p>
+              </div>
+            </div>
+
+            {/* FBR Status or Local Sale status */}
+            {!isAccountingOnly && batchSavedResult.postToFbr ? (
+              <div className="rounded-xl border border-indigo-200 bg-indigo-50/70 p-3.5 text-xs text-indigo-950 dark:bg-indigo-950/30 dark:border-indigo-900 dark:text-indigo-200 space-y-1.5">
+                <div className="font-bold flex items-center gap-1.5 text-indigo-800 dark:text-indigo-300">
+                  <Zap className="h-4 w-4" />
+                  <span>FBR انوائسنگ کیو (Ready to Shoot):</span>
+                </div>
+                <p className="leading-relaxed">
+                  یہ تمام <strong>{batchSavedResult.totalCount} انوائسز</strong> FBR انوائسنگ کیو میں شامل ہو چکی ہیں۔ آپ FBR ٹیب میں جا کر تمام بلوں کو ایک ہی کلک میں FBR پر شوٹ (Batch Transmit) کر سکتے ہیں یا الگ الگ بھیج سکتے ہیں۔
+                </p>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50/80 p-3 text-xs text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300">
+                <span className="font-bold">لوکل کھاتہ (Local Sales Ledger): </span>
+                <span>
+                  یہ تمام {batchSavedResult.totalCount} بل کامیابی سے آپ کے سیلز رجسٹر اور اسٹاک میں اپ ڈیٹ ہو چکے ہیں۔
+                </span>
+              </div>
+            )}
+
+            {/* Actions */}
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-200 dark:border-slate-800">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => router.push("/sales")}
+              >
+                View Sales List ({batchSavedResult.totalCount} Invoices)
+              </Button>
+
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => setBatchSavedResult(null)}
+                >
+                  + Create New Invoice
+                </Button>
+
+                {!isAccountingOnly && batchSavedResult.postToFbr && (
+                  <Button
+                    type="button"
+                    variant="primary"
+                    className="bg-indigo-600 hover:bg-indigo-700 shadow-sm"
+                    onClick={() => router.push("/compliance/fbr")}
+                  >
+                    <Zap className="h-4 w-4 mr-1.5" /> FBR کیو کھولیں اور شوٹ کریں
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
+        </Modal>
+      )}
+
       {/* INVOICE SAVED MODAL WITH RECEIVABLE DETAILS */}
       {savedInvoiceResult && (
         <Modal
@@ -2207,12 +2666,9 @@ export default function CreateSalePage() {
                 <Button
                   type="button"
                   variant="secondary"
-                  onClick={() => {
-                    setSavedInvoiceResult(null);
-                    window.location.reload();
-                  }}
+                  onClick={() => setSavedInvoiceResult(null)}
                 >
-                  Create Another Invoice
+                  + Create Another Invoice
                 </Button>
                 {!isAccountingOnly && savedInvoiceResult.postToFbr && (
                   <Button

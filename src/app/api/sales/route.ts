@@ -45,6 +45,21 @@ export async function POST(req: NextRequest) {
     const createdById = session?.userId || body.createdById || "usr-2";
     const createdByName = session?.name || body.createdByName || "Muhammad Hanif";
 
+    if (body.bulk === true && Array.isArray(body.invoices)) {
+      const results: any[] = [];
+      for (const inv of body.invoices) {
+        const sale = await createAndPostSale({
+          ...inv,
+          businessId,
+          branchId: effectiveBranchId,
+          createdById,
+          createdByName,
+        });
+        results.push(sale);
+      }
+      return NextResponse.json({ success: true, data: results, count: results.length });
+    }
+
     const sale = await createAndPostSale({
       ...body,
       businessId,
@@ -76,6 +91,76 @@ export async function POST(req: NextRequest) {
       const { branchId: activeBranchId, isLockedToBranch } = await getActiveBranchId(req);
       const effectiveBranchId = isLockedToBranch ? activeBranchId : (body.branchId || activeBranchId || null);
       const branchObj = fallbackStore.branches?.find((b) => b.id === effectiveBranchId);
+      const session = await getSession();
+      const createdById = session?.userId || body.createdById || "usr-2";
+      const createdByName = session?.name || body.createdByName || "Muhammad Hanif";
+
+      if (body.bulk === true && Array.isArray(body.invoices)) {
+        const results: any[] = [];
+        for (let idx = 0; idx < body.invoices.length; idx++) {
+          const inv = body.invoices[idx];
+          const saleId = `sale-${Date.now()}-${idx}`;
+          const invNum = `INV-2026-${String(fallbackStore.sales.length + 1).padStart(5, "0")}`;
+          let subtotal = 0;
+          const processedItems = (inv.items || []).map((it: any, i: number) => {
+            const prod = fallbackStore.products.find((p) => p.id === it.productId);
+            const q = Number(it.quantity || 1);
+            const p = Number(it.unitPrice || prod?.sellingPrice || 0);
+            const lt = q * p;
+            subtotal += lt;
+            if (prod) prod.currentStock -= q;
+            return {
+              id: `si-${saleId}-${i}`,
+              productId: it.productId,
+              productName: prod?.name || "Merchandise",
+              quantity: q,
+              unitPrice: p,
+              lineTotal: lt,
+              costPrice: prod?.averageCost || 0,
+            };
+          });
+          const totalTax = Number(inv.taxAmount || (Number(inv.salesTax || 0) + Number(inv.furtherTax || 0) + Number(inv.extraTax || 0)));
+          const posFee = Number(inv.posFee !== undefined ? inv.posFee : 0);
+          const total = subtotal - Number(inv.overallDiscount || 0) + totalTax + posFee;
+          const paid = Number(inv.paidAmount !== undefined ? inv.paidAmount : total);
+          const remaining = Math.max(0, total - paid);
+          const paymentStatus = remaining === 0 ? "PAID" : paid > 0 ? "PARTIAL" : "UNPAID";
+          const fallbackSale = {
+            id: saleId,
+            businessId,
+            branchId: effectiveBranchId,
+            invoiceNumber: invNum,
+            date: inv.date ? new Date(inv.date) : new Date(),
+            customerId: inv.customerId || null,
+            customerName: inv.customerName || "Walk-in Customer",
+            customerPhone: inv.customerPhone,
+            buyerTaxStatus: inv.buyerTaxStatus || "EXEMPT",
+            subtotal,
+            discountAmount: Number(inv.overallDiscount || 0),
+            taxAmount: totalTax,
+            totalAmount: total,
+            posFee,
+            invoiceType: inv.invoiceType || "STANDARD",
+            fbrStatus: inv.fbrStatus || "PENDING",
+            fbrInvoiceNumber: null,
+            fbrQrCode: null,
+            paidAmount: paid,
+            remainingAmount: remaining,
+            paymentStatus,
+            paymentMethod: inv.paymentMethod || "CASH",
+            notes: inv.notes,
+            createdById,
+            createdByName,
+            items: processedItems,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          };
+          fallbackStore.sales.unshift(fallbackSale as any);
+          results.push(fallbackSale);
+        }
+        return NextResponse.json({ success: true, data: results, count: results.length, fallback: true });
+      }
+
       const saleId = `sale-${Date.now()}`;
       const invNum = `INV-2026-${String(fallbackStore.sales.length + 1).padStart(5, "0")}`;
 
