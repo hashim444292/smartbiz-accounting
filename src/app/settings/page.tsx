@@ -11,8 +11,8 @@ import { BrandPageLoader } from "@/components/ui/loader";
 
 export default function SettingsPage() {
   const { user, activeCompany, isLoading, refreshSession } = useAuth();
-  const isSuperAdmin = user?.role === "SUPER_ADMIN";
-  const canManageFbr = user?.role === "SUPER_ADMIN" || (user?.role as string) === "OWNER_ADMIN";
+  const isSuperAdmin = user?.role === "SUPER_ADMIN" || user?.role === "ADMIN";
+  const canManageFbr = user?.role === "SUPER_ADMIN" || user?.role === "ADMIN" || (user?.role as string) === "OWNER_ADMIN";
   const [activeTab, setActiveTab] = useState<"PROFILE" | "DEFAULTS" | "FBR" | "USERS" | "AUDIT">("PROFILE");
   const [saved, setSaved] = useState(false);
   const [defaultsSaved, setDefaultsSaved] = useState(false);

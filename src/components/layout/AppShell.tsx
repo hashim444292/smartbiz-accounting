@@ -59,8 +59,8 @@ function ShellContent({ children }: { children: React.ReactNode }) {
           </div>
         )}
 
-        {/* Super Admin Client Inspection Banner */}
-        {user?.role === "SUPER_ADMIN" && isInspectingClient && (
+        {/* Super Admin / Platform Admin Client Inspection Banner */}
+        {(user?.role === "SUPER_ADMIN" || user?.role === "ADMIN") && isInspectingClient && (
           <div className="bg-gradient-to-r from-amber-700 via-amber-600 to-amber-700 text-white px-4 py-2 text-xs flex items-center justify-between shadow-xs z-30 border-b border-amber-600/60">
             <div className="flex items-center gap-2">
               <span className="bg-white/20 text-white px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider">

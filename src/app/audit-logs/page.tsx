@@ -23,10 +23,13 @@ import {
   Sparkles,
   RefreshCw,
 } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
 
 interface AuditLogEntry {
   id: string;
   createdAt: string;
+  businessId?: string;
+  business?: { id: string; name: string };
   userId?: string;
   userName?: string;
   userEmail?: string;
@@ -39,17 +42,22 @@ interface AuditLogEntry {
 }
 
 export default function AuditLogsPage() {
+  const { user, companies } = useAuth();
   const [logs, setLogs] = useState<AuditLogEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [companyFilter, setCompanyFilter] = useState("ALL");
   const [entityFilter, setEntityFilter] = useState("ALL");
   const [actionFilter, setActionFilter] = useState("ALL");
   const [selectedLog, setSelectedLog] = useState<AuditLogEntry | null>(null);
+
+  const isPlatformAdmin = user?.role === "SUPER_ADMIN" || user?.role === "ADMIN";
 
   const fetchLogs = async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
+      if (companyFilter !== "ALL") params.append("businessId", companyFilter);
       if (entityFilter !== "ALL") params.append("entity", entityFilter);
       if (actionFilter !== "ALL") params.append("action", actionFilter);
 
@@ -67,7 +75,7 @@ export default function AuditLogsPage() {
 
   useEffect(() => {
     fetchLogs();
-  }, [entityFilter, actionFilter]);
+  }, [companyFilter, entityFilter, actionFilter]);
 
   const filteredLogs = logs.filter((log) => {
     const q = search.toLowerCase();
@@ -77,7 +85,8 @@ export default function AuditLogsPage() {
     const matchesDetails = log.details && log.details.toLowerCase().includes(q);
     const matchesEntity = log.entity && log.entity.toLowerCase().includes(q);
     const matchesAction = log.action && log.action.toLowerCase().includes(q);
-    return !search || matchesUser || matchesDetails || matchesEntity || matchesAction;
+    const matchesBusiness = log.business?.name && log.business.name.toLowerCase().includes(q);
+    return !search || matchesUser || matchesDetails || matchesEntity || matchesAction || matchesBusiness;
   });
 
   const totalLogs = logs.length;
@@ -162,6 +171,24 @@ export default function AuditLogsPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
+          {isPlatformAdmin && companies && companies.length > 0 && (
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-semibold text-slate-500">Company:</span>
+              <select
+                value={companyFilter}
+                onChange={(e) => setCompanyFilter(e.target.value)}
+                className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-700 font-medium dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500 max-w-[190px] truncate"
+              >
+                <option value="ALL">All Companies (تمام کلائنٹس)</option>
+                {companies.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           <div className="flex items-center gap-1.5">
             <span className="text-xs font-semibold text-slate-500">Entity:</span>
             <select
@@ -170,6 +197,7 @@ export default function AuditLogsPage() {
               className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-700 font-medium dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
             >
               <option value="ALL">All Modules (تمام)</option>
+              <option value="Business">Company & SaaS (کمپنی ترامیم)</option>
               <option value="Sale">Sale Invoices (سیل انوائس)</option>
               <option value="Purchase">Purchases (خریداری)</option>
               <option value="Expense">Daily Expenses (اخراجات)</option>
@@ -185,6 +213,9 @@ export default function AuditLogsPage() {
               className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-700 font-medium dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
             >
               <option value="ALL">All Actions</option>
+              <option value="UPDATE_COMPANY">Edit Company (کمپنی ترامیم)</option>
+              <option value="RECORD_SUBSCRIPTION_PAYMENT">Subscription Payment (ماہانہ فیس)</option>
+              <option value="CREATE_COMPANY">Register Company (نئی کمپنی)</option>
               <option value="CREATE_SALE">Create Sale</option>
               <option value="UPDATE_SALE">Edit Sale (ترمیم)</option>
               <option value="REVERSE_SALE">Reverse Sale</option>
@@ -272,9 +303,17 @@ export default function AuditLogsPage() {
                       </td>
 
                       <td className="px-4 py-3">
-                        <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-300">
-                          {log.entity}
-                        </span>
+                        <div className="flex flex-col gap-1 items-start">
+                          <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                            {log.entity}
+                          </span>
+                          {log.business?.name && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-medium text-slate-500 dark:text-slate-400">
+                              <Building2 className="h-3 w-3 text-indigo-500 shrink-0" />
+                              <span className="truncate max-w-[130px]">{log.business.name}</span>
+                            </span>
+                          )}
+                        </div>
                       </td>
 
                       <td className="px-4 py-3">

@@ -20,7 +20,7 @@ export interface UserProfile {
   userId: string;
   email: string;
   name: string;
-  role: "SUPER_ADMIN" | "OWNER_ADMIN" | "ACCOUNTANT" | "STAFF";
+  role: "SUPER_ADMIN" | "ADMIN" | "OWNER_ADMIN" | "ACCOUNTANT" | "STAFF";
   businessId: string;
   businessName: string;
   companyIds?: string[];
@@ -115,7 +115,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setBranches(data.branches || []);
         setIsAuthenticated(Boolean(data.authenticated));
 
-        const isLocked = Boolean(data.user?.branchId && data.user?.role !== "SUPER_ADMIN" && data.user?.role !== "OWNER_ADMIN");
+        const isLocked = Boolean(data.user?.branchId && data.user?.role !== "SUPER_ADMIN" && data.user?.role !== "ADMIN" && data.user?.role !== "OWNER_ADMIN");
         setIsBranchLocked(isLocked);
 
         if (isLocked) {

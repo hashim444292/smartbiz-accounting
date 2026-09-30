@@ -55,7 +55,7 @@ export default function CompaniesManagementPage() {
   const [statusFilter, setStatusFilter] = useState<"ALL" | "ACTIVE" | "DUE" | "OVERDUE">("ALL");
 
   useEffect(() => {
-    if (user && user.role !== "SUPER_ADMIN") {
+    if (user && user.role !== "SUPER_ADMIN" && user.role !== "ADMIN") {
       router.replace("/");
     }
   }, [user, router]);
@@ -540,7 +540,7 @@ export default function CompaniesManagementPage() {
     return { activeCount: active, overdueCount: overdue, renewalsDueThisWeek: dueSoon, pendingDueAmount: pendingDue };
   }, [companies]);
 
-  if (user && user.role !== "SUPER_ADMIN") {
+  if (user && user.role !== "SUPER_ADMIN" && user.role !== "ADMIN") {
     return (
       <div className="p-12 text-center">
         <div className="mx-auto max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">

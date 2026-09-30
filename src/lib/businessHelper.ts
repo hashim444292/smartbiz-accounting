@@ -107,7 +107,7 @@ export async function getActiveBranchId(
   }
 
   // If user is locked to a branch (STAFF / branch user), enforce it strictly
-  if (userSessionBranchId && userRole !== "SUPER_ADMIN" && userRole !== "OWNER_ADMIN") {
+  if (userSessionBranchId && userRole !== "SUPER_ADMIN" && userRole !== "ADMIN" && userRole !== "OWNER_ADMIN") {
     return {
       branchId: userSessionBranchId,
       isLockedToBranch: true,

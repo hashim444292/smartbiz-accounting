@@ -10,6 +10,7 @@ generator client {
 
 enum Role {
   SUPER_ADMIN
+  ADMIN
   OWNER_ADMIN
   ACCOUNTANT
   STAFF

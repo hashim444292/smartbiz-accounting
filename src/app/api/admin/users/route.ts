@@ -90,6 +90,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (role === "SUPER_ADMIN") {
+      return NextResponse.json(
+        { success: false, error: "The SUPER_ADMIN role is protected and cannot be assigned to any new account." },
+        { status: 400 }
+      );
+    }
+
     const cleanEmail = email.toLowerCase().trim();
 
     // Check DB

@@ -52,6 +52,27 @@ const USER_FEATURE_MODULES = [
 
 const ROLE_PRESETS = [
   {
+    name: "Platform Team Admin",
+    urdu: "ٹیم ایڈمن (کمپنی مینجمنٹ و بلنگ)",
+    role: "ADMIN",
+    modules: [
+      "sales",
+      "pos",
+      "purchases",
+      "payments",
+      "expenses",
+      "inventory",
+      "customers",
+      "suppliers",
+      "products",
+      "reports",
+      "compliance",
+      "accounting",
+      "aiEntry",
+      "branches",
+    ],
+  },
+  {
     name: "Cashier / POS",
     urdu: "کیشیئر / کاؤنٹر",
     role: "STAFF",
@@ -380,6 +401,8 @@ export default function UsersManagementPage() {
     switch (role) {
       case "SUPER_ADMIN":
         return "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300 border-purple-200";
+      case "ADMIN":
+        return "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 border-indigo-200";
       case "OWNER_ADMIN":
         return "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 border-blue-200";
       case "ACCOUNTANT":
@@ -399,7 +422,7 @@ export default function UsersManagementPage() {
 
     if (companyFilter !== "ALL") {
       if (!u.companies || u.companies.length === 0) {
-        return u.role === "SUPER_ADMIN";
+        return u.role === "SUPER_ADMIN" || u.role === "ADMIN";
       }
       return u.companies.some((c: any) => c.id === companyFilter);
     }
@@ -581,8 +604,18 @@ export default function UsersManagementPage() {
                       <div className="flex flex-col gap-1 max-w-[280px]">
                         {u.role === "SUPER_ADMIN" ? (
                           <span className="text-[11px] font-semibold text-purple-600 dark:text-purple-400">
-                            ⭐ Full System Admin (Unrestricted)
+                            ⭐ Super Admin (Protected Master)
                           </span>
+                        ) : u.role === "ADMIN" ? (
+                          <div className="flex flex-col gap-0.5">
+                            <span className="inline-flex items-center gap-1 text-[11px] font-bold text-indigo-600 dark:text-indigo-400">
+                              <ShieldCheck className="h-3.5 w-3.5" />
+                              Platform Team Admin
+                            </span>
+                            <span className="text-[10px] text-slate-500">
+                              Manages Companies, Billing & Auditing
+                            </span>
+                          </div>
                         ) : hasModules ? (
                           <div>
                             <div className="flex items-center gap-1.5 mb-1">
@@ -677,7 +710,7 @@ export default function UsersManagementPage() {
                           <Edit2 className="h-3.5 w-3.5" />
                         </button>
 
-                        {!isSelf && (
+                        {!isSelf && u.role !== "SUPER_ADMIN" && (
                           <button
                             onClick={() => handleDeleteUser(u.id, u.name)}
                             className="p-1.5 rounded-lg text-slate-400 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/40 dark:hover:text-rose-400 transition"
@@ -1006,8 +1039,20 @@ export default function UsersManagementPage() {
                   <option value="STAFF">STAFF (Cashier / Operator / Field Staff)</option>
                   <option value="ACCOUNTANT">ACCOUNTANT (Accounts & Financial Management)</option>
                   <option value="OWNER_ADMIN">OWNER_ADMIN (Shop Owner / General Manager)</option>
-                  <option value="SUPER_ADMIN">SUPER_ADMIN (Platform Administrator)</option>
+                  <option value="ADMIN">ADMIN (Platform Team Member - Manage Companies & Billing)</option>
                 </select>
+
+                {formData.role === "ADMIN" && (
+                  <div className="mt-2.5 p-3 rounded-xl bg-indigo-50 border border-indigo-200 dark:bg-indigo-950/40 dark:border-indigo-800 text-[11px] text-indigo-900 dark:text-indigo-200">
+                    <p className="font-bold flex items-center gap-1.5 mb-1 text-indigo-700 dark:text-indigo-300">
+                      <ShieldCheck className="h-4 w-4 shrink-0 text-indigo-600 dark:text-indigo-400" />
+                      Team Admin Capabilities (کمپنی مینجمنٹ اختیارات)
+                    </p>
+                    <p className="leading-relaxed">
+                      یہ یوزر سینٹرل ایڈمن سافٹ ویئر میں لاگ ان ہو کر نئی کمپنیاں رجسٹر، ماہانہ فیس تجدید (Billing)، اور کمپنی سیٹنگز تبدیل کر سکے گا۔ تمام ترامیم آڈٹ لاگ میں ریکارڈ ہوں گی تاکہ آپ دیکھ سکیں کہ کس نے کیا تبدیل کیا۔
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div className="pt-3 flex items-center justify-end gap-2 border-t border-slate-100 dark:border-slate-800">
@@ -1324,14 +1369,33 @@ export default function UsersManagementPage() {
                 </label>
                 <select
                   value={formData.role}
+                  disabled={selectedUser?.role === "SUPER_ADMIN"}
                   onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs focus:ring-2 focus:ring-purple-500 font-semibold"
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs focus:ring-2 focus:ring-purple-500 font-semibold disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  <option value="STAFF">STAFF (Cashier / Operator / Field Staff)</option>
-                  <option value="ACCOUNTANT">ACCOUNTANT (Accounts & Financial Management)</option>
-                  <option value="OWNER_ADMIN">OWNER_ADMIN (Shop Owner / General Manager)</option>
-                  <option value="SUPER_ADMIN">SUPER_ADMIN (Platform Administrator)</option>
+                  {selectedUser?.role === "SUPER_ADMIN" ? (
+                    <option value="SUPER_ADMIN">SUPER_ADMIN (Protected Master Account)</option>
+                  ) : (
+                    <>
+                      <option value="STAFF">STAFF (Cashier / Operator / Field Staff)</option>
+                      <option value="ACCOUNTANT">ACCOUNTANT (Accounts & Financial Management)</option>
+                      <option value="OWNER_ADMIN">OWNER_ADMIN (Shop Owner / General Manager)</option>
+                      <option value="ADMIN">ADMIN (Platform Team Member - Manage Companies & Billing)</option>
+                    </>
+                  )}
                 </select>
+
+                {formData.role === "ADMIN" && (
+                  <div className="mt-2.5 p-3 rounded-xl bg-indigo-50 border border-indigo-200 dark:bg-indigo-950/40 dark:border-indigo-800 text-[11px] text-indigo-900 dark:text-indigo-200">
+                    <p className="font-bold flex items-center gap-1.5 mb-1 text-indigo-700 dark:text-indigo-300">
+                      <ShieldCheck className="h-4 w-4 shrink-0 text-indigo-600 dark:text-indigo-400" />
+                      Team Admin Capabilities (کمپنی مینجمنٹ اختیارات)
+                    </p>
+                    <p className="leading-relaxed">
+                      یہ یوزر سینٹرل ایڈمن سافٹ ویئر میں لاگ ان ہو کر نئی کمپنیاں رجسٹر، ماہانہ فیس تجدید (Billing)، اور کمپنی سیٹنگز تبدیل کر سکے گا۔ تمام ترامیم آڈٹ لاگ میں ریکارڈ ہوں گی تاکہ آپ دیکھ سکیں کہ کس نے کیا تبدیل کیا۔
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div className="pt-3 flex items-center justify-end gap-2 border-t border-slate-100 dark:border-slate-800">

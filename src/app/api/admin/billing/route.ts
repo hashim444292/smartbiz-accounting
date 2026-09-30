@@ -6,15 +6,16 @@ import {
   storeRecordSubscriptionPayment,
   storeGetBillingStats,
 } from "@/lib/fallbackStore";
+import { createSafeAuditLog } from "@/lib/auditHelper";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
     const session = await getSession();
-    if (session && session.role !== "SUPER_ADMIN") {
+    if (session && session.role !== "SUPER_ADMIN" && session.role !== "ADMIN") {
       return NextResponse.json(
-        { success: false, error: "Access denied. SaaS billing is strictly restricted to Super Admin." },
+        { success: false, error: "Access denied. SaaS billing is strictly restricted to Super Admin and Platform Admins." },
         { status: 403 }
       );
     }
@@ -117,9 +118,9 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const session = await getSession();
-    if (session && session.role !== "SUPER_ADMIN") {
+    if (session && session.role !== "SUPER_ADMIN" && session.role !== "ADMIN") {
       return NextResponse.json(
-        { success: false, error: "Access denied. Only Super Admin can record subscription payments." },
+        { success: false, error: "Access denied. Only Super Admin and Platform Admins can record subscription payments." },
         { status: 403 }
       );
     }
@@ -236,6 +237,36 @@ export async function POST(req: NextRequest) {
     fallbackStore.subscriptionPayments.unshift(receipt);
 
     const stats = storeGetBillingStats();
+
+    if (session) {
+      try {
+        await createSafeAuditLog(prisma, {
+          businessId,
+          userId: session.userId,
+          userName: session.name || (session.role === "ADMIN" ? "Team Admin" : "Super Admin"),
+          userEmail: session.email || "",
+          action: "RECORD_SUBSCRIPTION_PAYMENT",
+          entity: "Business",
+          entityId: businessId,
+          details: `Recorded subscription fee of Rs. ${paymentAmount} for "${companyName}" via ${paymentMethod || "BANK"} (Period: ${billingPeriod})`,
+          changes: JSON.stringify({
+            previous: {
+              paymentStatus: currentBiz?.paymentStatus || "UNPAID",
+              billingCycleEnd: currentBiz?.billingCycleEnd ? new Date(currentBiz.billingCycleEnd).toISOString().split("T")[0] : "—",
+            },
+            updated: {
+              paymentStatus: "PAID",
+              billingCycleEnd: nextEnd.toISOString().split("T")[0],
+              paidAmount: `Rs. ${paymentAmount}`,
+              paymentMethod: paymentMethod || "BANK",
+              reference: reference || "N/A",
+            },
+          }),
+        });
+      } catch (auditErr) {
+        console.warn("Failed to create audit log for billing payment:", auditErr);
+      }
+    }
 
     return NextResponse.json({
       success: true,

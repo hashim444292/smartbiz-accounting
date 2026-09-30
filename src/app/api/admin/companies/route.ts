@@ -3,15 +3,16 @@ import { prisma } from "@/lib/prisma";
 import { fallbackStore, storeAddCompany } from "@/lib/fallbackStore";
 import { getSession } from "@/lib/auth";
 import { saveFbrConfig } from "@/services/fbrService";
+import { createSafeAuditLog } from "@/lib/auditHelper";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
     const session = await getSession();
-    if (session && session.role !== "SUPER_ADMIN") {
+    if (session && session.role !== "SUPER_ADMIN" && session.role !== "ADMIN") {
       return NextResponse.json(
-        { success: false, error: "Access denied. Only Super Admin has access to company administration." },
+        { success: false, error: "Access denied. Only Super Admin and Platform Admins have access to company administration." },
         { status: 403 }
       );
     }
@@ -183,9 +184,9 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const session = await getSession();
-    if (session && session.role !== "SUPER_ADMIN") {
+    if (session && session.role !== "SUPER_ADMIN" && session.role !== "ADMIN") {
       return NextResponse.json(
-        { success: false, error: "Access denied. Only Super Admin can register new companies." },
+        { success: false, error: "Access denied. Only Super Admin and Platform Admins can register new companies." },
         { status: 403 }
       );
     }
@@ -317,8 +318,37 @@ export async function POST(req: NextRequest) {
           sellerNtn: ntn,
           sellerBusinessName: name,
           sellerProvince: province,
-          sellerAddress: address,
-        });
+          });
+      }
+
+      if (session) {
+        try {
+          await createSafeAuditLog(prisma, {
+            businessId: newBiz.id,
+            userId: session.userId,
+            userName: session.name || (session.role === "ADMIN" ? "Team Admin" : "Super Admin"),
+            userEmail: session.email || "",
+            action: "CREATE_COMPANY",
+            entity: "Business",
+            entityId: newBiz.id,
+            details: `Registered new company: "${name}" (Monthly Fee: Rs. ${monthlyFee}, Package: ${packageType || "FULL_SUITE"})`,
+            changes: JSON.stringify({
+              updated: {
+                name,
+                ownerName,
+                monthlyFee: Number(monthlyFee),
+                packageType: packageType || "FULL_SUITE",
+                paymentStatus: paymentStatus || "UNPAID",
+                phone: phone || "—",
+                email: email || "—",
+                city,
+                province,
+              },
+            }),
+          });
+        } catch (auditErr) {
+          console.warn("Failed to create audit log for company registration:", auditErr);
+        }
       }
 
       return NextResponse.json({

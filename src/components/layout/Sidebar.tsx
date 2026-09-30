@@ -76,18 +76,18 @@ const TENANT_NAVIGATION_GROUPS: NavGroup[] = [
   {
     section: "ٹیکس اور رپورٹس • REPORTS & TAX",
     items: [
-      { name: "Closing & Reports", sublabel: "کھاتہ بندش و منافع رپورٹ", href: "/reports", icon: BarChart3, roles: ["SUPER_ADMIN", "OWNER_ADMIN", "ACCOUNTANT"], moduleKey: "reports", userPermKey: "reports" },
+      { name: "Closing & Reports", sublabel: "کھاتہ بندش و منافع رپورٹ", href: "/reports", icon: BarChart3, roles: ["SUPER_ADMIN", "ADMIN", "OWNER_ADMIN", "ACCOUNTANT"], moduleKey: "reports", userPermKey: "reports" },
       { name: "FBR POS Digital", sublabel: "FBR ڈیجیٹل انوائسنگ", href: "/compliance/fbr", icon: ShieldCheck, badge: "FBR Live", moduleKey: "compliance", userPermKey: "compliance" },
-      { name: "General Ledger", sublabel: "ڈبل انٹری جنرل لیجر", href: "/accounting", icon: BookOpen, roles: ["SUPER_ADMIN", "OWNER_ADMIN", "ACCOUNTANT"], moduleKey: "accounting", userPermKey: "accounting" },
+      { name: "General Ledger", sublabel: "ڈبل انٹری جنرل لیجر", href: "/accounting", icon: BookOpen, roles: ["SUPER_ADMIN", "ADMIN", "OWNER_ADMIN", "ACCOUNTANT"], moduleKey: "accounting", userPermKey: "accounting" },
       { name: "AI Invoice Reader", sublabel: "انوائس اسکینر", href: "/ai-entry", icon: Sparkles, moduleKey: "aiEntry", userPermKey: "aiEntry" },
     ],
   },
   {
     section: "ادارہ و ترتیبات • ORGANIZATION",
     items: [
-      { name: "Sub-Branches", sublabel: "آؤٹ لیٹس و برانچز", href: "/branches", icon: Store, roles: ["SUPER_ADMIN", "OWNER_ADMIN"], userPermKey: "branches" },
-      { name: "Activity Log", sublabel: "آڈٹ ٹریک لاگ", href: "/audit-logs", icon: History, roles: ["SUPER_ADMIN", "OWNER_ADMIN", "ACCOUNTANT"], userPermKey: "accounting" },
-      { name: "Settings & Defaults", sublabel: "کمپنی سیٹنگز", href: "/settings", icon: Settings, roles: ["SUPER_ADMIN", "OWNER_ADMIN"] },
+      { name: "Sub-Branches", sublabel: "آؤٹ لیٹس و برانچز", href: "/branches", icon: Store, roles: ["SUPER_ADMIN", "ADMIN", "OWNER_ADMIN"], userPermKey: "branches" },
+      { name: "Activity Log", sublabel: "آڈٹ ٹریک لاگ", href: "/audit-logs", icon: History, roles: ["SUPER_ADMIN", "ADMIN", "OWNER_ADMIN", "ACCOUNTANT"], userPermKey: "accounting" },
+      { name: "Settings & Defaults", sublabel: "کمپنی سیٹنگز", href: "/settings", icon: Settings, roles: ["SUPER_ADMIN", "ADMIN", "OWNER_ADMIN"] },
     ],
   },
 ];
@@ -130,8 +130,18 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
   };
 
   const userRole = user?.role || "STAFF";
-  const isPlatformMode = userRole === "SUPER_ADMIN" && !isInspectingClient;
-  const currentGroups = isPlatformMode ? PLATFORM_ADMIN_GROUPS : TENANT_NAVIGATION_GROUPS;
+  const isPlatformMode = (userRole === "SUPER_ADMIN" || userRole === "ADMIN") && !isInspectingClient;
+
+  const platformGroups: NavGroup[] = PLATFORM_ADMIN_GROUPS.map((g) => ({
+    ...g,
+    items: g.items.filter((item) => {
+      // User accounts & credential management is strictly for the master SUPER_ADMIN
+      if (item.href === "/admin/users" && userRole !== "SUPER_ADMIN") return false;
+      return true;
+    }),
+  }));
+
+  const currentGroups = isPlatformMode ? platformGroups : TENANT_NAVIGATION_GROUPS;
 
   const isItemActive = (href: string) => {
     if (href === "/" || href === "/admin") {
@@ -252,7 +262,7 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
               }
 
               // 2. User-level granular module permissions (Decisive when defined)
-              if (userRole !== "SUPER_ADMIN" && user?.allowedModules && user.allowedModules.length > 0) {
+              if (userRole !== "SUPER_ADMIN" && userRole !== "ADMIN" && user?.allowedModules && user.allowedModules.length > 0) {
                 if (item.userPermKey) {
                   return user.allowedModules.includes(item.userPermKey);
                 }
@@ -264,7 +274,7 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
               }
 
               // 3. Fallback standard system role filter (if no granular user permissions are set)
-              if (item.roles && userRole !== "SUPER_ADMIN" && !item.roles.includes(userRole)) {
+              if (item.roles && userRole !== "SUPER_ADMIN" && userRole !== "ADMIN" && !item.roles.includes(userRole)) {
                 return false;
               }
 

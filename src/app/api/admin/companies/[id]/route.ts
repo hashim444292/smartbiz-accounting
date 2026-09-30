@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { fallbackStore, storeUpdateCompany, storeDeleteCompany } from "@/lib/fallbackStore";
 import { getSession } from "@/lib/auth";
 import { saveFbrConfig, getFbrConfig } from "@/services/fbrService";
+import { createSafeAuditLog } from "@/lib/auditHelper";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +13,7 @@ export async function PUT(
 ) {
   try {
     const session = await getSession();
-    if (session && session.role !== "SUPER_ADMIN" && session.role !== "OWNER_ADMIN") {
+    if (session && session.role !== "SUPER_ADMIN" && session.role !== "ADMIN" && session.role !== "OWNER_ADMIN") {
       return NextResponse.json(
         { success: false, error: "Access denied. Insufficient permissions to update company settings." },
         { status: 403 }
@@ -23,6 +24,11 @@ export async function PUT(
     const body = await req.json();
 
     try {
+      const existing = await prisma.business.findUnique({
+        where: { id },
+        include: { settings: true },
+      });
+
       const updated = await prisma.business.update({
         where: { id },
         data: {
@@ -107,6 +113,66 @@ export async function PUT(
 
       if (body.enabledModules) {
         storeUpdateCompany(id, { enabledModules: body.enabledModules });
+      }
+
+      // Generate detailed audit diff for Admin / Super Admin activity tracking
+      const previous: Record<string, any> = {};
+      const updatedDiff: Record<string, any> = {};
+      const changesList: string[] = [];
+
+      if (existing) {
+        const fieldsToCheck: Array<{ key: string; label: string; currentVal: any; newVal: any }> = [
+          { key: "name", label: "Company Name", currentVal: existing.name, newVal: body.name },
+          { key: "ownerName", label: "Owner Name", currentVal: existing.ownerName, newVal: body.ownerName },
+          { key: "phone", label: "Phone", currentVal: existing.phone, newVal: body.phone },
+          { key: "email", label: "Email", currentVal: existing.email, newVal: body.email },
+          { key: "monthlyFee", label: "Monthly Fee", currentVal: existing.monthlyFee, newVal: body.monthlyFee !== undefined ? Number(body.monthlyFee) : undefined },
+          { key: "paymentStatus", label: "Payment Status", currentVal: existing.paymentStatus, newVal: body.paymentStatus },
+          { key: "packageType", label: "Software Package", currentVal: existing.packageType, newVal: body.packageType },
+          { key: "billingCycleStart", label: "Billing Cycle Start", currentVal: existing.billingCycleStart ? new Date(existing.billingCycleStart).toISOString().split("T")[0] : null, newVal: body.billingCycleStart ? new Date(body.billingCycleStart).toISOString().split("T")[0] : undefined },
+          { key: "billingCycleEnd", label: "Billing Cycle End", currentVal: existing.billingCycleEnd ? new Date(existing.billingCycleEnd).toISOString().split("T")[0] : null, newVal: body.billingCycleEnd ? new Date(body.billingCycleEnd).toISOString().split("T")[0] : undefined },
+          { key: "ntn", label: "NTN", currentVal: existing.ntn, newVal: body.ntn },
+          { key: "strn", label: "STRN", currentVal: existing.strn, newVal: body.strn },
+          { key: "city", label: "City", currentVal: existing.city, newVal: body.city },
+          { key: "province", label: "Province", currentVal: existing.province, newVal: body.province },
+        ];
+
+        for (const item of fieldsToCheck) {
+          if (item.newVal !== undefined && item.newVal !== null && String(item.currentVal ?? "") !== String(item.newVal ?? "")) {
+            previous[item.label] = item.currentVal ?? "—";
+            updatedDiff[item.label] = item.newVal;
+            changesList.push(`${item.label}: "${item.currentVal ?? "—"}" → "${item.newVal}"`);
+          }
+        }
+
+        if (body.fbrToken !== undefined) {
+          const prevFbr = (existing.settings || []).find((s: any) => s.key === "fbr_token")?.value || "";
+          if (body.fbrToken !== prevFbr) {
+            previous["FBR Token"] = prevFbr ? "***Configured***" : "Not Set";
+            updatedDiff["FBR Token"] = body.fbrToken ? "***Updated***" : "Cleared";
+            changesList.push("Updated FBR Auth Token");
+          }
+        }
+      }
+
+      if (session) {
+        try {
+          await createSafeAuditLog(prisma, {
+            businessId: id,
+            userId: session.userId,
+            userName: session.name || (session.role === "ADMIN" ? "Team Admin" : "Super Admin"),
+            userEmail: session.email || "",
+            action: "UPDATE_COMPANY",
+            entity: "Business",
+            entityId: id,
+            details: changesList.length > 0 
+              ? `Modified company details: ${changesList.join("; ")}`
+              : `Updated company profile settings for ${body.name || updated.name}`,
+            changes: Object.keys(previous).length > 0 ? JSON.stringify({ previous, updated: updatedDiff }) : null,
+          });
+        } catch (auditErr) {
+          console.warn("Failed to create audit log for company update:", auditErr);
+        }
       }
 
       return NextResponse.json({

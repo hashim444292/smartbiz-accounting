@@ -170,8 +170,10 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
     switch (role) {
       case "SUPER_ADMIN":
         return "bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300 border-purple-200 dark:border-purple-800";
-      case "OWNER_ADMIN":
+      case "ADMIN":
         return "bg-indigo-100 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800";
+      case "OWNER_ADMIN":
+        return "bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border-blue-200 dark:border-blue-800";
       case "ACCOUNTANT":
         return "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800";
       default:
@@ -204,7 +206,7 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
           </button>
 
           {/* Company Context / Switcher */}
-          {user?.role === "SUPER_ADMIN" ? (
+          {(user?.role === "SUPER_ADMIN" || user?.role === "ADMIN") ? (
             <div className="relative" ref={dropdownRef}>
               <button
                 disabled={switchingCompanyId !== null}
@@ -373,7 +375,7 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
                 </span>
               </div>
             </div>
-          ) : (branches && branches.length > 0 && (user?.role !== "SUPER_ADMIN" || isInspectingClient)) ? (
+          ) : (branches && branches.length > 0 && ((user?.role !== "SUPER_ADMIN" && user?.role !== "ADMIN") || isInspectingClient)) ? (
             <div className="relative" ref={branchDropdownRef}>
               <button
                 onClick={() => setBranchDropdownOpen(!branchDropdownOpen)}
@@ -463,7 +465,7 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
                     })}
                   </div>
 
-                  {(user?.role === "SUPER_ADMIN" || user?.role === "OWNER_ADMIN") && (
+                  {(user?.role === "SUPER_ADMIN" || user?.role === "ADMIN" || user?.role === "OWNER_ADMIN") && (
                     <div className="mt-1 pt-1 border-t border-slate-100 dark:border-slate-800">
                       <Link
                         href="/branches"
@@ -734,10 +736,10 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
                   </div>
                   <div className="mt-2 flex items-center justify-between text-[11px] bg-slate-50 dark:bg-slate-900/60 px-2 py-1 rounded-lg border border-slate-100 dark:border-slate-800 group-hover:border-indigo-100 dark:group-hover:border-indigo-900/50">
                     <span className="text-slate-500 dark:text-slate-400">
-                      {user?.role === "SUPER_ADMIN" ? (isInspectingClient ? "Inspecting:" : "Scope:") : "Active Client:"}
+                      {(user?.role === "SUPER_ADMIN" || user?.role === "ADMIN") ? (isInspectingClient ? "Inspecting:" : "Scope:") : "Active Client:"}
                     </span>
                     <span className="font-bold text-indigo-700 dark:text-indigo-300 truncate max-w-[140px]">
-                      {user?.role === "SUPER_ADMIN" ? (isInspectingClient ? activeCompany?.name : "Global SaaS Platform") : activeCompany?.name}
+                      {(user?.role === "SUPER_ADMIN" || user?.role === "ADMIN") ? (isInspectingClient ? activeCompany?.name : "Global SaaS Platform") : activeCompany?.name}
                     </span>
                   </div>
                 </Link>

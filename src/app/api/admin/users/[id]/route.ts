@@ -24,9 +24,30 @@ export async function PUT(
 
     // Database update
     try {
+      const existingUser = await prisma.user.findUnique({ where: { id } });
+      if (!existingUser) {
+        return NextResponse.json({ success: false, error: "User not found" }, { status: 404 });
+      }
+
+      // 1. Prevent promoting any non-super admin to SUPER_ADMIN
+      if (role === "SUPER_ADMIN" && existingUser.role !== "SUPER_ADMIN") {
+        return NextResponse.json(
+          { success: false, error: "The SUPER_ADMIN role is protected and cannot be assigned to another user." },
+          { status: 400 }
+        );
+      }
+
+      // 2. Prevent removing SUPER_ADMIN from the master account
+      if (existingUser.role === "SUPER_ADMIN" && role && role !== "SUPER_ADMIN") {
+        return NextResponse.json(
+          { success: false, error: "The master SUPER_ADMIN account role cannot be changed." },
+          { status: 400 }
+        );
+      }
+
       const updateData: any = {};
       if (name) updateData.name = name;
-      if (role) updateData.role = role;
+      if (role && existingUser.role !== "SUPER_ADMIN") updateData.role = role;
       if (email) updateData.email = email.toLowerCase().trim();
       if (password) updateData.passwordHash = await hashPassword(password);
       if (Array.isArray(allowedModules)) updateData.allowedModules = allowedModules;
@@ -108,6 +129,14 @@ export async function DELETE(
 
     // Database delete
     try {
+      const targetUser = await prisma.user.findUnique({ where: { id } });
+      if (targetUser?.role === "SUPER_ADMIN") {
+        return NextResponse.json(
+          { success: false, error: "Cannot delete the master Super Admin account." },
+          { status: 400 }
+        );
+      }
+
       await prisma.businessMember.deleteMany({ where: { userId: id } });
       await prisma.user.delete({ where: { id } });
       return NextResponse.json({ success: true, message: "User deleted successfully" });

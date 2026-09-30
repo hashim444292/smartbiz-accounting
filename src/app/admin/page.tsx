@@ -17,6 +17,7 @@ import {
   Banknote,
   DollarSign,
   Calendar,
+  History,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -42,15 +43,19 @@ export default function AdminDashboardPage() {
   useEffect(() => {
     async function loadAdminData() {
       try {
-        const [compRes, usrRes, billRes] = await Promise.all([
+        const promises: Promise<any>[] = [
           fetch("/api/admin/companies").then((r) => r.json()),
-          fetch("/api/admin/users").then((r) => r.json()),
           fetch("/api/admin/billing").then((r) => r.json()),
-        ]);
+        ];
+        if (user?.role === "SUPER_ADMIN") {
+          promises.push(fetch("/api/admin/users").then((r) => r.json()));
+        }
 
-        if (compRes.success) setCompanies(compRes.data || []);
-        if (usrRes.success) setUsers(usrRes.data || []);
-        if (billRes.success) setBillingStats(billRes.stats || null);
+        const [compRes, billRes, usrRes] = await Promise.all(promises);
+
+        if (compRes?.success) setCompanies(compRes.data || []);
+        if (billRes?.success) setBillingStats(billRes.stats || null);
+        if (usrRes?.success) setUsers(usrRes.data || []);
       } catch (err) {
         console.error("Failed to load admin data:", err);
       } finally {
@@ -58,12 +63,14 @@ export default function AdminDashboardPage() {
       }
     }
     loadAdminData();
-  }, []);
+  }, [user]);
 
   const roleBadgeColor = (role?: string) => {
     switch (role) {
       case "SUPER_ADMIN":
         return "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300";
+      case "ADMIN":
+        return "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300";
       case "OWNER_ADMIN":
         return "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300";
       case "ACCOUNTANT":
@@ -85,7 +92,7 @@ export default function AdminDashboardPage() {
     );
   }
 
-  if (!loading && user?.role !== "SUPER_ADMIN") {
+  if (!loading && user?.role !== "SUPER_ADMIN" && user?.role !== "ADMIN") {
     return (
       <div className="min-h-[60vh] flex flex-col items-center justify-center text-center p-6 space-y-4">
         <div className="h-14 w-14 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center font-bold">
@@ -134,13 +141,23 @@ export default function AdminDashboardPage() {
               <Plus className="h-4 w-4" />
               <span>New Company</span>
             </Link>
-            <Link
-              href="/admin/users"
-              className="inline-flex items-center justify-center gap-1.5 sm:gap-2 rounded-xl bg-purple-600 hover:bg-purple-500 px-3.5 sm:px-4 py-2.5 text-xs font-bold text-white shadow-lg transition"
-            >
-              <Users className="h-4 w-4" />
-              <span>Manage Users</span>
-            </Link>
+            {user?.role === "SUPER_ADMIN" ? (
+              <Link
+                href="/admin/users"
+                className="inline-flex items-center justify-center gap-1.5 sm:gap-2 rounded-xl bg-purple-600 hover:bg-purple-500 px-3.5 sm:px-4 py-2.5 text-xs font-bold text-white shadow-lg transition"
+              >
+                <Users className="h-4 w-4" />
+                <span>Manage Users</span>
+              </Link>
+            ) : (
+              <Link
+                href="/audit-logs"
+                className="inline-flex items-center justify-center gap-1.5 sm:gap-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 px-3.5 sm:px-4 py-2.5 text-xs font-bold text-white shadow-lg transition"
+              >
+                <History className="h-4 w-4" />
+                <span>Activity Log</span>
+              </Link>
+            )}
             <Link
               href="/"
               className="col-span-2 sm:col-span-1 inline-flex items-center justify-center gap-1.5 sm:gap-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 px-3.5 sm:px-4 py-2.5 text-xs font-bold text-white transition"
@@ -352,57 +369,87 @@ export default function AdminDashboardPage() {
           </div>
         </div>
 
-        {/* System Users Preview (Right col) */}
+        {/* System Users Preview (Right col for Super Admin) / Activity Tracking (For Team Admin) */}
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-              <Users className="h-4 w-4 text-purple-600" />
-              <span>User Accounts</span>
-            </h2>
-            <Link
-              href="/admin/users"
-              className="text-xs font-semibold text-purple-600 hover:text-purple-700 flex items-center gap-1"
-            >
-              <span>All Users</span>
-              <ArrowRight className="h-3.5 w-3.5" />
-            </Link>
-          </div>
-
-          <Card>
-            <CardHeader className="p-4 pb-2 border-b border-slate-100 dark:border-slate-800">
+          {user?.role === "SUPER_ADMIN" ? (
+            <>
               <div className="flex items-center justify-between">
-                <CardTitle className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                  Active System Members
-                </CardTitle>
+                <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <Users className="h-4 w-4 text-purple-600" />
+                  <span>User Accounts</span>
+                </h2>
                 <Link
                   href="/admin/users"
-                  className="inline-flex items-center gap-1 text-xs font-bold text-purple-600 hover:text-purple-700"
+                  className="text-xs font-semibold text-purple-600 hover:text-purple-700 flex items-center gap-1"
                 >
-                  <Plus className="h-3.5 w-3.5" />
-                  <span>Add</span>
+                  <span>All Users</span>
+                  <ArrowRight className="h-3.5 w-3.5" />
                 </Link>
               </div>
-            </CardHeader>
-            <CardContent className="p-0 divide-y divide-slate-100 dark:divide-slate-800 text-xs">
-              {users.slice(0, 5).map((u) => (
-                <div key={u.id} className="p-3.5 flex items-center justify-between hover:bg-slate-50/50 dark:hover:bg-slate-900/50 transition">
-                  <div className="min-w-0 pr-2">
-                    <p className="font-bold text-slate-800 dark:text-slate-200 truncate">
-                      {u.name}
-                    </p>
-                    <p className="text-[11px] text-slate-400 truncate">{u.email}</p>
+
+              <Card>
+                <CardHeader className="p-4 pb-2 border-b border-slate-100 dark:border-slate-800">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                      Active System Members
+                    </CardTitle>
+                    <Link
+                      href="/admin/users"
+                      className="inline-flex items-center gap-1 text-xs font-bold text-purple-600 hover:text-purple-700"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      <span>Add</span>
+                    </Link>
                   </div>
-                  <span
-                    className={`inline-block px-2 py-0.5 text-[10px] font-bold rounded-lg shrink-0 ${roleBadgeColor(
-                      u.role
-                    )}`}
-                  >
-                    {u.role}
+                </CardHeader>
+                <CardContent className="p-0 divide-y divide-slate-100 dark:divide-slate-800 text-xs">
+                  {users.slice(0, 5).map((u) => (
+                    <div key={u.id} className="p-3.5 flex items-center justify-between hover:bg-slate-50/50 dark:hover:bg-slate-900/50 transition">
+                      <div className="min-w-0 pr-2">
+                        <p className="font-bold text-slate-800 dark:text-slate-200 truncate">
+                          {u.name}
+                        </p>
+                        <p className="text-[11px] text-slate-400 truncate">{u.email}</p>
+                      </div>
+                      <span
+                        className={`inline-block px-2 py-0.5 text-[10px] font-bold rounded-lg shrink-0 ${roleBadgeColor(
+                          u.role
+                        )}`}
+                      >
+                        {u.role}
+                      </span>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            </>
+          ) : (
+            <Card className="border-indigo-200 dark:border-indigo-800 bg-gradient-to-br from-indigo-50/60 to-purple-50/40 dark:from-indigo-950/40 dark:to-purple-950/20">
+              <CardHeader className="p-4 pb-2 border-b border-indigo-100 dark:border-indigo-900/50">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-xs font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-300 flex items-center gap-1.5">
+                    <ShieldCheck className="h-4 w-4" />
+                    <span>Team Admin Authority</span>
+                  </CardTitle>
+                  <span className="text-[10px] font-extrabold bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200 px-2 py-0.5 rounded-full">
+                    Audited
                   </span>
                 </div>
-              ))}
-            </CardContent>
-          </Card>
+              </CardHeader>
+              <CardContent className="p-4 space-y-2.5 text-xs text-slate-600 dark:text-slate-300">
+                <p className="leading-relaxed">
+                  آپ کے پاس کلائنٹ کمپنیوں، سبسکرپشن بلنگ اور سیٹنگز کے انتظامی اختیارات ہیں۔ آپ کی کی گئی ہر ترمیم آڈٹ لاگ میں محفوظ کی جاتی ہے۔
+                </p>
+                <Link
+                  href="/audit-logs"
+                  className="inline-flex items-center gap-1.5 font-bold text-indigo-600 hover:text-indigo-700 text-xs mt-1"
+                >
+                  <History className="h-3.5 w-3.5" />
+                  <span>تمام آڈٹ لاگز ملاحظہ کریں &rarr;</span>
+                </Link>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Quick Admin Actions Box */}
           <Card className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800/80 border-slate-200 dark:border-slate-700">
@@ -422,16 +469,29 @@ export default function AdminDashboardPage() {
                   <ArrowRight className="h-3.5 w-3.5 text-slate-400" />
                 </Link>
 
-                <Link
-                  href="/admin/users"
-                  className="w-full flex items-center justify-between p-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:border-purple-500 transition"
-                >
-                  <span className="flex items-center gap-2">
-                    <Users className="h-3.5 w-3.5 text-purple-600" />
-                    <span>Create & Manage Staff Logins</span>
-                  </span>
-                  <ArrowRight className="h-3.5 w-3.5 text-slate-400" />
-                </Link>
+                {user?.role === "SUPER_ADMIN" ? (
+                  <Link
+                    href="/admin/users"
+                    className="w-full flex items-center justify-between p-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:border-purple-500 transition"
+                  >
+                    <span className="flex items-center gap-2">
+                      <Users className="h-3.5 w-3.5 text-purple-600" />
+                      <span>Create & Manage Staff Logins</span>
+                    </span>
+                    <ArrowRight className="h-3.5 w-3.5 text-slate-400" />
+                  </Link>
+                ) : (
+                  <Link
+                    href="/audit-logs"
+                    className="w-full flex items-center justify-between p-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:border-indigo-500 transition"
+                  >
+                    <span className="flex items-center gap-2">
+                      <History className="h-3.5 w-3.5 text-indigo-600" />
+                      <span>Audit Logs & Activity Tracking</span>
+                    </span>
+                    <ArrowRight className="h-3.5 w-3.5 text-slate-400" />
+                  </Link>
+                )}
 
                 <Link
                   href="/settings"
@@ -439,7 +499,7 @@ export default function AdminDashboardPage() {
                 >
                   <span className="flex items-center gap-2">
                     <Settings className="h-3.5 w-3.5 text-slate-600" />
-                    <span>Audit Logs & Period Locks</span>
+                    <span>Platform Settings & Audit</span>
                   </span>
                   <ArrowRight className="h-3.5 w-3.5 text-slate-400" />
                 </Link>
