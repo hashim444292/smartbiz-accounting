@@ -915,9 +915,9 @@ export default function CreateSalePage() {
   return (
     <div className="min-h-screen bg-slate-50/60 pb-16 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
       <div className="mx-auto max-w-7xl px-4 pt-6 sm:px-6 lg:px-8 space-y-6">
-        {/* Top Header Banner */}
-        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200/80 pb-5 dark:border-slate-800">
-          <div className="flex items-center gap-4">
+        {/* Top Header */}
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200/80 pb-4 dark:border-slate-800">
+          <div className="flex items-center gap-3">
             <Link
               href="/sales"
               className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-100 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
@@ -925,79 +925,33 @@ export default function CreateSalePage() {
               <ArrowLeft className="h-4 w-4" />
             </Link>
             <div>
-              <div className="flex flex-wrap items-center gap-2.5">
-                <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-2xl">
-                  {isAccountingOnly ? "Create Sales Invoice" : "Create Sales Tax Invoice"}
-                </h1>
-                <span className="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-                  Commercial Sale
-                </span>
-                <span className="rounded-md bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-500 dark:bg-slate-800 dark:text-slate-400">
-                  Tenant: {tenantName}
-                </span>
-              </div>
-              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                {isAccountingOnly || !postToFbr
-                  ? "Cash, Partial Payment & Account Receivable (Credit) supported"
-                  : "Cash, Partial Payment & Account Receivable (Credit) supported • Queued for manual FBR Invoicing"}
+              <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-2xl">
+                {isAccountingOnly ? "نئی سیلز انوائس (New Sale)" : "سیلز انوائس (Sales Tax Invoice)"}
+              </h1>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                {activeCompany?.name || "SmartBiz Accounting"}
+                {selectedBranch?.name ? ` • ${selectedBranch.name}` : ""}
               </p>
             </div>
           </div>
 
-          {!isAccountingOnly && postToFbr && (
-            <div className="flex items-center gap-2.5">
-              <div className="inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50/80 px-3 py-1 text-xs font-semibold text-blue-700 dark:border-blue-900/40 dark:bg-blue-950/40 dark:text-blue-300">
-                <Lock className="h-3 w-3 text-blue-600 dark:text-blue-400" />
-                <span>Org Default HS: <strong className="font-mono font-bold">{orgHsCode}</strong></span>
-              </div>
-              <div className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/40 dark:text-amber-300">
-                <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
-                <span>FBR Invoicing Queue (Manual Hit)</span>
-              </div>
+          {/* Compact Branch Switcher if user has multiple branches */}
+          {branches.length > 1 && !isBranchLocked && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-medium text-slate-500">برانچ:</span>
+              <select
+                value={saleBranchId}
+                onChange={(e) => setSaleBranchId(e.target.value)}
+                className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+              >
+                {branches.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    🏢 {b.name}
+                  </option>
+                ))}
+              </select>
             </div>
           )}
-        </div>
-
-        {/* Active Branch Scope Indicator & Cashier Attribution */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-2xl border border-indigo-100 bg-indigo-50/70 p-4 text-xs text-indigo-950 dark:border-indigo-900/60 dark:bg-indigo-950/40 dark:text-indigo-200">
-          <div className="flex items-center gap-2.5">
-            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-indigo-600 text-xs font-bold text-white uppercase">
-              {user?.name?.charAt(0) || "U"}
-            </span>
-            <div>
-              <div className="flex items-center gap-1.5">
-                <span className="font-bold text-slate-900 dark:text-white">{user?.name || "Cashier"}</span>
-                <span className="rounded bg-indigo-200/80 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-900 dark:bg-indigo-900 dark:text-indigo-200">
-                  {user?.role?.replace("_", " ") || "STAFF"}
-                </span>
-              </div>
-              <span className="text-[11px] text-slate-500 dark:text-slate-400">Billing Officer (فروخت کنندہ)</span>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <span className="text-slate-500 dark:text-slate-400 font-medium">Terminal Outlet:</span>
-            {isBranchLocked ? (
-              <span className="inline-flex items-center gap-1.5 rounded-lg bg-amber-100 px-3 py-1 font-bold text-amber-900 dark:bg-amber-950 dark:text-amber-200 border border-amber-300 dark:border-amber-800">
-                <Building2 className="h-3.5 w-3.5 text-amber-700 dark:text-amber-300" />
-                <span>{user?.branchName || "Assigned Branch"} (LOCKED)</span>
-              </span>
-            ) : (
-              <div className="min-w-[200px]">
-                <select
-                  value={saleBranchId}
-                  onChange={(e) => setSaleBranchId(e.target.value)}
-                  className="w-full rounded-lg border border-indigo-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-900 dark:border-indigo-800 dark:bg-slate-900 dark:text-white"
-                >
-                  {branches.map((b) => (
-                    <option key={b.id} value={b.id}>
-                      🏢 {b.name} ({b.code})
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-          </div>
         </div>
 
         {/* Global Error Banner */}
@@ -1011,34 +965,28 @@ export default function CreateSalePage() {
         <form onSubmit={handleSubmitInvoice} className="space-y-6">
           {/* Top Card: Invoice Number, Customer (Buyer), Buyer Tax Status */}
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-6">
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+            <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
               {/* Column 1: INVOICE NUMBER */}
               <div className="space-y-1.5">
-                <div className="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
-                  <span>INVOICE NUMBER</span>
-                  <span className="flex items-center gap-1 text-[11px] font-normal text-slate-400">
-                    <Lock className="h-3 w-3" /> System Locked
-                  </span>
-                </div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                  انوائس نمبر (Invoice #)
+                </label>
                 <div className="relative">
                   <input
                     type="text"
                     readOnly
                     value={invoiceNumberPreview}
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700 focus:outline-none dark:border-slate-800 dark:bg-slate-800/60 dark:text-slate-300"
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-600 dark:border-slate-800 dark:bg-slate-800/60 dark:text-slate-300 cursor-not-allowed"
                   />
                   <Lock className="absolute right-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
                 </div>
-                <p className="text-[11px] text-slate-400 italic">
-                  {isAccountingOnly ? "Sequential invoice number generated on save" : "Sequential fiscal number generated on save"}
-                </p>
               </div>
 
               {/* Column 2: CUSTOMER (BUYER) * */}
               <div className="space-y-1.5">
-                <div className="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
+                <div className="flex items-center justify-between text-xs font-bold text-slate-700 dark:text-slate-300">
                   <span>
-                    CUSTOMER (BUYER) <span className="text-rose-500">*</span>
+                    گاہک / کسٹمر (Customer) <span className="text-rose-500">*</span>
                   </span>
                   <button
                     type="button"
@@ -1046,9 +994,9 @@ export default function CreateSalePage() {
                       setCustomerSaveError(null);
                       setIsAddCustomerModalOpen(true);
                     }}
-                    className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-600 hover:text-blue-700 hover:underline dark:text-blue-400"
+                    className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-700 hover:underline dark:text-blue-400"
                   >
-                    <Plus className="h-3 w-3" /> + Add New Customer
+                    <Plus className="h-3 w-3" /> نیا کسٹمر (+ Add)
                   </button>
                 </div>
 
@@ -1086,14 +1034,14 @@ export default function CreateSalePage() {
                     }}
                     className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200"
                   >
-                    <option value="">Walk in (Walk in) — Exempt</option>
+                    <option value="">Walk in (عام گاہک) — Exempt</option>
                     {customers.map((c) => (
                       <option key={c.id} value={c.id}>
                         {c.name} {c.businessName ? `(${c.businessName})` : c.phone ? `(${c.phone})` : ""} — {c.taxStatus || "Customer"} (Balance: Rs {c.currentBalance?.toLocaleString()})
                       </option>
                     ))}
                     <option value="__ADD_NEW__" className="font-bold text-blue-600">
-                      ➕ + Add New Customer...
+                      ➕ + نیا کسٹمر بنائیں (+ Add Customer)
                     </option>
                   </select>
                 </div>
@@ -1104,16 +1052,16 @@ export default function CreateSalePage() {
                     <span className="font-semibold text-slate-800 dark:text-slate-200 truncate">
                       {customerName}
                     </span>
-                    <span className="rounded bg-amber-100 px-1.5 py-0.2 text-[10px] font-semibold text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
+                    <span className="rounded bg-slate-200 px-1.5 py-0.2 text-[10px] font-semibold text-slate-700 dark:bg-slate-700 dark:text-slate-300">
                       {buyerTaxStatus === "EXEMPT" ? "Exempt" : buyerTaxStatus === "REGISTERED" ? "Taxpayer" : "Non-taxpayer"}
                     </span>
                   </div>
                   {selectedCustomer ? (
                     <span className="text-[10px] font-bold text-blue-700 dark:text-blue-300">
-                      Ledger: Rs {selectedCustomer.currentBalance?.toLocaleString()}
+                      Balance: Rs {selectedCustomer.currentBalance?.toLocaleString()}
                     </span>
                   ) : (
-                    <span className="rounded bg-slate-200/80 px-1.5 py-0.2 text-[10px] font-medium text-slate-600 dark:bg-slate-700 dark:text-slate-300">
+                    <span className="text-[10px] text-slate-500">
                       Walk-in
                     </span>
                   )}
@@ -1132,10 +1080,6 @@ export default function CreateSalePage() {
                       </span>
                     </div>
 
-                    <p className="text-[11px] text-amber-900 dark:text-amber-200 leading-tight">
-                      ⚠️ <strong>Partial / Credit Sale:</strong> Customer ka name aur phone number likhein taake pata chale kis se remaining amount leni hai aur ledger me show ho.
-                    </p>
-
                     <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                       <div>
                         <label className="block text-[10px] font-bold uppercase text-slate-600 dark:text-slate-400 mb-0.5">
@@ -1145,7 +1089,7 @@ export default function CreateSalePage() {
                           type="text"
                           value={walkInName}
                           onChange={(e) => setWalkInName(e.target.value)}
-                          placeholder="e.g. Muhammad Kashif, Ali Raza"
+                          placeholder="e.g. Muhammad Kashif"
                           className={`w-full rounded-lg border bg-white px-2.5 py-1.5 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-1 ${
                             !walkInName.trim()
                               ? "border-rose-400 focus:border-rose-600 focus:ring-rose-600 bg-rose-50/30"
@@ -1166,123 +1110,88 @@ export default function CreateSalePage() {
                         />
                       </div>
                     </div>
-
-                    <div className="pt-0.5 text-[11px] text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
-                      <Check className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
-                      <span>
-                        Invoice aur Customers (Receivables) tab me <strong className="text-indigo-700 dark:text-indigo-300">{walkInName.trim() ? `${walkInName.trim()} (Walk-in)` : "Walk-in Customer Name"}</strong> ke naam se balance record hoga.
-                      </span>
-                    </div>
                   </div>
                 )}
               </div>
 
               {/* Column 3: BUYER TAX STATUS */}
               <div className="space-y-1.5">
-                <div className="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
-                  BUYER TAX STATUS
-                </div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                  ٹیکس کیٹیگری (Tax Category)
+                </label>
                 <select
                   value={buyerTaxStatus}
                   onChange={(e) => handleBuyerTaxStatusChange(e.target.value as BuyerTaxStatus)}
                   className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 focus:border-blue-500 focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200"
                 >
-                  <option value="EXEMPT">Exempt Supplies (6th Schedule — 0% Tax)</option>
-                  <option value="REGISTERED">Registered Taxpayer (18% Sales Tax)</option>
-                  <option value="UNREGISTERED">Unregistered Buyer (18% + 3% Further Tax)</option>
+                  <option value="EXEMPT">عام کسٹمر / Exempt (0% Tax)</option>
+                  <option value="REGISTERED">رجسٹرڈ ٹیکس دہندہ (18% Sales Tax)</option>
+                  <option value="UNREGISTERED">غیر رجسٹرڈ بزنس (18% + 3% Further Tax)</option>
                 </select>
-                <p className="text-[11px] text-slate-400">
-                  Determines statutory sales tax rate and Section 3(1A) Further Tax
-                </p>
               </div>
             </div>
 
-            {/* FBR Reporting Decision Box & Channel Selector - Only for Full Suite */}
+            {/* FBR Reporting Toggle - Only for Full Suite */}
             {!isAccountingOnly && (
-              <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800 space-y-3">
-                {/* User Prompt: Should this invoice be posted to FBR? */}
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-slate-50/80 dark:bg-slate-900/60 p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-800">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <ShieldCheck className={`h-4 w-4 ${postToFbr ? "text-emerald-600 dark:text-emerald-400" : "text-slate-400"}`} />
-                      <span className="text-xs font-bold text-slate-900 dark:text-slate-100">
-                        کیا یہ انوائس FBR میں بھیجنی ہے؟ (Post this Invoice to FBR?)
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                      {postToFbr
-                        ? "ہاں — یہ بل FBR انوائس لسٹ میں جائے گا اور FBR پورٹل پر ویریفائی ہو سکے گا۔"
-                        : "نہیں — یہ بل صرف اندرونی کھاتے اور سیلز لسٹ میں جائے گا، FBR لسٹ میں شامل نہیں ہوگا۔"}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => setPostToFbr(true)}
-                      className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
-                        postToFbr
-                          ? "bg-emerald-600 text-white shadow-xs"
-                          : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:text-slate-900"
-                      }`}
-                    >
-                      <CheckCircle2 className="h-3.5 w-3.5" />
-                      <span>ہاں، FBR میں بھیجیں (Yes)</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setPostToFbr(false)}
-                      className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
-                        !postToFbr
-                          ? "bg-slate-800 text-white shadow-xs dark:bg-slate-700"
-                          : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:text-slate-900"
-                      }`}
-                    >
-                      <span>نہیں، صرف لوکل سیل (No)</span>
-                    </button>
-                  </div>
+              <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className={`h-4 w-4 ${postToFbr ? "text-emerald-600" : "text-slate-400"}`} />
+                  <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                    FBR میں رپورٹنگ:
+                  </span>
                 </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPostToFbr(true)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+                      postToFbr
+                        ? "bg-emerald-600 text-white shadow-xs"
+                        : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 hover:text-slate-900"
+                    }`}
+                  >
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                    <span>✓ FBR Invoice (بھیجیں)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPostToFbr(false)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+                      !postToFbr
+                        ? "bg-slate-800 text-white shadow-xs dark:bg-slate-700"
+                        : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 hover:text-slate-900"
+                    }`}
+                  >
+                    <span>صرف لوکل بل (Local Sale)</span>
+                  </button>
 
-                {/* If postToFbr is true: Show Compliance Channel Selector (Retail POS vs Digital Invoicing) */}
-                {postToFbr && (
-                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 px-1">
-                    <div>
-                      <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                        Compliance Channel:
-                      </span>
-                      <span className="ml-2 text-[11px] text-slate-500 dark:text-slate-400">
-                        {fbrInvoiceType === "TIER1_POS" 
-                          ? "Retail Counter POS: Includes statutory Rs. 1.00 POS service charge (SRO 1006(I))" 
-                          : "Digital Invoicing (B2B): Rs. 0.00 POS fee (Statutory GST % applies)"}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700">
+                  {postToFbr && (
+                    <div className="flex items-center gap-1 ml-2 border-l border-slate-200 pl-3 dark:border-slate-700">
                       <button
                         type="button"
                         onClick={() => setFbrInvoiceType("TIER1_POS")}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
+                        className={`px-2.5 py-1 rounded-lg text-xs font-bold transition ${
                           fbrInvoiceType === "TIER1_POS"
-                            ? "bg-white text-indigo-700 shadow-xs dark:bg-slate-900 dark:text-indigo-400 font-extrabold"
-                            : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
+                            ? "bg-indigo-100 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300"
+                            : "text-slate-500 hover:text-slate-800"
                         }`}
                       >
-                        <Receipt className="h-3.5 w-3.5" />
-                        <span>Retail POS (+Rs. 1 Fee)</span>
+                        Retail POS (+Rs. 1)
                       </button>
                       <button
                         type="button"
                         onClick={() => setFbrInvoiceType("DIGITAL_INVOICING")}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
+                        className={`px-2.5 py-1 rounded-lg text-xs font-bold transition ${
                           fbrInvoiceType === "DIGITAL_INVOICING"
-                            ? "bg-white text-blue-700 shadow-xs dark:bg-slate-900 dark:text-blue-400 font-extrabold"
-                            : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
+                            ? "bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300"
+                            : "text-slate-500 hover:text-slate-800"
                         }`}
                       >
-                        <Building2 className="h-3.5 w-3.5" />
-                        <span>Digital Invoicing (Rs. 0 POS Fee)</span>
+                        Digital Invoicing
                       </button>
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             )}
           </div>
@@ -1293,16 +1202,11 @@ export default function CreateSalePage() {
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-4 dark:border-slate-800">
               <div className="flex items-center gap-3">
                 <h2 className="text-sm font-bold uppercase tracking-wider text-slate-800 dark:text-white">
-                  INVOICE LINE ITEMS
+                  اشیاء کی تفصیل (Items List)
                 </h2>
                 <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
                   {items.length} {items.length === 1 ? "Item" : "Items"}
                 </span>
-                {!isAccountingOnly && (
-                  <span className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2.5 py-0.5 text-xs font-semibold text-blue-700 dark:border-blue-900/50 dark:bg-blue-950/40 dark:text-blue-300">
-                    <Lock className="h-2.5 w-2.5" /> Locked Org HS: {orgHsCode}
-                  </span>
-                )}
               </div>
 
               <Button
@@ -1312,7 +1216,7 @@ export default function CreateSalePage() {
                 size="sm"
                 className="bg-blue-600 text-xs font-semibold hover:bg-blue-700 shadow-sm"
               >
-                <Plus className="h-3.5 w-3.5 mr-1" /> Add Item (Alt+A)
+                <Plus className="h-3.5 w-3.5 mr-1" /> آئٹم شامل کریں (+ Add Item)
               </Button>
             </div>
 
@@ -1322,16 +1226,15 @@ export default function CreateSalePage() {
                 <thead className="bg-slate-50/80 border-b border-slate-200 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:bg-slate-800/40 dark:border-slate-800 dark:text-slate-400">
                   <tr>
                     <th className="py-3 pl-4 pr-2 w-10 text-center">#</th>
-                    <th className="py-3 px-3 min-w-[280px]">ITEM DESCRIPTION & CATALOG</th>
-                    <th className="py-3 px-3 w-36 text-center">HS / PCT CODE</th>
-                    <th className="py-3 px-2 w-24 text-center">UOM</th>
-                    <th className="py-3 px-2 w-20 text-center">QTY</th>
-                    <th className="py-3 px-2 w-32 text-right">UNIT PRICE (PKR)</th>
-                    <th className="py-3 px-2 w-20 text-center">DISC %</th>
-                    <th className="py-3 px-2 w-20 text-center">TAX %</th>
-                    <th className="py-3 px-3 w-32 text-right">TAXABLE</th>
-                    <th className="py-3 px-3 w-32 text-right">TOTAL (PKR)</th>
-                    <th className="py-3 pl-2 pr-4 w-12 text-center"></th>
+                    <th className="py-3 px-3 min-w-[260px]">آئٹم کا نام (Product / Item)</th>
+                    <th className="py-3 px-2 w-20 text-center">یونٹ (UOM)</th>
+                    <th className="py-3 px-2 w-20 text-center">تعداد (Qty)</th>
+                    <th className="py-3 px-2 w-32 text-right">قیمت (Price)</th>
+                    <th className="py-3 px-2 w-20 text-center">ڈسکاؤنٹ %</th>
+                    <th className="py-3 px-2 w-16 text-center">ٹیکس %</th>
+                    <th className="py-3 px-3 w-28 text-right">ٹیکس ایبل</th>
+                    <th className="py-3 px-3 w-32 text-right">کل رقم (Total)</th>
+                    <th className="py-3 pl-2 pr-4 w-10 text-center"></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -1348,7 +1251,7 @@ export default function CreateSalePage() {
                           type="text"
                           value={it.productName}
                           onChange={(e) => handleItemFieldChange(idx, "productName", e.target.value)}
-                          placeholder="Enter item description or pick from catalog below"
+                          placeholder="آئٹم کا نام لکھیں یا لسٹ سے چنیں"
                           className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-900 focus:border-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
                         />
 
@@ -1359,14 +1262,14 @@ export default function CreateSalePage() {
                             onChange={(e) => handleProductSelect(idx, e.target.value)}
                             className="w-full rounded-md border border-slate-200 bg-slate-50/80 px-2 py-1 text-[11px] text-slate-600 focus:border-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 truncate"
                           >
-                            <option value="">Select from catalog...</option>
+                            <option value="">کیٹلاگ سے منتخب کریں...</option>
                             {products.map((p) => (
                               <option key={p.id} value={p.id}>
                                 {p.name} {p.sku ? `(${p.sku})` : ""} — Rs. {p.sellingPrice?.toLocaleString()} ({p.currentStock ?? 0} {p.uom || p.unit || "pcs"})
                               </option>
                             ))}
                             <option value="__ADD_NEW__" className="font-bold text-blue-600">
-                              ➕ + Add New Product to Catalog...
+                              ➕ + نیا پروڈکٹ بنائیں (+ Add Product)
                             </option>
                           </select>
 
@@ -1396,24 +1299,10 @@ export default function CreateSalePage() {
 
                         {it.availableStock > 0 && (
                           <div className="text-[10px] text-slate-400 flex items-center gap-2">
-                            <span>In Stock: <strong className="text-slate-600 dark:text-slate-300">{it.availableStock} {it.uom}</strong></span>
+                            <span>اسٹاک: <strong className="text-slate-600 dark:text-slate-300">{it.availableStock} {it.uom}</strong></span>
                             {it.sku && <span>SKU: {it.sku}</span>}
                           </div>
                         )}
-                      </td>
-
-                      {/* HS / PCT CODE */}
-                      <td className="py-3 px-3 text-center align-top pt-4">
-                        <div className="relative inline-block w-full">
-                          <input
-                            type="text"
-                            readOnly
-                            value={it.hsCode || orgHsCode}
-                            className="w-full rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 text-center text-xs font-mono font-bold text-slate-700 focus:outline-none dark:border-slate-800 dark:bg-slate-800/60 dark:text-slate-300"
-                          />
-                          <Lock className="absolute right-2 top-2 h-3 w-3 text-slate-400" />
-                        </div>
-                        <p className="text-[9px] text-slate-400 mt-1">HS Code set by org admin</p>
                       </td>
 
                       {/* UOM */}
@@ -1504,77 +1393,6 @@ export default function CreateSalePage() {
             </div>
           </div>
 
-          {/* Multi-Piece Invoicing Mode Card (Prompt when totalPieces > 1) */}
-          {totalPieces > 1 && (
-            <div className="rounded-2xl border-2 border-indigo-200 bg-indigo-50/70 p-5 dark:border-indigo-800 dark:bg-indigo-950/40 space-y-3.5 shadow-sm">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <Package className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
-                  <span className="font-bold text-sm text-indigo-950 dark:text-indigo-200">
-                    پیسز / تعداد کا انوائسنگ طریقہ (Multi-Piece Invoicing Mode)
-                  </span>
-                </div>
-                <span className="rounded-full bg-indigo-200/90 px-3 py-1 text-xs font-bold text-indigo-900 dark:bg-indigo-900 dark:text-indigo-200">
-                  کل {totalPieces} پیسز درج ہیں (Total: {totalPieces} Pieces)
-                </span>
-              </div>
-
-              <p className="text-xs text-indigo-900 dark:text-indigo-200 leading-relaxed">
-                آپ کے بل میں کل <strong>{totalPieces} پیسز</strong> درج ہیں۔ کیا آپ ان تمام کا ایک ہی مشترکہ بل بنانا چاہتے ہیں یا ہر پیس کا الگ الگ بل جنریٹ کرنا چاہتے ہیں؟
-              </p>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                {/* Mode 1: Consolidated Single Invoice */}
-                <button
-                  type="button"
-                  onClick={() => setInvoiceSplitMode("CONSOLIDATED")}
-                  className={`flex items-start gap-3 p-3.5 rounded-xl border-2 text-left transition ${
-                    invoiceSplitMode === "CONSOLIDATED"
-                      ? "border-blue-600 bg-white shadow-sm ring-2 ring-blue-500/20 text-slate-900 dark:bg-slate-900 dark:text-white"
-                      : "border-slate-200 bg-white/70 hover:bg-white text-slate-600 dark:border-slate-800 dark:bg-slate-900/60"
-                  }`}
-                >
-                  <FileText className={`h-5 w-5 mt-0.5 shrink-0 ${invoiceSplitMode === "CONSOLIDATED" ? "text-blue-600" : "text-slate-400"}`} />
-                  <div>
-                    <div className="font-bold text-xs flex items-center gap-1.5 text-slate-900 dark:text-white">
-                      <span>ایک ہی مشترکہ انوائس (Single Consolidated)</span>
-                      {invoiceSplitMode === "CONSOLIDATED" && (
-                        <CheckCircle2 className="h-4 w-4 text-blue-600 ml-auto shrink-0" />
-                      )}
-                    </div>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
-                      تمام {totalPieces} پیسز کا صرف 1 بل بنے گا جس پر کل رقم PKR {totalPayable.toLocaleString("en-PK", { minimumFractionDigits: 2 })} درج ہوگی۔
-                    </p>
-                  </div>
-                </button>
-
-                {/* Mode 2: Split per piece */}
-                <button
-                  type="button"
-                  onClick={() => setInvoiceSplitMode("SPLIT_PER_PIECE")}
-                  className={`flex items-start gap-3 p-3.5 rounded-xl border-2 text-left transition ${
-                    invoiceSplitMode === "SPLIT_PER_PIECE"
-                      ? "border-indigo-600 bg-white shadow-sm ring-2 ring-indigo-500/20 text-slate-900 dark:bg-slate-900 dark:text-white"
-                      : "border-slate-200 bg-white/70 hover:bg-white text-slate-600 dark:border-slate-800 dark:bg-slate-900/60"
-                  }`}
-                >
-                  <Layers className={`h-5 w-5 mt-0.5 shrink-0 ${invoiceSplitMode === "SPLIT_PER_PIECE" ? "text-indigo-600" : "text-slate-400"}`} />
-                  <div>
-                    <div className="font-bold text-xs flex items-center gap-1.5 text-slate-900 dark:text-white">
-                      <span>ہر پیس کا الگ بل ({totalPieces} Separate Invoices)</span>
-                      {invoiceSplitMode === "SPLIT_PER_PIECE" && (
-                        <CheckCircle2 className="h-4 w-4 text-indigo-600 ml-auto shrink-0" />
-                      )}
-                    </div>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
-                      ہر پیس کا الگ الگ انوائس بنے گا (کل {totalPieces} بل بنیں گے {!isAccountingOnly && postToFbr ? "اور FBR میں الگ شوٹ ہوں گے" : "اور کھاتے میں درج ہوں گے"})۔
-                    </p>
-                  </div>
-                </button>
-              </div>
-            </div>
-          )}
-
           {/* Bottom Grid: Payment Methods & Guarantee (Left) vs Tax & Payment Summary (Right) */}
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
             {/* Left Column (7 cols): Payment Mode Selector + Settlement Method + Guarantee */}
@@ -1597,59 +1415,53 @@ export default function CreateSalePage() {
                 </div>
 
                 {/* 3 Payment Mode Toggle Cards */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                   <button
                     type="button"
                     onClick={() => handleSetPaymentMode("FULL")}
-                    className={`flex flex-col items-start p-3.5 rounded-xl border text-left transition ${
+                    className={`flex items-center gap-2.5 p-3 rounded-xl border text-left transition ${
                       paymentMode === "FULL"
-                        ? "border-emerald-500 bg-emerald-50/60 dark:bg-emerald-950/30 text-emerald-900 dark:text-emerald-200 shadow-sm"
+                        ? "border-emerald-500 bg-emerald-50/60 dark:bg-emerald-950/30 text-emerald-900 dark:text-emerald-200 shadow-xs"
                         : "border-slate-200 bg-white hover:bg-slate-50 text-slate-600 dark:border-slate-800 dark:bg-slate-900"
                     }`}
                   >
-                    <div className="flex items-center gap-2 font-bold text-xs">
-                      <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                      <span>Full Payment</span>
+                    <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                    <div>
+                      <div className="font-bold text-xs">مکمل کیش / بینک</div>
+                      <span className="text-[10px] text-slate-400">100% Full Payment</span>
                     </div>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
-                      Customer pays 100% today in Cash or Bank
-                    </p>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => handleSetPaymentMode("PARTIAL")}
-                    className={`flex flex-col items-start p-3.5 rounded-xl border text-left transition ${
+                    className={`flex items-center gap-2.5 p-3 rounded-xl border text-left transition ${
                       paymentMode === "PARTIAL"
-                        ? "border-amber-500 bg-amber-50/60 dark:bg-amber-950/30 text-amber-900 dark:text-amber-200 shadow-sm"
+                        ? "border-amber-500 bg-amber-50/60 dark:bg-amber-950/30 text-amber-900 dark:text-amber-200 shadow-xs"
                         : "border-slate-200 bg-white hover:bg-slate-50 text-slate-600 dark:border-slate-800 dark:bg-slate-900"
                     }`}
                   >
-                    <div className="flex items-center gap-2 font-bold text-xs">
-                      <Wallet className="h-4 w-4 text-amber-600" />
-                      <span>Partial Payment</span>
+                    <Wallet className="h-4 w-4 text-amber-600 shrink-0" />
+                    <div>
+                      <div className="font-bold text-xs">کچھ رقم وصول (ایڈوانس)</div>
+                      <span className="text-[10px] text-slate-400">Partial Deposit</span>
                     </div>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
-                      Pays advance/deposit; balance to Receivable
-                    </p>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => handleSetPaymentMode("CREDIT")}
-                    className={`flex flex-col items-start p-3.5 rounded-xl border text-left transition ${
+                    className={`flex items-center gap-2.5 p-3 rounded-xl border text-left transition ${
                       paymentMode === "CREDIT"
-                        ? "border-rose-500 bg-rose-50/60 dark:bg-rose-950/30 text-rose-900 dark:text-rose-200 shadow-sm"
+                        ? "border-rose-500 bg-rose-50/60 dark:bg-rose-950/30 text-rose-900 dark:text-rose-200 shadow-xs"
                         : "border-slate-200 bg-white hover:bg-slate-50 text-slate-600 dark:border-slate-800 dark:bg-slate-900"
                     }`}
                   >
-                    <div className="flex items-center gap-2 font-bold text-xs">
-                      <CreditCard className="h-4 w-4 text-rose-600" />
-                      <span>Full Credit Sale</span>
+                    <CreditCard className="h-4 w-4 text-rose-600 shrink-0" />
+                    <div>
+                      <div className="font-bold text-xs">مکمل ادھار (Credit)</div>
+                      <span className="text-[10px] text-slate-400">100% Receivable</span>
                     </div>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
-                      Rs. 0 paid today; 100% to Customer Receivable
-                    </p>
                   </button>
                 </div>
 
@@ -1789,21 +1601,6 @@ export default function CreateSalePage() {
                   </div>
                 </div>
               </div>
-
-              {/* Pakistani Tax Compliance Guarantee (SRO 1006(I)) Banner */}
-              <div className="flex items-start gap-3.5 rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4.5 dark:border-emerald-900/50 dark:bg-emerald-950/30">
-                <div className="rounded-xl bg-emerald-100 p-2 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300">
-                  <ShieldCheck className="h-5 w-5" />
-                </div>
-                <div className="space-y-1">
-                  <h4 className="text-xs font-bold text-emerald-900 dark:text-emerald-200">
-                    Pakistani Tax Compliance Guarantee (SRO 1006(I))
-                  </h4>
-                  <p className="text-xs leading-relaxed text-emerald-800/90 dark:text-emerald-300/80">
-                    All commercial line item HS Codes are locked strictly to your organization's authorized default (<strong className="font-mono font-bold text-emerald-950 dark:text-white">{orgHsCode}</strong>). Supplies to non-registered buyers automatically include statutory 3% Further Tax under Section 3(1A) of the Sales Tax Act, 1990.
-                  </p>
-                </div>
-              </div>
             </div>
 
             {/* Right Column (5 cols): TAX & PAYMENT SUMMARY */}
@@ -1811,11 +1608,8 @@ export default function CreateSalePage() {
               <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 space-y-4">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800">
                   <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200">
-                    TAX & PAYMENT SUMMARY
+                    بل کی تفصیل (Payment Summary)
                   </h3>
-                  <span className="text-[11px] font-mono font-medium text-slate-400">
-                    FBR SRO 1006(I)
-                  </span>
                 </div>
 
                 <div className="space-y-2.5 text-xs">
@@ -2054,12 +1848,8 @@ export default function CreateSalePage() {
                   >
                     <CheckCircle2 className="h-4 w-4 mr-2" />
                     {submitting
-                      ? (isProcessingSplit ? `Generating ${totalPieces} Split Invoices...` : "Saving Invoice...")
-                      : totalPieces > 1 && invoiceSplitMode === "SPLIT_PER_PIECE"
-                      ? `Generate ${totalPieces} Separate Invoices (${totalPieces} الگ الگ بل بنائیں)`
-                      : isAccountingOnly || !postToFbr
-                      ? "Generate Sale Invoice (Local Ledger)"
-                      : "Generate Sale Invoice (Queue in FBR Tab)"}
+                      ? (isProcessingSplit ? `بل بن رہے ہیں (${totalPieces} Invoices)...` : "بل محفوظ ہو رہا ہے...")
+                      : "بل محفوظ کریں (Save Invoice)"}
                   </Button>
                 </div>
               </div>
