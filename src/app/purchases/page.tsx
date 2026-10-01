@@ -19,6 +19,7 @@ import {
   CheckCircle2,
   Receipt,
   FileText,
+  RefreshCw,
 } from "lucide-react";
 import { TableRowsSkeleton } from "@/components/ui/loader";
 import { Modal } from "@/components/ui/modal";
@@ -230,7 +231,7 @@ export default function PurchasesPage() {
       if (effectiveBranch) headers["x-branch-id"] = effectiveBranch;
       const query = effectiveBranch ? `?branchId=${effectiveBranch}` : "?branchId=all";
 
-      const json = await smartFetch(`/api/purchases${query}`, { headers, ttlMs: 20000 });
+      const json = await smartFetch(`/api/purchases${query}`, { headers, ttlMs: 5000, skipCache: true });
       if (json.success) setPurchases(json.data);
     } catch (err) {
       console.error("Failed to load purchases:", err);
@@ -327,11 +328,15 @@ export default function PurchasesPage() {
     document.body.removeChild(link);
   };
 
-  const filtered = purchases.filter(
-    (p) =>
-      p.purchaseNumber?.toLowerCase().includes(search.toLowerCase()) ||
-      p.supplierName?.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = purchases.filter((p) => {
+    const q = search.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      p.purchaseNumber?.toLowerCase().includes(q) ||
+      p.supplierName?.toLowerCase().includes(q) ||
+      p.items?.some((it: any) => (it.productName || it.name || "")?.toLowerCase().includes(q))
+    );
+  });
 
   return (
     <div className="space-y-5">
@@ -341,6 +346,20 @@ export default function PurchasesPage() {
           <p className="text-xs text-slate-500">Manage supplier bills, inward stock additions, and payables</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {/* Refresh Button */}
+          <button
+            onClick={() => {
+              invalidateCache("/api/purchases");
+              fetchPurchases();
+            }}
+            disabled={loading}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-xs hover:bg-slate-50 transition disabled:opacity-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200"
+            title="Refresh purchases list"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 text-slate-500 ${loading ? "animate-spin" : ""}`} />
+            <span>تازہ کریں</span>
+          </button>
+
           {/* Download / Export CSV */}
           <button
             onClick={exportPurchasesCsv}

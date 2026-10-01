@@ -14,7 +14,16 @@ export async function GET(req: NextRequest) {
 
     const whereClause: any = { businessId };
     if (branchId) {
-      whereClause.branchId = branchId;
+      const branch = await prisma.branch.findUnique({
+        where: { id: branchId },
+        select: { id: true, code: true, name: true },
+      });
+      const isMainBranch = branch?.code === "MAIN" || branch?.name?.toLowerCase().includes("main");
+      if (isMainBranch) {
+        whereClause.OR = [{ branchId }, { branchId: null }];
+      } else {
+        whereClause.branchId = branchId;
+      }
     }
 
     const sales = await prisma.sale.findMany({
@@ -28,7 +37,7 @@ export async function GET(req: NextRequest) {
     const { branchId, isLockedToBranch } = await getActiveBranchId(req);
     let filtered = fallbackStore.sales.filter((s) => s.businessId === businessId);
     if (branchId) {
-      filtered = filtered.filter((s) => s.branchId === branchId);
+      filtered = filtered.filter((s) => s.branchId === branchId || !s.branchId);
     }
     return NextResponse.json({ success: true, data: filtered, branchId, isLockedToBranch, fallback: true });
   }
@@ -41,7 +50,19 @@ export async function POST(req: NextRequest) {
     const session = await getSession();
     const businessId = await getActiveBusinessId(req);
     const { branchId: activeBranchId, isLockedToBranch } = await getActiveBranchId(req);
-    const effectiveBranchId = isLockedToBranch ? activeBranchId : (body.branchId || activeBranchId || null);
+    let effectiveBranchId = isLockedToBranch ? activeBranchId : (body.branchId || activeBranchId || null);
+
+    if (!effectiveBranchId) {
+      const mainBranch = await prisma.branch.findFirst({
+        where: { businessId, code: "MAIN" },
+        select: { id: true },
+      }) || await prisma.branch.findFirst({
+        where: { businessId },
+        select: { id: true },
+      });
+      if (mainBranch) effectiveBranchId = mainBranch.id;
+    }
+
     const createdById = session?.userId || body.createdById || "usr-2";
     const createdByName = session?.name || body.createdByName || "Muhammad Hanif";
 
