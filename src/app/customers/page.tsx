@@ -7,7 +7,11 @@ import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
 import { Plus, Search, User, Phone, Mail, MapPin, ArrowRight } from "lucide-react";
 
+import { useAuth } from "@/context/AuthContext";
+import { invalidateCache } from "@/lib/clientCache";
+
 export default function CustomersPage() {
+  const { activeCompany } = useAuth();
   const [customers, setCustomers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -27,7 +31,9 @@ export default function CustomersPage() {
   const fetchCustomers = async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/customers");
+      const headers: Record<string, string> = {};
+      if (activeCompany?.id) headers["x-business-id"] = activeCompany.id;
+      const res = await fetch("/api/customers", { headers, cache: "no-store" });
       const json = await res.json();
       if (json.success) setCustomers(json.data);
     } catch (err) {
@@ -39,15 +45,17 @@ export default function CustomersPage() {
 
   useEffect(() => {
     fetchCustomers();
-  }, []);
+  }, [activeCompany?.id]);
 
   const handleCreateCustomer = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
     try {
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (activeCompany?.id) headers["x-business-id"] = activeCompany.id;
       const res = await fetch("/api/customers", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({
           name,
           businessName,
@@ -64,6 +72,7 @@ export default function CustomersPage() {
         setName("");
         setBusinessName("");
         setPhone("");
+        invalidateCache();
         fetchCustomers();
       }
     } catch (err) {

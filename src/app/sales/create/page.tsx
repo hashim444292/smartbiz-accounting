@@ -229,7 +229,7 @@ export default function CreateSalePage() {
         const [metaJson, prodJson, custJson, fbrJson] = await Promise.all([
           smartFetch("/api/products?meta=true", { headers, ttlMs: 60000 }).catch(() => ({})),
           smartFetch("/api/products?limit=100", { headers, ttlMs: 25000 }).catch(() => ({})),
-          smartFetch("/api/customers", { headers, ttlMs: 25000 }).catch(() => ({})),
+          smartFetch("/api/customers", { headers, ttlMs: 0, skipCache: true }).catch(() => ({})),
           fetchFbr,
         ]);
 
@@ -738,11 +738,18 @@ export default function CreateSalePage() {
           throw new Error(json.error || "Failed to post sales invoice");
         }
 
-        invalidateCache("/api/sales");
-        invalidateCache("/api/products");
-        invalidateCache("/api/dashboard");
-        invalidateCache("/api/accounting");
-        invalidateCache("/api/compliance/fbr");
+        invalidateCache();
+
+        // Immediately refetch customer balances so dropdown reflects new ledger balance hand-to-hand
+        try {
+          const custRes = await fetch("/api/customers", { headers, cache: "no-store" });
+          const custData = await custRes.json();
+          if (custData.success && Array.isArray(custData.data)) {
+            setCustomers(custData.data);
+          }
+        } catch (e) {
+          console.error("Failed to refresh customers post-sale:", e);
+        }
 
         // Save data for modal view BEFORE clearing form
         const modalData = {
@@ -860,11 +867,18 @@ export default function CreateSalePage() {
           throw new Error(json.error || "Failed to post split invoices");
         }
 
-        invalidateCache("/api/sales");
-        invalidateCache("/api/products");
-        invalidateCache("/api/dashboard");
-        invalidateCache("/api/accounting");
-        invalidateCache("/api/compliance/fbr");
+        invalidateCache();
+
+        // Immediately refetch customer balances so dropdown reflects new ledger balance hand-to-hand
+        try {
+          const custRes = await fetch("/api/customers", { headers, cache: "no-store" });
+          const custData = await custRes.json();
+          if (custData.success && Array.isArray(custData.data)) {
+            setCustomers(custData.data);
+          }
+        } catch (e) {
+          console.error("Failed to refresh customers post-split sale:", e);
+        }
 
         const createdList: any[] = json.data || [];
         const firstInv = createdList[0];
@@ -1061,11 +1075,15 @@ export default function CreateSalePage() {
                     className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200"
                   >
                     <option value="">Walk in (عام گاہک) — Exempt</option>
-                    {customers.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name} {c.businessName ? `(${c.businessName})` : c.phone ? `(${c.phone})` : ""} — {c.taxStatus || "Customer"} (Balance: Rs {c.currentBalance?.toLocaleString()})
-                      </option>
-                    ))}
+                    {[...customers]
+                      .sort((a, b) => Number(b.currentBalance || 0) - Number(a.currentBalance || 0))
+                      .map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {Number(c.currentBalance || 0) > 0
+                            ? `⚠️ ${c.name} ${c.businessName ? `(${c.businessName})` : c.phone ? `(${c.phone})` : ""} — ${c.taxStatus || "Customer"} (Balance Due: Rs ${Number(c.currentBalance).toLocaleString()})`
+                            : `✅ ${c.name} ${c.businessName ? `(${c.businessName})` : c.phone ? `(${c.phone})` : ""} — ${c.taxStatus || "Customer"} (All Clear: Rs 0)`}
+                        </option>
+                      ))}
                     <option value="__ADD_NEW__" className="font-bold text-blue-600">
                       ➕ + نیا کسٹمر بنائیں (+ Add Customer)
                     </option>
@@ -1083,9 +1101,15 @@ export default function CreateSalePage() {
                     </span>
                   </div>
                   {selectedCustomer ? (
-                    <span className="text-[10px] font-bold text-blue-700 dark:text-blue-300">
-                      Balance: Rs {selectedCustomer.currentBalance?.toLocaleString()}
-                    </span>
+                    Number(selectedCustomer.currentBalance || 0) > 0 ? (
+                      <span className="rounded-md bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-700 border border-amber-200 dark:bg-amber-950/40 dark:border-amber-800 dark:text-amber-300">
+                        ⚠️ Due: Rs {Number(selectedCustomer.currentBalance).toLocaleString()}
+                      </span>
+                    ) : (
+                      <span className="rounded-md bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:border-emerald-800 dark:text-emerald-300">
+                        ✅ No Dues: Rs 0
+                      </span>
+                    )
                   ) : (
                     <span className="text-[10px] text-slate-500">
                       Walk-in

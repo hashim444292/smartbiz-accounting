@@ -74,8 +74,8 @@ export default function PaymentsPage() {
 
       const query = effectiveBranch ? `?branchId=${effectiveBranch}` : "?branchId=all";
 
-      // SMART LAZY LOAD: Only hit payments endpoint on initial page mount (single network call)
-      const payJson = await smartFetch(`/api/payments${query}`, { headers, ttlMs: 20000 });
+      invalidateCache("/api/payments");
+      const payJson = await smartFetch(`/api/payments${query}`, { headers, ttlMs: 0, skipCache: true });
 
       if (payJson.success) setPayments(payJson.data || []);
 
@@ -99,13 +99,14 @@ export default function PaymentsPage() {
     }
   };
 
-  const ensureCustomersLoaded = async () => {
-    if (customers.length > 0) return customers;
+  const ensureCustomersLoaded = async (force = false) => {
+    if (!force && customers.length > 0) return customers;
     setLoadingCustomers(true);
     try {
       const headers: Record<string, string> = {};
       if (activeCompany?.id) headers["x-business-id"] = activeCompany.id;
-      const custJson = await smartFetch("/api/customers", { headers, ttlMs: 30000 });
+      if (force) invalidateCache("/api/customers");
+      const custJson = await smartFetch("/api/customers", { headers, ttlMs: force ? 0 : 5000, skipCache: force });
       if (custJson.success && Array.isArray(custJson.data)) {
         setCustomers(custJson.data);
         return custJson.data;
@@ -118,13 +119,14 @@ export default function PaymentsPage() {
     return [];
   };
 
-  const ensureSuppliersLoaded = async () => {
-    if (suppliers.length > 0) return suppliers;
+  const ensureSuppliersLoaded = async (force = false) => {
+    if (!force && suppliers.length > 0) return suppliers;
     setLoadingSuppliers(true);
     try {
       const headers: Record<string, string> = {};
       if (activeCompany?.id) headers["x-business-id"] = activeCompany.id;
-      const supJson = await smartFetch("/api/suppliers", { headers, ttlMs: 30000 });
+      if (force) invalidateCache("/api/suppliers");
+      const supJson = await smartFetch("/api/suppliers", { headers, ttlMs: force ? 0 : 5000, skipCache: force });
       if (supJson.success && Array.isArray(supJson.data)) {
         setSuppliers(supJson.data);
         return supJson.data;
@@ -147,9 +149,16 @@ export default function PaymentsPage() {
     const branchToUse = isBranchLocked ? (user?.branchId || "") : (selectedBranch?.id || activeBranchId || (branches[0]?.id || ""));
     setPaymentBranchId(branchToUse);
     setShowReceiptModal(true);
-    const custList = await ensureCustomersLoaded();
-    if (custList.length > 0 && !partyId) {
-      setPartyId(custList[0].id);
+    const custList = await ensureCustomersLoaded(true);
+    if (custList.length > 0) {
+      const withBal = custList.find((c: any) => Number(c.currentBalance || 0) > 0);
+      const chosen = withBal || custList[0];
+      setPartyId(chosen.id);
+      if (Number(chosen.currentBalance || 0) > 0) {
+        setAmount(Number(chosen.currentBalance));
+      } else {
+        setAmount(0);
+      }
     }
   };
 
@@ -157,9 +166,16 @@ export default function PaymentsPage() {
     const branchToUse = isBranchLocked ? (user?.branchId || "") : (selectedBranch?.id || activeBranchId || (branches[0]?.id || ""));
     setPaymentBranchId(branchToUse);
     setShowDisburseModal(true);
-    const supList = await ensureSuppliersLoaded();
-    if (supList.length > 0 && !partyId) {
-      setPartyId(supList[0].id);
+    const supList = await ensureSuppliersLoaded(true);
+    if (supList.length > 0) {
+      const withBal = supList.find((s: any) => Number(s.currentBalance || 0) > 0);
+      const chosen = withBal || supList[0];
+      setPartyId(chosen.id);
+      if (Number(chosen.currentBalance || 0) > 0) {
+        setAmount(Number(chosen.currentBalance));
+      } else {
+        setAmount(0);
+      }
     }
   };
 
@@ -198,10 +214,11 @@ export default function PaymentsPage() {
       if (json.success) {
         setShowReceiptModal(false);
         setAmount(0);
-        invalidateCache("/api/payments");
-        invalidateCache("/api/sales");
-        invalidateCache("/api/customers");
-        fetchPayments();
+        invalidateCache();
+        await Promise.all([
+          fetchPayments(),
+          ensureCustomersLoaded(true),
+        ]);
       } else {
         alert(json.error);
       }
@@ -241,10 +258,11 @@ export default function PaymentsPage() {
       if (json.success) {
         setShowDisburseModal(false);
         setAmount(0);
-        invalidateCache("/api/payments");
-        invalidateCache("/api/purchases");
-        invalidateCache("/api/suppliers");
-        fetchPayments();
+        invalidateCache();
+        await Promise.all([
+          fetchPayments(),
+          ensureSuppliersLoaded(true),
+        ]);
       } else {
         alert(json.error);
       }
@@ -557,19 +575,79 @@ export default function PaymentsPage() {
             </div>
           ) : null}
 
-          <Select label="Customer" value={partyId} onChange={(e) => setPartyId(e.target.value)} required>
-            {loadingCustomers ? (
-              <option value="">Loading customer directory...</option>
-            ) : customers.length === 0 ? (
-              <option value="">No customers found</option>
-            ) : (
-              customers.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name} (Receivable Due: {formatMoney(c.currentBalance)})
-                </option>
-              ))
-            )}
-          </Select>
+          <div className="space-y-1.5">
+            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-200">
+              Customer (Party Received From)
+            </label>
+            <select
+              value={partyId}
+              onChange={(e) => {
+                const newPartyId = e.target.value;
+                setPartyId(newPartyId);
+                const c = customers.find((cust) => cust.id === newPartyId);
+                if (c && Number(c.currentBalance || 0) > 0) {
+                  setAmount(Number(c.currentBalance));
+                } else {
+                  setAmount(0);
+                }
+              }}
+              required
+              className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+            >
+              {loadingCustomers ? (
+                <option value="">Loading customer directory...</option>
+              ) : customers.length === 0 ? (
+                <option value="">No customers found</option>
+              ) : (
+                [...customers]
+                  .sort((a, b) => Number(b.currentBalance || 0) - Number(a.currentBalance || 0))
+                  .map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {Number(c.currentBalance || 0) > 0
+                        ? `⚠️ ${c.name} ${c.businessName ? `(${c.businessName})` : ""} — Receivable Due: ${formatMoney(c.currentBalance)}`
+                        : `✅ ${c.name} ${c.businessName ? `(${c.businessName})` : ""} — All Dues Cleared (Rs 0)`}
+                    </option>
+                  ))
+              )}
+            </select>
+
+            {/* Selected Customer Live Ledger Status Pill */}
+            {(() => {
+              const selCust = customers.find((c) => c.id === partyId);
+              if (!selCust) return null;
+              const due = Number(selCust.currentBalance || 0);
+              return (
+                <div
+                  className={`mt-1.5 flex items-center justify-between rounded-lg border px-3 py-2 text-xs transition-colors ${
+                    due > 0
+                      ? "border-amber-200 bg-amber-50/90 text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
+                      : "border-emerald-200 bg-emerald-50/90 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200"
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">{due > 0 ? "⚠️" : "✅"}</span>
+                    <div>
+                      <p className="font-semibold leading-tight">
+                        {due > 0 ? "Receivable Balance Due:" : "All Dues Cleared:"}
+                      </p>
+                      <p className="text-[11px] font-bold">
+                        {due > 0 ? formatMoney(due) : "Rs 0.00 (No Outstanding Balance)"}
+                      </p>
+                    </div>
+                  </div>
+                  {due > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setAmount(due)}
+                      className="rounded-md bg-amber-600 px-2 py-1 text-[11px] font-bold text-white shadow-xs hover:bg-amber-700"
+                    >
+                      Receive Full Due ({formatMoney(due)})
+                    </button>
+                  )}
+                </div>
+              );
+            })()}
+          </div>
           <Input
             label="Amount Received (Rs)"
             type="number"
@@ -650,19 +728,79 @@ export default function PaymentsPage() {
             </div>
           ) : null}
 
-          <Select label="Supplier" value={partyId} onChange={(e) => setPartyId(e.target.value)} required>
-            {loadingSuppliers ? (
-              <option value="">Loading supplier directory...</option>
-            ) : suppliers.length === 0 ? (
-              <option value="">No suppliers found</option>
-            ) : (
-              suppliers.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name} (Payable Due: {formatMoney(s.currentBalance)})
-                </option>
-              ))
-            )}
-          </Select>
+          <div className="space-y-1.5">
+            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-200">
+              Supplier (Party to Pay)
+            </label>
+            <select
+              value={partyId}
+              onChange={(e) => {
+                const newPartyId = e.target.value;
+                setPartyId(newPartyId);
+                const s = suppliers.find((sup) => sup.id === newPartyId);
+                if (s && Number(s.currentBalance || 0) > 0) {
+                  setAmount(Number(s.currentBalance));
+                } else {
+                  setAmount(0);
+                }
+              }}
+              required
+              className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+            >
+              {loadingSuppliers ? (
+                <option value="">Loading supplier directory...</option>
+              ) : suppliers.length === 0 ? (
+                <option value="">No suppliers found</option>
+              ) : (
+                [...suppliers]
+                  .sort((a, b) => Number(b.currentBalance || 0) - Number(a.currentBalance || 0))
+                  .map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {Number(s.currentBalance || 0) > 0
+                        ? `⚠️ ${s.name} ${s.businessName ? `(${s.businessName})` : ""} — Payable Due: ${formatMoney(s.currentBalance)}`
+                        : `✅ ${s.name} ${s.businessName ? `(${s.businessName})` : ""} — All Dues Cleared (Rs 0)`}
+                    </option>
+                  ))
+              )}
+            </select>
+
+            {/* Selected Supplier Live Ledger Status Pill */}
+            {(() => {
+              const selSup = suppliers.find((s) => s.id === partyId);
+              if (!selSup) return null;
+              const due = Number(selSup.currentBalance || 0);
+              return (
+                <div
+                  className={`mt-1.5 flex items-center justify-between rounded-lg border px-3 py-2 text-xs transition-colors ${
+                    due > 0
+                      ? "border-amber-200 bg-amber-50/90 text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
+                      : "border-emerald-200 bg-emerald-50/90 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200"
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">{due > 0 ? "⚠️" : "✅"}</span>
+                    <div>
+                      <p className="font-semibold leading-tight">
+                        {due > 0 ? "Payable Balance Due:" : "All Dues Cleared:"}
+                      </p>
+                      <p className="text-[11px] font-bold">
+                        {due > 0 ? formatMoney(due) : "Rs 0.00 (No Outstanding Dues)"}
+                      </p>
+                    </div>
+                  </div>
+                  {due > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setAmount(due)}
+                      className="rounded-md bg-amber-600 px-2 py-1 text-[11px] font-bold text-white shadow-xs hover:bg-amber-700"
+                    >
+                      Pay Full Due ({formatMoney(due)})
+                    </button>
+                  )}
+                </div>
+              );
+            })()}
+          </div>
           <Input
             label="Amount Disbursed (Rs)"
             type="number"

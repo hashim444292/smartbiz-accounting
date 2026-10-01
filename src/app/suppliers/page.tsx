@@ -7,8 +7,11 @@ import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
 import { Plus, Search, Building2, Phone, Mail, ArrowRight } from "lucide-react";
 import { TableRowsSkeleton } from "@/components/ui/loader";
+import { useAuth } from "@/context/AuthContext";
+import { invalidateCache } from "@/lib/clientCache";
 
 export default function SuppliersPage() {
+  const { activeCompany } = useAuth();
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -27,7 +30,9 @@ export default function SuppliersPage() {
   const fetchSuppliers = async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/suppliers");
+      const headers: Record<string, string> = {};
+      if (activeCompany?.id) headers["x-business-id"] = activeCompany.id;
+      const res = await fetch("/api/suppliers", { headers, cache: "no-store" });
       const json = await res.json();
       if (json.success) setSuppliers(json.data);
     } catch (err) {
@@ -39,15 +44,17 @@ export default function SuppliersPage() {
 
   useEffect(() => {
     fetchSuppliers();
-  }, []);
+  }, [activeCompany?.id]);
 
   const handleCreateSupplier = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
     try {
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (activeCompany?.id) headers["x-business-id"] = activeCompany.id;
       const res = await fetch("/api/suppliers", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({
           name,
           businessName,
@@ -63,6 +70,7 @@ export default function SuppliersPage() {
         setName("");
         setBusinessName("");
         setPhone("");
+        invalidateCache();
         fetchSuppliers();
       }
     } catch (err) {

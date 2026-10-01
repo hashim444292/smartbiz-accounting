@@ -79,8 +79,14 @@ export function invalidateCache(urlPrefix?: string) {
     memoryCache.clear();
     return;
   }
+  const cleanPrefix = urlPrefix.trim();
   for (const key of memoryCache.keys()) {
-    if (key.startsWith(urlPrefix)) {
+    const urlPart = key.split("|")[0];
+    if (
+      key.startsWith(cleanPrefix) ||
+      urlPart.startsWith(cleanPrefix) ||
+      urlPart.includes(cleanPrefix)
+    ) {
       memoryCache.delete(key);
     }
   }

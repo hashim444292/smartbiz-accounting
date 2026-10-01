@@ -23,16 +23,18 @@ export async function GET(req: NextRequest) {
     let customers: any[] = [];
     let suppliers: any[] = [];
     let branches: any[] = [];
+    let cashBankAccounts: any[] = [];
 
     try {
-      [allSales, allPurchases, allExpenses, products, customers, suppliers, branches] = await Promise.all([
+      [allSales, allPurchases, allExpenses, products, customers, suppliers, branches, cashBankAccounts] = await Promise.all([
         prisma.sale.findMany({ where: { businessId }, include: { items: true }, orderBy: { date: "desc" } }),
         prisma.purchase.findMany({ where: { businessId } }),
         prisma.expense.findMany({ where: { businessId } }),
         prisma.product.findMany({ where: { businessId } }),
-        prisma.customer.findMany({ where: { businessId } }),
-        prisma.supplier.findMany({ where: { businessId } }),
+        prisma.customer.findMany({ where: { businessId, isActive: true } }),
+        prisma.supplier.findMany({ where: { businessId, isActive: true } }),
         prisma.branch.findMany({ where: { businessId, isActive: true }, orderBy: { name: "asc" } }),
+        prisma.cashBankAccount.findMany({ where: { businessId, isActive: true } }),
       ]);
     } catch {
       allSales = fallbackStore.sales.filter((s) => s.businessId === businessId);
@@ -42,6 +44,7 @@ export async function GET(req: NextRequest) {
       customers = fallbackStore.customers.filter((c) => c.businessId === businessId);
       suppliers = fallbackStore.suppliers.filter((s) => s.businessId === businessId);
       branches = storeGetBranches(businessId);
+      cashBankAccounts = fallbackStore.cashBankAccounts.filter((a) => a.businessId === businessId);
     }
 
     // Compute consolidated branch breakdown
@@ -82,9 +85,8 @@ export async function GET(req: NextRequest) {
     const totalPayables = suppliers.reduce((acc, s) => acc + Number(s.currentBalance || 0), 0);
     const totalInventoryValue = products.reduce((acc, p) => acc + Number(p.currentStock || 0) * Number(p.averageCost || p.purchasePrice || 0), 0);
 
-    const bizAccounts = fallbackStore.cashBankAccounts.filter((a) => a.businessId === businessId);
-    const cashBalance = bizAccounts.filter((a) => a.type === "CASH").reduce((sum, a) => sum + (a.balance || 0), 0);
-    const bankBalance = bizAccounts.filter((a) => a.type === "BANK").reduce((sum, a) => sum + (a.balance || 0), 0);
+    const cashBalance = cashBankAccounts.filter((a) => a.type === "CASH").reduce((sum, a) => sum + Number(a.balance || 0), 0);
+    const bankBalance = cashBankAccounts.filter((a) => a.type === "BANK").reduce((sum, a) => sum + Number(a.balance || 0), 0);
 
     const lowStockAlerts = products
       .filter((p) => Number(p.currentStock || 0) <= Number(p.minStockLevel || 1))

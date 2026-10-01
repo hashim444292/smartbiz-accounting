@@ -84,7 +84,7 @@ export default function CreatePurchasePage() {
       }
 
       const [supJson, prodJson] = await Promise.all([
-        smartFetch("/api/suppliers", { headers, ttlMs: 30000 }),
+        smartFetch("/api/suppliers", { headers, ttlMs: 0, skipCache: true }),
         smartFetch("/api/products?limit=250", { headers, ttlMs: 30000 }),
       ]);
 
@@ -327,10 +327,7 @@ export default function CreatePurchasePage() {
       const json = await res.json();
       if (!json.success) throw new Error(json.error || "Failed to record purchase bill.");
 
-      invalidateCache("/api/purchases");
-      invalidateCache("/api/products");
-      invalidateCache("/api/dashboard");
-      invalidateCache("/api/accounting");
+      invalidateCache();
 
       router.push("/purchases");
     } catch (err: any) {
@@ -504,13 +501,39 @@ export default function CreatePurchasePage() {
                 {suppliers.length === 0 ? (
                   <option value="">No suppliers registered yet</option>
                 ) : (
-                  suppliers.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name} (Current Payable: {formatMoney(s.currentBalance || 0)})
-                    </option>
-                  ))
+                  [...suppliers]
+                    .sort((a, b) => Number(b.currentBalance || 0) - Number(a.currentBalance || 0))
+                    .map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {Number(s.currentBalance || 0) > 0
+                          ? `⚠️ ${s.name} ${s.businessName ? `(${s.businessName})` : ""} (Pending Payable: ${formatMoney(s.currentBalance)})`
+                          : `✅ ${s.name} ${s.businessName ? `(${s.businessName})` : ""} (All Clear: Rs 0)`}
+                      </option>
+                    ))
                 )}
               </Select>
+              {(() => {
+                const selSup = suppliers.find((s) => s.id === supplierId);
+                if (!selSup) return null;
+                const due = Number(selSup.currentBalance || 0);
+                return (
+                  <div
+                    className={`mt-1.5 flex items-center justify-between rounded-lg border px-3 py-1.5 text-xs ${
+                      due > 0
+                        ? "border-amber-200 bg-amber-50/80 text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
+                        : "border-emerald-200 bg-emerald-50/80 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200"
+                    }`}
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <span>{due > 0 ? "⚠️" : "✅"}</span>
+                      <span className="font-semibold">Supplier Ledger Balance:</span>
+                      <span className="font-bold">
+                        {due > 0 ? formatMoney(due) : "Rs 0.00 (All Dues Cleared)"}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
             <div>
               <Input
