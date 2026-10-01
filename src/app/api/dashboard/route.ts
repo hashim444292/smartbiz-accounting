@@ -47,6 +47,28 @@ export async function GET(req: NextRequest) {
       cashBankAccounts = fallbackStore.cashBankAccounts.filter((a) => a.businessId === businessId);
     }
 
+    // Build quick product cost lookup map for calculating accurate Cost of Goods Sold (COGS)
+    const productCostMap = new Map<string, number>();
+    for (const p of products) {
+      const cost = Number(p.averageCost || p.purchasePrice || p.costPrice || 0);
+      productCostMap.set(p.id, cost);
+    }
+
+    // Helper to calculate accurate Cost of Goods Sold (COGS) from sold line items
+    const calculateSalesCogs = (salesList: any[]) => {
+      let cogs = 0;
+      for (const s of salesList) {
+        for (const it of s.items || []) {
+          let itemCost = Number(it.costPrice || 0);
+          if (itemCost <= 0 && it.productId) {
+            itemCost = productCostMap.get(it.productId) || 0;
+          }
+          cogs += Number(it.quantity || 0) * itemCost;
+        }
+      }
+      return cogs;
+    };
+
     // Compute consolidated branch breakdown
     const totalAllSales = allSales.reduce((acc, s) => acc + Number(s.totalAmount || 0), 0);
     const branchBreakdown = branches.map((b) => {
@@ -57,7 +79,8 @@ export async function GET(req: NextRequest) {
       const sTotal = bSales.reduce((acc, s) => acc + Number(s.totalAmount || 0), 0);
       const pTotal = bPurchases.reduce((acc, p) => acc + Number(p.totalAmount || 0), 0);
       const eTotal = bExpenses.reduce((acc, e) => acc + Number(e.amount || 0), 0);
-      const profit = sTotal - pTotal * 0.7 - eTotal;
+      const bCogs = calculateSalesCogs(bSales);
+      const profit = sTotal - bCogs - eTotal;
 
       return {
         id: b.id,
@@ -68,6 +91,7 @@ export async function GET(req: NextRequest) {
         totalSales: round2(sTotal),
         totalPurchases: round2(pTotal),
         totalExpenses: round2(eTotal),
+        totalCogs: round2(bCogs),
         netProfit: round2(profit),
         salesSharePercent: totalAllSales > 0 ? round2((sTotal / totalAllSales) * 100) : 0,
       };
@@ -81,6 +105,9 @@ export async function GET(req: NextRequest) {
     const totalGrossSales = sales.reduce((acc, s) => acc + Number(s.totalAmount || 0), 0);
     const totalPurchases = purchases.reduce((acc, p) => acc + Number(p.totalAmount || 0), 0);
     const totalExpenses = expenses.reduce((acc, e) => acc + Number(e.amount || 0), 0);
+    const totalCogs = calculateSalesCogs(sales);
+    const grossProfit = totalGrossSales - totalCogs;
+    const netProfit = grossProfit - totalExpenses;
     const totalReceivables = customers.reduce((acc, c) => acc + Number(c.currentBalance || 0), 0);
     const totalPayables = suppliers.reduce((acc, s) => acc + Number(s.currentBalance || 0), 0);
     const totalInventoryValue = products.reduce((acc, p) => acc + Number(p.currentStock || 0) * Number(p.averageCost || p.purchasePrice || 0), 0);
@@ -139,8 +166,9 @@ export async function GET(req: NextRequest) {
         totalGrossSales: round2(totalGrossSales),
         totalPurchases: round2(totalPurchases),
         totalExpenses: round2(totalExpenses),
-        grossProfit: round2(totalGrossSales - totalPurchases * 0.7),
-        netProfit: round2(totalGrossSales - totalPurchases * 0.7 - totalExpenses),
+        totalCogs: round2(totalCogs),
+        grossProfit: round2(grossProfit),
+        netProfit: round2(netProfit),
         totalReceivables: round2(totalReceivables),
         totalPayables: round2(totalPayables),
         totalInventoryValue: round2(totalInventoryValue),

@@ -702,8 +702,11 @@ export default function DashboardPage() {
               >
                 Rs {data ? Number(data.netProfit || 0).toLocaleString() : "..."}
               </p>
-              <span className="text-[10px] text-emerald-700 dark:text-emerald-400 font-medium mt-1 truncate block">
-                اخراجات نکال کر بچت
+              <span
+                className="text-[10px] text-emerald-700 dark:text-emerald-400 font-medium mt-1 truncate block cursor-help"
+                title={`فروخت (Rs ${Number(data?.totalGrossSales || 0).toLocaleString()}) - مال کی لاگت COGS (Rs ${Number(data?.totalCogs || 0).toLocaleString()}) - اخراجات (Rs ${Number(data?.totalExpenses || 0).toLocaleString()})`}
+              >
+                فروخت منفی مال کی لاگت و اخراجات
               </span>
             </div>
           </div>

@@ -38,11 +38,11 @@ export default function ProfitLossPage() {
     );
   }
 
-  const salesRevenue = data?.totalSales ?? 0;
-  const cogs = salesRevenue * 0.65;
-  const grossProfit = salesRevenue - cogs;
-  const expenses = data?.totalExpenses ?? 0;
-  const netProfit = grossProfit - expenses;
+  const salesRevenue = Number(data?.totalGrossSales ?? data?.totalSales ?? 0);
+  const cogs = Number(data?.totalCogs ?? (data?.totalPurchases ?? 0));
+  const grossProfit = Number(data?.grossProfit ?? (salesRevenue - cogs));
+  const expenses = Number(data?.totalExpenses ?? 0);
+  const netProfit = Number(data?.netProfit ?? (grossProfit - expenses));
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
