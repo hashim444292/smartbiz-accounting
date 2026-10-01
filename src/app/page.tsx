@@ -27,6 +27,11 @@ import {
   ArrowDownLeft,
   ArrowUpRight,
   Eye,
+  Bell,
+  AlertTriangle,
+  Clock,
+  Calendar,
+  Phone,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -65,6 +70,7 @@ export default function DashboardPage() {
   const [tableLayout, setTableLayout] = useState<TableLayoutMode>("table");
   const [retryingId, setRetryingId] = useState<string | null>(null);
   const [isAsaanMode, setIsAsaanMode] = useState<boolean>(true);
+  const [reminderFilter, setReminderFilter] = useState<"ALL" | "RECEIVABLE" | "PAYABLE">("ALL");
 
   useEffect(() => {
     try {
@@ -383,6 +389,44 @@ export default function DashboardPage() {
           )}
         </div>
       ) : null}
+
+      {/* ========================================================================= */}
+      {/* OVERDUE & PAYMENT PROMISE ALERT BANNER (اہم ادائیگیوں اور وصولیوں کا الرٹ) */}
+      {/* ========================================================================= */}
+      {data?.paymentReminders && (data.paymentReminders.overdueCount > 0 || data.paymentReminders.dueTodayCount > 0) && (
+        <div className="rounded-2xl border-2 border-rose-400 bg-gradient-to-r from-rose-50 via-amber-50 to-rose-50 p-4 sm:p-5 text-xs text-rose-950 dark:border-rose-800 dark:from-rose-950/60 dark:via-amber-950/40 dark:to-rose-950/60 dark:text-rose-200 shadow-md animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <div className="h-10 w-10 rounded-2xl bg-rose-600 text-white flex items-center justify-center font-bold shrink-0 shadow-sm animate-pulse">
+                <Bell className="h-5 w-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-sm font-black text-rose-950 dark:text-rose-100">
+                    ⚠️ اہم یاد دہانی: {data.paymentReminders.overdueCount} ادائیگیاں / وصولیاں تاخیر کا شکار ہیں!
+                  </span>
+                  <span className="rounded-full bg-rose-200/80 px-2 py-0.5 text-[10px] font-bold text-rose-900 dark:bg-rose-900 dark:text-rose-100">
+                    Overdue Payment Alert
+                  </span>
+                </div>
+                <p className="text-rose-800 dark:text-rose-300 mt-0.5 text-xs leading-relaxed">
+                  گاہکوں سے <strong>Rs {Number(data.paymentReminders.totalOverdueReceivables || 0).toLocaleString()}</strong> وصول کرنی ہے اور سپلائرز کو <strong>Rs {Number(data.paymentReminders.totalOverduePayables || 0).toLocaleString()}</strong> ادا کرنی ہے۔ یہ الرٹ تب تک رہے گا جب تک ادائیگی مکمل نہ ہو جائے۔
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+              <Link
+                href="/payments"
+                className="inline-flex items-center gap-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white px-3.5 py-2 text-xs font-bold transition shadow-xs"
+              >
+                <span>ادائیگی ریکارڈ کریں</span>
+                <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ========================================================================= */}
       {/* HERO QUICK ACTION COMMAND CENTER (آج کیا کرنا ہے؟ - Fast Action Center)    */}
@@ -1144,6 +1188,222 @@ export default function DashboardPage() {
           >
             تفصیلی موڈ کھولیں &rarr;
           </button>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* PAYMENT PROMISE & OVERDUE REMINDERS WIDGET (ادائیگی و وصولی کی یاد دہانیاں) */}
+      {/* ========================================================================= */}
+      {data?.paymentReminders && (
+        <div className="rounded-2xl border border-slate-200/80 bg-white shadow-xs overflow-hidden dark:border-slate-800/90 dark:bg-[#111827]">
+          <div className="p-4 sm:p-5 border-b border-slate-200/80 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <div className="h-9 w-9 rounded-xl bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 flex items-center justify-center font-bold shrink-0 border border-amber-200/80 dark:border-amber-800/80">
+                <Bell className="h-4.5 w-4.5" />
+              </div>
+              <div>
+                <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white tracking-tight font-sans flex items-center gap-2">
+                  <span>ادائیگی و وصولی کی یاد دہانی</span>
+                  <span className="text-slate-300 dark:text-slate-700 font-normal">|</span>
+                  <span className="text-xs sm:text-sm font-semibold text-slate-600 dark:text-slate-400">Payment Due Dates & Reminders</span>
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  وعدہ کے مطابق تاخیر شدہ اور آج کی وصولیاں اور ادائیگیاں (Continuous reminder alerts)
+                </p>
+              </div>
+            </div>
+
+            {/* Filter Buttons: All, Receivables, Payables */}
+            <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800/80 p-1 rounded-xl shrink-0 self-start sm:self-auto">
+              <button
+                type="button"
+                onClick={() => setReminderFilter("ALL")}
+                className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition ${
+                  reminderFilter === "ALL"
+                    ? "bg-white text-slate-900 shadow-2xs font-bold dark:bg-slate-900 dark:text-white"
+                    : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200"
+                }`}
+              >
+                سب ({data.paymentReminders.reminders?.length || 0})
+              </button>
+              <button
+                type="button"
+                onClick={() => setReminderFilter("RECEIVABLE")}
+                className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition ${
+                  reminderFilter === "RECEIVABLE"
+                    ? "bg-emerald-600 text-white shadow-2xs font-bold"
+                    : "text-emerald-700 hover:text-emerald-800 dark:text-emerald-400"
+                }`}
+              >
+                وصولیاں ({data.paymentReminders.reminders?.filter((r: any) => r.type === "RECEIVABLE").length || 0})
+              </button>
+              <button
+                type="button"
+                onClick={() => setReminderFilter("PAYABLE")}
+                className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition ${
+                  reminderFilter === "PAYABLE"
+                    ? "bg-rose-600 text-white shadow-2xs font-bold"
+                    : "text-rose-700 hover:text-rose-800 dark:text-rose-400"
+                }`}
+              >
+                ادائیگیاں ({data.paymentReminders.reminders?.filter((r: any) => r.type === "PAYABLE").length || 0})
+              </button>
+            </div>
+          </div>
+
+          {/* List of Reminders */}
+          <div className="p-4 sm:p-5">
+            {(() => {
+              const activeReminders = (data.paymentReminders.reminders || []).filter((r: any) => {
+                if (reminderFilter === "RECEIVABLE") return r.type === "RECEIVABLE";
+                if (reminderFilter === "PAYABLE") return r.type === "PAYABLE";
+                return true;
+              });
+
+              if (activeReminders.length === 0) {
+                return (
+                  <div className="rounded-xl border border-dashed border-emerald-200 bg-emerald-50/50 p-6 text-center dark:border-emerald-900/60 dark:bg-emerald-950/20">
+                    <CheckCircle2 className="h-7 w-7 text-emerald-500 mx-auto mb-2" />
+                    <p className="text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-200">
+                      ماشاءاللہ، تمام وعدہ شدہ ادائیگیاں اور وصولیاں کلیئر ہیں!
+                    </p>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                      No overdue or pending payments requiring immediate attention in this filter.
+                    </p>
+                  </div>
+                );
+              }
+
+              return (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {activeReminders.map((reminder: any) => {
+                    const isReceivable = reminder.type === "RECEIVABLE";
+                    const isOverdue = reminder.urgency === "OVERDUE";
+                    const isDueToday = reminder.urgency === "DUE_TODAY";
+
+                    return (
+                      <div
+                        key={`${reminder.type}-${reminder.id}`}
+                        className={`rounded-xl border p-3.5 flex flex-col justify-between transition hover:shadow-xs ${
+                          isOverdue
+                            ? "border-rose-200/90 bg-rose-50/40 dark:border-rose-900/50 dark:bg-rose-950/20"
+                            : isDueToday
+                            ? "border-amber-200/90 bg-amber-50/40 dark:border-amber-900/50 dark:bg-amber-950/20"
+                            : "border-slate-200/80 bg-slate-50/50 dark:border-slate-800 dark:bg-slate-900/30"
+                        }`}
+                      >
+                        <div>
+                          {/* Header row: Type badge & Urgency status */}
+                          <div className="flex items-center justify-between gap-1 mb-2">
+                            <span
+                              className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-bold ${
+                                isReceivable
+                                  ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300"
+                                  : "bg-rose-100 text-rose-800 dark:bg-rose-900/60 dark:text-rose-300"
+                              }`}
+                            >
+                              {isReceivable ? "گاہک سے وصولی (Receivable)" : "سپلائر کو ادائیگی (Payable)"}
+                            </span>
+
+                            {isOverdue ? (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-black text-rose-700 dark:text-rose-400">
+                                <AlertTriangle className="h-3 w-3" />
+                                <span>{reminder.daysOverdue} دن تاخیر (Overdue)</span>
+                              </span>
+                            ) : isDueToday ? (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-black text-amber-700 dark:text-amber-400">
+                                <Clock className="h-3 w-3" />
+                                <span>آج کا وعدہ (Due Today)</span>
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-500 dark:text-slate-400">
+                                <Calendar className="h-3 w-3" />
+                                <span>{reminder.daysOverdue < 0 ? `${Math.abs(reminder.daysOverdue)} دن بعد` : "آئندہ"}</span>
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Party Name & Contact */}
+                          <div className="mb-2">
+                            <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white truncate">
+                              {reminder.entityName}
+                            </h4>
+                            <div className="flex items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                              <span>Ref: #{reminder.referenceNumber}</span>
+                              {reminder.entityPhone && (
+                                <a
+                                  href={`tel:${reminder.entityPhone}`}
+                                  className="inline-flex items-center gap-0.5 text-indigo-600 dark:text-indigo-400 hover:underline"
+                                  title="کال کریں"
+                                >
+                                  <Phone className="h-3 w-3" />
+                                  <span>{reminder.entityPhone}</span>
+                                </a>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Promised Date info */}
+                          <div className="rounded-lg bg-white/70 dark:bg-slate-800/60 p-2 text-[11px] space-y-1 border border-slate-100 dark:border-slate-800 mb-3">
+                            <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                              <span>وعدہ تاریخ (Due Date):</span>
+                              <strong className="text-slate-900 dark:text-slate-200">
+                                {new Date(reminder.dueDate).toLocaleDateString("en-GB", {
+                                  day: "2-digit",
+                                  month: "short",
+                                  year: "numeric",
+                                })}
+                              </strong>
+                            </div>
+                            <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                              <span>کل رقم:</span>
+                              <span className="font-mono">Rs {Number(reminder.totalAmount).toLocaleString()}</span>
+                            </div>
+                            <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                              <span>ادا شدہ:</span>
+                              <span className="font-mono text-emerald-600 dark:text-emerald-400">
+                                Rs {Number(reminder.paidAmount).toLocaleString()}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Balance Remaining & 1-Click Action */}
+                        <div className="pt-2 border-t border-slate-200/60 dark:border-slate-800/80 flex items-center justify-between gap-2">
+                          <div>
+                            <span className="text-[10px] text-slate-400 uppercase font-bold block">بقایا رقم (Balance)</span>
+                            <span
+                              className={`text-sm sm:text-base font-black font-mono ${
+                                isReceivable ? "text-emerald-700 dark:text-emerald-400" : "text-rose-700 dark:text-rose-400"
+                              }`}
+                            >
+                              Rs {Number(reminder.remainingAmount).toLocaleString()}
+                            </span>
+                          </div>
+
+                          <Link
+                            href={
+                              isReceivable
+                                ? `/payments?type=CUSTOMER_RECEIPT`
+                                : `/payments?type=SUPPLIER_PAYMENT`
+                            }
+                            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-white transition shadow-2xs ${
+                              isReceivable
+                                ? "bg-emerald-600 hover:bg-emerald-700"
+                                : "bg-rose-600 hover:bg-rose-700"
+                            }`}
+                          >
+                            <span>{isReceivable ? "وصول کریں" : "ادائیگی کریں"}</span>
+                            <ArrowRight className="h-3 w-3" />
+                          </Link>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+          </div>
         </div>
       )}
 

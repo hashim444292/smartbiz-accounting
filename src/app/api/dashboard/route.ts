@@ -136,6 +136,83 @@ export async function GET(req: NextRequest) {
       { month: "Sep (Current)", sales: Math.round(totalGrossSales || baseVolume), tax: Math.round(fbrOverview.totalTaxCollected || baseVolume * 0.18), fbrCompliant: Math.round((totalGrossSales || baseVolume) * 0.98) },
     ];
 
+    // Calculate Payment Reminders for Overdue & Upcoming Receivables & Payables
+    const now = new Date();
+    const todayStr = now.toISOString().slice(0, 10);
+    const nowMidnight = new Date(todayStr).getTime();
+
+    const reminders: any[] = [];
+    for (const s of sales.filter((s) => Number(s.remainingAmount || 0) > 0 && s.paymentStatus !== "PAID")) {
+      const custBal = customers.find((c) => c.id === s.customerId)?.currentBalance || 0;
+      if (s.customerId && Number(custBal) <= 0) continue;
+
+      let dueObj = s.dueDate ? new Date(s.dueDate) : new Date(new Date(s.date).getTime() + 7 * 86400000);
+      const dueStr = dueObj.toISOString().slice(0, 10);
+      const dueMidnight = new Date(dueStr).getTime();
+      const diffDays = Math.round((nowMidnight - dueMidnight) / 86400000);
+
+      reminders.push({
+        id: s.id,
+        type: "RECEIVABLE",
+        referenceNumber: s.invoiceNumber,
+        partyId: s.customerId,
+        partyName: s.customerName || "Customer",
+        partyPhone: s.customer?.phone || null,
+        remainingAmount: Number(s.remainingAmount),
+        dueDate: dueStr,
+        daysOverdue: Math.max(0, diffDays),
+        urgency: diffDays > 0 ? "OVERDUE" : (diffDays === 0 ? "DUE_TODAY" : "UPCOMING"),
+      });
+    }
+
+    for (const p of purchases.filter((p) => Number(p.remainingAmount || 0) > 0 && p.paymentStatus !== "PAID")) {
+      const supBal = suppliers.find((s) => s.id === p.supplierId)?.currentBalance || 0;
+      if (p.supplierId && Number(supBal) <= 0) continue;
+
+      let dueObj = p.dueDate ? new Date(p.dueDate) : new Date(new Date(p.date).getTime() + 7 * 86400000);
+      const dueStr = dueObj.toISOString().slice(0, 10);
+      const dueMidnight = new Date(dueStr).getTime();
+      const diffDays = Math.round((nowMidnight - dueMidnight) / 86400000);
+
+      reminders.push({
+        id: p.id,
+        type: "PAYABLE",
+        referenceNumber: p.purchaseNumber,
+        partyId: p.supplierId,
+        partyName: p.supplierName || "Supplier",
+        partyPhone: p.supplier?.phone || null,
+        remainingAmount: Number(p.remainingAmount),
+        dueDate: dueStr,
+        daysOverdue: Math.max(0, diffDays),
+        urgency: diffDays > 0 ? "OVERDUE" : (diffDays === 0 ? "DUE_TODAY" : "UPCOMING"),
+      });
+    }
+
+    reminders.sort((a, b) => {
+      const order: Record<string, number> = { OVERDUE: 0, DUE_TODAY: 1, UPCOMING: 2 };
+      if (order[a.urgency] !== order[b.urgency]) return order[a.urgency] - order[b.urgency];
+      if (a.urgency === "OVERDUE") return b.daysOverdue - a.daysOverdue;
+      return a.dueDate.localeCompare(b.dueDate);
+    });
+
+    const overdueCount = reminders.filter((r) => r.urgency === "OVERDUE").length;
+    const dueTodayCount = reminders.filter((r) => r.urgency === "DUE_TODAY").length;
+    const totalOverdueReceivables = reminders
+      .filter((r) => r.type === "RECEIVABLE" && (r.urgency === "OVERDUE" || r.urgency === "DUE_TODAY"))
+      .reduce((sum, r) => sum + r.remainingAmount, 0);
+    const totalOverduePayables = reminders
+      .filter((r) => r.type === "PAYABLE" && (r.urgency === "OVERDUE" || r.urgency === "DUE_TODAY"))
+      .reduce((sum, r) => sum + r.remainingAmount, 0);
+
+    const paymentReminders = {
+      overdueCount,
+      dueTodayCount,
+      upcomingCount: reminders.filter((r) => r.urgency === "UPCOMING").length,
+      totalOverdueReceivables: round2(totalOverdueReceivables),
+      totalOverduePayables: round2(totalOverduePayables),
+      reminders: reminders.slice(0, 15),
+    };
+
     const activeBranch = branches.find((b) => b.id === activeBranchId);
 
     return NextResponse.json({
@@ -176,6 +253,9 @@ export async function GET(req: NextRequest) {
         bankBalance: round2(bankBalance || 500000),
         lowStockCount: lowStockAlerts.length,
         lowStockAlerts,
+
+        // Overdue & Promised Payment Reminders
+        paymentReminders,
       },
     });
   } catch (error: any) {

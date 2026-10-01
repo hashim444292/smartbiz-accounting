@@ -23,10 +23,14 @@ import {
   Monitor,
   Type,
   Store,
+  Bell,
+  AlertTriangle,
+  Clock,
 } from "lucide-react";
 import { DateRangeSelector } from "./DateRangeSelector";
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
+import { smartFetch } from "@/lib/clientCache";
 
 export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
   const {
@@ -71,6 +75,28 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
   const [branchDropdownOpen, setBranchDropdownOpen] = useState(false);
   const branchDropdownRef = useRef<HTMLDivElement>(null);
 
+  // Reminders Notification Dropdown state
+  const [remindersOpen, setRemindersOpen] = useState(false);
+  const remindersRef = useRef<HTMLDivElement>(null);
+  const [remindersData, setRemindersData] = useState<any>(null);
+
+  const fetchReminders = async () => {
+    try {
+      const headers: Record<string, string> = {};
+      if (activeCompany?.id) headers["x-business-id"] = activeCompany.id;
+      const json = await smartFetch("/api/reminders", { headers, ttlMs: 15000 });
+      if (json.success) {
+        setRemindersData(json.data);
+      }
+    } catch {}
+  };
+
+  useEffect(() => {
+    fetchReminders();
+    const interval = setInterval(fetchReminders, 45000);
+    return () => clearInterval(interval);
+  }, [activeCompany?.id]);
+
   // Global Quick Search state (Cmd + K)
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -99,6 +125,9 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
       }
       if (fontMenuRef.current && !fontMenuRef.current.contains(event.target as Node)) {
         setFontMenuOpen(false);
+      }
+      if (remindersRef.current && !remindersRef.current.contains(event.target as Node)) {
+        setRemindersOpen(false);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
@@ -584,6 +613,129 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
                 <div className="mt-1.5 pt-1.5 border-t border-slate-100 dark:border-slate-800 px-2 text-[10px] text-slate-400 leading-tight flex items-center gap-1">
                   <span className="font-mono text-indigo-600 dark:text-indigo-400 font-bold">123</span>
                   <span>Ledgers & figures use JetBrains Mono tabular spacing.</span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Payment Reminders Notification Bell */}
+          <div className="relative" ref={remindersRef}>
+            <button
+              onClick={() => setRemindersOpen(!remindersOpen)}
+              className="relative flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white transition shadow-2xs"
+              title="Payment Due & Promise Reminders (ادائیگی و وصولی یاد دہانی)"
+            >
+              <Bell className="h-4 w-4" />
+              {remindersData && (remindersData.overdueCount + remindersData.dueTodayCount > 0) && (
+                <span className="absolute -top-1 -right-1 flex h-4 min-w-[16px] px-1 items-center justify-center rounded-full bg-rose-600 text-[10px] font-black text-white shadow-xs animate-pulse">
+                  {remindersData.overdueCount + remindersData.dueTodayCount}
+                </span>
+              )}
+            </button>
+
+            {remindersOpen && (
+              <div className="absolute right-0 mt-2 w-80 sm:w-96 rounded-2xl border border-slate-200 bg-white p-3 shadow-2xl dark:border-slate-800 dark:bg-[#111827] z-50 animate-in fade-in zoom-in-95 duration-100 max-h-[85vh] overflow-hidden flex flex-col">
+                <div className="flex items-center justify-between pb-2.5 border-b border-slate-100 dark:border-slate-800">
+                  <div className="flex items-center gap-1.5">
+                    <Bell className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+                    <span className="text-xs font-bold text-slate-900 dark:text-white">
+                      Payment Reminders (ادائیگی و وصولی)
+                    </span>
+                  </div>
+                  <span className="rounded-full bg-rose-50 px-2 py-0.5 text-[10px] font-bold text-rose-700 dark:bg-rose-950/60 dark:text-rose-300">
+                    {(remindersData?.overdueCount || 0) + (remindersData?.dueTodayCount || 0)} Due
+                  </span>
+                </div>
+
+                <div className="overflow-y-auto py-2 flex-1 space-y-2 max-h-[380px]">
+                  {(!remindersData || remindersData.reminders.length === 0) ? (
+                    <div className="py-8 text-center text-xs text-slate-400">
+                      🎉 No overdue or pending payments! All accounts are settled.
+                    </div>
+                  ) : (
+                    remindersData.reminders.map((rem: any) => (
+                      <div
+                        key={`${rem.type}-${rem.id}`}
+                        className={`p-2.5 rounded-xl border text-xs transition ${
+                          rem.urgency === "OVERDUE"
+                            ? "border-rose-200 bg-rose-50/50 dark:border-rose-900/60 dark:bg-rose-950/30"
+                            : rem.urgency === "DUE_TODAY"
+                            ? "border-amber-200 bg-amber-50/50 dark:border-amber-900/60 dark:bg-amber-950/30"
+                            : "border-slate-200 bg-slate-50/50 dark:border-slate-800 dark:bg-slate-900/50"
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span
+                                className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                                  rem.type === "RECEIVABLE"
+                                    ? "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-200"
+                                    : "bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-200"
+                                }`}
+                              >
+                                {rem.type === "RECEIVABLE" ? "گاہک سے وصولی" : "سپلائر کو ادائیگی"}
+                              </span>
+                              <span
+                                className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                                  rem.urgency === "OVERDUE"
+                                    ? "bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-200"
+                                    : rem.urgency === "DUE_TODAY"
+                                    ? "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200"
+                                    : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                                }`}
+                              >
+                                {rem.urgency === "OVERDUE"
+                                  ? `⚠️ ${rem.daysOverdue} Days Overdue`
+                                  : rem.urgency === "DUE_TODAY"
+                                  ? "📅 Due Today"
+                                  : "⏳ Upcoming"}
+                              </span>
+                            </div>
+                            <p className="font-bold text-slate-900 dark:text-white mt-1">
+                              {rem.partyName}
+                            </p>
+                            <p className="text-[10px] text-slate-500">
+                              Ref: {rem.referenceNumber} • Promised: {rem.dueDate}
+                            </p>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <span className="font-mono font-bold text-rose-600 dark:text-rose-400 block text-xs">
+                              Rs {rem.remainingAmount.toLocaleString()}
+                            </span>
+                            <Link
+                              href={
+                                rem.type === "RECEIVABLE"
+                                  ? `/payments?customerId=${rem.partyId || ""}`
+                                  : `/payments?supplierId=${rem.partyId || ""}`
+                              }
+                              onClick={() => setRemindersOpen(false)}
+                              className="inline-block mt-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 px-2 py-0.5 text-[10px] font-bold text-white transition shadow-2xs"
+                            >
+                              {rem.type === "RECEIVABLE" ? "Receive Now" : "Pay Now"}
+                            </Link>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[11px]">
+                  <Link
+                    href="/payments"
+                    onClick={() => setRemindersOpen(false)}
+                    className="font-bold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1"
+                  >
+                    <span>View All in Payments</span>
+                    <ArrowRight className="h-3 w-3" />
+                  </Link>
+                  <button
+                    onClick={() => setRemindersOpen(false)}
+                    className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                  >
+                    Dismiss
+                  </button>
                 </div>
               </div>
             )}

@@ -24,6 +24,7 @@ import {
   ArrowUpRight,
   ShieldCheck,
   Building2,
+  Calendar,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { BrandPageLoader } from "@/components/ui/loader";
@@ -63,6 +64,7 @@ export default function CreatePurchasePage() {
   const [items, setItems] = useState<PurchaseItem[]>([]);
   const [paidAmount, setPaidAmount] = useState(0);
   const [paymentMethod, setPaymentMethod] = useState("CASH");
+  const [dueDate, setDueDate] = useState("");
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -315,6 +317,7 @@ export default function CreatePurchasePage() {
         })),
         paidAmount,
         paymentMethod,
+        dueDate: totalAmount - paidAmount > 0 && dueDate ? new Date(dueDate) : undefined,
         notes,
       };
 
@@ -926,6 +929,59 @@ export default function CreatePurchasePage() {
                   </div>
                 </div>
               </div>
+
+              {/* Payment Promise Date (Due Date) for Remaining Payables */}
+              {totalAmount - paidAmount > 0 && (
+                <div className="rounded-xl border border-indigo-200 bg-indigo-50/70 p-3 text-xs dark:border-indigo-900/60 dark:bg-indigo-950/30">
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <span className="font-bold text-indigo-950 dark:text-indigo-200 flex items-center gap-1.5">
+                      <Calendar className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+                      Payment Promise Date (ادائیگی کی وعدہ تاریخ / Due Date):
+                    </span>
+                    <span className="text-[11px] font-bold text-rose-600">
+                      Payable: {formatMoney(totalAmount - paidAmount)}
+                    </span>
+                  </div>
+                  <div className="flex flex-col sm:flex-row items-center gap-2">
+                    <input
+                      type="date"
+                      value={dueDate}
+                      onChange={(e) => setDueDate(e.target.value)}
+                      min={new Date().toISOString().split("T")[0]}
+                      className="w-full rounded-lg border border-indigo-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 dark:border-indigo-800 dark:bg-slate-900 dark:text-white"
+                    />
+                    <div className="flex items-center gap-1 flex-wrap shrink-0">
+                      {[
+                        { label: "+7 Days", days: 7 },
+                        { label: "+15 Days", days: 15 },
+                        { label: "+30 Days", days: 30 },
+                      ].map((preset) => {
+                        const target = new Date();
+                        target.setDate(target.getDate() + preset.days);
+                        const targetStr = target.toISOString().split("T")[0];
+                        return (
+                          <button
+                            key={preset.label}
+                            type="button"
+                            onClick={() => setDueDate(targetStr)}
+                            className={`rounded-lg px-2.5 py-1 text-[11px] font-bold transition ${
+                              dueDate === targetStr
+                                ? "bg-indigo-600 text-white"
+                                : "border border-indigo-200 bg-white text-indigo-800 hover:bg-indigo-100 dark:border-indigo-800 dark:bg-slate-900 dark:text-indigo-300"
+                            }`}
+                          >
+                            {preset.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  <p className="mt-1.5 text-[10px] text-indigo-700/80 dark:text-indigo-400">
+                    💡 اس تاریخ پر ڈیش بورڈ اور سسٹم الرٹ میں ریمائنڈر ملے گا کہ سپلائر کو بقایا رقم ادا کرنی ہے۔
+                  </p>
+                </div>
+              )}
+
               <div>
                 <Input
                   label="Purchase Bill Notes / Tracking"

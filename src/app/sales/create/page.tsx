@@ -126,6 +126,7 @@ export default function CreateSalePage() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("CASH");
   const [overallDiscount, setOverallDiscount] = useState<number>(0);
   const [paidAmount, setPaidAmount] = useState<number>(0);
+  const [dueDate, setDueDate] = useState<string>("");
   const [notes, setNotes] = useState<string>("");
 
   // Submission State
@@ -506,8 +507,18 @@ export default function CreateSalePage() {
       setWalkInPhone("");
     } else if (mode === "CREDIT") {
       setPaidAmount(0);
+      if (!dueDate) {
+        const defDue = new Date();
+        defDue.setDate(defDue.getDate() + 7);
+        setDueDate(defDue.toISOString().split("T")[0]);
+      }
     } else if (mode === "PARTIAL") {
       setPaidAmount(Math.round(totalPayable / 2)); // Default 50% deposit
+      if (!dueDate) {
+        const defDue = new Date();
+        defDue.setDate(defDue.getDate() + 7);
+        setDueDate(defDue.toISOString().split("T")[0]);
+      }
     }
   };
 
@@ -721,6 +732,7 @@ export default function CreateSalePage() {
           invoiceType: (isAccountingOnly || !postToFbr) ? "STANDARD" : fbrInvoiceType,
           paidAmount: actualPaid,
           paymentMethod: actualPaid > 0 ? paymentMethod : "CREDIT",
+          dueDate: remaining > 0 && dueDate ? new Date(dueDate) : undefined,
           notes: notes.trim() || undefined,
           fbrStatus: (isAccountingOnly || !postToFbr) ? "NOT_APPLICABLE" : "PENDING",
           fbrInvoiceNumber: null,
@@ -843,6 +855,7 @@ export default function CreateSalePage() {
               invoiceType: (isAccountingOnly || !postToFbr) ? "STANDARD" : fbrInvoiceType,
               paidAmount: piecePaid,
               paymentMethod: piecePaid > 0 ? paymentMethod : "CREDIT",
+              dueDate: remaining > 0 && dueDate ? new Date(dueDate) : undefined,
               notes: notes.trim()
                 ? `${notes.trim()} (Piece ${pieceIndex}/${totalPieces})`
                 : `Piece ${pieceIndex} of ${totalPieces}`,
@@ -1559,6 +1572,66 @@ export default function CreateSalePage() {
                         </>
                       )}
                     </div>
+                  </div>
+                )}
+
+                {/* Due Date / Payment Promise Date for Receivables */}
+                {remainingReceivable > 0 && (
+                  <div className="rounded-xl border border-indigo-200 bg-indigo-50/70 p-3.5 text-xs dark:border-indigo-900/60 dark:bg-indigo-950/30">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-2">
+                      <div className="flex items-center gap-1.5 font-bold text-indigo-950 dark:text-indigo-200">
+                        <Calendar className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+                        <span>Payment Promise Date (رقم وصولی کی وعدہ تاریخ / Due Date):</span>
+                      </div>
+                      <span className="text-[11px] font-bold text-rose-600 dark:text-rose-400">
+                        Receivable: Rs {remainingReceivable.toLocaleString()}
+                      </span>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                      <div className="relative flex-1">
+                        <input
+                          type="date"
+                          value={dueDate}
+                          onChange={(e) => setDueDate(e.target.value)}
+                          min={new Date().toISOString().split("T")[0]}
+                          className="w-full rounded-lg border border-indigo-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 dark:border-indigo-800 dark:bg-slate-900 dark:text-white"
+                        />
+                      </div>
+
+                      {/* Quick Presets */}
+                      <div className="flex items-center gap-1 flex-wrap">
+                        {[
+                          { label: "Today", days: 0 },
+                          { label: "+3 Days", days: 3 },
+                          { label: "+7 Days", days: 7 },
+                          { label: "+15 Days", days: 15 },
+                          { label: "+30 Days", days: 30 },
+                        ].map((preset) => {
+                          const target = new Date();
+                          target.setDate(target.getDate() + preset.days);
+                          const targetStr = target.toISOString().split("T")[0];
+                          const isSelected = dueDate === targetStr;
+                          return (
+                            <button
+                              key={preset.label}
+                              type="button"
+                              onClick={() => setDueDate(targetStr)}
+                              className={`rounded-lg px-2.5 py-1 text-[11px] font-bold transition ${
+                                isSelected
+                                  ? "bg-indigo-600 text-white shadow-xs"
+                                  : "border border-indigo-200 bg-white text-indigo-800 hover:bg-indigo-100/70 dark:border-indigo-800 dark:bg-slate-900 dark:text-indigo-300"
+                              }`}
+                            >
+                              {preset.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    <p className="mt-2 text-[10px] text-indigo-700/80 dark:text-indigo-400">
+                      💡 اس تاریخ پر ڈیش بورڈ اور نوٹیفکیشن الرٹ میں گاہک کا نام اور وصولی کی یاد دہانی پاپ ہوگی۔
+                    </p>
                   </div>
                 )}
 

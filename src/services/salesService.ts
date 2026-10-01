@@ -24,6 +24,7 @@ export interface CreateSaleInput {
   overallDiscount?: Decimal.Value;
   paidAmount?: Decimal.Value;
   paymentMethod?: string;
+  dueDate?: Date | string | null;
   accountId?: string | null;
   notes?: string;
   createdById?: string;
@@ -220,6 +221,7 @@ export async function createAndPostSale(input: CreateSaleInput) {
         remainingAmount: remainingAmount.toNumber(),
         paymentStatus,
         paymentMethod,
+        dueDate: input.dueDate ? (input.dueDate instanceof Date ? input.dueDate : new Date(input.dueDate)) : null,
         notes,
         status: "POSTED",
         fbrStatus: input.fbrStatus || "PENDING",

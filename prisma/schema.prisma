@@ -384,6 +384,7 @@ model Sale {
   remainingAmount Decimal           @default(0.00) @db.Decimal(15, 2)
   paymentStatus   PaymentStatus     @default(UNPAID)
   paymentMethod   String?           @default("CASH")
+  dueDate         DateTime?
   notes           String?
   status          TransactionStatus @default(POSTED)
   fbrStatus       String?           @default("PENDING")
@@ -446,6 +447,7 @@ model Purchase {
   remainingAmount Decimal           @default(0.00) @db.Decimal(15, 2)
   paymentStatus   PaymentStatus     @default(UNPAID)
   paymentMethod   String?           @default("CASH")
+  dueDate         DateTime?
   notes           String?
   createdById     String?
   createdByName   String?
