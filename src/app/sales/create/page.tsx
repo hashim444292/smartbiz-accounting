@@ -32,6 +32,7 @@ import {
   CheckCheck,
   Loader2,
   Calendar,
+  Globe,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { smartFetch, invalidateCache } from "@/lib/clientCache";
@@ -114,7 +115,8 @@ export default function CreateSalePage() {
   const [walkInName, setWalkInName] = useState<string>("");
   const [walkInPhone, setWalkInPhone] = useState<string>("");
   const [buyerTaxStatus, setBuyerTaxStatus] = useState<BuyerTaxStatus>("EXEMPT");
-  const [fbrInvoiceType, setFbrInvoiceType] = useState<"TIER1_POS" | "DIGITAL_INVOICING">("DIGITAL_INVOICING");
+  const [fbrInvoiceType, setFbrInvoiceType] = useState<"TIER1_POS" | "DIGITAL_INVOICING">("TIER1_POS");
+  const [registeredFbrType, setRegisteredFbrType] = useState<"TIER1_POS" | "DIGITAL_INVOICING" | "BOTH">("TIER1_POS");
   const [postToFbr, setPostToFbr] = useState<boolean>(true);
   const [date, setDate] = useState<string>(new Date().toISOString().split("T")[0]);
 
@@ -129,9 +131,19 @@ export default function CreateSalePage() {
   const [dueDate, setDueDate] = useState<string>("");
   const [notes, setNotes] = useState<string>("");
 
-  // Submission State
+  // Submission State & Validation
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+  const clearFieldError = (fieldName: string) => {
+    setFieldErrors((prev) => {
+      if (!prev[fieldName]) return prev;
+      const copy = { ...prev };
+      delete copy[fieldName];
+      return copy;
+    });
+  };
 
   // Quick Add Product Modal State
   const [isAddProductModalOpen, setIsAddProductModalOpen] = useState<boolean>(false);
@@ -236,9 +248,16 @@ export default function CreateSalePage() {
 
         if (!isAccountingOnly && (fbrJson as any)?.success && (fbrJson as any)?.data?.config) {
           const cfg = (fbrJson as any).data.config;
-          if (cfg.integrationType === "DIGITAL_INVOICING") {
+          const regType: "TIER1_POS" | "DIGITAL_INVOICING" | "BOTH" =
+            cfg.integrationType === "DIGITAL_INVOICING"
+              ? "DIGITAL_INVOICING"
+              : cfg.integrationType === "BOTH"
+              ? "BOTH"
+              : "TIER1_POS";
+          setRegisteredFbrType(regType);
+          if (regType === "DIGITAL_INVOICING") {
             setFbrInvoiceType("DIGITAL_INVOICING");
-          } else if (cfg.integrationType === "TIER1_POS") {
+          } else {
             setFbrInvoiceType("TIER1_POS");
           }
         }
@@ -356,6 +375,9 @@ export default function CreateSalePage() {
     const prod = products.find((p) => p.id === selectedValue);
     if (!prod) return;
 
+    clearFieldError(`item_${index}_product`);
+    clearFieldError("items");
+
     setItems((prev) => {
       const next = [...prev];
       next[index] = recalculateItem(
@@ -377,6 +399,12 @@ export default function CreateSalePage() {
 
   // Update Line Item Fields
   const handleItemFieldChange = (index: number, field: keyof SaleLineItem, value: any) => {
+    if (field === "productName") clearFieldError(`item_${index}_product`);
+    if (field === "quantity") clearFieldError(`item_${index}_quantity`);
+    if (field === "unitPrice") clearFieldError(`item_${index}_price`);
+    if (field === "discountPercent") clearFieldError(`item_${index}_disc`);
+    clearFieldError("items");
+
     setItems((prev) => {
       const next = [...prev];
       next[index] = recalculateItem(
@@ -644,33 +672,95 @@ export default function CreateSalePage() {
     }
   };
 
+  // Form Validation
+  const validateForm = (): boolean => {
+    const errors: Record<string, string> = {};
+
+    // 1. Invoice Date
+    if (!date) {
+      errors["date"] = "انوائس کی تاریخ منتخب کریں (Invoice date is required)";
+    }
+
+    // 2. Line Items
+    if (!items || items.length === 0) {
+      errors["items"] = "بل بنانے کے لیے کم از کم ایک آئٹم شامل کریں (Please add at least one line item)";
+    } else {
+      items.forEach((it, idx) => {
+        if (!it.productName.trim()) {
+          errors[`item_${idx}_product`] = `آئٹم #${idx + 1} کا نام درج کریں (Item name is required)`;
+        }
+        if (Number(it.quantity) <= 0 || isNaN(Number(it.quantity))) {
+          errors[`item_${idx}_quantity`] = `آئٹم #${idx + 1} کی مقدار 0 سے زیادہ ہونی چاہیے (Quantity must be > 0)`;
+        }
+        if (Number(it.unitPrice) < 0 || isNaN(Number(it.unitPrice))) {
+          errors[`item_${idx}_price`] = `آئٹم #${idx + 1} کی قیمت منفی نہیں ہو سکتی (Unit price cannot be negative)`;
+        }
+        if (Number(it.discountPercent) < 0 || Number(it.discountPercent) > 100) {
+          errors[`item_${idx}_disc`] = `ڈسکاؤنٹ 0 سے 100% کے درمیان ہونا چاہیے (Discount 0-100%)`;
+        }
+      });
+    }
+
+    // 3. Customer & Receivable balance validation
+    const actualPaid = paymentMode === "CREDIT" ? 0 : Number(paidAmount || 0);
+    const remaining = Math.max(0, totalPayable - actualPaid);
+
+    if (!customerId && remaining > 0) {
+      if (!walkInName.trim()) {
+        errors["walkInName"] = "ادھار / باقی رقم کے لیے خریدار کا نام درج کرنا لازمی ہے (Customer name required for credit balance)";
+      }
+      if (!walkInPhone.trim()) {
+        errors["walkInPhone"] = "باقی رقم فالو اپ کے لیے خریدار کا فون نمبر درج کریں (Phone number required for credit follow-up)";
+      }
+    }
+
+    if (buyerTaxStatus === "REGISTERED" && customerId) {
+      const cust = customers.find((c) => c.id === customerId);
+      if (cust && !cust.ntn && !(cust as any).cnic) {
+        errors["customer"] = "رجسٹرڈ خریدار کے لیے کسٹمر کا NTN یا CNIC ہونا لازمی ہے (NTN or CNIC required for Registered Taxpayer)";
+      }
+    }
+
+    // 4. Payment validations
+    if (actualPaid < 0) {
+      errors["paidAmount"] = "ادا کردہ رقم منفی نہیں ہو سکتی (Paid amount cannot be negative)";
+    }
+    if (actualPaid > totalPayable) {
+      errors["paidAmount"] = "ادا کردہ رقم کل بل سے زیادہ نہیں ہو سکتی (Paid amount cannot exceed total bill)";
+    }
+    if (paymentMode === "PARTIAL" && actualPaid <= 0) {
+      errors["paidAmount"] = "جزوی ادائیگی کے لیے ادا شدہ رقم درج کریں (Please specify paid amount for partial payment)";
+    }
+    if (Number(overallDiscount) < 0) {
+      errors["overallDiscount"] = "ڈسکاؤنٹ رقم منفی نہیں ہو سکتی (Discount cannot be negative)";
+    }
+    if (Number(overallDiscount) > grossSubtotal) {
+      errors["overallDiscount"] = "اضافی ڈسکاؤنٹ کل رقم سے زیادہ نہیں ہو سکتا (Discount cannot exceed subtotal)";
+    }
+
+    // 5. Due date validation
+    if (remaining > 0 && dueDate && date && dueDate < date) {
+      errors["dueDate"] = "رقم وصولی کی تاریخ بل کی تاریخ کے بعد ہونی چاہیے (Due date cannot be earlier than invoice date)";
+    }
+
+    setFieldErrors(errors);
+
+    if (Object.keys(errors).length > 0) {
+      const firstErrorMessage = Object.values(errors)[0];
+      setError(firstErrorMessage);
+      return false;
+    }
+
+    return true;
+  };
+
   // Submit & Save Invoice (With full Accounts Receivable & Multi-Piece Split Invoicing support)
   const handleSubmitInvoice = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
-    if (items.length === 0) {
-      setError("Please add at least one line item to generate the invoice.");
-      return;
-    }
-
-    for (let i = 0; i < items.length; i++) {
-      const it = items[i];
-      if (!it.productName.trim()) {
-        setError(`Item #${i + 1} has no description or product selected.`);
-        return;
-      }
-      if (it.quantity <= 0) {
-        setError(`Item #${i + 1} quantity must be greater than 0.`);
-        return;
-      }
-    }
-
-    const actualPaid = paymentMode === "CREDIT" ? 0 : Number(paidAmount || 0);
-    const remaining = Math.max(0, totalPayable - actualPaid);
-
-    if (!customerId && remaining > 0 && !walkInName.trim()) {
-      setError("Please enter the Walk-in Customer's Name so the remaining receivable can be clearly tracked in their ledger.");
+    if (!validateForm()) {
+      window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
 
@@ -688,6 +778,11 @@ export default function CreateSalePage() {
   const executeSubmit = async (selectedMode: "CONSOLIDATED" | "SPLIT_PER_PIECE") => {
     setIsSplitDecisionModalOpen(false);
     setError(null);
+
+    if (!validateForm()) {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
 
     const actualPaid = paymentMode === "CREDIT" ? 0 : Number(paidAmount || 0);
     const remaining = Math.max(0, totalPayable - actualPaid);
@@ -1030,9 +1125,19 @@ export default function CreateSalePage() {
                 <input
                   type="date"
                   value={date}
-                  onChange={(e) => setDate(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200"
+                  onChange={(e) => {
+                    setDate(e.target.value);
+                    clearFieldError("date");
+                  }}
+                  className={`w-full rounded-xl border bg-white px-3 py-2 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-1 dark:bg-slate-900 dark:text-slate-200 ${
+                    fieldErrors["date"]
+                      ? "border-rose-400 focus:border-rose-500 focus:ring-rose-500 bg-rose-50/20"
+                      : "border-slate-200 focus:border-blue-500 focus:ring-blue-500 dark:border-slate-800"
+                  }`}
                 />
+                {fieldErrors["date"] && (
+                  <p className="text-[10px] font-semibold text-rose-500">{fieldErrors["date"]}</p>
+                )}
               </div>
 
               {/* Column 3: CUSTOMER (BUYER) * */}
@@ -1064,10 +1169,13 @@ export default function CreateSalePage() {
                         return;
                       }
                       setCustomerId(val);
+                      clearFieldError("customer");
                       if (!val) {
                         setCustomerName("Walk in (Walk in)");
                         handleBuyerTaxStatusChange("EXEMPT");
-                        if (!isAccountingOnly) setFbrInvoiceType("TIER1_POS");
+                        if (!isAccountingOnly && registeredFbrType === "BOTH") {
+                          setFbrInvoiceType("TIER1_POS");
+                        }
                       } else {
                         const c = customers.find((cust) => cust.id === val);
                         if (c) {
@@ -1075,7 +1183,7 @@ export default function CreateSalePage() {
                           if (c.taxStatus === "REGISTERED" || c.taxStatus === "EXEMPT" || c.taxStatus === "UNREGISTERED") {
                             handleBuyerTaxStatusChange(c.taxStatus);
                           }
-                          if (!isAccountingOnly) {
+                          if (!isAccountingOnly && registeredFbrType === "BOTH") {
                             if (c.taxStatus === "REGISTERED" || (c as any).ntn) {
                               setFbrInvoiceType("DIGITAL_INVOICING");
                             } else {
@@ -1085,7 +1193,11 @@ export default function CreateSalePage() {
                         }
                       }
                     }}
-                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200"
+                    className={`w-full rounded-xl border bg-white px-3 py-2 text-xs font-medium text-slate-800 focus:outline-none focus:ring-1 dark:bg-slate-900 dark:text-slate-200 ${
+                      fieldErrors["customer"]
+                        ? "border-rose-400 focus:border-rose-500 focus:ring-rose-500 bg-rose-50/20"
+                        : "border-slate-200 focus:border-blue-500 focus:ring-blue-500 dark:border-slate-800"
+                    }`}
                   >
                     <option value="">Walk in (عام گاہک) — Exempt</option>
                     {[...customers]
@@ -1130,6 +1242,12 @@ export default function CreateSalePage() {
                   )}
                 </div>
 
+                {fieldErrors["customer"] && (
+                  <p className="text-[10px] font-semibold text-rose-500 mt-1">
+                    ⚠️ {fieldErrors["customer"]}
+                  </p>
+                )}
+
                 {/* Walk-in Customer Details: ONLY displayed when Partial / Credit Sale has remaining balance */}
                 {!customerId && remainingReceivable > 0 && (
                   <div className="mt-2 rounded-xl border border-amber-300 bg-amber-50/80 p-3 text-xs space-y-2.5 transition animate-in fade-in dark:border-amber-800 dark:bg-amber-950/40 shadow-xs">
@@ -1151,26 +1269,46 @@ export default function CreateSalePage() {
                         <input
                           type="text"
                           value={walkInName}
-                          onChange={(e) => setWalkInName(e.target.value)}
+                          onChange={(e) => {
+                            setWalkInName(e.target.value);
+                            clearFieldError("walkInName");
+                          }}
                           placeholder="e.g. Muhammad Kashif"
                           className={`w-full rounded-lg border bg-white px-2.5 py-1.5 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-1 ${
-                            !walkInName.trim()
+                            fieldErrors["walkInName"] || (!walkInName.trim() && remainingReceivable > 0)
                               ? "border-rose-400 focus:border-rose-600 focus:ring-rose-600 bg-rose-50/30"
                               : "border-slate-300 focus:border-indigo-600 focus:ring-indigo-600"
                           } dark:bg-slate-900 dark:border-slate-700 dark:text-white`}
                         />
+                        {fieldErrors["walkInName"] && (
+                          <p className="text-[10px] font-semibold text-rose-500 mt-0.5">
+                            {fieldErrors["walkInName"]}
+                          </p>
+                        )}
                       </div>
                       <div>
                         <label className="block text-[10px] font-bold uppercase text-slate-600 dark:text-slate-400 mb-0.5">
-                          Mobile / WhatsApp #
+                          Mobile / WhatsApp # <span className="text-rose-500">*</span>
                         </label>
                         <input
                           type="text"
                           value={walkInPhone}
-                          onChange={(e) => setWalkInPhone(e.target.value)}
+                          onChange={(e) => {
+                            setWalkInPhone(e.target.value);
+                            clearFieldError("walkInPhone");
+                          }}
                           placeholder="e.g. 0300-1234567"
-                          className="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-900 placeholder:text-slate-400 focus:border-indigo-600 focus:outline-none focus:ring-1 focus:ring-indigo-600 dark:bg-slate-900 dark:border-slate-700 dark:text-white"
+                          className={`w-full rounded-lg border bg-white px-2.5 py-1.5 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-1 ${
+                            fieldErrors["walkInPhone"]
+                              ? "border-rose-400 focus:border-rose-600 focus:ring-rose-600 bg-rose-50/30"
+                              : "border-slate-300 focus:border-indigo-600 focus:ring-indigo-600"
+                          } dark:bg-slate-900 dark:border-slate-700 dark:text-white`}
                         />
+                        {fieldErrors["walkInPhone"] && (
+                          <p className="text-[10px] font-semibold text-rose-500 mt-0.5">
+                            {fieldErrors["walkInPhone"]}
+                          </p>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1230,28 +1368,44 @@ export default function CreateSalePage() {
 
                   {postToFbr && (
                     <div className="flex items-center gap-1 ml-2 border-l border-slate-200 pl-3 dark:border-slate-700">
-                      <button
-                        type="button"
-                        onClick={() => setFbrInvoiceType("TIER1_POS")}
-                        className={`px-2.5 py-1 rounded-lg text-xs font-bold transition ${
-                          fbrInvoiceType === "TIER1_POS"
-                            ? "bg-indigo-100 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300"
-                            : "text-slate-500 hover:text-slate-800"
-                        }`}
-                      >
-                        Retail POS (+Rs. 1)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setFbrInvoiceType("DIGITAL_INVOICING")}
-                        className={`px-2.5 py-1 rounded-lg text-xs font-bold transition ${
-                          fbrInvoiceType === "DIGITAL_INVOICING"
-                            ? "bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300"
-                            : "text-slate-500 hover:text-slate-800"
-                        }`}
-                      >
-                        Digital Invoicing
-                      </button>
+                      {registeredFbrType === "TIER1_POS" && (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold bg-indigo-50 border border-indigo-200 text-indigo-700 dark:bg-indigo-950/60 dark:border-indigo-800 dark:text-indigo-300">
+                          <Building2 className="w-3.5 h-3.5" />
+                          <span>🏪 FBR Mode: Retail POS (+Rs. 1)</span>
+                        </span>
+                      )}
+                      {registeredFbrType === "DIGITAL_INVOICING" && (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold bg-blue-50 border border-blue-200 text-blue-700 dark:bg-blue-950/60 dark:border-blue-800 dark:text-blue-300">
+                          <Globe className="w-3.5 h-3.5" />
+                          <span>🌐 FBR Mode: Digital Invoicing</span>
+                        </span>
+                      )}
+                      {registeredFbrType === "BOTH" && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => setFbrInvoiceType("TIER1_POS")}
+                            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition ${
+                              fbrInvoiceType === "TIER1_POS"
+                                ? "bg-indigo-100 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300"
+                                : "text-slate-500 hover:text-slate-800"
+                            }`}
+                          >
+                            Retail POS (+Rs. 1)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setFbrInvoiceType("DIGITAL_INVOICING")}
+                            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition ${
+                              fbrInvoiceType === "DIGITAL_INVOICING"
+                                ? "bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300"
+                                : "text-slate-500 hover:text-slate-800"
+                            }`}
+                          >
+                            Digital Invoicing
+                          </button>
+                        </>
+                      )}
                     </div>
                   )}
                 </div>
@@ -1282,6 +1436,14 @@ export default function CreateSalePage() {
                 <Plus className="h-3.5 w-3.5 mr-1" /> آئٹم شامل کریں (+ Add Item)
               </Button>
             </div>
+
+            {/* Global items error if list is empty */}
+            {fieldErrors["items"] && (
+              <div className="bg-rose-50 border-b border-rose-200 px-5 py-2.5 text-xs font-bold text-rose-700 dark:bg-rose-950/40 dark:border-rose-900 dark:text-rose-300 flex items-center gap-2">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                <span>{fieldErrors["items"]}</span>
+              </div>
+            )}
 
             {/* Table */}
             <div className="overflow-x-auto">
@@ -1315,8 +1477,17 @@ export default function CreateSalePage() {
                           value={it.productName}
                           onChange={(e) => handleItemFieldChange(idx, "productName", e.target.value)}
                           placeholder="آئٹم کا نام لکھیں یا لسٹ سے چنیں"
-                          className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-900 focus:border-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                          className={`w-full rounded-lg border px-2.5 py-1.5 text-xs font-semibold text-slate-900 focus:outline-none dark:bg-slate-900 dark:text-white ${
+                            fieldErrors[`item_${idx}_product`]
+                              ? "border-rose-400 focus:border-rose-600 bg-rose-50/20"
+                              : "border-slate-200 focus:border-blue-500 dark:border-slate-700"
+                          }`}
                         />
+                        {fieldErrors[`item_${idx}_product`] && (
+                          <p className="text-[10px] font-semibold text-rose-500">
+                            {fieldErrors[`item_${idx}_product`]}
+                          </p>
+                        )}
 
                         {/* Product Dropdown Selector with Quick Add */}
                         <div className="flex items-center gap-1.5">
@@ -1392,8 +1563,17 @@ export default function CreateSalePage() {
                           step="any"
                           value={it.quantity || ""}
                           onChange={(e) => handleItemFieldChange(idx, "quantity", e.target.value)}
-                          className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-center text-xs font-bold text-slate-900 focus:border-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                          className={`w-full rounded-lg border px-2 py-1.5 text-center text-xs font-bold text-slate-900 focus:outline-none dark:bg-slate-900 dark:text-white ${
+                            fieldErrors[`item_${idx}_quantity`]
+                              ? "border-rose-400 focus:border-rose-600 bg-rose-50/30"
+                              : "border-slate-200 focus:border-blue-500 dark:border-slate-700"
+                          }`}
                         />
+                        {fieldErrors[`item_${idx}_quantity`] && (
+                          <p className="text-[9px] font-semibold text-rose-500 text-center mt-0.5">
+                            {fieldErrors[`item_${idx}_quantity`]}
+                          </p>
+                        )}
                       </td>
 
                       {/* UNIT PRICE (PKR) */}
@@ -1404,8 +1584,17 @@ export default function CreateSalePage() {
                           step="any"
                           value={it.unitPrice || ""}
                           onChange={(e) => handleItemFieldChange(idx, "unitPrice", e.target.value)}
-                          className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-right text-xs font-semibold tabular-nums text-slate-900 focus:border-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                          className={`w-full rounded-lg border px-2.5 py-1.5 text-right text-xs font-semibold tabular-nums text-slate-900 focus:outline-none dark:bg-slate-900 dark:text-white ${
+                            fieldErrors[`item_${idx}_price`]
+                              ? "border-rose-400 focus:border-rose-600 bg-rose-50/30"
+                              : "border-slate-200 focus:border-blue-500 dark:border-slate-700"
+                          }`}
                         />
+                        {fieldErrors[`item_${idx}_price`] && (
+                          <p className="text-[9px] font-semibold text-rose-500 text-right mt-0.5">
+                            {fieldErrors[`item_${idx}_price`]}
+                          </p>
+                        )}
                       </td>
 
                       {/* DISC % */}
@@ -1417,8 +1606,17 @@ export default function CreateSalePage() {
                           value={it.discountPercent || ""}
                           onChange={(e) => handleItemFieldChange(idx, "discountPercent", e.target.value)}
                           placeholder="0"
-                          className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-center text-xs font-medium text-slate-800 focus:border-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                          className={`w-full rounded-lg border px-2 py-1.5 text-center text-xs font-medium text-slate-800 focus:outline-none dark:bg-slate-900 dark:text-white ${
+                            fieldErrors[`item_${idx}_disc`]
+                              ? "border-rose-400 focus:border-rose-600 bg-rose-50/30"
+                              : "border-slate-200 focus:border-blue-500 dark:border-slate-700"
+                          }`}
                         />
+                        {fieldErrors[`item_${idx}_disc`] && (
+                          <p className="text-[9px] font-semibold text-rose-500 text-center mt-0.5">
+                            {fieldErrors[`item_${idx}_disc`]}
+                          </p>
+                        )}
                       </td>
 
                       {/* TAX % */}
@@ -1593,10 +1791,22 @@ export default function CreateSalePage() {
                         <input
                           type="date"
                           value={dueDate}
-                          onChange={(e) => setDueDate(e.target.value)}
-                          min={new Date().toISOString().split("T")[0]}
-                          className="w-full rounded-lg border border-indigo-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 dark:border-indigo-800 dark:bg-slate-900 dark:text-white"
+                          onChange={(e) => {
+                            setDueDate(e.target.value);
+                            clearFieldError("dueDate");
+                          }}
+                          min={date || new Date().toISOString().split("T")[0]}
+                          className={`w-full rounded-lg border px-3 py-1.5 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 dark:bg-slate-900 dark:text-white ${
+                            fieldErrors["dueDate"]
+                              ? "border-rose-400 focus:border-rose-500 focus:ring-rose-500/20 bg-rose-50/20"
+                              : "border-indigo-300 bg-white focus:ring-indigo-500/20 dark:border-indigo-800"
+                          }`}
                         />
+                        {fieldErrors["dueDate"] && (
+                          <p className="text-[10px] font-semibold text-rose-500 mt-1">
+                            {fieldErrors["dueDate"]}
+                          </p>
+                        )}
                       </div>
 
                       {/* Quick Presets */}
@@ -1616,7 +1826,10 @@ export default function CreateSalePage() {
                             <button
                               key={preset.label}
                               type="button"
-                              onClick={() => setDueDate(targetStr)}
+                              onClick={() => {
+                                setDueDate(targetStr);
+                                clearFieldError("dueDate");
+                              }}
                               className={`rounded-lg px-2.5 py-1 text-[11px] font-bold transition ${
                                 isSelected
                                   ? "bg-indigo-600 text-white shadow-xs"
@@ -1740,16 +1953,30 @@ export default function CreateSalePage() {
                   </div>
 
                   {/* Overall Discount Input */}
-                  <div className="flex items-center justify-between py-1 text-[11px] text-slate-500">
-                    <span>Additional Special Discount (PKR)</span>
-                    <input
-                      type="number"
-                      min="0"
-                      value={overallDiscount || ""}
-                      onChange={(e) => setOverallDiscount(Number(e.target.value) || 0)}
-                      placeholder="0"
-                      className="w-24 rounded-lg border border-slate-200 px-2 py-1 text-right text-xs font-semibold focus:border-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-                    />
+                  <div className="space-y-1 py-1">
+                    <div className="flex items-center justify-between text-[11px] text-slate-500">
+                      <span>Additional Special Discount (PKR)</span>
+                      <input
+                        type="number"
+                        min="0"
+                        value={overallDiscount || ""}
+                        onChange={(e) => {
+                          setOverallDiscount(Number(e.target.value) || 0);
+                          clearFieldError("overallDiscount");
+                        }}
+                        placeholder="0"
+                        className={`w-24 rounded-lg border px-2 py-1 text-right text-xs font-semibold focus:outline-none dark:bg-slate-800 dark:text-white ${
+                          fieldErrors["overallDiscount"]
+                            ? "border-rose-400 focus:border-rose-500 bg-rose-50/20"
+                            : "border-slate-200 focus:border-blue-500 dark:border-slate-700"
+                        }`}
+                      />
+                    </div>
+                    {fieldErrors["overallDiscount"] && (
+                      <p className="text-[10px] font-semibold text-rose-500 text-right">
+                        {fieldErrors["overallDiscount"]}
+                      </p>
+                    )}
                   </div>
 
                   {/* Taxable Amount */}
@@ -1857,28 +2084,40 @@ export default function CreateSalePage() {
 
                 {/* Detailed Settlement & Accounts Receivable Breakdown Card */}
                 <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/80 p-4 text-xs dark:border-slate-800 dark:bg-slate-800/40">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-slate-700 dark:text-slate-300">
-                      Amount Paid Today
-                    </span>
-                    <div className="flex items-center gap-1.5">
-                      <input
-                        type="number"
-                        min="0"
-                        max={totalPayable}
-                        step="any"
-                        disabled={paymentMode === "CREDIT"}
-                        value={paymentMode === "CREDIT" ? 0 : paidAmount}
-                        onChange={(e) => {
-                          const val = Math.max(0, Math.min(totalPayable, Number(e.target.value) || 0));
-                          setPaidAmount(val);
-                          if (val === totalPayable) setPaymentMode("FULL");
-                          else if (val === 0) setPaymentMode("CREDIT");
-                          else setPaymentMode("PARTIAL");
-                        }}
-                        className="w-32 rounded-lg border border-slate-300 px-2.5 py-1 text-right text-xs font-bold text-slate-900 focus:border-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white disabled:bg-slate-100 disabled:opacity-60"
-                      />
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-slate-700 dark:text-slate-300">
+                        Amount Paid Today
+                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          type="number"
+                          min="0"
+                          max={totalPayable}
+                          step="any"
+                          disabled={paymentMode === "CREDIT"}
+                          value={paymentMode === "CREDIT" ? 0 : paidAmount}
+                          onChange={(e) => {
+                            const val = Number(e.target.value) || 0;
+                            setPaidAmount(val);
+                            clearFieldError("paidAmount");
+                            if (val === totalPayable) setPaymentMode("FULL");
+                            else if (val === 0) setPaymentMode("CREDIT");
+                            else setPaymentMode("PARTIAL");
+                          }}
+                          className={`w-32 rounded-lg border px-2.5 py-1 text-right text-xs font-bold text-slate-900 focus:outline-none dark:bg-slate-900 dark:text-white disabled:bg-slate-100 disabled:opacity-60 ${
+                            fieldErrors["paidAmount"]
+                              ? "border-rose-400 focus:border-rose-500 bg-rose-50/20"
+                              : "border-slate-300 focus:border-blue-500 dark:border-slate-700"
+                          }`}
+                        />
+                      </div>
                     </div>
+                    {fieldErrors["paidAmount"] && (
+                      <p className="text-[10px] font-semibold text-rose-500 text-right">
+                        {fieldErrors["paidAmount"]}
+                      </p>
+                    )}
                   </div>
 
                   {/* Quick percentage shortcuts for partial deposits */}
@@ -1946,6 +2185,24 @@ export default function CreateSalePage() {
                     )}
                   </div>
                 </div>
+
+                {/* Prominent Error Banner above Submit Button */}
+                {(error || Object.keys(fieldErrors).length > 0) && (
+                  <div className="rounded-xl border border-rose-300 bg-rose-50 p-3.5 text-xs text-rose-800 dark:border-rose-900 dark:bg-rose-950/50 dark:text-rose-200 space-y-1.5 shadow-xs">
+                    <div className="flex items-center gap-2 font-bold text-rose-700 dark:text-rose-300">
+                      <AlertCircle className="h-4 w-4 shrink-0 text-rose-600 dark:text-rose-400" />
+                      <span>براہ کرم ان غلطیوں کو درست کریں (Please correct the following errors):</span>
+                    </div>
+                    <ul className="list-disc list-inside space-y-0.5 text-[11px] pl-1 text-rose-700 dark:text-rose-300">
+                      {error && <li>{error}</li>}
+                      {Object.entries(fieldErrors)
+                        .filter(([_, msg]) => msg !== error)
+                        .map(([k, msg]) => (
+                          <li key={k}>{msg}</li>
+                        ))}
+                    </ul>
+                  </div>
+                )}
 
                 {/* Submit Action Button */}
                 <div className="pt-2">

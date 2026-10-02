@@ -80,6 +80,20 @@ export async function createAndPostSale(input: CreateSaleInput) {
       throw new Error("A sale must contain at least one item.");
     }
 
+    for (let i = 0; i < items.length; i++) {
+      const it = items[i];
+      if (Number(it.quantity) <= 0 || isNaN(Number(it.quantity))) {
+        throw new Error(`Item #${i + 1} quantity must be greater than 0.`);
+      }
+      if (Number(it.unitPrice) < 0 || isNaN(Number(it.unitPrice))) {
+        throw new Error(`Item #${i + 1} unit price cannot be negative.`);
+      }
+    }
+
+    if (input.paidAmount !== undefined && Number(input.paidAmount) < 0) {
+      throw new Error("Paid amount cannot be negative.");
+    }
+
     const invoiceNumber = input.invoiceNumber || (await getNextInvoiceNumber(tx, businessId));
 
     // 1. Calculate line items totals, taxes, and costs
