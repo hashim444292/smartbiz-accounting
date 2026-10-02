@@ -20,7 +20,7 @@ export async function PUT(
 
     const { id } = params;
     const body = await req.json();
-    const { name, role, email, password, companyIds, allowedModules } = body;
+    const { name, role, email, password, companyIds, allowedModules, platformRole } = body;
 
     // Database update
     try {
@@ -30,7 +30,11 @@ export async function PUT(
       }
 
       // 1. Prevent promoting any non-super admin to SUPER_ADMIN
-      if (role === "SUPER_ADMIN" && existingUser.role !== "SUPER_ADMIN") {
+      if (
+        (role === "SUPER_ADMIN" || platformRole === "SUPER_ADMIN") &&
+        existingUser.role !== "SUPER_ADMIN" &&
+        (existingUser as any).platformRole !== "SUPER_ADMIN"
+      ) {
         return NextResponse.json(
           { success: false, error: "The SUPER_ADMIN role is protected and cannot be assigned to another user." },
           { status: 400 }
@@ -38,7 +42,9 @@ export async function PUT(
       }
 
       // 2. Prevent removing SUPER_ADMIN from the master account
-      if (existingUser.role === "SUPER_ADMIN" && role && role !== "SUPER_ADMIN") {
+      const isMasterAdmin =
+        existingUser.role === "SUPER_ADMIN" || (existingUser as any).platformRole === "SUPER_ADMIN";
+      if (isMasterAdmin && (role && role !== "SUPER_ADMIN" || platformRole && platformRole !== "SUPER_ADMIN")) {
         return NextResponse.json(
           { success: false, error: "The master SUPER_ADMIN account role cannot be changed." },
           { status: 400 }
@@ -47,7 +53,8 @@ export async function PUT(
 
       const updateData: any = {};
       if (name) updateData.name = name;
-      if (role && existingUser.role !== "SUPER_ADMIN") updateData.role = role;
+      if (role && !isMasterAdmin) updateData.role = role;
+      if (platformRole && !isMasterAdmin) updateData.platformRole = platformRole;
       if (email) updateData.email = email.toLowerCase().trim();
       if (password) updateData.passwordHash = await hashPassword(password);
       if (Array.isArray(allowedModules)) updateData.allowedModules = allowedModules;
@@ -80,6 +87,7 @@ export async function PUT(
       const updates: any = {};
       if (name) updates.name = name;
       if (role) updates.role = role;
+      if (platformRole) updates.platformRole = platformRole;
       if (email) updates.email = email.toLowerCase().trim();
       if (password) updates.password = password;
       if (Array.isArray(companyIds)) updates.companyIds = companyIds;
@@ -130,7 +138,7 @@ export async function DELETE(
     // Database delete
     try {
       const targetUser = await prisma.user.findUnique({ where: { id } });
-      if (targetUser?.role === "SUPER_ADMIN") {
+      if (targetUser?.role === "SUPER_ADMIN" || (targetUser as any)?.platformRole === "SUPER_ADMIN") {
         return NextResponse.json(
           { success: false, error: "Cannot delete the master Super Admin account." },
           { status: 400 }

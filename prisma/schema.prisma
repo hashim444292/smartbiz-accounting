@@ -90,6 +90,7 @@ model User {
   name            String
   phone           String?
   role            Role             @default(OWNER_ADMIN)
+  platformRole    String?          @default("TENANT_USER")
   isBranchManager Boolean          @default(false)
   branchId        String?
   allowedModules  String[]         @default([])

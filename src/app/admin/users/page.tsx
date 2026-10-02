@@ -28,6 +28,11 @@ import {
   BookOpen,
   Sparkles,
   Store,
+  Crown,
+  Eye,
+  Shield,
+  Laptop,
+  Lock,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { useAuth } from "@/context/AuthContext";
@@ -129,22 +134,34 @@ export default function UsersManagementPage() {
   const [users, setUsers] = useState<any[]>([]);
   const [companies, setCompanies] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<"shops" | "webapp">("shops");
   const [search, setSearch] = useState("");
   const [companyFilter, setCompanyFilter] = useState<string>("ALL");
   const [modalOpen, setModalOpen] = useState(false);
+  const [webappModalOpen, setWebappModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<any | null>(null);
   const [switchingId, setSwitchingId] = useState<string | null>(null);
 
-  // Form State
+  // Shop User Form State
   const [formData, setFormData] = useState({
     name: "",
     email: "",
     password: "",
     role: "STAFF",
+    platformRole: "TENANT_USER",
     companyIds: [] as string[],
     allowedModules: ["sales", "pos", "customers", "products"] as string[],
   });
+
+  // WebApp User Form State
+  const [webappFormData, setWebappFormData] = useState({
+    name: "",
+    email: "",
+    password: "",
+    platformRole: "WEBAPP_ADMIN",
+  });
+
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -174,6 +191,22 @@ export default function UsersManagementPage() {
     fetchUsersAndCompanies();
   }, []);
 
+  // Split Users into Shop/Tenant users vs WebApp Platform Team
+  const shopUsers = users.filter(
+    (u) =>
+      (!u.platformRole || u.platformRole === "TENANT_USER") &&
+      u.role !== "SUPER_ADMIN"
+  );
+
+  const webappUsers = users.filter(
+    (u) =>
+      u.role === "SUPER_ADMIN" ||
+      u.platformRole === "SUPER_ADMIN" ||
+      u.platformRole === "WEBAPP_ADMIN" ||
+      u.platformRole === "WEBAPP_EDITOR" ||
+      u.platformRole === "WEBAPP_VIEWER"
+  );
+
   // Check assigned companies for current form state
   const assignedCompanies = companies.filter((c) => formData.companyIds.includes(c.id));
 
@@ -200,13 +233,12 @@ export default function UsersManagementPage() {
         modules: p.modules.filter((m) => m !== "pos" && m !== "compliance"),
       }));
 
-  const handleCreateUser = async (e: React.FormEvent) => {
+  const handleCreateShopUser = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
     setSubmitting(true);
 
     try {
-      // Ensure no forbidden modules if company is Accounting Only
       const sanitizedModules = isPosOrDiAllowed
         ? formData.allowedModules
         : formData.allowedModules.filter((m) => m !== "pos" && m !== "compliance");
@@ -214,7 +246,12 @@ export default function UsersManagementPage() {
       const res = await fetch("/api/admin/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...formData, allowedModules: sanitizedModules }),
+        body: JSON.stringify({
+          ...formData,
+          isPlatformUser: false,
+          platformRole: "TENANT_USER",
+          allowedModules: sanitizedModules,
+        }),
       });
       const data = await res.json();
 
@@ -225,12 +262,53 @@ export default function UsersManagementPage() {
           email: "",
           password: "",
           role: "STAFF",
+          platformRole: "TENANT_USER",
           companyIds: [],
           allowedModules: ["sales", "customers", "products"],
         });
         await fetchUsersAndCompanies();
       } else {
         setFormError(data.error || "Failed to create user");
+      }
+    } catch (err: any) {
+      setFormError(err.message || "Network error");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleCreateWebappUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setFormError(null);
+    setSubmitting(true);
+
+    try {
+      const res = await fetch("/api/admin/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: webappFormData.name,
+          email: webappFormData.email,
+          password: webappFormData.password,
+          isPlatformUser: true,
+          platformRole: webappFormData.platformRole,
+          companyIds: [],
+          allowedModules: USER_FEATURE_MODULES.map((m) => m.id),
+        }),
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        setWebappModalOpen(false);
+        setWebappFormData({
+          name: "",
+          email: "",
+          password: "",
+          platformRole: "WEBAPP_ADMIN",
+        });
+        await fetchUsersAndCompanies();
+      } else {
+        setFormError(data.error || "Failed to create WebApp user");
       }
     } catch (err: any) {
       setFormError(err.message || "Network error");
@@ -246,14 +324,35 @@ export default function UsersManagementPage() {
     setSubmitting(true);
 
     try {
-      const sanitizedModules = isPosOrDiAllowed
-        ? formData.allowedModules
-        : formData.allowedModules.filter((m) => m !== "pos" && m !== "compliance");
+      const isWebappUser =
+        (selectedUser.platformRole && selectedUser.platformRole !== "TENANT_USER") ||
+        selectedUser.role === "SUPER_ADMIN";
+
+      const payload: any = {
+        name: formData.name,
+        email: formData.email,
+        platformRole: formData.platformRole,
+      };
+
+      if (formData.password) {
+        payload.password = formData.password;
+      }
+
+      if (!isWebappUser) {
+        const sanitizedModules = isPosOrDiAllowed
+          ? formData.allowedModules
+          : formData.allowedModules.filter((m) => m !== "pos" && m !== "compliance");
+        payload.role = formData.role;
+        payload.companyIds = formData.companyIds;
+        payload.allowedModules = sanitizedModules;
+      } else {
+        payload.role = "ADMIN";
+      }
 
       const res = await fetch(`/api/admin/users/${selectedUser.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...formData, allowedModules: sanitizedModules }),
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
 
@@ -342,9 +441,11 @@ export default function UsersManagementPage() {
       email: u.email || "",
       password: "",
       role: u.role || "STAFF",
+      platformRole: u.platformRole || (u.role === "SUPER_ADMIN" ? "SUPER_ADMIN" : "TENANT_USER"),
       companyIds: assignedIds,
       allowedModules: initialModules,
     });
+    setFormError(null);
     setEditModalOpen(true);
   };
 
@@ -412,7 +513,59 @@ export default function UsersManagementPage() {
     }
   };
 
-  const filtered = users.filter((u) => {
+  const getPlatformRoleInfo = (platformRole?: string, role?: string) => {
+    if (role === "SUPER_ADMIN" || platformRole === "SUPER_ADMIN") {
+      return {
+        label: "Super Admin (Master Owner)",
+        urdu: "سپر ایڈمن (مالکِ سافٹ ویئر)",
+        color: "bg-amber-100 text-amber-900 dark:bg-amber-950/60 dark:text-amber-200 border-amber-300 shadow-xs",
+        icon: Crown,
+        badgeText: "👑 SUPER ADMIN",
+        desc: "پلیٹ فارم کا مکمل اور ناقابلِ تنسیخ مالک (ہاشم خان)",
+      };
+    }
+    if (platformRole === "WEBAPP_ADMIN") {
+      return {
+        label: "WebApp Admin (Full Control)",
+        urdu: "ویب ایپ ایڈمن (مکمل اختیارات)",
+        color: "bg-indigo-100 text-indigo-800 dark:bg-indigo-950/60 dark:text-indigo-300 border-indigo-300",
+        icon: ShieldCheck,
+        badgeText: "🛡️ WEBAPP ADMIN",
+        desc: "کمپنی مینجمنٹ، بلنگ تجدید، سبسکرپشن اور تکنیکی رسائی",
+      };
+    }
+    if (platformRole === "WEBAPP_EDITOR") {
+      return {
+        label: "WebApp Editor (Support & Ops)",
+        urdu: "ویب ایپ ایڈیٹر (کسٹمر سپورٹ)",
+        color: "bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300 border-blue-300",
+        icon: Edit2,
+        badgeText: "✏️ WEBAPP EDITOR",
+        desc: "کلائنٹ ریکارڈز دیکھنا و ایڈٹ کرنا، کمپنیاں ڈیلیٹ کرنے کی اجازت نہیں",
+      };
+    }
+    if (platformRole === "WEBAPP_VIEWER") {
+      return {
+        label: "WebApp Viewer (Read-Only)",
+        urdu: "ویب ایپ ویور (صرف معائنہ)",
+        color: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-300",
+        icon: Eye,
+        badgeText: "👁️ WEBAPP VIEWER",
+        desc: "پورٹل اور کلائنٹ ڈیٹا صرف دیکھ سکتا ہے، کسی تبدیلی کی اجازت نہیں",
+      };
+    }
+    return {
+      label: "Shop User",
+      urdu: "دکان کا عملہ",
+      color: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border-slate-200",
+      icon: Users,
+      badgeText: "🏪 SHOP USER",
+      desc: "دکان کے لیے تفویض کردہ اختیارات",
+    };
+  };
+
+  // Filter Shop Users
+  const filteredShopUsers = shopUsers.filter((u) => {
     const matchesSearch =
       u.name.toLowerCase().includes(search.toLowerCase()) ||
       u.email.toLowerCase().includes(search.toLowerCase()) ||
@@ -421,13 +574,21 @@ export default function UsersManagementPage() {
     if (!matchesSearch) return false;
 
     if (companyFilter !== "ALL") {
-      if (!u.companies || u.companies.length === 0) {
-        return u.role === "SUPER_ADMIN" || u.role === "ADMIN";
-      }
+      if (!u.companies || u.companies.length === 0) return false;
       return u.companies.some((c: any) => c.id === companyFilter);
     }
-
     return true;
+  });
+
+  // Filter WebApp Team Users
+  const filteredWebappUsers = webappUsers.filter((u) => {
+    const pRole = u.platformRole || (u.role === "SUPER_ADMIN" ? "SUPER_ADMIN" : "");
+    const matchesSearch =
+      u.name.toLowerCase().includes(search.toLowerCase()) ||
+      u.email.toLowerCase().includes(search.toLowerCase()) ||
+      pRole.toLowerCase().includes(search.toLowerCase());
+
+    return matchesSearch;
   });
 
   if (currentLoggedUser && currentLoggedUser.role !== "SUPER_ADMIN") {
@@ -476,282 +637,553 @@ export default function UsersManagementPage() {
           </Link>
           <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white flex items-center gap-2.5">
             <Users className="h-6 w-6 text-purple-600" />
-            <span>User Accounts & Module Permissions Management</span>
+            <span>User Directory & Platform Access Control</span>
           </h1>
           <p className="text-xs text-slate-500 mt-0.5">
-            Add team members, select exact tabs/features each user can access (POS, Sales, Purchases, Khata, Ledger), and assign corporate access.
+            Manage client shop staff permissions as well as SaaS internal webapp administrators, editors, and read-only viewers.
           </p>
         </div>
 
-        <button
-          onClick={() => {
-            const firstComp = companies.length > 0 ? companies[0] : null;
-            const allowsPos =
-              !firstComp ||
-              firstComp.packageType === "FULL_SUITE" ||
-              (firstComp.enabledModules &&
-                (firstComp.enabledModules.includes("pos") || firstComp.enabledModules.includes("compliance")));
+        {activeTab === "shops" ? (
+          <button
+            onClick={() => {
+              const firstComp = companies.length > 0 ? companies[0] : null;
+              const allowsPos =
+                !firstComp ||
+                firstComp.packageType === "FULL_SUITE" ||
+                (firstComp.enabledModules &&
+                  (firstComp.enabledModules.includes("pos") || firstComp.enabledModules.includes("compliance")));
 
-            setFormData({
-              name: "",
-              email: "",
-              password: "",
-              role: "STAFF",
-              companyIds: firstComp ? [firstComp.id] : [],
-              allowedModules: allowsPos
-                ? ["sales", "pos", "customers", "products"]
-                : ["sales", "customers", "products"],
-            });
-            setFormError(null);
-            setModalOpen(true);
+              setFormData({
+                name: "",
+                email: "",
+                password: "",
+                role: "STAFF",
+                platformRole: "TENANT_USER",
+                companyIds: firstComp ? [firstComp.id] : [],
+                allowedModules: allowsPos
+                  ? ["sales", "pos", "customers", "products"]
+                  : ["sales", "customers", "products"],
+              });
+              setFormError(null);
+              setModalOpen(true);
+            }}
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-purple-600 px-4 py-2.5 text-xs font-bold text-white shadow-md hover:bg-purple-700 transition"
+          >
+            <Plus className="h-4 w-4" />
+            <span>+ Add Shop User (دکان یوزر بنائیں)</span>
+          </button>
+        ) : (
+          <button
+            onClick={() => {
+              setWebappFormData({
+                name: "",
+                email: "",
+                password: "",
+                platformRole: "WEBAPP_ADMIN",
+              });
+              setFormError(null);
+              setWebappModalOpen(true);
+            }}
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-xs font-bold text-white shadow-md hover:bg-indigo-700 transition"
+          >
+            <Plus className="h-4 w-4" />
+            <span>+ Add WebApp User (ویب ایپ صارف بنائیں)</span>
+          </button>
+        )}
+      </div>
+
+      {/* Tabs Switcher */}
+      <div className="flex border-b border-slate-200 dark:border-slate-800 gap-2">
+        <button
+          type="button"
+          onClick={() => {
+            setActiveTab("shops");
+            setSearch("");
           }}
-          className="inline-flex items-center justify-center gap-2 rounded-xl bg-purple-600 px-4 py-2.5 text-xs font-bold text-white shadow-md hover:bg-purple-700 transition"
+          className={`flex items-center gap-2 px-5 py-3 text-xs font-bold border-b-2 transition ${
+            activeTab === "shops"
+              ? "border-purple-600 text-purple-700 dark:text-purple-400 bg-purple-50/60 dark:bg-purple-950/30 rounded-t-xl"
+              : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-300"
+          }`}
         >
-          <Plus className="h-4 w-4" />
-          <span>Add New User</span>
+          <Store className="h-4 w-4" />
+          <span>🏪 Shop & Client Users (دکانوں و کمپنیوں کے یوزرز)</span>
+          <span className="ml-1.5 px-2 py-0.5 rounded-full text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-extrabold">
+            {shopUsers.length}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setActiveTab("webapp");
+            setSearch("");
+          }}
+          className={`flex items-center gap-2 px-5 py-3 text-xs font-bold border-b-2 transition ${
+            activeTab === "webapp"
+              ? "border-indigo-600 text-indigo-700 dark:text-indigo-400 bg-indigo-50/60 dark:bg-indigo-950/30 rounded-t-xl"
+              : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-300"
+          }`}
+        >
+          <Shield className="h-4 w-4" />
+          <span>⚡ WebApp Platform Team (ویب ایپ ایڈمن و ٹیم)</span>
+          <span className="ml-1.5 px-2 py-0.5 rounded-full text-[10px] bg-indigo-100 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 font-extrabold">
+            {webappUsers.length}
+          </span>
         </button>
       </div>
 
-      {/* Search & Company Filter */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-1 max-w-2xl">
-          <div className="relative flex-1">
-            <Search className="absolute left-3.5 top-3 h-4 w-4 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Search user by name, email, or role..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs focus:ring-2 focus:ring-purple-500 focus:outline-none"
-            />
+      {/* TAB 1: SHOP & CLIENT USERS */}
+      {activeTab === "shops" && (
+        <div className="space-y-4">
+          {/* Search & Company Filter */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-1 max-w-2xl">
+              <div className="relative flex-1">
+                <Search className="absolute left-3.5 top-3 h-4 w-4 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Search shop user by name, email, or role..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                />
+              </div>
+
+              <div className="flex items-center gap-2">
+                <label className="text-xs font-bold text-slate-500 whitespace-nowrap flex items-center gap-1">
+                  <Building2 className="h-3.5 w-3.5 text-slate-400" />
+                  <span>Company:</span>
+                </label>
+                <select
+                  value={companyFilter}
+                  onChange={(e) => setCompanyFilter(e.target.value)}
+                  className="px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                >
+                  <option value="ALL">All Companies</option>
+                  {companies.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} {c.packageType === "ACCOUNTING_ONLY" ? "(Accounting Only)" : "(Full Suite)"}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="text-xs text-slate-500">
+              Showing: <strong className="text-slate-800 dark:text-slate-200">{filteredShopUsers.length}</strong> of {shopUsers.length} Shop Users
+            </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <label className="text-xs font-bold text-slate-500 whitespace-nowrap flex items-center gap-1">
-              <Building2 className="h-3.5 w-3.5 text-slate-400" />
-              <span>Company:</span>
-            </label>
-            <select
-              value={companyFilter}
-              onChange={(e) => setCompanyFilter(e.target.value)}
-              className="px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-purple-500"
-            >
-              <option value="ALL">All Companies</option>
-              {companies.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name} {c.packageType === "ACCOUNTING_ONLY" ? "(Accounting Only)" : "(Full Suite)"}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
+          {/* Shop Users Table */}
+          <Card>
+            <CardContent className="p-0 overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-900 text-slate-500">
+                    <th className="py-3.5 px-4 font-bold uppercase tracking-wider">User Profile</th>
+                    <th className="py-3.5 px-4 font-bold uppercase tracking-wider">Shop Role</th>
+                    <th className="py-3.5 px-4 font-bold uppercase tracking-wider">Allowed Modules (اختیارات)</th>
+                    <th className="py-3.5 px-4 font-bold uppercase tracking-wider">Assigned Companies</th>
+                    <th className="py-3.5 px-4 font-bold uppercase tracking-wider">Joined</th>
+                    <th className="py-3.5 px-4 font-bold uppercase tracking-wider text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {filteredShopUsers.map((u) => {
+                    const isSelf = currentLoggedUser?.userId === u.id;
+                    const hasModules = Array.isArray(u.allowedModules) && u.allowedModules.length > 0;
+                    return (
+                      <tr key={u.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-900/60 transition">
+                        <td className="py-3.5 px-4">
+                          <div className="flex items-center gap-2.5">
+                            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-purple-100 text-purple-700 font-bold dark:bg-purple-900/40 dark:text-purple-300 shrink-0">
+                              {u.name ? u.name.charAt(0).toUpperCase() : "U"}
+                            </div>
+                            <div>
+                              <p className="font-bold text-slate-900 dark:text-white text-xs flex items-center gap-1.5">
+                                <span>{u.name}</span>
+                                {isSelf && (
+                                  <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.2 rounded font-bold">
+                                    You
+                                  </span>
+                                )}
+                              </p>
+                              <p className="text-[11px] text-slate-400">{u.email}</p>
+                            </div>
+                          </div>
+                        </td>
 
-        <div className="text-xs text-slate-500">
-          Showing: <strong className="text-slate-800 dark:text-slate-200">{filtered.length}</strong> of {users.length} Users
-        </div>
-      </div>
+                        <td className="py-3.5 px-4">
+                          <span
+                            className={`inline-block px-2.5 py-1 text-[10px] font-bold rounded-lg border ${roleBadgeColor(
+                              u.role
+                            )}`}
+                          >
+                            {u.role}
+                          </span>
+                        </td>
 
-      {/* Users Data Table */}
-      <Card>
-        <CardContent className="p-0 overflow-x-auto">
-          <table className="w-full text-left text-xs border-collapse">
-            <thead>
-              <tr className="border-b border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-900 text-slate-500">
-                <th className="py-3.5 px-4 font-bold uppercase tracking-wider">User Profile</th>
-                <th className="py-3.5 px-4 font-bold uppercase tracking-wider">System Role</th>
-                <th className="py-3.5 px-4 font-bold uppercase tracking-wider">Allowed Modules (اختیارات)</th>
-                <th className="py-3.5 px-4 font-bold uppercase tracking-wider">Assigned Companies</th>
-                <th className="py-3.5 px-4 font-bold uppercase tracking-wider">Joined</th>
-                <th className="py-3.5 px-4 font-bold uppercase tracking-wider text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {filtered.map((u) => {
-                const isSelf = currentLoggedUser?.userId === u.id;
-                const hasModules = Array.isArray(u.allowedModules) && u.allowedModules.length > 0;
-                return (
-                  <tr key={u.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-900/60 transition">
-                    <td className="py-3.5 px-4">
-                      <div className="flex items-center gap-2.5">
-                        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-purple-100 text-purple-700 font-bold dark:bg-purple-900/40 dark:text-purple-300 shrink-0">
-                          {u.name ? u.name.charAt(0).toUpperCase() : "U"}
-                        </div>
-                        <div>
-                          <p className="font-bold text-slate-900 dark:text-white text-xs flex items-center gap-1.5">
-                            <span>{u.name}</span>
-                            {isSelf && (
-                              <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.2 rounded font-bold">
-                                You
+                        <td className="py-3.5 px-4">
+                          <div className="flex flex-col gap-1 max-w-[280px]">
+                            {hasModules ? (
+                              <div>
+                                <div className="flex items-center gap-1.5 mb-1">
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 dark:bg-indigo-950/60 dark:text-indigo-300 dark:border-indigo-800">
+                                    <ShieldCheck className="h-3 w-3" />
+                                    <span>{u.allowedModules.length} Modules Allowed</span>
+                                  </span>
+                                </div>
+                                <div className="flex flex-wrap gap-1">
+                                  {u.allowedModules.slice(0, 4).map((modId: string) => {
+                                    const found = USER_FEATURE_MODULES.find((m) => m.id === modId);
+                                    return (
+                                      <span
+                                        key={modId}
+                                        className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[10px] font-medium text-slate-600 dark:text-slate-400"
+                                      >
+                                        {found ? found.label.split(" ")[0] : modId}
+                                      </span>
+                                    );
+                                  })}
+                                  {u.allowedModules.length > 4 && (
+                                    <span className="text-[10px] text-slate-400 font-semibold self-center">
+                                      +{u.allowedModules.length - 4} more
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            ) : (
+                              <span className="text-[11px] text-slate-400 italic">
+                                Standard Permissions
                               </span>
                             )}
-                          </p>
-                          <p className="text-[11px] text-slate-400">{u.email}</p>
-                        </div>
-                      </div>
-                    </td>
-
-                    <td className="py-3.5 px-4">
-                      <span
-                        className={`inline-block px-2.5 py-1 text-[10px] font-bold rounded-lg border ${roleBadgeColor(
-                          u.role
-                        )}`}
-                      >
-                        {u.role}
-                      </span>
-                    </td>
-
-                    <td className="py-3.5 px-4">
-                      <div className="flex flex-col gap-1 max-w-[280px]">
-                        {u.role === "SUPER_ADMIN" ? (
-                          <span className="text-[11px] font-semibold text-purple-600 dark:text-purple-400">
-                            ⭐ Super Admin (Protected Master)
-                          </span>
-                        ) : u.role === "ADMIN" ? (
-                          <div className="flex flex-col gap-0.5">
-                            <span className="inline-flex items-center gap-1 text-[11px] font-bold text-indigo-600 dark:text-indigo-400">
-                              <ShieldCheck className="h-3.5 w-3.5" />
-                              Platform Team Admin
-                            </span>
-                            <span className="text-[10px] text-slate-500">
-                              Manages Companies, Billing & Auditing
-                            </span>
                           </div>
-                        ) : hasModules ? (
-                          <div>
-                            <div className="flex items-center gap-1.5 mb-1">
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 dark:bg-indigo-950/60 dark:text-indigo-300 dark:border-indigo-800">
-                                <ShieldCheck className="h-3 w-3" />
-                                <span>{u.allowedModules.length} Modules Allowed</span>
+                        </td>
+
+                        <td className="py-3.5 px-4">
+                          <div className="flex flex-wrap gap-1 max-w-[240px]">
+                            {u.companies && u.companies.length > 0 ? (
+                              u.companies.map((c: any) => (
+                                <span
+                                  key={c.id}
+                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-[10px] font-medium text-slate-700 dark:text-slate-300"
+                                >
+                                  <Building2 className="h-3 w-3 text-blue-500" />
+                                  <span className="truncate max-w-[120px]">{c.name}</span>
+                                  {c.packageType === "ACCOUNTING_ONLY" && (
+                                    <span className="text-[8px] bg-blue-100 text-blue-800 dark:bg-blue-900/60 dark:text-blue-300 px-1 rounded font-bold">
+                                      Acc
+                                    </span>
+                                  )}
+                                </span>
+                              ))
+                            ) : (
+                              <span className="text-slate-400 italic text-[11px]">No Company Assigned</span>
+                            )}
+                          </div>
+                        </td>
+
+                        <td className="py-3.5 px-4 text-slate-500">
+                          {new Date(u.createdAt).toLocaleDateString()}
+                        </td>
+
+                        <td className="py-3.5 px-4 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            {isSelf ? (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-50 border border-indigo-200 text-[11px] font-bold text-indigo-700">
+                                <Check className="h-3 w-3" />
+                                <span>Active</span>
                               </span>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  setSwitchingId(u.id);
+                                  await switchUser(u.id);
+                                  setSwitchingId(null);
+                                }}
+                                disabled={switchingId === u.id}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold shadow-sm transition disabled:opacity-50"
+                                title={`Switch session to ${u.name} (${u.role})`}
+                              >
+                                <LogIn className="h-3.5 w-3.5" />
+                                <span>{switchingId === u.id ? "Switching..." : "Login"}</span>
+                              </button>
+                            )}
+
+                            <button
+                              onClick={() => openEditModal(u)}
+                              className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200 transition"
+                              title="Edit User Role & Access"
+                            >
+                              <Edit2 className="h-3.5 w-3.5" />
+                            </button>
+
+                            {!isSelf && (
+                              <button
+                                onClick={() => handleDeleteUser(u.id, u.name)}
+                                className="p-1.5 rounded-lg text-slate-400 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/40 dark:hover:text-rose-400 transition"
+                                title="Delete User"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+
+                  {filteredShopUsers.length === 0 && !loading && (
+                    <tr>
+                      <td colSpan={6} className="py-8 text-center text-slate-400 text-xs">
+                        No shop users found matching your search query.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* TAB 2: WEBAPP PLATFORM TEAM */}
+      {activeTab === "webapp" && (
+        <div className="space-y-4">
+          {/* Platform Access Levels Guide Card */}
+          <div className="p-4 rounded-2xl bg-gradient-to-r from-indigo-50/80 via-purple-50/60 to-slate-50 dark:from-indigo-950/40 dark:via-purple-950/20 dark:to-slate-900 border border-indigo-200/80 dark:border-indigo-800/80 space-y-3">
+            <div className="flex items-center gap-2 text-indigo-900 dark:text-indigo-200 font-bold text-xs">
+              <Shield className="h-4 w-4 text-indigo-600" />
+              <span>SaaS Platform Access Tiers (ویب ایپ انٹرنل ایڈمنسٹریشن کی سطحیں)</span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3 text-xs">
+              {/* Super Admin */}
+              <div className="p-3 rounded-xl bg-white/90 dark:bg-slate-900/90 border border-amber-200 dark:border-amber-900/60 shadow-xs">
+                <div className="flex items-center gap-1.5 font-bold text-amber-900 dark:text-amber-200 mb-1">
+                  <Crown className="h-4 w-4 text-amber-500" />
+                  <span>👑 Super Admin</span>
+                </div>
+                <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
+                  <strong>صرف ہاشم خان (Master Owner):</strong> پورے سافٹ ویئر، سرور، ڈیٹا بیس اور تمام کمپنیوں کے غیر مشروط مالک۔ یہ اکاؤنٹ کسی دوسرے کو نہیں دیا جا سکتا۔
+                </p>
+              </div>
+
+              {/* WebApp Admin */}
+              <div className="p-3 rounded-xl bg-white/90 dark:bg-slate-900/90 border border-indigo-200 dark:border-indigo-900/60 shadow-xs">
+                <div className="flex items-center gap-1.5 font-bold text-indigo-900 dark:text-indigo-200 mb-1">
+                  <ShieldCheck className="h-4 w-4 text-indigo-600" />
+                  <span>🛡️ WebApp Admin</span>
+                </div>
+                <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
+                  <strong>فل ایڈمنسٹریٹر:</strong> تمام کلائنٹس، کمپنیاں، بلنگ پیکجز اور سیٹنگز تبدیل کرنے کے مکمل اختیارات۔ کلائنٹ کے اکاؤنٹ میں لاگ ان ہو کر مسئلہ حل کر سکتا ہے۔
+                </p>
+              </div>
+
+              {/* WebApp Editor */}
+              <div className="p-3 rounded-xl bg-white/90 dark:bg-slate-900/90 border border-blue-200 dark:border-blue-900/60 shadow-xs">
+                <div className="flex items-center gap-1.5 font-bold text-blue-900 dark:text-blue-200 mb-1">
+                  <Edit2 className="h-3.5 w-3.5 text-blue-600" />
+                  <span>✏️ WebApp Editor</span>
+                </div>
+                <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
+                  <strong>ایڈیٹر و سپورٹ:</strong> کلائنٹ کمپنیوں کا ڈیٹا دیکھنا، واؤچرز درست کرنا اور سپورٹ دینا۔ کمپنیاں ڈیلیٹ کرنے یا ایڈمن اکاؤنٹس بنانے کی اجازت نہیں۔
+                </p>
+              </div>
+
+              {/* WebApp Viewer */}
+              <div className="p-3 rounded-xl bg-white/90 dark:bg-slate-900/90 border border-emerald-200 dark:border-emerald-900/60 shadow-xs">
+                <div className="flex items-center gap-1.5 font-bold text-emerald-900 dark:text-emerald-200 mb-1">
+                  <Eye className="h-4 w-4 text-emerald-600" />
+                  <span>👁️ WebApp Viewer</span>
+                </div>
+                <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
+                  <strong>صرف معائنہ (Read-Only):</strong> تمام کمپنیوں، سیلز، پرچیزز اور رپورٹس کو صرف دیکھنے کا اختیار۔ کسی بھی قسم کا ڈیٹا بدلنے یا ڈیلیٹ کرنے کی ممانعت۔
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Search bar */}
+          <div className="flex items-center justify-between gap-3">
+            <div className="relative flex-1 max-w-md">
+              <Search className="absolute left-3.5 top-3 h-4 w-4 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Search webapp team by name, email, or role..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+              />
+            </div>
+            <div className="text-xs text-slate-500">
+              Platform Members: <strong className="text-slate-900 dark:text-white">{filteredWebappUsers.length}</strong>
+            </div>
+          </div>
+
+          {/* WebApp Team Table */}
+          <Card>
+            <CardContent className="p-0 overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-900 text-slate-500">
+                    <th className="py-3.5 px-4 font-bold uppercase tracking-wider">Member</th>
+                    <th className="py-3.5 px-4 font-bold uppercase tracking-wider">Platform Role (اختیارات)</th>
+                    <th className="py-3.5 px-4 font-bold uppercase tracking-wider">Scope & Permission</th>
+                    <th className="py-3.5 px-4 font-bold uppercase tracking-wider">Registered</th>
+                    <th className="py-3.5 px-4 font-bold uppercase tracking-wider text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {filteredWebappUsers.map((u) => {
+                    const isSelf = currentLoggedUser?.userId === u.id;
+                    const roleInfo = getPlatformRoleInfo(u.platformRole, u.role);
+                    const isSuperAdmin = u.role === "SUPER_ADMIN" || u.platformRole === "SUPER_ADMIN";
+                    const RoleIcon = roleInfo.icon;
+
+                    return (
+                      <tr key={u.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-900/60 transition">
+                        <td className="py-3.5 px-4">
+                          <div className="flex items-center gap-2.5">
+                            <div
+                              className={`flex h-9 w-9 items-center justify-center rounded-xl font-bold shrink-0 ${
+                                isSuperAdmin
+                                  ? "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 ring-2 ring-amber-400"
+                                  : "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300"
+                              }`}
+                            >
+                              {isSuperAdmin ? "👑" : u.name ? u.name.charAt(0).toUpperCase() : "A"}
                             </div>
-                            <div className="flex flex-wrap gap-1">
-                              {u.allowedModules.slice(0, 4).map((modId: string) => {
-                                const found = USER_FEATURE_MODULES.find((m) => m.id === modId);
-                                return (
-                                  <span
-                                    key={modId}
-                                    className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[10px] font-medium text-slate-600 dark:text-slate-400"
-                                  >
-                                    {found ? found.label.split(" ")[0] : modId}
+                            <div>
+                              <p className="font-bold text-slate-900 dark:text-white text-xs flex items-center gap-1.5">
+                                <span>{u.name}</span>
+                                {isSelf && (
+                                  <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.2 rounded font-bold">
+                                    You
                                   </span>
-                                );
-                              })}
-                              {u.allowedModules.length > 4 && (
-                                <span className="text-[10px] text-slate-400 font-semibold self-center">
-                                  +{u.allowedModules.length - 4} more
-                                </span>
-                              )}
+                                )}
+                              </p>
+                              <p className="text-[11px] text-slate-400">{u.email}</p>
                             </div>
                           </div>
-                        ) : (
-                          <span className="text-[11px] text-slate-400 italic">
-                            Default Standard Permissions
-                          </span>
-                        )}
-                      </div>
-                    </td>
+                        </td>
 
-                    <td className="py-3.5 px-4">
-                      <div className="flex flex-wrap gap-1 max-w-[240px]">
-                        {u.companies && u.companies.length > 0 ? (
-                          u.companies.map((c: any) => (
+                        <td className="py-3.5 px-4">
+                          <div className="flex flex-col gap-0.5">
                             <span
-                              key={c.id}
-                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-[10px] font-medium text-slate-700 dark:text-slate-300"
+                              className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-bold rounded-lg border w-fit ${roleInfo.color}`}
                             >
-                              <Building2 className="h-3 w-3 text-blue-500" />
-                              <span className="truncate max-w-[120px]">{c.name}</span>
-                              {c.packageType === "ACCOUNTING_ONLY" && (
-                                <span className="text-[8px] bg-blue-100 text-blue-800 dark:bg-blue-900/60 dark:text-blue-300 px-1 rounded font-bold">
-                                  Acc
-                                </span>
-                              )}
+                              <RoleIcon className="h-3.5 w-3.5 shrink-0" />
+                              <span>{roleInfo.label}</span>
                             </span>
-                          ))
-                        ) : (
-                          <span className="text-slate-400 italic text-[11px]">All Companies</span>
-                        )}
-                      </div>
-                    </td>
+                            <span className="text-[10px] text-slate-400 font-urdu">{roleInfo.urdu}</span>
+                          </div>
+                        </td>
 
-                    <td className="py-3.5 px-4 text-slate-500">
-                      {new Date(u.createdAt).toLocaleDateString()}
-                    </td>
+                        <td className="py-3.5 px-4">
+                          <div className="flex flex-col gap-0.5 max-w-xs">
+                            <span className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-700 dark:text-slate-300">
+                              <Laptop className="h-3.5 w-3.5 text-indigo-500" />
+                              <span>Global Platform Access (تمام پورٹل)</span>
+                            </span>
+                            <span className="text-[10px] text-slate-500">{roleInfo.desc}</span>
+                          </div>
+                        </td>
 
-                    <td className="py-3.5 px-4 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        {isSelf ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-50 border border-indigo-200 text-[11px] font-bold text-indigo-700">
-                            <Check className="h-3 w-3" />
-                            <span>Active Session</span>
-                          </span>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={async () => {
-                              setSwitchingId(u.id);
-                              await switchUser(u.id);
-                              setSwitchingId(null);
-                            }}
-                            disabled={switchingId === u.id}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold shadow-sm transition disabled:opacity-50"
-                            title={`Switch session to ${u.name} (${u.role})`}
-                          >
-                            <LogIn className="h-3.5 w-3.5" />
-                            <span>{switchingId === u.id ? "Switching..." : "Login as User"}</span>
-                          </button>
-                        )}
+                        <td className="py-3.5 px-4 text-slate-500">
+                          {new Date(u.createdAt).toLocaleDateString()}
+                        </td>
 
-                        <button
-                          onClick={() => openEditModal(u)}
-                          className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200 transition"
-                          title="Edit User Role & Access"
-                        >
-                          <Edit2 className="h-3.5 w-3.5" />
-                        </button>
+                        <td className="py-3.5 px-4 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            {isSelf ? (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-50 border border-indigo-200 text-[11px] font-bold text-indigo-700">
+                                <Check className="h-3 w-3" />
+                                <span>Active Session</span>
+                              </span>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  setSwitchingId(u.id);
+                                  await switchUser(u.id);
+                                  setSwitchingId(null);
+                                }}
+                                disabled={switchingId === u.id}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-sm transition disabled:opacity-50"
+                                title={`Switch session to ${u.name}`}
+                              >
+                                <LogIn className="h-3.5 w-3.5" />
+                                <span>{switchingId === u.id ? "Switching..." : "Login"}</span>
+                              </button>
+                            )}
 
-                        {!isSelf && u.role !== "SUPER_ADMIN" && (
-                          <button
-                            onClick={() => handleDeleteUser(u.id, u.name)}
-                            className="p-1.5 rounded-lg text-slate-400 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/40 dark:hover:text-rose-400 transition"
-                            title="Delete User"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
+                            {isSuperAdmin ? (
+                              <span
+                                className="p-1.5 text-amber-500 cursor-not-allowed"
+                                title="Master Super Admin role is protected permanently"
+                              >
+                                <Lock className="h-4 w-4" />
+                              </span>
+                            ) : (
+                              <>
+                                <button
+                                  onClick={() => openEditModal(u)}
+                                  className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200 transition"
+                                  title="Edit WebApp Role"
+                                >
+                                  <Edit2 className="h-3.5 w-3.5" />
+                                </button>
 
-              {filtered.length === 0 && !loading && (
-                <tr>
-                  <td colSpan={6} className="py-8 text-center text-slate-400 text-xs">
-                    No users found matching your search query.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </CardContent>
-      </Card>
+                                {!isSelf && (
+                                  <button
+                                    onClick={() => handleDeleteUser(u.id, u.name)}
+                                    className="p-1.5 rounded-lg text-slate-400 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/40 dark:hover:text-rose-400 transition"
+                                    title="Delete WebApp User"
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </button>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
 
-      {/* Add User Modal */}
+                  {filteredWebappUsers.length === 0 && !loading && (
+                    <tr>
+                      <td colSpan={5} className="py-8 text-center text-slate-400 text-xs">
+                        No webapp team members found matching your search.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* MODAL 1: ADD SHOP USER MODAL */}
       {modalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
           <div className="w-full max-w-2xl max-h-[92vh] flex flex-col rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden animate-in zoom-in-95">
             <div className="flex items-center justify-between p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 shrink-0">
               <div className="flex items-center gap-2.5">
                 <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">
-                  <Users className="h-4 w-4" />
+                  <Store className="h-4 w-4" />
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-                    Add New User Account (نیا صارف اکاؤنٹ بنائیں)
+                    Add New Shop User (دکان ملازم کا اکاؤنٹ بنائیں)
                   </h3>
                   <p className="text-[11px] text-slate-500">
-                    Enter credentials, assign company, and select allowed feature modules.
+                    Assign client company, shop role, and select allowed feature modules.
                   </p>
                 </div>
               </div>
@@ -770,7 +1202,7 @@ export default function UsersManagementPage() {
               </div>
             )}
 
-            <form onSubmit={handleCreateUser} className="p-4 sm:p-5 space-y-4 overflow-y-auto flex-1 scrollbar-thin">
+            <form onSubmit={handleCreateShopUser} className="p-4 sm:p-5 space-y-4 overflow-y-auto flex-1 scrollbar-thin">
               {/* Credentials */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
@@ -816,7 +1248,7 @@ export default function UsersManagementPage() {
                 </div>
               </div>
 
-              {/* Step 2: Assign Company Access First (Drives available modules) */}
+              {/* Step 2: Assign Company Access */}
               <div className="border-t border-slate-100 dark:border-slate-800 pt-3">
                 <div className="flex items-center justify-between mb-1">
                   <div>
@@ -1012,24 +1444,12 @@ export default function UsersManagementPage() {
                     );
                   })}
                 </div>
-                <div className="flex items-center justify-between text-[10px] text-slate-500 px-1">
-                  <span>
-                    منتخب شدہ ٹیبز:{" "}
-                    <strong className="text-purple-600 font-bold">
-                      {formData.allowedModules.length}
-                    </strong>{" "}
-                    / {availableModules.length}
-                  </span>
-                  <span className="italic text-slate-400">
-                    صارف لاگ ان ہو کر صرف انہی منتخب ٹیبز کو دیکھ سکے گا
-                  </span>
-                </div>
               </div>
 
-              {/* Underlying System Role */}
+              {/* Shop System Security Role */}
               <div className="border-t border-slate-100 dark:border-slate-800 pt-3">
                 <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase mb-1">
-                  System Security Role
+                  Shop Security Role
                 </label>
                 <select
                   value={formData.role}
@@ -1039,20 +1459,7 @@ export default function UsersManagementPage() {
                   <option value="STAFF">STAFF (Cashier / Operator / Field Staff)</option>
                   <option value="ACCOUNTANT">ACCOUNTANT (Accounts & Financial Management)</option>
                   <option value="OWNER_ADMIN">OWNER_ADMIN (Shop Owner / General Manager)</option>
-                  <option value="ADMIN">ADMIN (Platform Team Member - Manage Companies & Billing)</option>
                 </select>
-
-                {formData.role === "ADMIN" && (
-                  <div className="mt-2.5 p-3 rounded-xl bg-indigo-50 border border-indigo-200 dark:bg-indigo-950/40 dark:border-indigo-800 text-[11px] text-indigo-900 dark:text-indigo-200">
-                    <p className="font-bold flex items-center gap-1.5 mb-1 text-indigo-700 dark:text-indigo-300">
-                      <ShieldCheck className="h-4 w-4 shrink-0 text-indigo-600 dark:text-indigo-400" />
-                      Team Admin Capabilities (کمپنی مینجمنٹ اختیارات)
-                    </p>
-                    <p className="leading-relaxed">
-                      یہ یوزر سینٹرل ایڈمن سافٹ ویئر میں لاگ ان ہو کر نئی کمپنیاں رجسٹر، ماہانہ فیس تجدید (Billing)، اور کمپنی سیٹنگز تبدیل کر سکے گا۔ تمام ترامیم آڈٹ لاگ میں ریکارڈ ہوں گی تاکہ آپ دیکھ سکیں کہ کس نے کیا تبدیل کیا۔
-                    </p>
-                  </div>
-                )}
               </div>
 
               <div className="pt-3 flex items-center justify-end gap-2 border-t border-slate-100 dark:border-slate-800">
@@ -1068,7 +1475,7 @@ export default function UsersManagementPage() {
                   disabled={submitting}
                   className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-xs font-bold text-white shadow-md transition disabled:opacity-50"
                 >
-                  {submitting ? "Saving..." : "Create User"}
+                  {submitting ? "Saving..." : "Create Shop User"}
                 </button>
               </div>
             </form>
@@ -1076,7 +1483,225 @@ export default function UsersManagementPage() {
         </div>
       )}
 
-      {/* Edit User Modal */}
+      {/* MODAL 2: ADD WEBAPP PLATFORM USER MODAL */}
+      {webappModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
+          <div className="w-full max-w-xl max-h-[92vh] flex flex-col rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden animate-in zoom-in-95">
+            <div className="flex items-center justify-between p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">
+                  <Shield className="h-4 w-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                    Add WebApp Platform User (نیا پلیٹ فارم صارف بنائیں)
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    Create internal SaaS administrative, support, or read-only operator accounts.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setWebappModalOpen(false)}
+                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {formError && (
+              <div className="m-4 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2 shrink-0">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                <span>{formError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleCreateWebappUser} className="p-4 sm:p-5 space-y-4 overflow-y-auto flex-1 scrollbar-thin">
+              {/* Credentials */}
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase mb-1">
+                    Full Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Tariq Mehmood"
+                    value={webappFormData.name}
+                    onChange={(e) => setWebappFormData({ ...webappFormData, name: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase mb-1">
+                      Email Address *
+                    </label>
+                    <input
+                      type="email"
+                      required
+                      placeholder="e.g. tariq@smartbiz.com"
+                      value={webappFormData.email}
+                      onChange={(e) => setWebappFormData({ ...webappFormData, email: e.target.value })}
+                      className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase mb-1">
+                      Initial Password *
+                    </label>
+                    <input
+                      type="password"
+                      required
+                      placeholder="••••••••"
+                      value={webappFormData.password}
+                      onChange={(e) => setWebappFormData({ ...webappFormData, password: e.target.value })}
+                      className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Platform Access Role Selection */}
+              <div className="border-t border-slate-100 dark:border-slate-800 pt-3 space-y-2">
+                <label className="block text-[11px] font-bold text-slate-900 dark:text-slate-100 uppercase">
+                  Select WebApp Access Level (پلیٹ فارم رول منتخب کریں) *
+                </label>
+
+                <div className="space-y-2">
+                  {/* Option 1: WebApp Admin */}
+                  <label
+                    className={`flex items-start gap-3 p-3 rounded-2xl border cursor-pointer transition ${
+                      webappFormData.platformRole === "WEBAPP_ADMIN"
+                        ? "bg-indigo-50/80 dark:bg-indigo-950/40 border-indigo-500 ring-2 ring-indigo-500/20 shadow-xs"
+                        : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:bg-slate-50"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="platformRole"
+                      value="WEBAPP_ADMIN"
+                      checked={webappFormData.platformRole === "WEBAPP_ADMIN"}
+                      onChange={(e) => setWebappFormData({ ...webappFormData, platformRole: e.target.value })}
+                      className="mt-1 text-indigo-600 focus:ring-indigo-500 h-4 w-4 shrink-0"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-xs text-indigo-900 dark:text-indigo-200 flex items-center gap-1.5">
+                          <ShieldCheck className="h-4 w-4 text-indigo-600" />
+                          <span>🛡️ WebApp Admin (سافٹ ویئر ایڈمن - Full Access)</span>
+                        </span>
+                        <span className="text-[10px] font-bold text-indigo-600 bg-indigo-100 dark:bg-indigo-900/60 px-2 py-0.5 rounded-full">
+                          Full Control
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-1 leading-relaxed">
+                        نئی کلائنٹ دکانیں رجسٹر کرنا، سبسکرپشن فیس اور بلنگ کی تجدید، یوزرز کے اکاؤنٹس میں لاگ ان ہونا اور سسٹم لاگز دیکھنا۔
+                      </p>
+                    </div>
+                  </label>
+
+                  {/* Option 2: WebApp Editor */}
+                  <label
+                    className={`flex items-start gap-3 p-3 rounded-2xl border cursor-pointer transition ${
+                      webappFormData.platformRole === "WEBAPP_EDITOR"
+                        ? "bg-blue-50/80 dark:bg-blue-950/40 border-blue-500 ring-2 ring-blue-500/20 shadow-xs"
+                        : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:bg-slate-50"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="platformRole"
+                      value="WEBAPP_EDITOR"
+                      checked={webappFormData.platformRole === "WEBAPP_EDITOR"}
+                      onChange={(e) => setWebappFormData({ ...webappFormData, platformRole: e.target.value })}
+                      className="mt-1 text-blue-600 focus:ring-blue-500 h-4 w-4 shrink-0"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-xs text-blue-900 dark:text-blue-200 flex items-center gap-1.5">
+                          <Edit2 className="h-4 w-4 text-blue-600" />
+                          <span>✏️ WebApp Editor (ویب ایپ ایڈیٹر - Support & Ops)</span>
+                        </span>
+                        <span className="text-[10px] font-bold text-blue-600 bg-blue-100 dark:bg-blue-900/60 px-2 py-0.5 rounded-full">
+                          Editor Access
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-1 leading-relaxed">
+                        کلائنٹ کمپنیوں کے ریکارڈز دیکھنا، کھاتہ درست کرنے میں مدد کرنا اور کلائنٹ ایڈمن ترامیم کرنا۔ کمپنیاں یا ڈیٹا ڈیلیٹ کرنے کی ممانعت۔
+                      </p>
+                    </div>
+                  </label>
+
+                  {/* Option 3: WebApp Viewer */}
+                  <label
+                    className={`flex items-start gap-3 p-3 rounded-2xl border cursor-pointer transition ${
+                      webappFormData.platformRole === "WEBAPP_VIEWER"
+                        ? "bg-emerald-50/80 dark:bg-emerald-950/40 border-emerald-500 ring-2 ring-emerald-500/20 shadow-xs"
+                        : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:bg-slate-50"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="platformRole"
+                      value="WEBAPP_VIEWER"
+                      checked={webappFormData.platformRole === "WEBAPP_VIEWER"}
+                      onChange={(e) => setWebappFormData({ ...webappFormData, platformRole: e.target.value })}
+                      className="mt-1 text-emerald-600 focus:ring-emerald-500 h-4 w-4 shrink-0"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-xs text-emerald-900 dark:text-emerald-200 flex items-center gap-1.5">
+                          <Eye className="h-4 w-4 text-emerald-600" />
+                          <span>👁️ WebApp Viewer (ویب ایپ ویور - Read-Only)</span>
+                        </span>
+                        <span className="text-[10px] font-bold text-emerald-600 bg-emerald-100 dark:bg-emerald-900/60 px-2 py-0.5 rounded-full">
+                          Read-Only
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-1 leading-relaxed">
+                        پورٹل کے تمام پورشنز، کمپنیوں کی تعداد، سیلز و پرچیزز کے خلاصے اور آڈٹ رپورٹس صرف دیکھ سکتا ہے۔ کسی قسم کی تبدیلی یا ڈیلیٹ بند ہے۔
+                      </p>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              {/* Super Admin Ownership Protection Alert */}
+              <div className="p-3 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-200 text-xs flex items-start gap-2.5">
+                <Crown className="h-4 w-4 shrink-0 text-amber-600 mt-0.5" />
+                <div>
+                  <span className="font-bold block">سپر ایڈمن (Super Admin) کا درجہ مخصوص ہے:</span>
+                  <span className="text-[11px] text-amber-800 dark:text-amber-300 leading-relaxed">
+                    سپر ایڈمن کا درجہ ہمیشہ اور صرف ہاشم خان صاحب کا ہے۔ سیکیورٹی پروٹوکول کے تحت کوئی دوسرا صارف سپر ایڈمن نہیں بن سکتا۔
+                  </span>
+                </div>
+              </div>
+
+              <div className="pt-3 flex items-center justify-end gap-2 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setWebappModalOpen(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-xs font-bold text-white shadow-md transition disabled:opacity-50"
+                >
+                  {submitting ? "Saving..." : "Create WebApp User"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 3: EDIT USER MODAL (ADAPTS FOR SHOP VS WEBAPP) */}
       {editModalOpen && selectedUser && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
           <div className="w-full max-w-2xl max-h-[92vh] flex flex-col rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden animate-in zoom-in-95">
@@ -1090,7 +1715,7 @@ export default function UsersManagementPage() {
                     Edit User & Permissions ({selectedUser.name})
                   </h3>
                   <p className="text-[11px] text-slate-500">
-                    Modify feature tab access rights, system roles, and assigned businesses.
+                    Modify profile information, credentials, and access tier.
                   </p>
                 </div>
               </div>
@@ -1152,251 +1777,231 @@ export default function UsersManagementPage() {
                 </div>
               </div>
 
-              {/* Assign Company Access */}
-              <div className="border-t border-slate-100 dark:border-slate-800 pt-3">
-                <div className="flex items-center justify-between mb-1">
-                  <div>
-                    <label className="text-[11px] font-bold text-slate-900 dark:text-slate-100 uppercase block">
-                      Assigned Companies (کمپنی رسائی)
-                    </label>
-                    <p className="text-[10px] text-slate-500">
-                      کمپنی منتخب کرنے پر اس کے پیکیج (Accounting Only یا Full Suite) کے مطابق اختیارات نظر آئیں گے۔
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-1.5 text-[10px]">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setFormData({ ...formData, companyIds: companies.map((c) => c.id) })
-                      }
-                      className="text-purple-600 hover:underline font-semibold"
-                    >
-                      All
-                    </button>
-                    <span className="text-slate-300">|</span>
-                    <button
-                      type="button"
-                      onClick={() => setFormData({ ...formData, companyIds: [] })}
-                      className="text-slate-500 hover:underline"
-                    >
-                      None
-                    </button>
-                  </div>
-                </div>
-                <div className="space-y-1.5 max-h-28 overflow-y-auto border border-slate-200 dark:border-slate-700 rounded-2xl p-2.5 bg-slate-50 dark:bg-slate-800/60">
-                  {companies.map((c) => {
-                    const checked = formData.companyIds.includes(c.id);
-                    const isAccOnly =
-                      c.packageType === "ACCOUNTING_ONLY" ||
-                      (c.enabledModules &&
-                        !c.enabledModules.includes("pos") &&
-                        !c.enabledModules.includes("compliance"));
-                    return (
-                      <label
-                        key={c.id}
-                        className={`flex items-center justify-between p-1.5 rounded-xl border text-xs cursor-pointer transition ${
-                          checked
-                            ? "bg-purple-50 dark:bg-purple-950/40 border-purple-300 text-purple-900 dark:text-purple-100 font-bold"
-                            : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300"
-                        }`}
-                      >
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={() => toggleCompanySelection(c.id)}
-                            className="rounded text-purple-600 focus:ring-purple-500 h-3.5 w-3.5"
-                          />
-                          <span className="truncate">{c.name}</span>
-                          <span className="text-[10px] text-slate-400 font-normal">({c.currency || "PKR"})</span>
-                        </div>
-                        <span
-                          className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
-                            isAccOnly
-                              ? "bg-blue-100 text-blue-800 dark:bg-blue-900/60 dark:text-blue-300"
-                              : "bg-purple-100 text-purple-800 dark:bg-purple-900/60 dark:text-purple-300"
-                          }`}
-                        >
-                          {isAccOnly ? "📘 Accounting Only" : "🚀 Full Suite"}
-                        </span>
-                      </label>
-                    );
-                  })}
-                </div>
-              </div>
+              {/* If WebApp User: Show Platform Role select */}
+              {(selectedUser.platformRole && selectedUser.platformRole !== "TENANT_USER") ||
+              selectedUser.role === "SUPER_ADMIN" ? (
+                <div className="border-t border-slate-100 dark:border-slate-800 pt-3 space-y-2">
+                  <label className="block text-[11px] font-bold text-slate-900 dark:text-slate-100 uppercase">
+                    Platform Role (ویب ایپ انٹرنل رول)
+                  </label>
 
-              {/* Package Feedback Alert */}
-              {!isPosOrDiAllowed ? (
-                <div className="p-3 rounded-2xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 text-blue-900 dark:text-blue-200 text-xs flex items-start gap-2.5">
-                  <AlertCircle className="h-4 w-4 shrink-0 text-blue-600 mt-0.5" />
-                  <div>
-                    <span className="font-bold block">کمپنی کا پیکیج: صرف اکاؤنٹنگ (Accounting Only)</span>
-                    <span className="text-[11px] text-blue-700 dark:text-blue-300">
-                      اس کمپنی کے پاس صرف اکاؤنٹنگ اور کھاتہ کا پیکیج ہے۔ لہٰذا نیچے سے POS ریٹیل کاؤنٹر اور FBR ڈیجیٹل انوائسنگ (DI) کے اختیارات خودکار ہٹا دیے گئے ہیں۔
-                    </span>
-                  </div>
+                  {selectedUser.role === "SUPER_ADMIN" || selectedUser.platformRole === "SUPER_ADMIN" ? (
+                    <div className="p-3 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-200 text-xs flex items-center gap-2">
+                      <Crown className="h-4 w-4 text-amber-600 shrink-0" />
+                      <span className="font-bold">
+                        👑 Super Admin (Master Account Protected - Role Cannot Be Modified)
+                      </span>
+                    </div>
+                  ) : (
+                    <select
+                      value={formData.platformRole}
+                      onChange={(e) => setFormData({ ...formData, platformRole: e.target.value })}
+                      className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500 font-semibold"
+                    >
+                      <option value="WEBAPP_ADMIN">🛡️ WebApp Admin (Full SaaS Management & Support)</option>
+                      <option value="WEBAPP_EDITOR">✏️ WebApp Editor (Client Support & Record Editing)</option>
+                      <option value="WEBAPP_VIEWER">👁️ WebApp Viewer (Read-Only Access)</option>
+                    </select>
+                  )}
                 </div>
               ) : (
-                <div className="p-2.5 rounded-2xl bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800 text-purple-900 dark:text-purple-200 text-xs flex items-center gap-2">
-                  <ShieldCheck className="h-4 w-4 shrink-0 text-purple-600" />
-                  <span className="text-[11px]">
-                    <strong>کمپنی کا پیکیج Full Enterprise Suite ہے:</strong> POS کاؤنٹر، FBR ڈیجیٹل انوائسنگ مع تمام اکاؤنٹنگ اختیارات تفویض کیے جا سکتے ہیں۔
-                  </span>
-                </div>
-              )}
-
-              {/* Granular Module Checkboxes Section */}
-              <div className="space-y-2 border-t border-slate-100 dark:border-slate-800 pt-3">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5">
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-900 dark:text-slate-100 uppercase">
-                      Module & Tab Access Rights (اختیارات و ٹیب رسائی) *
-                    </label>
-                    <p className="text-[10px] text-slate-500">
-                      پورٹل کے وہ تمام ٹیبز چیک کریں جن کی رسائی اس صارف کو دینی ہے:
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-1.5 text-[11px]">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setFormData({
-                          ...formData,
-                          allowedModules: availableModules.map((m) => m.id),
-                        })
-                      }
-                      className="px-2 py-0.5 rounded-md bg-purple-50 hover:bg-purple-100 text-purple-700 font-bold border border-purple-200 transition text-[10px]"
-                    >
-                      Select All (تمام)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setFormData({ ...formData, allowedModules: [] })}
-                      className="px-2 py-0.5 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-600 font-medium transition text-[10px]"
-                    >
-                      Clear (خالی)
-                    </button>
-                  </div>
-                </div>
-
-                {/* Quick Role Presets */}
-                <div className="bg-slate-50 dark:bg-slate-800/60 p-2.5 rounded-2xl border border-slate-200/80 dark:border-slate-700/80">
-                  <div className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1.5 flex items-center gap-1">
-                    <span>⚡ Quick Role Presets (فوری کردار منتخب کریں):</span>
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {availableRolePresets.map((preset) => {
-                      const isSelected =
-                        formData.role === preset.role &&
-                        preset.modules.every((m) => formData.allowedModules.includes(m)) &&
-                        formData.allowedModules.length === preset.modules.length;
-                      return (
-                        <button
-                          key={preset.name}
-                          type="button"
-                          onClick={() => applyRolePreset(preset)}
-                          className={`px-2.5 py-1 rounded-xl text-[11px] font-bold border transition flex items-center gap-1.5 ${
-                            isSelected
-                              ? "bg-purple-600 text-white border-purple-600 shadow-sm"
-                              : "bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-purple-300 hover:bg-purple-50/50"
-                          }`}
-                        >
-                          <span>{preset.name}</span>
-                          <span className="text-[9px] opacity-80 font-normal">({preset.urdu})</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Checkboxes Grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-56 overflow-y-auto p-2 border border-slate-200 dark:border-slate-700 rounded-2xl bg-white dark:bg-slate-900/60">
-                  {availableModules.map((mod) => {
-                    const isChecked = formData.allowedModules.includes(mod.id);
-                    const ModIcon = mod.icon;
-                    return (
-                      <div
-                        key={mod.id}
-                        onClick={() => toggleModuleSelection(mod.id)}
-                        className={`flex items-start gap-2.5 p-2 rounded-xl border text-xs cursor-pointer select-none transition ${
-                          isChecked
-                            ? "bg-purple-50/80 dark:bg-purple-950/40 border-purple-300 dark:border-purple-700/80 text-purple-900 dark:text-purple-100 shadow-xs"
-                            : "bg-white dark:bg-slate-800/40 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"
-                        }`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={isChecked}
-                          onChange={() => {}}
-                          className="mt-0.5 rounded text-purple-600 focus:ring-purple-500 h-4 w-4 shrink-0"
-                        />
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between gap-1">
-                            <span className="font-bold text-[11px] truncate flex items-center gap-1.5">
-                              <ModIcon className="h-3 w-3 text-purple-600 shrink-0" />
-                              <span>{mod.label}</span>
-                            </span>
-                            <span className="text-[9px] font-semibold text-slate-400 shrink-0 font-urdu">
-                              {mod.urdu}
-                            </span>
-                          </div>
-                          <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
-                            {mod.desc}
-                          </p>
-                        </div>
+                /* Else: Shop User fields */
+                <>
+                  {/* Assign Company Access */}
+                  <div className="border-t border-slate-100 dark:border-slate-800 pt-3">
+                    <div className="flex items-center justify-between mb-1">
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-900 dark:text-slate-100 uppercase block">
+                          Assigned Companies (کمپنی رسائی)
+                        </label>
+                        <p className="text-[10px] text-slate-500">
+                          کمپنی منتخب کرنے پر اس کے پیکیج کے مطابق اختیارات نظر آئیں گے۔
+                        </p>
                       </div>
-                    );
-                  })}
-                </div>
-                <div className="flex items-center justify-between text-[10px] text-slate-500 px-1">
-                  <span>
-                    منتخب شدہ ٹیبز:{" "}
-                    <strong className="text-purple-600 font-bold">
-                      {formData.allowedModules.length}
-                    </strong>{" "}
-                    / {availableModules.length}
-                  </span>
-                  <span className="italic text-slate-400">
-                    صارف لاگ ان ہو کر صرف انہی منتخب ٹیبز کو دیکھ سکے گا
-                  </span>
-                </div>
-              </div>
+                      <div className="flex items-center gap-1.5 text-[10px]">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setFormData({ ...formData, companyIds: companies.map((c) => c.id) })
+                          }
+                          className="text-purple-600 hover:underline font-semibold"
+                        >
+                          All
+                        </button>
+                        <span className="text-slate-300">|</span>
+                        <button
+                          type="button"
+                          onClick={() => setFormData({ ...formData, companyIds: [] })}
+                          className="text-slate-500 hover:underline"
+                        >
+                          None
+                        </button>
+                      </div>
+                    </div>
+                    <div className="space-y-1.5 max-h-28 overflow-y-auto border border-slate-200 dark:border-slate-700 rounded-2xl p-2.5 bg-slate-50 dark:bg-slate-800/60">
+                      {companies.map((c) => {
+                        const checked = formData.companyIds.includes(c.id);
+                        const isAccOnly =
+                          c.packageType === "ACCOUNTING_ONLY" ||
+                          (c.enabledModules &&
+                            !c.enabledModules.includes("pos") &&
+                            !c.enabledModules.includes("compliance"));
+                        return (
+                          <label
+                            key={c.id}
+                            className={`flex items-center justify-between p-1.5 rounded-xl border text-xs cursor-pointer transition ${
+                              checked
+                                ? "bg-purple-50 dark:bg-purple-950/40 border-purple-300 text-purple-900 dark:text-purple-100 font-bold"
+                                : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300"
+                            }`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={() => toggleCompanySelection(c.id)}
+                                className="rounded text-purple-600 focus:ring-purple-500 h-3.5 w-3.5"
+                              />
+                              <span className="truncate">{c.name}</span>
+                              <span className="text-[10px] text-slate-400 font-normal">({c.currency || "PKR"})</span>
+                            </div>
+                            <span
+                              className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
+                                isAccOnly
+                                  ? "bg-blue-100 text-blue-800 dark:bg-blue-900/60 dark:text-blue-300"
+                                  : "bg-purple-100 text-purple-800 dark:bg-purple-900/60 dark:text-purple-300"
+                              }`}
+                            >
+                              {isAccOnly ? "📘 Accounting Only" : "🚀 Full Suite"}
+                            </span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
 
-              {/* Underlying System Role */}
-              <div className="border-t border-slate-100 dark:border-slate-800 pt-3">
-                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase mb-1">
-                  System Security Role
-                </label>
-                <select
-                  value={formData.role}
-                  disabled={selectedUser?.role === "SUPER_ADMIN"}
-                  onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs focus:ring-2 focus:ring-purple-500 font-semibold disabled:opacity-60 disabled:cursor-not-allowed"
-                >
-                  {selectedUser?.role === "SUPER_ADMIN" ? (
-                    <option value="SUPER_ADMIN">SUPER_ADMIN (Protected Master Account)</option>
-                  ) : (
-                    <>
+                  {/* Granular Module Checkboxes Section */}
+                  <div className="space-y-2 border-t border-slate-100 dark:border-slate-800 pt-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5">
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-900 dark:text-slate-100 uppercase">
+                          Module & Tab Access Rights (اختیارات و ٹیب رسائی) *
+                        </label>
+                        <p className="text-[10px] text-slate-500">
+                          پورٹل کے وہ تمام ٹیبز چیک کریں جن کی رسائی اس صارف کو دینی ہے:
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-[11px]">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setFormData({
+                              ...formData,
+                              allowedModules: availableModules.map((m) => m.id),
+                            })
+                          }
+                          className="px-2 py-0.5 rounded-md bg-purple-50 hover:bg-purple-100 text-purple-700 font-bold border border-purple-200 transition text-[10px]"
+                        >
+                          Select All (تمام)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setFormData({ ...formData, allowedModules: [] })}
+                          className="px-2 py-0.5 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-600 font-medium transition text-[10px]"
+                        >
+                          Clear (خالی)
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Quick Role Presets */}
+                    <div className="bg-slate-50 dark:bg-slate-800/60 p-2.5 rounded-2xl border border-slate-200/80 dark:border-slate-700/80">
+                      <div className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1.5 flex items-center gap-1">
+                        <span>⚡ Quick Role Presets (فوری کردار منتخب کریں):</span>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {availableRolePresets.map((preset) => {
+                          const isSelected =
+                            formData.role === preset.role &&
+                            preset.modules.every((m) => formData.allowedModules.includes(m)) &&
+                            formData.allowedModules.length === preset.modules.length;
+                          return (
+                            <button
+                              key={preset.name}
+                              type="button"
+                              onClick={() => applyRolePreset(preset)}
+                              className={`px-2.5 py-1 rounded-xl text-[11px] font-bold border transition flex items-center gap-1.5 ${
+                                isSelected
+                                  ? "bg-purple-600 text-white border-purple-600 shadow-sm"
+                                  : "bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-purple-300 hover:bg-purple-50/50"
+                              }`}
+                            >
+                              <span>{preset.name}</span>
+                              <span className="text-[9px] opacity-80 font-normal">({preset.urdu})</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Checkboxes Grid */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-56 overflow-y-auto p-2 border border-slate-200 dark:border-slate-700 rounded-2xl bg-white dark:bg-slate-900/60">
+                      {availableModules.map((mod) => {
+                        const isChecked = formData.allowedModules.includes(mod.id);
+                        const ModIcon = mod.icon;
+                        return (
+                          <div
+                            key={mod.id}
+                            onClick={() => toggleModuleSelection(mod.id)}
+                            className={`flex items-start gap-2.5 p-2 rounded-xl border text-xs cursor-pointer select-none transition ${
+                              isChecked
+                                ? "bg-purple-50/80 dark:bg-purple-950/40 border-purple-300 dark:border-purple-700/80 text-purple-900 dark:text-purple-100 shadow-xs"
+                                : "bg-white dark:bg-slate-800/40 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => {}}
+                              className="mt-0.5 rounded text-purple-600 focus:ring-purple-500 h-4 w-4 shrink-0"
+                            />
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between gap-1">
+                                <span className="font-bold text-[11px] truncate flex items-center gap-1.5">
+                                  <ModIcon className="h-3 w-3 text-purple-600 shrink-0" />
+                                  <span>{mod.label}</span>
+                                </span>
+                                <span className="text-[9px] font-semibold text-slate-400 shrink-0 font-urdu">
+                                  {mod.urdu}
+                                </span>
+                              </div>
+                              <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                                {mod.desc}
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Shop Role */}
+                  <div className="border-t border-slate-100 dark:border-slate-800 pt-3">
+                    <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase mb-1">
+                      System Security Role
+                    </label>
+                    <select
+                      value={formData.role}
+                      onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                      className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs focus:ring-2 focus:ring-purple-500 font-semibold"
+                    >
                       <option value="STAFF">STAFF (Cashier / Operator / Field Staff)</option>
                       <option value="ACCOUNTANT">ACCOUNTANT (Accounts & Financial Management)</option>
                       <option value="OWNER_ADMIN">OWNER_ADMIN (Shop Owner / General Manager)</option>
-                      <option value="ADMIN">ADMIN (Platform Team Member - Manage Companies & Billing)</option>
-                    </>
-                  )}
-                </select>
-
-                {formData.role === "ADMIN" && (
-                  <div className="mt-2.5 p-3 rounded-xl bg-indigo-50 border border-indigo-200 dark:bg-indigo-950/40 dark:border-indigo-800 text-[11px] text-indigo-900 dark:text-indigo-200">
-                    <p className="font-bold flex items-center gap-1.5 mb-1 text-indigo-700 dark:text-indigo-300">
-                      <ShieldCheck className="h-4 w-4 shrink-0 text-indigo-600 dark:text-indigo-400" />
-                      Team Admin Capabilities (کمپنی مینجمنٹ اختیارات)
-                    </p>
-                    <p className="leading-relaxed">
-                      یہ یوزر سینٹرل ایڈمن سافٹ ویئر میں لاگ ان ہو کر نئی کمپنیاں رجسٹر، ماہانہ فیس تجدید (Billing)، اور کمپنی سیٹنگز تبدیل کر سکے گا۔ تمام ترامیم آڈٹ لاگ میں ریکارڈ ہوں گی تاکہ آپ دیکھ سکیں کہ کس نے کیا تبدیل کیا۔
-                    </p>
+                    </select>
                   </div>
-                )}
-              </div>
+                </>
+              )}
 
               <div className="pt-3 flex items-center justify-end gap-2 border-t border-slate-100 dark:border-slate-800">
                 <button

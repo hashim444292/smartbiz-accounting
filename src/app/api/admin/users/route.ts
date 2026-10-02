@@ -29,6 +29,7 @@ export async function GET() {
         name: u.name,
         email: u.email,
         role: u.role,
+        platformRole: (u as any).platformRole || (u.role === "SUPER_ADMIN" ? "SUPER_ADMIN" : "TENANT_USER"),
         allowedModules: u.allowedModules || [],
         createdAt: u.createdAt,
         companies: u.memberships.map((m) => ({
@@ -50,6 +51,7 @@ export async function GET() {
           name: u.name,
           email: u.email,
           role: u.role,
+          platformRole: (u as any).platformRole || (u.role === "SUPER_ADMIN" ? "SUPER_ADMIN" : "TENANT_USER"),
           allowedModules: u.allowedModules || [],
           createdAt: u.createdAt,
           companies: assignedCompanies.map((c) => ({
@@ -81,7 +83,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { name, email, password, role, companyIds, allowedModules } = body;
+    const { name, email, password, role, companyIds, allowedModules, isPlatformUser, platformRole } = body;
 
     if (!name || !email) {
       return NextResponse.json(
@@ -90,11 +92,27 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (role === "SUPER_ADMIN") {
+    // Strict constraint: Only Hashim Khan is Super Admin. Nobody else can ever be created as Super Admin.
+    if (role === "SUPER_ADMIN" || platformRole === "SUPER_ADMIN") {
       return NextResponse.json(
-        { success: false, error: "The SUPER_ADMIN role is protected and cannot be assigned to any new account." },
+        { success: false, error: "سپر ایڈمن کا درجہ صرف ہاشم خان کے لیے مخصوص ہے۔ کوئی دوسرا صارف سپر ایڈمن نہیں بن سکتا۔ (Super Admin is exclusively reserved for the platform owner)." },
         { status: 400 }
       );
+    }
+
+    let finalRole = role || "STAFF";
+    let finalPlatformRole = "TENANT_USER";
+
+    if (isPlatformUser) {
+      const validPlatformRoles = ["WEBAPP_ADMIN", "WEBAPP_EDITOR", "WEBAPP_VIEWER"];
+      if (!validPlatformRoles.includes(platformRole)) {
+        return NextResponse.json(
+          { success: false, error: "Invalid platform role. Must be WebApp Admin, WebApp Editor, or WebApp Viewer." },
+          { status: 400 }
+        );
+      }
+      finalRole = "ADMIN";
+      finalPlatformRole = platformRole;
     }
 
     const cleanEmail = email.toLowerCase().trim();
@@ -115,7 +133,8 @@ export async function POST(req: NextRequest) {
           name,
           email: cleanEmail,
           passwordHash,
-          role: role || "STAFF",
+          role: finalRole as any,
+          platformRole: finalPlatformRole,
           allowedModules: Array.isArray(allowedModules) ? allowedModules : [],
         },
       });
@@ -127,7 +146,7 @@ export async function POST(req: NextRequest) {
             data: {
               userId: newUser.id,
               businessId: bizId,
-              role: role || "STAFF",
+              role: finalRole as any,
             },
           });
         }
@@ -154,7 +173,8 @@ export async function POST(req: NextRequest) {
         name,
         email: cleanEmail,
         password: password || "password123",
-        role: role || "STAFF",
+        role: finalRole,
+        platformRole: finalPlatformRole,
         allowedModules: Array.isArray(allowedModules) ? allowedModules : [],
         companyIds: Array.isArray(companyIds) && companyIds.length > 0 ? companyIds : [fallbackStore.activeBusinessId],
       });
