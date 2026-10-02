@@ -39,6 +39,7 @@ import { smartFetch, invalidateCache } from "@/lib/clientCache";
 export default function BranchesManagementPage() {
   const router = useRouter();
   const { user, activeCompany, switchBranch, activeBranchId, refreshSession } = useAuth();
+  const isSuperAdmin = user?.role === "SUPER_ADMIN";
 
   const [branches, setBranches] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
@@ -233,6 +234,10 @@ export default function BranchesManagementPage() {
 
   const handleCreateBranch = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isSuperAdmin) {
+      setFormError("Only Platform Super Admin can provision new branches.");
+      return;
+    }
     setFormError(null);
     setSubmitting(true);
 
@@ -261,6 +266,10 @@ export default function BranchesManagementPage() {
 
   const handleUpdateBranch = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isSuperAdmin) {
+      setFormError("Only Platform Super Admin can update branches.");
+      return;
+    }
     if (!selectedBranch) return;
     setFormError(null);
     setSubmitting(true);
@@ -289,6 +298,10 @@ export default function BranchesManagementPage() {
   };
 
   const handleDeleteBranch = async (branchId: string, name: string) => {
+    if (!isSuperAdmin) {
+      alert("Only Platform Super Admin can remove branches.");
+      return;
+    }
     if (!confirm(`Are you sure you want to remove or deactivate branch "${name}"?`)) {
       return;
     }
@@ -349,8 +362,7 @@ export default function BranchesManagementPage() {
     setAssignModalOpen(true);
   };
 
-  const isSuperAdmin = user?.role === "SUPER_ADMIN";
-  const canCreateBranches = Boolean(activeCompany?.canCreateBranches) || isSuperAdmin;
+  const canCreateBranches = isSuperAdmin;
 
   const filteredBranches = branches.filter((b) => {
     const q = search.toLowerCase().trim();
@@ -443,14 +455,16 @@ export default function BranchesManagementPage() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-black text-slate-900">
-                Sub-Branches Management (ذیلی برانچز)
+                {isSuperAdmin ? "Sub-Branches Management (ذیلی برانچز)" : "Branches & Staff Management (برانچز و ملازمین)"}
               </h1>
               <Badge className="bg-indigo-100 text-indigo-800 border-indigo-200">
-                Multi-Branch Active
+                {isSuperAdmin ? "Super Admin Mode" : "Owner Staff Portal"}
               </Badge>
             </div>
             <p className="text-xs text-slate-500 mt-0.5">
-              Managing outlets for: <span className="font-bold text-slate-800">{activeCompany?.name}</span>
+              {isSuperAdmin
+                ? `Managing and provisioning outlets for: ${activeCompany?.name}`
+                : `Manage branch staff, cashiers, and roles for: ${activeCompany?.name}`}
             </p>
           </div>
         </div>
@@ -458,22 +472,24 @@ export default function BranchesManagementPage() {
         <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={() => openAddUserForBranch()}
-            className="px-4 py-2 rounded-xl bg-white border border-slate-300 text-slate-700 text-xs font-bold hover:bg-slate-50 transition shadow-xs flex items-center gap-1.5"
-          >
-            <UserPlus className="h-4 w-4 text-indigo-600" />
-            <span>+ Add Branch User / Manager</span>
-          </button>
-          <button
-            onClick={() => {
-              setFormData(initialFormState);
-              setFormError(null);
-              setAddModalOpen(true);
-            }}
             className="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700 transition shadow-xs flex items-center gap-1.5"
           >
-            <Plus className="h-4 w-4" />
-            <span>Add New Branch (نئی برانچ بنائیں)</span>
+            <UserPlus className="h-4 w-4" />
+            <span>+ Add Branch User / Manager (نیا ملازم / مینیجر بنائیں)</span>
           </button>
+          {isSuperAdmin && (
+            <button
+              onClick={() => {
+                setFormData(initialFormState);
+                setFormError(null);
+                setAddModalOpen(true);
+              }}
+              className="px-4 py-2 rounded-xl bg-slate-900 text-white text-xs font-bold hover:bg-slate-800 transition shadow-xs flex items-center gap-1.5"
+            >
+              <Plus className="h-4 w-4" />
+              <span>Add New Branch (نئی برانچ بنائیں)</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -588,17 +604,28 @@ export default function BranchesManagementPage() {
       {filteredBranches.length === 0 ? (
         <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center space-y-3">
           <Store className="h-10 w-10 text-slate-300 mx-auto" />
-          <h3 className="text-sm font-bold text-slate-800">No Sub-Branches Found</h3>
+          <h3 className="text-sm font-bold text-slate-800">
+            {isSuperAdmin ? "No Sub-Branches Found" : "کوئی ذیلی برانچ موجود نہیں (No Branches Provisioned)"}
+          </h3>
           <p className="text-xs text-slate-500 max-w-sm mx-auto">
-            Get started by adding your first branch or outlet for this company to enable branch-wise isolation and reporting.
+            {isSuperAdmin
+              ? "Get started by adding your first branch or outlet for this company to enable branch-wise isolation and reporting."
+              : "اس کمپنی کے لیے فی الحال کوئی الگ برانچ مختص نہیں ہے۔ برانچز پلیٹ فارم ایڈمن کے ذریعے شامل کی جاتی ہیں۔ اگر آپ کو نئی برانچ چاہیے تو پلیٹ فارم سپورٹ سے رابطہ کریں۔"}
           </p>
-          <button
-            onClick={() => setAddModalOpen(true)}
-            className="mt-2 px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700 transition inline-flex items-center gap-1.5"
-          >
-            <Plus className="h-4 w-4" />
-            <span>Add Branch Now</span>
-          </button>
+          {isSuperAdmin ? (
+            <button
+              onClick={() => setAddModalOpen(true)}
+              className="mt-2 px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700 transition inline-flex items-center gap-1.5"
+            >
+              <Plus className="h-4 w-4" />
+              <span>Add Branch Now</span>
+            </button>
+          ) : (
+            <div className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-600 text-xs font-semibold">
+              <ShieldAlert className="h-4 w-4 text-slate-400" />
+              <span>Branch Provisioning: Managed by Super Admin</span>
+            </div>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -746,22 +773,24 @@ export default function BranchesManagementPage() {
                       <span>{isCurrentActive ? "✓ Active View" : "Switch to Branch"}</span>
                     </button>
 
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => openEdit(branch)}
-                        className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition"
-                        title="Edit Branch"
-                      >
-                        <Edit2 className="h-3.5 w-3.5" />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteBranch(branch.id, branch.name)}
-                        className="p-1.5 rounded-lg border border-rose-200 text-rose-600 hover:bg-rose-50 transition"
-                        title="Delete Branch"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
+                    {isSuperAdmin && (
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => openEdit(branch)}
+                          className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition"
+                          title="Edit Branch"
+                        >
+                          <Edit2 className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteBranch(branch.id, branch.name)}
+                          className="p-1.5 rounded-lg border border-rose-200 text-rose-600 hover:bg-rose-50 transition"
+                          title="Delete Branch"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>

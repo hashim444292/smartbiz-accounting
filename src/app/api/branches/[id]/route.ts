@@ -61,9 +61,9 @@ export async function PUT(
 ) {
   try {
     const session = await getSession();
-    if (session && session.role !== "SUPER_ADMIN" && session.role !== "OWNER_ADMIN") {
+    if (!session || session.role !== "SUPER_ADMIN") {
       return NextResponse.json(
-        { success: false, error: "Access denied. Only Business Owners and Super Admins can update branches." },
+        { success: false, error: "Access denied. Only Platform Super Admin can update branches." },
         { status: 403 }
       );
     }
@@ -117,9 +117,9 @@ export async function DELETE(
 ) {
   try {
     const session = await getSession();
-    if (session && session.role !== "SUPER_ADMIN" && session.role !== "OWNER_ADMIN") {
+    if (!session || session.role !== "SUPER_ADMIN") {
       return NextResponse.json(
-        { success: false, error: "Access denied. Only Business Owners and Super Admins can remove branches." },
+        { success: false, error: "Access denied. Only Platform Super Admin can remove branches." },
         { status: 403 }
       );
     }

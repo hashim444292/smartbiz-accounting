@@ -89,9 +89,9 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const session = await getSession();
-    if (session && session.role !== "SUPER_ADMIN" && session.role !== "OWNER_ADMIN") {
+    if (!session || session.role !== "SUPER_ADMIN") {
       return NextResponse.json(
-        { success: false, error: "Access denied. Only Business Owners and Super Admins can create branches." },
+        { success: false, error: "Access denied. Only Platform Super Admin can provision new branches for this company. Please contact support to add branches." },
         { status: 403 }
       );
     }

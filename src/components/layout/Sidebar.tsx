@@ -85,7 +85,7 @@ const TENANT_NAVIGATION_GROUPS: NavGroup[] = [
   {
     section: "ادارہ و ترتیبات • ORGANIZATION",
     items: [
-      { name: "Sub-Branches", sublabel: "آؤٹ لیٹس و برانچز", href: "/branches", icon: Store, roles: ["SUPER_ADMIN", "ADMIN", "OWNER_ADMIN"], userPermKey: "branches" },
+      { name: "Branches & Staff", sublabel: "برانچز و ملازمین", href: "/branches", icon: Store, roles: ["SUPER_ADMIN", "ADMIN", "OWNER_ADMIN"], userPermKey: "branches" },
       { name: "Activity Log", sublabel: "آڈٹ ٹریک لاگ", href: "/audit-logs", icon: History, roles: ["SUPER_ADMIN", "ADMIN", "OWNER_ADMIN", "ACCOUNTANT"], userPermKey: "accounting" },
       { name: "Settings & Defaults", sublabel: "کمپنی سیٹنگز", href: "/settings", icon: Settings, roles: ["SUPER_ADMIN", "ADMIN", "OWNER_ADMIN"] },
     ],
