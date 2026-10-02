@@ -2552,6 +2552,11 @@ export default function CreateSalePage() {
               <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-2 leading-relaxed">
                 تمام {totalPieces} پیسز کا صرف <strong>1 مشترکہ بل</strong> بنے گا۔
               </p>
+              {!isAccountingOnly && postToFbr && fbrInvoiceType === "TIER1_POS" && (
+                <div className="mt-3 inline-flex items-center gap-1 rounded-lg bg-emerald-100/80 px-2.5 py-1 text-[11px] font-bold text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
+                  💳 FBR POS فیس: صرف PKR 1.00 (1 بل)
+                </div>
+              )}
             </button>
 
             {/* Option 2: Split per piece */}
@@ -2570,6 +2575,11 @@ export default function CreateSalePage() {
               <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-2 leading-relaxed">
                 ہر پیس کا الگ بل بنے گا (کل <strong>{totalPieces} انوائسز</strong> بنیں گی {!isAccountingOnly && postToFbr ? "اور FBR میں الگ الگ شوٹ ہوں گی" : "اور کھاتے میں درج ہوں گی"})۔
               </p>
+              {!isAccountingOnly && postToFbr && fbrInvoiceType === "TIER1_POS" && (
+                <div className="mt-3 inline-flex items-center gap-1 rounded-lg bg-indigo-100/80 px-2.5 py-1 text-[11px] font-bold text-indigo-800 dark:bg-indigo-950/60 dark:text-indigo-300">
+                  💳 FBR POS فیس: PKR 1.00 فی انوائس (کل PKR {totalPieces}.00)
+                </div>
+              )}
             </button>
           </div>
 
