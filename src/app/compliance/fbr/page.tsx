@@ -32,6 +32,7 @@ import {
   Code,
   Copy,
   CheckCheck,
+  Pencil,
 } from "lucide-react";
 import { TableRowsSkeleton } from "@/components/ui/loader";
 import { useAuth } from "@/context/AuthContext";
@@ -87,6 +88,49 @@ export default function FbrCompliancePage() {
   const [payloadModal, setPayloadModal] = useState<any | null>(null);
   const [loadingPayloadId, setLoadingPayloadId] = useState<string | null>(null);
   const [copiedPayload, setCopiedPayload] = useState(false);
+  const [reversingId, setReversingId] = useState<string | null>(null);
+
+  const handleReverseInvoice = async (inv: any) => {
+    const isStamped = inv.fbrStatus === "SUCCESS";
+    const confirmText = isStamped
+      ? `انوائس #${inv.invoiceNumber} پہلے سے FBR پر منظور شدہ ہے۔\n\nاسے ریورس کرنے پر اکاؤنٹنگ میں باقاعدہ Sales Return / Credit Note درج ہوگا، گودام کا اسٹاک بحال ہوگا اور گاہک کا کھاتہ درست ہو جائے گا۔\n\nکیا آپ یہ Credit Note / Reversal جاری کرنا چاہتے ہیں؟`
+      : `کیا آپ انوائس #${inv.invoiceNumber} کو منسوخ / ریورس کرنا چاہتے ہیں؟ اس سے کھاتے اور اسٹاک درست ہو جائیں گے اور یہ بل کینسل ہو جائے گا۔`;
+
+    if (!window.confirm(confirmText)) return;
+
+    setReversingId(inv.id);
+    try {
+      const res = await fetch(`/api/sales/${inv.id}/reverse`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          reason: isStamped
+            ? `Credit Note for FBR Stamped Invoice #${inv.invoiceNumber} (${inv.fbrInvoiceNumber || ""})`
+            : `User cancellation / reversal of invoice #${inv.invoiceNumber}`,
+        }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        setActionMessage({
+          type: "success",
+          text: `انوائس #${inv.invoiceNumber} کامیابی سے ریورس ہو گئی۔ (Credit Note / Reversal Recorded)`,
+        });
+        loadCompliance();
+      } else {
+        setActionMessage({
+          type: "error",
+          text: json.error || "ریورس کرنے میں ناکامی ہوئی۔",
+        });
+      }
+    } catch (err: any) {
+      setActionMessage({
+        type: "error",
+        text: err.message || "نیٹ ورک کی خرابی۔",
+      });
+    } finally {
+      setReversingId(null);
+    }
+  };
 
   const loadCompliance = async () => {
     setLoading(true);
@@ -548,32 +592,33 @@ export default function FbrCompliancePage() {
         </div>
       )}
 
-      {/* Live FBR Gateway & Sandbox Sync Status Banner */}
-      <div className="rounded-2xl border border-indigo-200/80 bg-gradient-to-r from-indigo-50/90 via-white to-blue-50/50 p-4 shadow-xs">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="space-y-1.5">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="flex h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-              <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-                FBR Gateway: {complianceData?.config?.integrationType === "TIER1_POS" ? "Tier-1 Retail POS (IMS)" : "Digital Invoicing (DI)"}
-              </span>
-              <span className="rounded bg-indigo-100 px-2 py-0.5 text-[10px] font-bold text-indigo-800 uppercase font-mono">
-                {complianceData?.config?.environment === "production" ? "LIVE PRODUCTION" : "SANDBOX"}
-              </span>
-              <span className="rounded bg-purple-100 px-2 py-0.5 text-[10px] font-bold text-purple-800 uppercase font-mono">
-                {complianceData?.config?.integrationType === "TIER1_POS" ? "🛒 POS Retail (B2C)" : "🏷️ Digital Invoicing (B2B)"}
-              </span>
-              {complianceData?.config?.token ? (
-                <span className="rounded bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
-                  ✓ Token Active
+      {/* Live FBR Gateway & Sandbox Sync Status Banner (Super Admin Only) */}
+      {isSuperAdmin && (
+        <div className="rounded-2xl border border-indigo-200/80 bg-gradient-to-r from-indigo-50/90 via-white to-blue-50/50 p-4 shadow-xs">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="flex h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                  FBR Gateway: {complianceData?.config?.integrationType === "TIER1_POS" ? "Tier-1 Retail POS (IMS)" : "Digital Invoicing (DI)"}
                 </span>
-              ) : (
-                <span className="rounded bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800">
-                  ⚠️ Token Not Set (Using Sandbox Simulation)
+                <span className="rounded bg-indigo-100 px-2 py-0.5 text-[10px] font-bold text-indigo-800 uppercase font-mono">
+                  {complianceData?.config?.environment === "production" ? "LIVE PRODUCTION" : "SANDBOX"}
                 </span>
-              )}
-            </div>
-            {isSuperAdmin ? (
+                <span className="rounded bg-purple-100 px-2 py-0.5 text-[10px] font-bold text-purple-800 uppercase font-mono">
+                  {complianceData?.config?.integrationType === "TIER1_POS" ? "🛒 POS Retail (B2C)" : "🏷️ Digital Invoicing (B2B)"}
+                </span>
+                {complianceData?.config?.token ? (
+                  <span className="rounded bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
+                    ✓ Token Active
+                  </span>
+                ) : (
+                  <span className="rounded bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800">
+                    ⚠️ Token Not Set (Using Sandbox Simulation)
+                  </span>
+                )}
+              </div>
+
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-slate-600 font-mono">
                 <span>
                   <strong>Post URL:</strong>{" "}
@@ -609,15 +654,8 @@ export default function FbrCompliancePage() {
                   )}
                 </span>
               </div>
-            ) : (
-              <div className="text-xs text-slate-600 flex items-center gap-2">
-                <span className="font-semibold text-slate-700">Fiscal Device Status:</span>
-                <span className="text-emerald-700 font-medium">Connected & Active &bull; Real-time Tax Audit Compliance Enabled</span>
-              </div>
-            )}
-          </div>
+            </div>
 
-          {isSuperAdmin && (
             <div className="flex items-center gap-2 shrink-0">
               <button
                 onClick={handleTestSandbox}
@@ -636,9 +674,9 @@ export default function FbrCompliancePage() {
                 <span>FBR Credentials</span>
               </button>
             </div>
-          )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Status KPI Overview Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
@@ -1059,7 +1097,7 @@ export default function FbrCompliancePage() {
 
                       {/* Action Button */}
                       <td className="py-3 px-3 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
+                        <div className="flex items-center justify-end gap-1.5 flex-wrap">
                           <button
                             type="button"
                             onClick={() => handlePreviewPayload(inv)}
@@ -1115,6 +1153,34 @@ export default function FbrCompliancePage() {
                                 <Lock className="h-3 w-3 text-amber-600" />
                               </button>
                             </div>
+                          )}
+
+                          {/* Direct Edit link to Sales */}
+                          <Link
+                            href="/sales"
+                            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 hover:text-indigo-600 hover:bg-slate-50 shadow-2xs transition"
+                            title="Edit Invoice in Sales Ledger"
+                          >
+                            <Pencil className="h-3 w-3" />
+                            <span>Edit</span>
+                          </Link>
+
+                          {/* Reverse / Credit Note Button */}
+                          {inv.status !== "CANCELLED" && (
+                            <button
+                              type="button"
+                              onClick={() => handleReverseInvoice(inv)}
+                              disabled={reversingId === inv.id}
+                              className="inline-flex items-center gap-1 rounded-lg border border-rose-200 bg-rose-50/70 px-2 py-1 text-[11px] font-bold text-rose-700 hover:bg-rose-100 shadow-2xs transition"
+                              title={
+                                inv.fbrStatus === "SUCCESS"
+                                  ? "Issue Credit Note / Sale Return for FBR Stamped Invoice"
+                                  : "Cancel / Reverse Unverified Invoice"
+                              }
+                            >
+                              <RotateCcw className={`h-3 w-3 ${reversingId === inv.id ? "animate-spin text-rose-600" : ""}`} />
+                              <span>{inv.fbrStatus === "SUCCESS" ? "Credit Note" : "Reverse"}</span>
+                            </button>
                           )}
                         </div>
                       </td>
