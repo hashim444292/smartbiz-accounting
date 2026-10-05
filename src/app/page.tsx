@@ -1561,9 +1561,9 @@ export default function DashboardPage() {
                             <Eye className="h-3 w-3" />
                             <span>{t("View Bill", "بل دیکھیں")}</span>
                           </Link>
-                        ) : inv.fbrQrCode ? (
+                        ) : (inv.fbrQrCode || inv.fbrInvoiceNumber) ? (
                           <a
-                            href={inv.fbrQrCode}
+                            href={`/verify/fbr?inv=${encodeURIComponent(inv.fbrInvoiceNumber || inv.invoiceNumber)}`}
                             target="_blank"
                             rel="noreferrer"
                             className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-bold text-indigo-600 hover:bg-slate-50 shadow-2xs dark:border-slate-700 dark:bg-slate-800 dark:text-indigo-300"
@@ -1671,9 +1671,9 @@ export default function DashboardPage() {
                               <Eye className="h-3 w-3" />
                               <span>{t("View Bill", "بل دیکھیں")}</span>
                             </Link>
-                          ) : inv.fbrQrCode ? (
+                          ) : (inv.fbrQrCode || inv.fbrInvoiceNumber) ? (
                             <a
-                              href={inv.fbrQrCode}
+                              href={`/verify/fbr?inv=${encodeURIComponent(inv.fbrInvoiceNumber || inv.invoiceNumber)}`}
                               target="_blank"
                               rel="noreferrer"
                               className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-indigo-600 hover:bg-slate-50 shadow-2xs dark:border-slate-700 dark:bg-slate-800 dark:text-indigo-300 dark:hover:bg-slate-700 transition"

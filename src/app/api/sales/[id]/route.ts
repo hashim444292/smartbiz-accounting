@@ -108,7 +108,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     if (body.fbrInvoiceNumber !== undefined) {
       updateData.fbrInvoiceNumber = body.fbrInvoiceNumber;
       if (body.fbrInvoiceNumber) {
-        updateData.fbrQrCode = `https://e.fbr.gov.pk/verify?inv=${encodeURIComponent(body.fbrInvoiceNumber)}&pos=${encodeURIComponent(existing.branchId || "POS-101")}&amt=${newTotal}`;
+        updateData.fbrQrCode = `/verify/fbr?inv=${encodeURIComponent(body.fbrInvoiceNumber)}&pos=${encodeURIComponent(existing.branchId || "POS-101")}&amt=${newTotal}`;
       }
     }
 

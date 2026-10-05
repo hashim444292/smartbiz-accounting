@@ -171,7 +171,8 @@ export function generateFbrInvoiceNumber(): string {
 }
 
 export function generateFbrQrCode(invoiceNumber: string, totalAmount: number, posId = "POS-101"): string {
-  return `https://e.fbr.gov.pk/verify?inv=${encodeURIComponent(invoiceNumber)}&pos=${encodeURIComponent(posId)}&amt=${totalAmount}`;
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://myaccounts360.com";
+  return `${baseUrl}/verify/fbr?inv=${encodeURIComponent(invoiceNumber)}&pos=${encodeURIComponent(posId)}&amt=${totalAmount}`;
 }
 
 export function cleanFbrNtn(raw?: string | null): string {
@@ -780,9 +781,7 @@ export async function transmitSaleToFbr(
   let fbrInvNum = isPos
     ? `FBR-POS-${new Date().getFullYear()}-${Math.floor(100000 + Math.random() * 900000)}`
     : `FBR-DI-${new Date().getFullYear()}-${Math.floor(100000 + Math.random() * 900000)}`;
-  let fbrQr = isPos
-    ? generateFbrQrCode(fbrInvNum, newTotal, config.posId)
-    : `https://e.fbr.gov.pk/verify?inv=${encodeURIComponent(fbrInvNum)}`;
+  let fbrQr = generateFbrQrCode(fbrInvNum, newTotal, config.posId);
   let liveFbrResponse: any = null;
   let transmissionStatus: "SUCCESS" | "FAILED" = "SUCCESS";
   let transmissionMessage = "";
@@ -837,7 +836,7 @@ export async function transmitSaleToFbr(
             } else if (liveFbrResponse.validationResponse?.qrCode) {
               fbrQr = liveFbrResponse.validationResponse.qrCode;
             } else {
-              fbrQr = `https://e.fbr.gov.pk/verify?inv=${encodeURIComponent(fbrInvNum)}`;
+              fbrQr = generateFbrQrCode(fbrInvNum, newTotal, config.posId);
             }
             transmissionMessage = `Live FBR Digital Invoicing Gateway confirmed: Invoice #${fbrInvNum} acknowledged.`;
           }

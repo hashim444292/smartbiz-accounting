@@ -197,7 +197,7 @@ export async function createAndPostSale(input: CreateSaleInput) {
 
     const isFbrDirect = input.fbrStatus === "SUCCESS";
     const fbrInvNumber = isFbrDirect ? (input.fbrInvoiceNumber || `FBR-POS-${new Date().getFullYear()}-${Math.floor(100000 + Math.random() * 900000)}`) : null;
-    const fbrQr = isFbrDirect ? (input.fbrQrCode || `https://e.fbr.gov.pk/verify?inv=${encodeURIComponent(fbrInvNumber!)}&pos=POS-101&amt=${totalAmount.toNumber()}`) : null;
+    const fbrQr = isFbrDirect ? (input.fbrQrCode || `/verify/fbr?inv=${encodeURIComponent(fbrInvNumber!)}&pos=POS-101&amt=${totalAmount.toNumber()}`) : null;
 
     // Validate customer exists in DB before using as foreign key
     let validCustomerId: string | null = null;

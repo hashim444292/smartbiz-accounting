@@ -140,11 +140,21 @@ export default function SaleDetailPage() {
                 </span>
                 <div className="mt-1 p-1 bg-white border border-slate-200 rounded shadow-2xs">
                   <FbrQrCode
-                    value={sale.fbrQrCode || `https://e.fbr.gov.pk/verify?inv=${encodeURIComponent(sale.fbrInvoiceNumber)}`}
+                    value={sale.fbrInvoiceNumber || sale.invoiceNumber}
                     size={84}
                   />
                 </div>
-                <span className="text-[9px] text-slate-500 font-medium">Verify: FBR Tax Asaan App</span>
+                <div className="flex flex-col items-end gap-0.5 mt-0.5">
+                  <span className="text-[9px] text-slate-500 font-medium">Verify: Mobile Camera / Tax Asaan</span>
+                  <a
+                    href={`/verify/fbr?inv=${encodeURIComponent(sale.fbrInvoiceNumber || sale.invoiceNumber)}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[9px] text-indigo-600 hover:underline font-semibold"
+                  >
+                    View Official e-Receipt &rarr;
+                  </a>
+                </div>
               </div>
             )}
           </div>

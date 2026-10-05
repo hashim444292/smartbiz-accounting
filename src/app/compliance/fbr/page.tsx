@@ -1413,22 +1413,38 @@ export default function FbrCompliancePage() {
                 <div className="flex flex-col items-center justify-center p-4 rounded-xl border border-slate-200 bg-slate-50 text-center">
                   <div className="bg-white p-2.5 rounded-lg border border-slate-300 shadow-xs mb-2 flex items-center justify-center">
                     <FbrQrCode
-                      value={selectedReceiptInvoice.fbrQrCode || `https://e.fbr.gov.pk/verify?inv=${encodeURIComponent(selectedReceiptInvoice.fbrInvoiceNumber || "")}`}
-                      size={120}
+                      value={selectedReceiptInvoice.fbrInvoiceNumber || selectedReceiptInvoice.invoiceNumber || ""}
+                      size={130}
                     />
                   </div>
-                  <span className="text-[11px] font-mono text-slate-700 font-bold">
-                    Scan via FBR Asaan Tax App
+                  <span className="text-[11px] font-mono text-emerald-800 font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                    Scan via Mobile Camera / Tax Asaan App
                   </span>
-                  <a
-                    href={selectedReceiptInvoice.fbrQrCode}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-[10px] text-indigo-600 hover:underline mt-1 inline-flex items-center gap-1 font-semibold"
-                  >
-                    <span>Verify Online at FBR Portal</span>
-                    <ExternalLink className="h-3 w-3" />
-                  </a>
+                  
+                  <div className="flex flex-col gap-1 mt-2 w-full">
+                    <a
+                      href={`/verify/fbr?inv=${encodeURIComponent(selectedReceiptInvoice.fbrInvoiceNumber || selectedReceiptInvoice.invoiceNumber || "")}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-[11px] text-emerald-700 hover:text-emerald-900 hover:underline inline-flex items-center justify-center gap-1 font-semibold bg-emerald-50/80 py-1 px-2 rounded border border-emerald-200/80 transition"
+                    >
+                      <CheckCircle2 className="h-3 w-3 text-emerald-600" />
+                      <span>View Verified Fiscal e-Receipt</span>
+                      <ExternalLink className="h-2.5 w-2.5" />
+                    </a>
+                    <a
+                      href="https://iris.fbr.gov.pk/#verifications"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-[10px] text-indigo-600 hover:underline inline-flex items-center justify-center gap-1 font-medium mt-0.5"
+                    >
+                      <span>Verify on FBR IRIS Portal</span>
+                      <ExternalLink className="h-2.5 w-2.5" />
+                    </a>
+                  </div>
+                  <div className="mt-2 pt-2 border-t border-slate-200 w-full text-[10px] text-slate-500 font-mono">
+                    SMS: <span className="font-bold text-slate-700">9966</span> (INV &lt;CNIC&gt; {selectedReceiptInvoice.fbrInvoiceNumber || ""})
+                  </div>
                 </div>
 
                 {/* Financial Summary */}

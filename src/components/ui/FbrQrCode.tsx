@@ -9,14 +9,44 @@ interface FbrQrCodeProps {
   className?: string;
 }
 
+function getScannableQrUrl(val: string): string {
+  if (!val) return "";
+
+  let invoiceRef = val.trim();
+  if (val.includes("inv=")) {
+    try {
+      const parsed = new URL(val.startsWith("http") ? val : `https://dummy.com/${val}`);
+      invoiceRef = parsed.searchParams.get("inv") || val;
+    } catch {
+      const m = val.match(/inv=([^&]+)/);
+      if (m) invoiceRef = decodeURIComponent(m[1]);
+    }
+  }
+
+  // If the link points to the dead e.fbr.gov.pk/verify endpoint or is just an invoice reference
+  if (val.includes("e.fbr.gov.pk/verify") || !val.startsWith("http")) {
+    const origin =
+      typeof window !== "undefined" && window.location?.origin
+        ? window.location.origin
+        : (process.env.NEXT_PUBLIC_APP_URL || "");
+
+    return origin
+      ? `${origin}/verify/fbr?inv=${encodeURIComponent(invoiceRef)}`
+      : `/verify/fbr?inv=${encodeURIComponent(invoiceRef)}`;
+  }
+
+  return val;
+}
+
 export function FbrQrCode({ value, size = 160, className = "" }: FbrQrCodeProps) {
   const [dataUrl, setDataUrl] = useState<string>("");
+  const targetUrl = getScannableQrUrl(value);
 
   useEffect(() => {
-    if (!value) return;
+    if (!targetUrl) return;
 
     let isMounted = true;
-    QRCode.toDataURL(value, {
+    QRCode.toDataURL(targetUrl, {
       width: size * 2, // 2x for retina / sharp high DPI printing
       margin: 1,
       color: {
@@ -32,14 +62,14 @@ export function FbrQrCode({ value, size = 160, className = "" }: FbrQrCodeProps)
         console.error("Failed to generate local QR code:", err);
         if (isMounted) {
           // Fallback to high-reliability online QR generator
-          setDataUrl(`https://api.qrserver.com/v1/create-qr-code/?size=${size * 2}x${size * 2}&data=${encodeURIComponent(value)}`);
+          setDataUrl(`https://api.qrserver.com/v1/create-qr-code/?size=${size * 2}x${size * 2}&data=${encodeURIComponent(targetUrl)}`);
         }
       });
 
     return () => {
       isMounted = false;
     };
-  }, [value, size]);
+  }, [targetUrl, size]);
 
   if (!value) {
     return (

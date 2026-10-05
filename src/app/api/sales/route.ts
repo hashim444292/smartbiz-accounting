@@ -260,7 +260,7 @@ export async function POST(req: NextRequest) {
 
       const isFbrDirect = body.fbrStatus === "SUCCESS";
       const fbrInvNum = isFbrDirect ? (body.fbrInvoiceNumber || `FBR-POS-2026-${Math.floor(100000 + Math.random() * 900000)}`) : null;
-      const fbrQr = isFbrDirect ? (body.fbrQrCode || `https://e.fbr.gov.pk/verify?inv=${encodeURIComponent(invNum)}&pos=POS-101&amt=${total}`) : null;
+      const fbrQr = isFbrDirect ? (body.fbrQrCode || `/verify/fbr?inv=${encodeURIComponent(fbrInvNum || invNum)}&pos=POS-101&amt=${total}`) : null;
 
       const newSale = {
         id: saleId,
