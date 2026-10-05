@@ -30,9 +30,11 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { useLanguage } from "@/context/LanguageContext";
 
 interface NavItem {
   name: string;
+  nameUrdu?: string;
   sublabel?: string;
   href: string;
   icon: React.ComponentType<{ className?: string }>;
@@ -44,50 +46,56 @@ interface NavItem {
 
 interface NavGroup {
   section: string;
+  sectionUrdu?: string;
   items: NavItem[];
 }
 
 const TENANT_NAVIGATION_GROUPS: NavGroup[] = [
   {
-    section: "بنیادی ڈیش بورڈ • OVERVIEW",
+    section: "OVERVIEW",
+    sectionUrdu: "بنیادی جائزہ",
     items: [
-      { name: "Executive Dashboard", sublabel: "مرکزی ڈیش بورڈ", href: "/", icon: LayoutDashboard },
+      { name: "Executive Dashboard", nameUrdu: "مرکزی ڈیش بورڈ", href: "/", icon: LayoutDashboard },
     ],
   },
   {
-    section: "روزمرہ کا کام • DAILY WORK",
+    section: "DAILY OPERATIONS",
+    sectionUrdu: "روزمرہ امور",
     items: [
-      { name: "Sales & Invoices", sublabel: "مال بیچیں (کسٹمر بل)", href: "/sales", icon: Receipt, moduleKey: "sales", userPermKey: "sales" },
-      { name: "POS Counter (بل کاؤنٹر)", sublabel: "فاسٹ پی او ایس بلنگ", href: "/sales/create", icon: ShoppingCart, moduleKey: "pos", userPermKey: "pos" },
-      { name: "Purchases & Bills", sublabel: "مال خریدیں (سپلائر بل)", href: "/purchases", icon: ShoppingBag, moduleKey: "purchases", userPermKey: "purchases" },
-      { name: "Cash & Payments", sublabel: "پیسے وصولی و ادائیگی", href: "/payments", icon: Wallet, moduleKey: "accounting", userPermKey: "payments" },
-      { name: "Daily Expenses", sublabel: "دکان کے روزمرہ خرچے", href: "/expenses", icon: Coins, moduleKey: "accounting", userPermKey: "expenses" },
+      { name: "Sales & Invoices", nameUrdu: "سیلز اور انوائسز", href: "/sales", icon: Receipt, moduleKey: "sales", userPermKey: "sales" },
+      { name: "POS Counter", nameUrdu: "پی او ایس کاؤنٹر", href: "/sales/create", icon: ShoppingCart, moduleKey: "pos", userPermKey: "pos" },
+      { name: "Purchases & Bills", nameUrdu: "خریداری اور بلز", href: "/purchases", icon: ShoppingBag, moduleKey: "purchases", userPermKey: "purchases" },
+      { name: "Cash & Payments", nameUrdu: "کیش اور ادائیگیاں", href: "/payments", icon: Wallet, moduleKey: "accounting", userPermKey: "payments" },
+      { name: "Daily Expenses", nameUrdu: "روزمرہ کے اخراجات", href: "/expenses", icon: Coins, moduleKey: "accounting", userPermKey: "expenses" },
     ],
   },
   {
-    section: "کھاتہ و اسٹاک • STOCK & KHATA",
+    section: "STOCK & ACCOUNTS",
+    sectionUrdu: "اسٹاک اور کھاتہ",
     items: [
-      { name: "Inventory & Stock", sublabel: "دکان کا مال و اسٹاک", href: "/inventory", icon: Boxes, moduleKey: "inventory", userPermKey: "inventory" },
-      { name: "Customers (Receivables)", sublabel: "گاہکوں کا ادھار کھاتہ", href: "/customers", icon: Users, moduleKey: "sales", userPermKey: "customers" },
-      { name: "Suppliers (Payables)", sublabel: "سپلائرز کا ادھار کھاتہ", href: "/suppliers", icon: Truck, moduleKey: "purchases", userPermKey: "suppliers" },
-      { name: "Products & Rates", sublabel: "سامان و آئٹم ریٹ لسٹ", href: "/products", icon: Package, moduleKey: "inventory", userPermKey: "products" },
+      { name: "Inventory & Stock", nameUrdu: "انونٹری اور اسٹاک", href: "/inventory", icon: Boxes, moduleKey: "inventory", userPermKey: "inventory" },
+      { name: "Customers (Receivables)", nameUrdu: "کسٹمرز کھاتہ (وصولیاں)", href: "/customers", icon: Users, moduleKey: "sales", userPermKey: "customers" },
+      { name: "Suppliers (Payables)", nameUrdu: "سپلائرز کھاتہ (واجبات)", href: "/suppliers", icon: Truck, moduleKey: "purchases", userPermKey: "suppliers" },
+      { name: "Products & Rates", nameUrdu: "پروڈکٹس اور ریٹس", href: "/products", icon: Package, moduleKey: "inventory", userPermKey: "products" },
     ],
   },
   {
-    section: "ٹیکس اور رپورٹس • REPORTS & TAX",
+    section: "REPORTS & TAX",
+    sectionUrdu: "رپورٹس اور ٹیکس",
     items: [
-      { name: "Closing & Reports", sublabel: "کھاتہ بندش و منافع رپورٹ", href: "/reports", icon: BarChart3, roles: ["SUPER_ADMIN", "ADMIN", "OWNER_ADMIN", "ACCOUNTANT"], moduleKey: "reports", userPermKey: "reports" },
-      { name: "FBR POS Digital", sublabel: "FBR ڈیجیٹل انوائسنگ", href: "/compliance/fbr", icon: ShieldCheck, badge: "FBR Live", moduleKey: "compliance", userPermKey: "compliance" },
-      { name: "General Ledger", sublabel: "ڈبل انٹری جنرل لیجر", href: "/accounting", icon: BookOpen, roles: ["SUPER_ADMIN", "ADMIN", "OWNER_ADMIN", "ACCOUNTANT"], moduleKey: "accounting", userPermKey: "accounting" },
-      { name: "AI Invoice Reader", sublabel: "انوائس اسکینر", href: "/ai-entry", icon: Sparkles, moduleKey: "aiEntry", userPermKey: "aiEntry" },
+      { name: "Closing & Reports", nameUrdu: "کھاتہ بندش و رپورٹس", href: "/reports", icon: BarChart3, roles: ["SUPER_ADMIN", "ADMIN", "OWNER_ADMIN", "ACCOUNTANT"], moduleKey: "reports", userPermKey: "reports" },
+      { name: "FBR POS Digital", nameUrdu: "ایف بی آر ڈیجیٹل", href: "/compliance/fbr", icon: ShieldCheck, badge: "FBR Live", moduleKey: "compliance", userPermKey: "compliance" },
+      { name: "General Ledger", nameUrdu: "جنرل لیجر", href: "/accounting", icon: BookOpen, roles: ["SUPER_ADMIN", "ADMIN", "OWNER_ADMIN", "ACCOUNTANT"], moduleKey: "accounting", userPermKey: "accounting" },
+      { name: "AI Invoice Reader", nameUrdu: "اے آئی انوائس اسکینر", href: "/ai-entry", icon: Sparkles, moduleKey: "aiEntry", userPermKey: "aiEntry" },
     ],
   },
   {
-    section: "ادارہ و ترتیبات • ORGANIZATION",
+    section: "ORGANIZATION",
+    sectionUrdu: "ادارہ اور ترتیبات",
     items: [
-      { name: "Branches & Staff", sublabel: "برانچز و ملازمین", href: "/branches", icon: Store, roles: ["SUPER_ADMIN", "ADMIN", "OWNER_ADMIN"], userPermKey: "branches" },
-      { name: "Activity Log", sublabel: "آڈٹ ٹریک لاگ", href: "/audit-logs", icon: History, roles: ["SUPER_ADMIN", "ADMIN", "OWNER_ADMIN", "ACCOUNTANT"], userPermKey: "accounting" },
-      { name: "Settings & Defaults", sublabel: "کمپنی سیٹنگز", href: "/settings", icon: Settings, roles: ["SUPER_ADMIN", "ADMIN", "OWNER_ADMIN"] },
+      { name: "Branches & Staff", nameUrdu: "برانچز اور اسٹاف", href: "/branches", icon: Store, roles: ["SUPER_ADMIN", "ADMIN", "OWNER_ADMIN"], userPermKey: "branches" },
+      { name: "Activity Log", nameUrdu: "آڈٹ ٹریک لاگ", href: "/audit-logs", icon: History, roles: ["SUPER_ADMIN", "ADMIN", "OWNER_ADMIN", "ACCOUNTANT"], userPermKey: "accounting" },
+      { name: "Settings & Defaults", nameUrdu: "کمپنی سیٹنگز", href: "/settings", icon: Settings, roles: ["SUPER_ADMIN", "ADMIN", "OWNER_ADMIN"] },
     ],
   },
 ];
@@ -108,6 +116,7 @@ const PLATFORM_ADMIN_GROUPS: NavGroup[] = [
 export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () => void }) {
   const pathname = usePathname();
   const { user, activeCompany, companies, isInspectingClient, inspectCompany, exitInspection } = useAuth();
+  const { language } = useLanguage();
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   // Read saved collapse state from localStorage if available
@@ -287,14 +296,16 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
 
             if (filteredItems.length === 0) return null;
 
+            const sectionTitle = language === "ur"
+              ? (group.sectionUrdu || group.section)
+              : (group.section.includes("REPORTS & TAX") && isAccountingOnly ? "REPORTS & LEDGER" : group.section);
+
             return (
               <div key={group.section} className="space-y-1">
                 {/* Section Header */}
                 {!isCollapsed ? (
                   <h3 className="px-2.5 text-[10px] font-bold tracking-wider text-slate-400 dark:text-slate-500 uppercase">
-                    {group.section.includes("REPORTS & TAX") && isAccountingOnly
-                      ? "رپورٹس و لیجر • REPORTS & LEDGER"
-                      : group.section}
+                    {sectionTitle}
                   </h3>
                 ) : (
                   <div className="my-2 border-t border-slate-200 dark:border-slate-800 mx-2" />
@@ -305,13 +316,14 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
                   {filteredItems.map((item) => {
                     const active = isItemActive(item.href);
                     const Icon = item.icon;
+                    const displayName = language === "ur" ? (item.nameUrdu || item.name) : item.name;
 
                     return (
                       <Link
                         key={item.name}
                         href={item.href}
                         onClick={onClose}
-                        title={isCollapsed ? item.name : undefined}
+                        title={isCollapsed ? displayName : undefined}
                         className={`group relative flex items-center gap-3 rounded-xl px-2.5 py-2 text-xs font-semibold transition-all ${
                           active
                             ? "bg-indigo-50/90 text-indigo-700 font-bold border border-indigo-100/90 shadow-2xs dark:bg-indigo-950/60 dark:text-indigo-300 dark:border-indigo-800/60"
@@ -328,13 +340,8 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
                         {!isCollapsed && (
                           <div className="flex flex-col min-w-0 flex-1 leading-snug text-left">
                             <span className="truncate tracking-tight font-semibold">
-                              {item.name}
+                              {displayName}
                             </span>
-                            {item.sublabel && (
-                              <span className="text-[10px] text-slate-400 dark:text-slate-500 font-sans truncate font-normal">
-                                {item.sublabel}
-                              </span>
-                            )}
                           </div>
                         )}
                         {!isCollapsed && item.badge && (

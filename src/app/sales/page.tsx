@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { useAuth } from "@/context/AuthContext";
+import { useLanguage } from "@/context/LanguageContext";
 import { smartFetch, invalidateCache } from "@/lib/clientCache";
 
 interface SaleRecord {
@@ -62,6 +63,7 @@ interface SaleRecord {
 
 export default function SalesPage() {
   const { user, activeCompany, branches, selectedBranch, activeBranchId, isBranchLocked } = useAuth();
+  const { t, language } = useLanguage();
   const isAccountingOnly =
     activeCompany?.packageType === "ACCOUNTING_ONLY" ||
     (activeCompany?.enabledModules && !activeCompany.enabledModules.includes("compliance"));
@@ -432,7 +434,7 @@ export default function SalesPage() {
             >
               <div className="flex items-center justify-between mb-2">
                 <span className={`text-[11px] font-bold uppercase tracking-wide ${cl.lbl}`}>
-                  {card.emoji} {card.label}
+                  {card.emoji} {language === "ur" ? card.urdu : card.label}
                 </span>
                 <span className={`rounded-lg px-1.5 py-0.5 text-[10px] font-bold ${cl.badge}`}>
                   {loading ? "…" : card.count} inv
@@ -442,12 +444,11 @@ export default function SalesPage() {
                 {loading ? "—" : formatMoney(card.amt)}
               </p>
               <p className="mt-1 text-[10px] text-slate-500 dark:text-slate-400">
-                Collected:{" "}
+                {t("Collected:", "وصول شدہ:")}{" "}
                 <span className="font-semibold text-emerald-600 dark:text-emerald-400">
                   {loading ? "—" : formatMoney(card.paid)}
                 </span>
               </p>
-              <p className={`mt-1.5 text-[10px] font-medium opacity-70 ${cl.lbl}`}>{card.urdu}</p>
             </div>
           );
         })}
@@ -460,22 +461,24 @@ export default function SalesPage() {
             <div>
               <div className="flex items-center gap-2">
                 <span className="rounded-md bg-indigo-600 px-2 py-0.5 text-[10px] font-bold text-white uppercase">
-                  Customer Summary (گاہک تفصیلات)
+                  {t("Customer Summary", "گاہک تفصیلات")}
                 </span>
                 <span className="text-sm font-extrabold text-indigo-950 dark:text-indigo-100">
                   {customerFilter}
                 </span>
               </div>
               <p className="mt-1 text-xs text-indigo-900/80 dark:text-indigo-200">
-                Invoices for this customer in filter: <strong>{filteredSales.length} bills</strong> | Total Sales:{" "}
-                <strong>Rs {filteredSales.reduce((acc, s) => acc + Number(s.totalAmount || 0), 0).toLocaleString()}</strong> | Collected:{" "}
+                {t("Invoices in filter:", "بلز:")} <strong>{filteredSales.length}</strong> | {t("Total Sales:", "کل سیلز:")}{" "}
+                <strong>Rs {filteredSales.reduce((acc, s) => acc + Number(s.totalAmount || 0), 0).toLocaleString()}</strong> | {t("Collected:", "وصول:")}{" "}
                 <strong>Rs {filteredSales.reduce((acc, s) => acc + Number(s.paidAmount || 0), 0).toLocaleString()}</strong>
               </p>
             </div>
 
             <div className="flex items-center gap-2">
               <div className="text-right mr-2">
-                <div className="text-[10px] uppercase font-bold text-slate-500">Remaining Receivable (بقیہ وصولی)</div>
+                <div className="text-[10px] uppercase font-bold text-slate-500">
+                  {t("Remaining Receivable", "بقیہ وصولی")}
+                </div>
                 <div className="text-base font-black text-rose-600 dark:text-rose-400">
                   Rs {filteredSales.reduce((acc, s) => acc + Number(s.remainingAmount || 0), 0).toLocaleString()}
                 </div>
@@ -484,7 +487,7 @@ export default function SalesPage() {
                 href="/accounting?tab=LEDGER&type=CUSTOMER"
                 className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-3.5 py-2 text-xs font-bold text-white shadow-sm hover:bg-indigo-700 transition"
               >
-                <span>گاہک کا کھاتہ دیکھیں (Customer Ledger)</span>
+                <span>{t("View Customer Ledger", "گاہک کا کھاتہ دیکھیں")}</span>
               </Link>
             </div>
           </div>
@@ -500,7 +503,7 @@ export default function SalesPage() {
             <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
             <input
               type="text"
-              placeholder="Search by invoice # or customer name..."
+              placeholder={t("Search by invoice # or customer name...", "انوائس نمبر یا گاہک کا نام سرچ کریں...")}
               value={search}
               onChange={(e) => {
                 setSearch(e.target.value);
@@ -524,12 +527,12 @@ export default function SalesPage() {
           {/* Quick Date Pills: Today, Yesterday, This Week, This Month, Custom */}
           <div className="flex items-center gap-1 overflow-x-auto no-scrollbar py-0.5">
             {[
-              { id: "ALL", label: "All Dates" },
-              { id: "TODAY", label: "Today (آج)" },
-              { id: "YESTERDAY", label: "Yesterday (کل)" },
-              { id: "THIS_WEEK", label: "This Week (اس ہفتے)" },
-              { id: "THIS_MONTH", label: "This Month (اس ماہ)" },
-              { id: "CUSTOM", label: "Custom (کسٹم)" },
+              { id: "ALL", label: t("All Dates", "تمام تاریخیں") },
+              { id: "TODAY", label: t("Today", "آج") },
+              { id: "YESTERDAY", label: t("Yesterday", "گزشتہ کل") },
+              { id: "THIS_WEEK", label: t("This Week", "اس ہفتے") },
+              { id: "THIS_MONTH", label: t("This Month", "اس ماہ") },
+              { id: "CUSTOM", label: t("Custom", "کسٹم") },
             ].map((tab) => {
               const isActive = dateFilter === tab.id;
               return (

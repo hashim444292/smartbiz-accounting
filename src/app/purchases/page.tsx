@@ -26,10 +26,12 @@ import { TableRowsSkeleton } from "@/components/ui/loader";
 import { Modal } from "@/components/ui/modal";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/context/AuthContext";
+import { useLanguage } from "@/context/LanguageContext";
 import { smartFetch, invalidateCache } from "@/lib/clientCache";
 
 export default function PurchasesPage() {
   const { user, activeCompany, branches, selectedBranch, activeBranchId, isBranchLocked } = useAuth();
+  const { t, language } = useLanguage();
   const effectiveBranch = isBranchLocked ? user?.branchId : (selectedBranch?.id || activeBranchId || null);
 
   const [purchases, setPurchases] = useState<any[]>([]);
@@ -409,7 +411,7 @@ export default function PurchasesPage() {
             title="Refresh purchases list"
           >
             <RefreshCw className={`h-3.5 w-3.5 text-slate-500 ${loading ? "animate-spin" : ""}`} />
-            <span>تازہ کریں</span>
+            <span>{t("Refresh", "تازہ کریں")}</span>
           </button>
 
           {/* Download / Export CSV */}
@@ -419,7 +421,7 @@ export default function PurchasesPage() {
             title="Export all purchase bills to CSV file"
           >
             <Download className="h-3.5 w-3.5 text-slate-500" />
-            <span>Export CSV</span>
+            <span>{t("Export CSV", "ایکسپورٹ CSV")}</span>
           </button>
 
           {/* Bulk Import CSV */}
@@ -428,14 +430,14 @@ export default function PurchasesPage() {
             className="inline-flex items-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50/70 px-3 py-2 text-xs font-semibold text-indigo-700 shadow-xs hover:bg-indigo-100 transition dark:bg-indigo-950/40 dark:border-indigo-800 dark:text-indigo-300"
           >
             <UploadCloud className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
-            <span>Bulk Import (CSV)</span>
+            <span>{t("Bulk Import", "بلک امپورٹ")}</span>
           </Link>
 
           {/* Add Purchase (Primary Button) */}
           <Link href="/purchases/create">
             <Button variant="primary" size="md" className="gap-1.5 shadow-sm">
               <Plus className="h-4 w-4" />
-              <span>Add Purchase</span>
+              <span>{t("Add Purchase", "نئی خریداری")}</span>
             </Button>
           </Link>
         </div>
@@ -446,23 +448,23 @@ export default function PurchasesPage() {
         <div className="flex items-center gap-2">
           <Building2 className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
           <span>
-            Current Outlet Scope:{" "}
+            {t("Current Outlet Scope:", "موجودہ برانچ / دکان:")}{" "}
             <strong>
               {isBranchLocked
                 ? `${user?.branchName || "Assigned Outlet"} (Fixed Staff Access)`
                 : effectiveBranch
                 ? branches.find((b) => b.id === effectiveBranch)?.name || "Filtered Outlet"
-                : "All Outlets (Consolidated Master View)"}
+                : t("All Outlets (Consolidated Master View)", "تمام برانچز (مشترکہ جائزہ)")}
             </strong>
           </span>
         </div>
         {isBranchLocked ? (
           <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800 dark:bg-amber-900/50 dark:text-amber-300">
-            🔒 Branch Restricted
+            🔒 {t("Branch Restricted", "برانچ پابندی")}
           </span>
         ) : (
           <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-bold text-indigo-800 dark:bg-indigo-900/50 dark:text-indigo-300">
-            👑 Owner Multi-Outlet View
+            👑 {t("Owner Multi-Outlet View", "آنر ویو")}
           </span>
         )}
       </div>
@@ -470,34 +472,42 @@ export default function PurchasesPage() {
       {/* Dynamic Financial Summary KPI Cards (Calculated on Filtered Data) */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs dark:border-slate-800 dark:bg-slate-900">
-          <p className="text-xs font-semibold text-slate-500">Filtered Purchase Bills (کل انوائسز)</p>
+          <p className="text-xs font-semibold text-slate-500">
+            {t("Purchase Bills", "کل خریداری بلز")}
+          </p>
           <p className="mt-1 text-2xl font-black text-slate-900 dark:text-white tabular-nums">
             {filtered.length}
           </p>
           <p className="text-[11px] text-slate-400 mt-0.5">
-            {dateFilter === "ALL" ? "All recorded bills" : `Filtered by ${dateFilter.toLowerCase().replace("_", " ")}`}
+            {dateFilter === "ALL" ? t("All recorded bills", "تمام ریکارڈ شدہ بلز") : `${t("Filter:", "فلٹر:")} ${dateFilter.toLowerCase()}`}
           </p>
         </div>
         <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-4 shadow-xs dark:border-blue-900/40 dark:bg-blue-950/20">
-          <p className="text-xs font-semibold text-blue-700 dark:text-blue-300">Total Purchases Value (کل خریداری)</p>
+          <p className="text-xs font-semibold text-blue-700 dark:text-blue-300">
+            {t("Total Purchases Value", "کل خریداری مالیت")}
+          </p>
           <p className="mt-1 text-2xl font-black text-blue-900 dark:text-blue-100 tabular-nums">
             {formatMoney(filtered.reduce((acc, p) => acc + Number(p.totalAmount || 0), 0))}
           </p>
-          <p className="text-[11px] text-blue-600/70 dark:text-blue-400 mt-0.5">Gross purchased merchandise</p>
+          <p className="text-[11px] text-blue-600/70 dark:text-blue-400 mt-0.5">{t("Gross purchased merchandise", "کل خریدا گیا مال")}</p>
         </div>
         <div className="rounded-2xl border border-emerald-100 bg-emerald-50/50 p-4 shadow-xs dark:border-emerald-900/40 dark:bg-emerald-950/20">
-          <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">Total Paid (ادا شدہ رقم)</p>
+          <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+            {t("Total Paid", "کل ادا شدہ رقم")}
+          </p>
           <p className="mt-1 text-2xl font-black text-emerald-900 dark:text-emerald-100 tabular-nums">
             {formatMoney(filtered.reduce((acc, p) => acc + Number(p.paidAmount || 0), 0))}
           </p>
-          <p className="text-[11px] text-emerald-600/70 dark:text-emerald-400 mt-0.5">Settled to suppliers</p>
+          <p className="text-[11px] text-emerald-600/70 dark:text-emerald-400 mt-0.5">{t("Settled to suppliers", "سپلائرز کو ادا شدہ")}</p>
         </div>
         <div className="rounded-2xl border border-rose-100 bg-rose-50/50 p-4 shadow-xs dark:border-rose-900/40 dark:bg-rose-950/20">
-          <p className="text-xs font-semibold text-rose-700 dark:text-rose-300">Remaining Payables (بقیہ واجب الادا)</p>
+          <p className="text-xs font-semibold text-rose-700 dark:text-rose-300">
+            {t("Remaining Payables", "بقیہ واجب الادا")}
+          </p>
           <p className="mt-1 text-2xl font-black text-rose-900 dark:text-rose-100 tabular-nums">
             {formatMoney(filtered.reduce((acc, p) => acc + Number(p.remainingAmount || 0), 0))}
           </p>
-          <p className="text-[11px] text-rose-600/70 dark:text-rose-400 mt-0.5">Outstanding supplier balances</p>
+          <p className="text-[11px] text-rose-600/70 dark:text-rose-400 mt-0.5">{t("Outstanding supplier balances", "سپلائر کے بقایا جات")}</p>
         </div>
       </div>
 
@@ -508,7 +518,7 @@ export default function PurchasesPage() {
             <div>
               <div className="flex items-center gap-2">
                 <span className="rounded-md bg-blue-600 px-2 py-0.5 text-[10px] font-bold text-white uppercase">
-                  Vendor Summary (وینڈر تفصیلات)
+                  {t("Vendor Summary", "وینڈر تفصیلات")}
                 </span>
                 <span className="text-sm font-extrabold text-blue-950 dark:text-blue-100">
                   {selectedSupplierObj.name}
@@ -520,15 +530,17 @@ export default function PurchasesPage() {
                 )}
               </div>
               <p className="mt-1 text-xs text-blue-900/80 dark:text-blue-200">
-                Purchases from this vendor in filter: <strong>{filtered.length} bills</strong> | Total Value:{" "}
-                <strong>Rs {filtered.reduce((acc, p) => acc + Number(p.totalAmount || 0), 0).toLocaleString()}</strong> | Paid:{" "}
+                {t("Bills in filter:", "بلز:")} <strong>{filtered.length}</strong> | {t("Total:", "کل:")}{" "}
+                <strong>Rs {filtered.reduce((acc, p) => acc + Number(p.totalAmount || 0), 0).toLocaleString()}</strong> | {t("Paid:", "ادا:")}{" "}
                 <strong>Rs {filtered.reduce((acc, p) => acc + Number(p.paidAmount || 0), 0).toLocaleString()}</strong>
               </p>
             </div>
 
             <div className="flex items-center gap-2">
               <div className="text-right mr-2">
-                <div className="text-[10px] uppercase font-bold text-slate-500">Current Outstanding (کل بقایا)</div>
+                <div className="text-[10px] uppercase font-bold text-slate-500">
+                  {t("Current Outstanding", "کل بقایا")}
+                </div>
                 <div className="text-base font-black text-rose-600 dark:text-rose-400">
                   Rs {Number(selectedSupplierObj.currentBalance || 0).toLocaleString()}
                 </div>
@@ -538,7 +550,7 @@ export default function PurchasesPage() {
                 className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-3.5 py-2 text-xs font-bold text-white shadow-sm hover:bg-blue-700 transition"
               >
                 <BookOpen className="h-3.5 w-3.5" />
-                <span>مکمل کھاتہ دیکھیں (View Full Ledger)</span>
+                <span>{t("View Full Ledger", "مکمل کھاتہ دیکھیں")}</span>
               </Link>
             </div>
           </div>
@@ -553,7 +565,7 @@ export default function PurchasesPage() {
             <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
             <input
               type="text"
-              placeholder="Search by purchase # or item..."
+              placeholder={t("Search by purchase # or item...", "بل نمبر یا آئٹم سرچ کریں...")}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full rounded-xl border border-slate-300 bg-slate-50 pl-9 pr-3 py-1.5 text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
@@ -563,14 +575,14 @@ export default function PurchasesPage() {
           {/* Supplier Dropdown Filter */}
           <div className="flex items-center gap-2">
             <span className="text-xs font-bold text-slate-700 dark:text-slate-300 whitespace-nowrap">
-              وینڈر (Supplier):
+              {t("Supplier:", "سپلائر:")}
             </span>
             <select
               value={selectedSupplier}
               onChange={(e) => setSelectedSupplier(e.target.value)}
               className="rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 shadow-xs focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
             >
-              <option value="ALL">All Suppliers (تمام وینڈرز)</option>
+              <option value="ALL">{t("All Suppliers", "تمام وینڈرز")}</option>
               {suppliers.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.name} {s.phone ? `(${s.phone})` : ""}
@@ -582,11 +594,11 @@ export default function PurchasesPage() {
           {/* Date Filter Pills */}
           <div className="flex items-center gap-1 overflow-x-auto py-0.5">
             {[
-              { id: "ALL", label: "تمام (All)" },
-              { id: "TODAY", label: "آج (Today)" },
-              { id: "THIS_WEEK", label: "اس ہفتے (This Week)" },
-              { id: "THIS_MONTH", label: "اس ماہ (This Month)" },
-              { id: "CUSTOM", label: "کسٹم (Custom)" },
+              { id: "ALL", label: t("All", "تمام") },
+              { id: "TODAY", label: t("Today", "آج") },
+              { id: "THIS_WEEK", label: t("This Week", "اس ہفتے") },
+              { id: "THIS_MONTH", label: t("This Month", "اس ماہ") },
+              { id: "CUSTOM", label: t("Custom", "کسٹم") },
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -608,7 +620,7 @@ export default function PurchasesPage() {
         {dateFilter === "CUSTOM" && (
           <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-slate-100 dark:border-slate-800">
             <div className="flex items-center gap-1.5">
-              <span className="text-xs font-semibold text-slate-500">تاریخ سے (From Date):</span>
+              <span className="text-xs font-semibold text-slate-500">{t("From Date:", "تاریخ سے:")}</span>
               <input
                 type="date"
                 value={startDate}
@@ -617,7 +629,7 @@ export default function PurchasesPage() {
               />
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="text-xs font-semibold text-slate-500">تاریخ تک (To Date):</span>
+              <span className="text-xs font-semibold text-slate-500">{t("To Date:", "تاریخ تک:")}</span>
               <input
                 type="date"
                 value={endDate}
@@ -634,15 +646,15 @@ export default function PurchasesPage() {
           <table className="w-full text-left text-xs text-slate-600 dark:text-slate-300">
             <thead className="border-b border-slate-200 bg-slate-50/75 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-400">
               <tr>
-                <th className="px-4 py-3">Purchase #</th>
-                <th className="px-4 py-3">Date</th>
-                <th className="px-4 py-3">Supplier</th>
-                <th className="px-4 py-3">Created By (بنایا گیا)</th>
-                <th className="px-4 py-3 text-right">Total Cost</th>
-                <th className="px-4 py-3 text-right">Paid</th>
-                <th className="px-4 py-3 text-right">Payable Balance</th>
-                <th className="px-4 py-3 text-center">Status</th>
-                <th className="px-4 py-3 text-right">Actions</th>
+                <th className="px-4 py-3">{t("Purchase #", "خریداری نمبر")}</th>
+                <th className="px-4 py-3">{t("Date", "تاریخ")}</th>
+                <th className="px-4 py-3">{t("Supplier", "سپلائر")}</th>
+                <th className="px-4 py-3">{t("Created By", "اندراج کنندہ")}</th>
+                <th className="px-4 py-3 text-right">{t("Total Cost", "کل رقم")}</th>
+                <th className="px-4 py-3 text-right">{t("Paid", "ادا شدہ")}</th>
+                <th className="px-4 py-3 text-right">{t("Payable Balance", "واجب الادا بقایا")}</th>
+                <th className="px-4 py-3 text-center">{t("Status", "حیثیت")}</th>
+                <th className="px-4 py-3 text-right">{t("Actions", "ایکشنز")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">

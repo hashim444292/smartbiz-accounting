@@ -27,6 +27,7 @@ import {
 import { BrandPageLoader, TableSkeleton } from "@/components/ui/loader";
 import { smartFetch, invalidateCache } from "@/lib/clientCache";
 import { useAuth } from "@/context/AuthContext";
+import { useLanguage } from "@/context/LanguageContext";
 
 type TabType = "LEDGER" | "JOURNALS" | "ACCOUNTS" | "TRIAL_BALANCE";
 type LedgerType = "VENDOR" | "CUSTOMER" | "ACCOUNT";
@@ -46,6 +47,7 @@ interface LedgerEntry {
 
 function AccountingContent() {
   const { activeCompany } = useAuth();
+  const { t, language } = useLanguage();
   const searchParams = useSearchParams();
 
   // Tab & Filter States
@@ -831,10 +833,13 @@ function AccountingContent() {
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">
-            Double-Entry Accounting & Ledger Engine
+            {t("Double-Entry Accounting & Ledger Engine", "ڈبل انٹری اکاؤنٹنگ و جنرل لیجر")}
           </h2>
           <p className="text-xs text-slate-500">
-            جنرل لیجر، وینڈر/سپلائر کھاتہ، کسٹمر کھاتہ، چارٹ آف اکاؤنٹس، اور روزنامچہ
+            {t(
+              "General ledger, vendor & customer subsidiary accounts, chart of accounts, and journals",
+              "جنرل لیجر، وینڈر/سپلائر کھاتہ، کسٹمر کھاتہ، کھاتوں کی فہرست، اور روزنامچہ"
+            )}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -847,11 +852,11 @@ function AccountingContent() {
             className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-xs hover:bg-slate-50 transition dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200"
           >
             <RefreshCw className={`h-3.5 w-3.5 text-slate-500 ${loading ? "animate-spin" : ""}`} />
-            <span>تازہ کریں (Refresh)</span>
+            <span>{t("Refresh", "تازہ کریں")}</span>
           </button>
           <div className="flex items-center gap-1.5 rounded-lg bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
             <CheckCircle2 className="h-4 w-4" />
-            <span>Double-Entry Balanced: Debits = Credits</span>
+            <span>{t("Double-Entry Balanced: Debits = Credits", "ڈبل انٹری بیلنس: ڈیبٹ = کریڈٹ")}</span>
           </div>
         </div>
       </div>
@@ -867,7 +872,7 @@ function AccountingContent() {
           }`}
         >
           <BookOpen className="h-4 w-4" />
-          <span>General Ledger & Party Statement (کھاتہ / لیجر)</span>
+          <span>{t("General Ledger & Statement", "جنرل لیجر اور کھاتہ اسٹیٹمنٹ")}</span>
         </button>
 
         <button
@@ -879,7 +884,7 @@ function AccountingContent() {
           }`}
         >
           <FileText className="h-4 w-4" />
-          <span>Journal Entries ({journals.length}) (روزنامچہ)</span>
+          <span>{t(`Journal Entries (${journals.length})`, `روزنامچہ (${journals.length})`)}</span>
         </button>
 
         <button
@@ -891,7 +896,7 @@ function AccountingContent() {
           }`}
         >
           <Building2 className="h-4 w-4" />
-          <span>Chart of Accounts ({accounts.length}) (کھاتے)</span>
+          <span>{t(`Chart of Accounts (${accounts.length})`, `کھاتوں کی فہرست (${accounts.length})`)}</span>
         </button>
 
         <button
@@ -903,7 +908,7 @@ function AccountingContent() {
           }`}
         >
           <Scale className="h-4 w-4" />
-          <span>Trial Balance (میزان پرتال)</span>
+          <span>{t("Trial Balance", "میزان پرتال")}</span>
         </button>
       </div>
 
@@ -917,7 +922,9 @@ function AccountingContent() {
             {/* Top row: Ledger Scope Selector (Vendor / Customer / Chart of Accounts) */}
             <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
               <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-slate-700 dark:text-slate-300">لیجر کی قسم (Scope):</span>
+                <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                  {t("Ledger Scope:", "لیجر کی قسم:")}
+                </span>
                 <div className="inline-flex rounded-xl bg-slate-100 p-1 dark:bg-slate-800">
                   <button
                     type="button"
@@ -928,7 +935,7 @@ function AccountingContent() {
                         : "text-slate-600 hover:text-slate-900 dark:text-slate-400"
                     }`}
                   >
-                    🏢 Vendor / Supplier (وینڈر کھاتہ)
+                    🏢 {t("Vendor / Supplier", "وینڈر / سپلائر کھاتہ")}
                   </button>
                   <button
                     type="button"
@@ -939,7 +946,7 @@ function AccountingContent() {
                         : "text-slate-600 hover:text-slate-900 dark:text-slate-400"
                     }`}
                   >
-                    👤 Customer (گاہک کھاتہ)
+                    👤 {t("Customer", "گاہک کھاتہ")}
                   </button>
                   <button
                     type="button"
@@ -950,7 +957,7 @@ function AccountingContent() {
                         : "text-slate-600 hover:text-slate-900 dark:text-slate-400"
                     }`}
                   >
-                    📑 Chart Head (جنرل لیجر)
+                    📑 {t("Chart Head", "جنرل لیجر")}
                   </button>
                 </div>
               </div>
@@ -964,7 +971,7 @@ function AccountingContent() {
                   title="Print official A4 Statement of Account"
                 >
                   <Printer className="h-3.5 w-3.5 text-slate-500" />
-                  <span>پرنٹ کھاتہ (Print Statement)</span>
+                  <span>{t("Print Statement", "پرنٹ کھاتہ")}</span>
                 </button>
                 <button
                   type="button"
@@ -973,7 +980,7 @@ function AccountingContent() {
                   title="Export ledger entries to CSV"
                 >
                   <Download className="h-3.5 w-3.5 text-slate-500" />
-                  <span>CSV Export</span>
+                  <span>{t("Export CSV", "ایکسپورٹ CSV")}</span>
                 </button>
               </div>
             </div>
@@ -983,10 +990,10 @@ function AccountingContent() {
               <div>
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
                   {ledgerType === "VENDOR"
-                    ? "وینڈر / سپلائر منتخب کریں (Select Vendor):"
+                    ? t("Select Vendor / Supplier:", "وینڈر / سپلائر منتخب کریں:")
                     : ledgerType === "CUSTOMER"
-                    ? "گاہک منتخب کریں (Select Customer):"
-                    : "اکاؤنٹ ہیڈ منتخب کریں (Select Account Head):"}
+                    ? t("Select Customer:", "گاہک منتخب کریں:")
+                    : t("Select Account Head:", "اکاؤنٹ ہیڈ منتخب کریں:")}
                 </label>
                 <select
                   value={selectedEntityId}
@@ -996,13 +1003,13 @@ function AccountingContent() {
                   {ledgerType === "VENDOR" &&
                     suppliers.map((s) => (
                       <option key={s.id} value={s.id}>
-                        {s.name} {s.phone ? `(${s.phone})` : ""} — Current: Rs {Number(s.currentBalance || 0).toLocaleString()}
+                        {s.name} {s.phone ? `(${s.phone})` : ""} — Balance: Rs {Number(s.currentBalance || 0).toLocaleString()}
                       </option>
                     ))}
                   {ledgerType === "CUSTOMER" &&
                     customers.map((c) => (
                       <option key={c.id} value={c.id}>
-                        {c.name} {c.phone ? `(${c.phone})` : ""} — Current: Rs {Number(c.currentBalance || 0).toLocaleString()}
+                        {c.name} {c.phone ? `(${c.phone})` : ""} — Balance: Rs {Number(c.currentBalance || 0).toLocaleString()}
                       </option>
                     ))}
                   {ledgerType === "ACCOUNT" &&
@@ -1017,16 +1024,16 @@ function AccountingContent() {
               {/* Date Filter Pills */}
               <div className="md:col-span-2 space-y-1">
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  تاریخ کی حد (Date Range Filter):
+                  {t("Date Range Filter:", "تاریخ کی حد:")}
                 </label>
                 <div className="flex flex-wrap items-center gap-1.5">
                   {[
-                    { id: "ALL", label: "تمام ریکارڈ (All Time)" },
-                    { id: "TODAY", label: "آج (Today)" },
-                    { id: "THIS_WEEK", label: "اس ہفتے (This Week)" },
-                    { id: "THIS_MONTH", label: "اس ماہ (This Month)" },
-                    { id: "THIS_YEAR", label: "اس سال (This Year)" },
-                    { id: "CUSTOM", label: "کسٹم تاریخیں (Custom)" },
+                    { id: "ALL", label: t("All Time", "تمام ریکارڈ") },
+                    { id: "TODAY", label: t("Today", "آج") },
+                    { id: "THIS_WEEK", label: t("This Week", "اس ہفتے") },
+                    { id: "THIS_MONTH", label: t("This Month", "اس ماہ") },
+                    { id: "THIS_YEAR", label: t("This Year", "اس سال") },
+                    { id: "CUSTOM", label: t("Custom", "کسٹم تاریخیں") },
                   ].map((btn) => (
                     <button
                       key={btn.id}
@@ -1050,7 +1057,7 @@ function AccountingContent() {
               {dateFilter === "CUSTOM" && (
                 <div className="flex items-center gap-2">
                   <div className="flex items-center gap-1.5">
-                    <span className="text-xs font-semibold text-slate-500">از (From):</span>
+                    <span className="text-xs font-semibold text-slate-500">{t("From:", "از:")}</span>
                     <input
                       type="date"
                       value={startDate}
@@ -1059,7 +1066,7 @@ function AccountingContent() {
                     />
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <span className="text-xs font-semibold text-slate-500">تا (To):</span>
+                    <span className="text-xs font-semibold text-slate-500">{t("To:", "تا:")}</span>
                     <input
                       type="date"
                       value={endDate}
@@ -1075,7 +1082,7 @@ function AccountingContent() {
                 <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-slate-400" />
                 <input
                   type="text"
-                  placeholder="اندراج یا واؤچر نمبر سرچ کریں..."
+                  placeholder={t("Search reference or narration...", "اندراج یا واؤچر نمبر سرچ کریں...")}
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="w-full rounded-xl border border-slate-300 bg-slate-50 pl-8 pr-3 py-1.5 text-xs focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
@@ -1092,7 +1099,7 @@ function AccountingContent() {
             <div className="rounded-2xl border border-blue-200 bg-blue-50/60 p-3.5 shadow-xs dark:border-blue-900/40 dark:bg-blue-950/20">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-bold uppercase text-blue-700 dark:text-blue-300">
-                  ابتدائی بقایا (Opening)
+                  {t("Opening Balance", "ابتدائی بقایا")}
                 </span>
                 <span className="rounded-md bg-blue-200/60 px-1.5 py-0.5 text-[10px] font-bold text-blue-800 dark:bg-blue-900 dark:text-blue-200">
                   {ledgerCalculation.openingBalanceType}
@@ -1103,10 +1110,10 @@ function AccountingContent() {
               </p>
               <p className="mt-0.5 text-[10px] text-blue-700/80 dark:text-blue-300">
                 {ledgerType === "VENDOR"
-                  ? "B/F Payable before period"
+                  ? t("B/F Payable before period", "سابقہ واجب الادا بقایا")
                   : ledgerType === "CUSTOMER"
-                  ? "B/F Receivable before period"
-                  : "Opening Head Balance"}
+                  ? t("B/F Receivable before period", "سابقہ واجب الوصول بقایا")
+                  : t("Opening Head Balance", "ابتدائی ہیڈ بیلنس")}
               </p>
             </div>
 
@@ -1114,7 +1121,7 @@ function AccountingContent() {
             <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-3.5 shadow-xs dark:border-emerald-900/40 dark:bg-emerald-950/20">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-bold uppercase text-emerald-700 dark:text-emerald-300">
-                  کل ڈیبٹ (Total Debits)
+                  {t("Total Debits", "کل ڈیبٹ")}
                 </span>
                 <ArrowDownLeft className="h-4 w-4 text-emerald-600" />
               </div>
@@ -1122,7 +1129,9 @@ function AccountingContent() {
                 {formatMoney(ledgerCalculation.periodDebit)}
               </p>
               <p className="mt-0.5 text-[10px] text-emerald-700/80 dark:text-emerald-300">
-                {ledgerType === "VENDOR" ? "ادائیگیاں (Payments made)" : "انوائسز (Sales Invoiced)"}
+                {ledgerType === "VENDOR"
+                  ? t("Payments made", "ادائیگیاں")
+                  : t("Sales Invoiced", "انوائسز")}
               </p>
             </div>
 
@@ -1130,7 +1139,7 @@ function AccountingContent() {
             <div className="rounded-2xl border border-rose-200 bg-rose-50/60 p-3.5 shadow-xs dark:border-rose-900/40 dark:bg-rose-950/20">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-bold uppercase text-rose-700 dark:text-rose-300">
-                  کل کریڈٹ (Total Credits)
+                  {t("Total Credits", "کل کریڈٹ")}
                 </span>
                 <ArrowUpRight className="h-4 w-4 text-rose-600" />
               </div>
@@ -1138,7 +1147,9 @@ function AccountingContent() {
                 {formatMoney(ledgerCalculation.periodCredit)}
               </p>
               <p className="mt-0.5 text-[10px] text-rose-700/80 dark:text-rose-300">
-                {ledgerType === "VENDOR" ? "خریداری بلز (Purchase Bills)" : "وصولیاں (Cash Received)"}
+                {ledgerType === "VENDOR"
+                  ? t("Purchase Bills", "خریداری بلز")
+                  : t("Cash Received", "وصولیاں")}
               </p>
             </div>
 
@@ -1146,7 +1157,7 @@ function AccountingContent() {
             <div className="rounded-2xl border border-purple-200 bg-purple-50/60 p-3.5 shadow-xs dark:border-purple-900/40 dark:bg-purple-950/20">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-bold uppercase text-purple-700 dark:text-purple-300">
-                  ردوبدل (Net Movement)
+                  {t("Net Movement", "ردوبدل")}
                 </span>
                 <span className="text-xs">🔄</span>
               </div>
@@ -1154,14 +1165,18 @@ function AccountingContent() {
                 {formatMoney(Math.abs(ledgerCalculation.netMovement))}
               </p>
               <p className="mt-0.5 text-[10px] text-purple-700/80 dark:text-purple-300">
-                {ledgerCalculation.netMovement >= 0 ? "Net Addition (+)" : "Net Reduction (-)"}
+                {ledgerCalculation.netMovement >= 0
+                  ? t("Net Addition (+)", "خالص اضافہ (+)")
+                  : t("Net Reduction (-)", "خالص کمی (-)")}
               </p>
             </div>
 
             {/* 5. Closing Balance */}
             <div className="rounded-2xl border border-slate-900 bg-slate-900 p-3.5 text-white shadow-sm dark:border-slate-700 dark:bg-slate-800">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold uppercase text-slate-300">اختتامی بقایا (Closing)</span>
+                <span className="text-[11px] font-bold uppercase text-slate-300">
+                  {t("Closing Balance", "اختتامی بقایا")}
+                </span>
                 <Badge variant={ledgerCalculation.closingBalanceType === "CR" ? "danger" : "success"}>
                   {ledgerCalculation.closingBalanceType}
                 </Badge>
@@ -1172,13 +1187,13 @@ function AccountingContent() {
               <p className="mt-0.5 text-[10px] text-slate-400">
                 {ledgerType === "VENDOR"
                   ? ledgerCalculation.closingBalanceType === "CR"
-                    ? "واجب الادا رقم (Payable to Vendor)"
-                    : "پیشگی ادا شدہ (Advance Paid)"
+                    ? t("Payable to Vendor", "واجب الادا رقم")
+                    : t("Advance Paid", "پیشگی ادا شدہ")
                   : ledgerType === "CUSTOMER"
                   ? ledgerCalculation.closingBalanceType === "DR"
-                    ? "قابل وصول رقم (Receivable)"
-                    : "پیشگی وصول شدہ (Advance Recvd)"
-                  : "Closing Account Balance"}
+                    ? t("Receivable from Customer", "قابل وصول رقم")
+                    : t("Advance Received", "پیشگی وصول شدہ")
+                  : t("Closing Head Balance", "اختتامی ہیڈ بیلنس")}
               </p>
             </div>
           </div>
@@ -1193,14 +1208,17 @@ function AccountingContent() {
                   {ledgerCalculation.entity
                     ? (ledgerCalculation.entity as any).name || (ledgerCalculation.entity as any).code
                     : "Ledger"}{" "}
-                  — Detailed Transactions (کھاتہ تفصیلات)
+                  — {t("Detailed Transactions", "کھاتہ تفصیلات")}
                 </h3>
                 <p className="text-[11px] text-slate-400">
-                  Every debit, credit, and running balance calculation recorded in double-entry sequence
+                  {t(
+                    "Double-entry chronological statement of debits, credits, and progressive running balance",
+                    "ڈبل انٹری کے مطابق تمام ڈیبٹ، کریڈٹ اور رواں بقایا کی مکمل تفصیل"
+                  )}
                 </p>
               </div>
               <span className="rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-300">
-                {filteredLedgerLines.length} transactions
+                {filteredLedgerLines.length} {t("transactions", "اندراجات")}
               </span>
             </div>
 
@@ -1208,13 +1226,13 @@ function AccountingContent() {
               <table className="w-full text-left text-xs text-slate-600 dark:text-slate-300">
                 <thead className="border-b border-slate-200 bg-slate-50/80 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:border-slate-800 dark:bg-slate-800/50">
                   <tr>
-                    <th className="px-4 py-3">تاریخ (Date)</th>
-                    <th className="px-4 py-3">واؤچر / ریفرنس #</th>
-                    <th className="px-4 py-3">قسم (Type)</th>
-                    <th className="px-4 py-3">تفصیلات و اندراج (Particulars)</th>
-                    <th className="px-4 py-3 text-right">ڈیبٹ (Debit - Rs)</th>
-                    <th className="px-4 py-3 text-right">کریڈٹ (Credit - Rs)</th>
-                    <th className="px-4 py-3 text-right">رواں بقایا (Running Balance)</th>
+                    <th className="px-4 py-3">{t("Date", "تاریخ")}</th>
+                    <th className="px-4 py-3">{t("Voucher / Ref #", "واؤچر / ریفرنس #")}</th>
+                    <th className="px-4 py-3">{t("Type", "قسم")}</th>
+                    <th className="px-4 py-3">{t("Particulars / Narration", "تفصیلات و اندراج")}</th>
+                    <th className="px-4 py-3 text-right">{t("Debit (Rs)", "ڈیبٹ (روپے)")}</th>
+                    <th className="px-4 py-3 text-right">{t("Credit (Rs)", "کریڈٹ (روپے)")}</th>
+                    <th className="px-4 py-3 text-right">{t("Running Balance (Rs)", "رواں بقایا (روپے)")}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -1228,7 +1246,7 @@ function AccountingContent() {
                       </span>
                     </td>
                     <td className="px-4 py-3 font-semibold">
-                      Opening Balance Brought Forward (ابتدائی بیلنس / سابقہ بقایا)
+                      {t("Opening Balance Brought Forward", "ابتدائی بیلنس / سابقہ بقایا")}
                     </td>
                     <td className="px-4 py-3 text-right font-mono">
                       {ledgerCalculation.openingBalanceType === "DR"
@@ -1250,7 +1268,10 @@ function AccountingContent() {
                   {filteredLedgerLines.length === 0 ? (
                     <tr>
                       <td colSpan={7} className="py-8 text-center text-xs text-slate-400">
-                        اس منتخب کردہ تاریخوں میں کوئی نیا لین دین نہیں ہے۔ ابتدائی بیلنس برقرار ہے۔
+                        {t(
+                          "No transactions recorded within selected date range. Opening balance holds.",
+                          "اس منتخب کردہ تاریخوں میں کوئی نیا لین دین نہیں ہے۔ ابتدائی بیلنس برقرار ہے۔"
+                        )}
                       </td>
                     </tr>
                   ) : (
@@ -1304,7 +1325,7 @@ function AccountingContent() {
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      Closing Balance Carried Down (اختتامی بقایا - کھاتہ بندش)
+                      {t("Closing Balance Carried Down", "اختتامی بقایا / کھاتہ بندش")}
                     </td>
                     <td className="px-4 py-3 text-right font-mono text-emerald-700 dark:text-emerald-400">
                       {formatMoney(ledgerCalculation.periodDebit)}
@@ -1335,7 +1356,7 @@ function AccountingContent() {
               <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
               <input
                 type="text"
-                placeholder="Search by journal # or description..."
+                placeholder={t("Search by journal # or description...", "روزنامچہ یا تفصیلات سرچ کریں...")}
                 value={journalSearch}
                 onChange={(e) => setJournalSearch(e.target.value)}
                 className="w-full rounded-xl border border-slate-300 bg-slate-50 pl-9 pr-3 py-1.5 text-xs focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
@@ -1348,10 +1369,10 @@ function AccountingContent() {
                 onChange={(e) => setJournalDateFilter(e.target.value as any)}
                 className="rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
               >
-                <option value="ALL">All Dates (تمام تاریخیں)</option>
-                <option value="TODAY">Today (آج)</option>
-                <option value="THIS_WEEK">This Week (اس ہفتے)</option>
-                <option value="THIS_MONTH">This Month (اس ماہ)</option>
+                <option value="ALL">{t("All Dates", "تمام تاریخیں")}</option>
+                <option value="TODAY">{t("Today", "آج")}</option>
+                <option value="THIS_WEEK">{t("This Week", "اس ہفتے")}</option>
+                <option value="THIS_MONTH">{t("This Month", "اس ماہ")}</option>
               </select>
 
               <select
@@ -1359,7 +1380,7 @@ function AccountingContent() {
                 onChange={(e) => setJournalAccountFilter(e.target.value)}
                 className="rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
               >
-                <option value="ALL">All Accounts (تمام کھاتے)</option>
+                <option value="ALL">{t("All Accounts", "تمام کھاتے")}</option>
                 {accounts.map((a) => (
                   <option key={a.id} value={a.id}>
                     [{a.code}] {a.name}
@@ -1371,7 +1392,7 @@ function AccountingContent() {
 
           {filteredJournals.length === 0 ? (
             <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center text-xs text-slate-400 dark:border-slate-800 dark:bg-slate-900">
-              No journal entries match the selected filter.
+              {t("No journal entries match the selected filter.", "منتخب کردہ فلٹر کے مطابق کوئی روزنامچہ اندراج نہیں ملا۔")}
             </div>
           ) : (
             filteredJournals.map((j) => (
@@ -1388,7 +1409,7 @@ function AccountingContent() {
                     <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">{j.description}</span>
                   </div>
                   <Badge variant={j.isBalanced ? "success" : "danger"}>
-                    {j.isBalanced ? "Balanced" : "Unbalanced"}
+                    {j.isBalanced ? t("Balanced", "برابر") : t("Unbalanced", "غیر برابر")}
                   </Badge>
                 </div>
 
@@ -1396,10 +1417,10 @@ function AccountingContent() {
                   <table className="w-full text-left text-xs">
                     <thead className="text-[10px] font-bold uppercase text-slate-400">
                       <tr>
-                        <th className="pb-1">Account Code & Title</th>
-                        <th className="pb-1">Line Description</th>
-                        <th className="pb-1 text-right">Debit (Rs)</th>
-                        <th className="pb-1 text-right">Credit (Rs)</th>
+                        <th className="pb-1">{t("Account Code & Title", "کھاتہ کوڈ و نام")}</th>
+                        <th className="pb-1">{t("Line Description", "تفصیل")}</th>
+                        <th className="pb-1 text-right">{t("Debit (Rs)", "ڈیبٹ (روپے)")}</th>
+                        <th className="pb-1 text-right">{t("Credit (Rs)", "کریڈٹ (روپے)")}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
@@ -1478,7 +1499,7 @@ function AccountingContent() {
                       }}
                       className="rounded-lg bg-blue-50 px-2 py-1 text-[11px] font-bold text-blue-700 hover:bg-blue-100 dark:bg-blue-900/40 dark:text-blue-300"
                     >
-                      کھاتہ دیکھیں (View Ledger)
+                      {t("View Ledger", "کھاتہ دیکھیں")}
                     </button>
                   </td>
                 </tr>
@@ -1495,12 +1516,16 @@ function AccountingContent() {
         <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
           <div className="pb-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
             <div>
-              <h3 className="text-base font-bold text-slate-900 dark:text-white">Trial Balance Statement (میزان پرتال)</h3>
-              <p className="text-xs text-slate-500">Summary of all debit and credit account balances</p>
+              <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                {t("Trial Balance Statement", "میزان پرتال اسٹیٹمنٹ")}
+              </h3>
+              <p className="text-xs text-slate-500">
+                {t("Summary of all debit and credit account balances", "تمام ڈیبٹ اور کریڈٹ کھاتوں کے حتمی بیلنس کا خلاصہ")}
+              </p>
             </div>
             <div className="text-right">
               <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-lg dark:bg-emerald-950/40 dark:text-emerald-300">
-                Balanced (برابر ہے)
+                {t("Balanced", "برابر ہے")}
               </span>
             </div>
           </div>

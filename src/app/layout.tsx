@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { AppShell } from "@/components/layout/AppShell";
 import { ThemeProvider } from "@/context/ThemeContext";
+import { LanguageProvider } from "@/context/LanguageContext";
 
 export const metadata: Metadata = {
   title: "accounts360.live | Financial Accounting, Multi-Company Ledger & FBR POS",
@@ -41,7 +42,9 @@ export default function RootLayout({
       </head>
       <body className="min-h-screen bg-slate-50 text-slate-900 antialiased dark:bg-[#0B1120] dark:text-slate-100 transition-colors duration-150">
         <ThemeProvider>
-          <AppShell>{children}</AppShell>
+          <LanguageProvider>
+            <AppShell>{children}</AppShell>
+          </LanguageProvider>
         </ThemeProvider>
       </body>
     </html>

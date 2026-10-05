@@ -26,10 +26,12 @@ import {
   Bell,
   AlertTriangle,
   Clock,
+  Languages,
 } from "lucide-react";
 import { DateRangeSelector } from "./DateRangeSelector";
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
+import { useLanguage } from "@/context/LanguageContext";
 import { smartFetch } from "@/lib/clientCache";
 
 export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
@@ -50,6 +52,7 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
   } = useAuth();
   const isAccountingOnly = activeCompany?.packageType === "ACCOUNTING_ONLY" || (activeCompany?.enabledModules && !activeCompany.enabledModules.includes("compliance"));
   const { theme, resolvedTheme, setTheme, toggleTheme, font, setFont, fontOptions } = useTheme();
+  const { language, setLanguage, t } = useLanguage();
   const router = useRouter();
   const pathname = usePathname();
 
@@ -62,6 +65,10 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
   const [switchingUserId, setSwitchingUserId] = useState<string | null>(null);
+
+  // Language switcher dropdown state
+  const [langMenuOpen, setLangMenuOpen] = useState(false);
+  const langMenuRef = useRef<HTMLDivElement>(null);
 
   // Theme switcher dropdown state
   const [themeMenuOpen, setThemeMenuOpen] = useState(false);
@@ -119,6 +126,9 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
       }
       if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
         setUserMenuOpen(false);
+      }
+      if (langMenuRef.current && !langMenuRef.current.contains(event.target as Node)) {
+        setLangMenuOpen(false);
       }
       if (themeMenuRef.current && !themeMenuRef.current.contains(event.target as Node)) {
         setThemeMenuOpen(false);
@@ -401,7 +411,7 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
                   {user.branchName}
                 </span>
                 <span className="text-[9px] text-amber-600 dark:text-amber-400 block truncate">
-                  مخصوص برانچ
+                  {t("Assigned", "مخصوص")}
                 </span>
               </div>
             </div>
@@ -414,15 +424,15 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
                     ? "border-emerald-300 bg-emerald-50/80 text-emerald-900 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-200"
                     : "border-slate-200/90 bg-slate-50/80 text-slate-800 hover:bg-slate-100 dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-200"
                 }`}
-                title="Switch Branch View / برانچ تبدیل کریں"
+                title={t("Switch Branch View", "برانچ تبدیل کریں")}
               >
                 <Store className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
                 <div className="text-left max-w-[95px] sm:max-w-[150px] truncate">
                   <span className="block truncate font-bold leading-tight">
-                    {selectedBranch ? selectedBranch.name : "All Branches"}
+                    {selectedBranch ? selectedBranch.name : t("All Branches", "تمام برانچز")}
                   </span>
                   <span className="text-[9px] sm:text-[10px] text-slate-500 dark:text-slate-400 block truncate">
-                    {selectedBranch ? (selectedBranch.code || "Branch") : "مجموعی کھاتہ"}
+                    {selectedBranch ? (selectedBranch.code || "Branch") : t("Consolidated", "مجموعی کھاتہ")}
                   </span>
                 </div>
                 <ChevronDown className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-slate-400 ml-0.5 shrink-0" />
@@ -432,7 +442,7 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
                 <div className="absolute left-0 mt-2 w-64 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl dark:border-slate-800 dark:bg-[#111827] z-50 animate-in fade-in zoom-in-95 duration-100">
                   <div className="px-3 py-2 border-b border-slate-100 dark:border-slate-800 mb-1">
                     <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
-                      Branch Filter (برانچ سلیکٹر)
+                      {t("Branch Filter", "برانچ سلیکٹر")}
                     </p>
                     <p className="text-[11px] text-slate-500 dark:text-slate-400">
                       Consolidated vs Branch-specific accounting
@@ -453,7 +463,7 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
                     >
                       <div>
                         <p className="font-bold flex items-center gap-1.5">
-                          🌐 All Branches (مجموعی کھاتہ)
+                          {t("🌐 All Branches", "🌐 مجموعی کھاتہ")}
                         </p>
                         <p className="text-[10px] text-slate-400 font-normal">
                           Combined view of all company outlets
@@ -503,7 +513,7 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
                         className="flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs text-indigo-600 hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-slate-800 font-semibold transition"
                       >
                         <Plus className="h-3.5 w-3.5" />
-                        <span>Manage Sub-Branches (برانچز)</span>
+                        <span>{t("Manage Sub-Branches", "ذیلی برانچز کا انتظام")}</span>
                       </Link>
                     </div>
                   )}
@@ -623,7 +633,7 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
             <button
               onClick={() => setRemindersOpen(!remindersOpen)}
               className="relative flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white transition shadow-2xs"
-              title="Payment Due & Promise Reminders (ادائیگی و وصولی یاد دہانی)"
+              title={t("Payment Due Reminders", "ادائیگی و وصولی یاد دہانی")}
             >
               <Bell className="h-4 w-4" />
               {remindersData && (remindersData.overdueCount + remindersData.dueTodayCount > 0) && (
@@ -639,7 +649,7 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
                   <div className="flex items-center gap-1.5">
                     <Bell className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
                     <span className="text-xs font-bold text-slate-900 dark:text-white">
-                      Payment Reminders (ادائیگی و وصولی)
+                      {t("Payment Reminders", "ادائیگی و وصولی یاد دہانی")}
                     </span>
                   </div>
                   <span className="rounded-full bg-rose-50 px-2 py-0.5 text-[10px] font-bold text-rose-700 dark:bg-rose-950/60 dark:text-rose-300">
@@ -798,6 +808,58 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
                 >
                   <Monitor className="h-3.5 w-3.5 text-slate-400" />
                   <span>System</span>
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Language Switcher Dropdown */}
+          <div className="relative" ref={langMenuRef}>
+            <button
+              onClick={() => setLangMenuOpen(!langMenuOpen)}
+              className="flex h-9 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 hover:text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white transition shadow-2xs"
+              title="Change Language (زبان تبدیل کریں)"
+            >
+              <Languages className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+              <span className="font-bold text-[11px]">{language === "en" ? "English" : "اردو"}</span>
+              <ChevronDown className="h-3 w-3 text-slate-400" />
+            </button>
+
+            {langMenuOpen && (
+              <div className="absolute right-0 mt-2 w-44 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xl dark:border-slate-800 dark:bg-[#111827] z-50 animate-in fade-in zoom-in-95 duration-100">
+                <button
+                  onClick={() => {
+                    setLanguage("en");
+                    setLangMenuOpen(false);
+                  }}
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition ${
+                    language === "en"
+                      ? "bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300"
+                      : "text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">🇬🇧</span>
+                    <span>English (Default)</span>
+                  </div>
+                  {language === "en" && <Check className="h-4 w-4 text-blue-600 dark:text-blue-400" />}
+                </button>
+                <button
+                  onClick={() => {
+                    setLanguage("ur");
+                    setLangMenuOpen(false);
+                  }}
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition ${
+                    language === "ur"
+                      ? "bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300"
+                      : "text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">🇵🇰</span>
+                    <span>اردو (Urdu)</span>
+                  </div>
+                  {language === "ur" && <Check className="h-4 w-4 text-blue-600 dark:text-blue-400" />}
                 </button>
               </div>
             )}
