@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Printer, RotateCcw } from "lucide-react";
 import { BrandPageLoader } from "@/components/ui/loader";
+import { FbrQrCode } from "@/components/ui/FbrQrCode";
 
 export default function SaleDetailPage() {
   const params = useParams();
@@ -131,6 +132,21 @@ export default function SaleDetailPage() {
                 {sale.paymentStatus}
               </Badge>
             </div>
+            {sale.fbrInvoiceNumber && (
+              <div className="mt-3 flex flex-col items-end gap-1">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">FBR INVOICE #</span>
+                <span className="font-mono text-xs font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                  {sale.fbrInvoiceNumber}
+                </span>
+                <div className="mt-1 p-1 bg-white border border-slate-200 rounded shadow-2xs">
+                  <FbrQrCode
+                    value={sale.fbrQrCode || `https://e.fbr.gov.pk/verify?inv=${encodeURIComponent(sale.fbrInvoiceNumber)}`}
+                    size={84}
+                  />
+                </div>
+                <span className="text-[9px] text-slate-500 font-medium">Verify: FBR Tax Asaan App</span>
+              </div>
+            )}
           </div>
         </div>
 

@@ -37,6 +37,7 @@ import { TableRowsSkeleton } from "@/components/ui/loader";
 import { useAuth } from "@/context/AuthContext";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
+import { FbrQrCode } from "@/components/ui/FbrQrCode";
 
 export default function FbrCompliancePage() {
   const { activeCompany, user } = useAuth();
@@ -1344,10 +1345,13 @@ export default function FbrCompliancePage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center pt-2">
                 {/* Visual QR Code Box */}
                 <div className="flex flex-col items-center justify-center p-4 rounded-xl border border-slate-200 bg-slate-50 text-center">
-                  <div className="bg-white p-3 rounded-lg border border-slate-300 shadow-xs mb-2">
-                    <QrCode className="h-28 w-28 text-slate-900" />
+                  <div className="bg-white p-2.5 rounded-lg border border-slate-300 shadow-xs mb-2 flex items-center justify-center">
+                    <FbrQrCode
+                      value={selectedReceiptInvoice.fbrQrCode || `https://e.fbr.gov.pk/verify?inv=${encodeURIComponent(selectedReceiptInvoice.fbrInvoiceNumber || "")}`}
+                      size={120}
+                    />
                   </div>
-                  <span className="text-[11px] font-mono text-slate-600 font-bold">
+                  <span className="text-[11px] font-mono text-slate-700 font-bold">
                     Scan via FBR Asaan Tax App
                   </span>
                   <a
