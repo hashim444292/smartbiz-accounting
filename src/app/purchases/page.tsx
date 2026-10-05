@@ -20,6 +20,7 @@ import {
   Receipt,
   FileText,
   RefreshCw,
+  BookOpen,
 } from "lucide-react";
 import { TableRowsSkeleton } from "@/components/ui/loader";
 import { Modal } from "@/components/ui/modal";
@@ -32,6 +33,11 @@ export default function PurchasesPage() {
   const effectiveBranch = isBranchLocked ? user?.branchId : (selectedBranch?.id || activeBranchId || null);
 
   const [purchases, setPurchases] = useState<any[]>([]);
+  const [suppliers, setSuppliers] = useState<any[]>([]);
+  const [selectedSupplier, setSelectedSupplier] = useState<string>("ALL");
+  const [dateFilter, setDateFilter] = useState<"ALL" | "TODAY" | "THIS_WEEK" | "THIS_MONTH" | "CUSTOM">("ALL");
+  const [startDate, setStartDate] = useState<string>("");
+  const [endDate, setEndDate] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
 
@@ -231,10 +237,15 @@ export default function PurchasesPage() {
       if (effectiveBranch) headers["x-branch-id"] = effectiveBranch;
       const query = effectiveBranch ? `?branchId=${effectiveBranch}` : "?branchId=all";
 
-      const json = await smartFetch(`/api/purchases${query}`, { headers, ttlMs: 5000, skipCache: true });
-      if (json.success) setPurchases(json.data);
+      const [pRes, sRes] = await Promise.all([
+        smartFetch(`/api/purchases${query}`, { headers, ttlMs: 5000, skipCache: true }),
+        smartFetch(`/api/suppliers`, { headers, ttlMs: 30000 }),
+      ]);
+
+      if (pRes.success) setPurchases(pRes.data);
+      if (sRes.success) setSuppliers(sRes.data);
     } catch (err) {
-      console.error("Failed to load purchases:", err);
+      console.error("Failed to load purchases / suppliers:", err);
     } finally {
       setLoading(false);
     }
@@ -329,14 +340,55 @@ export default function PurchasesPage() {
   };
 
   const filtered = purchases.filter((p) => {
+    // 1. Text search
     const q = search.trim().toLowerCase();
-    if (!q) return true;
-    return (
+    const matchesSearch =
+      !q ||
       p.purchaseNumber?.toLowerCase().includes(q) ||
       p.supplierName?.toLowerCase().includes(q) ||
-      p.items?.some((it: any) => (it.productName || it.name || "")?.toLowerCase().includes(q))
-    );
+      p.items?.some((it: any) => (it.productName || it.name || "")?.toLowerCase().includes(q));
+
+    // 2. Supplier filter
+    const matchesSupplier =
+      selectedSupplier === "ALL" ||
+      p.supplierId === selectedSupplier ||
+      p.supplierName?.toLowerCase() === selectedSupplier.toLowerCase();
+
+    // 3. Date filter
+    let matchesDate = true;
+    const pDate = new Date(p.date);
+    const now = new Date();
+
+    if (dateFilter === "TODAY") {
+      matchesDate = pDate.toDateString() === now.toDateString();
+    } else if (dateFilter === "THIS_WEEK") {
+      const day = now.getDay();
+      const diff = now.getDate() - day + (day === 0 ? -6 : 1);
+      const startOfWeek = new Date(now.setDate(diff));
+      startOfWeek.setHours(0, 0, 0, 0);
+      matchesDate = pDate >= startOfWeek;
+    } else if (dateFilter === "THIS_MONTH") {
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0);
+      matchesDate = pDate >= startOfMonth;
+    } else if (dateFilter === "CUSTOM") {
+      if (startDate) {
+        const [y, m, d] = startDate.split("-").map(Number);
+        const s = new Date(y, m - 1, d, 0, 0, 0);
+        matchesDate = matchesDate && pDate >= s;
+      }
+      if (endDate) {
+        const [y, m, d] = endDate.split("-").map(Number);
+        const e = new Date(y, m - 1, d, 23, 59, 59, 999);
+        matchesDate = matchesDate && pDate <= e;
+      }
+    }
+
+    return matchesSearch && matchesSupplier && matchesDate;
   });
+
+  const selectedSupplierObj = suppliers.find(
+    (s) => s.id === selectedSupplier || s.name.toLowerCase() === selectedSupplier.toLowerCase()
+  );
 
   return (
     <div className="space-y-5">
@@ -415,49 +467,166 @@ export default function PurchasesPage() {
         )}
       </div>
 
-      {/* Financial Summary KPI Cards */}
+      {/* Dynamic Financial Summary KPI Cards (Calculated on Filtered Data) */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs dark:border-slate-800 dark:bg-slate-900">
-          <p className="text-xs font-semibold text-slate-500">Total Purchase Bills (کل انوائسز)</p>
+          <p className="text-xs font-semibold text-slate-500">Filtered Purchase Bills (کل انوائسز)</p>
           <p className="mt-1 text-2xl font-black text-slate-900 dark:text-white tabular-nums">
-            {purchases.length}
+            {filtered.length}
           </p>
-          <p className="text-[11px] text-slate-400 mt-0.5">Recorded inward purchase bills</p>
+          <p className="text-[11px] text-slate-400 mt-0.5">
+            {dateFilter === "ALL" ? "All recorded bills" : `Filtered by ${dateFilter.toLowerCase().replace("_", " ")}`}
+          </p>
         </div>
         <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-4 shadow-xs dark:border-blue-900/40 dark:bg-blue-950/20">
           <p className="text-xs font-semibold text-blue-700 dark:text-blue-300">Total Purchases Value (کل خریداری)</p>
           <p className="mt-1 text-2xl font-black text-blue-900 dark:text-blue-100 tabular-nums">
-            {formatMoney(purchases.reduce((acc, p) => acc + Number(p.totalAmount || 0), 0))}
+            {formatMoney(filtered.reduce((acc, p) => acc + Number(p.totalAmount || 0), 0))}
           </p>
           <p className="text-[11px] text-blue-600/70 dark:text-blue-400 mt-0.5">Gross purchased merchandise</p>
         </div>
         <div className="rounded-2xl border border-emerald-100 bg-emerald-50/50 p-4 shadow-xs dark:border-emerald-900/40 dark:bg-emerald-950/20">
           <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">Total Paid (ادا شدہ رقم)</p>
           <p className="mt-1 text-2xl font-black text-emerald-900 dark:text-emerald-100 tabular-nums">
-            {formatMoney(purchases.reduce((acc, p) => acc + Number(p.paidAmount || 0), 0))}
+            {formatMoney(filtered.reduce((acc, p) => acc + Number(p.paidAmount || 0), 0))}
           </p>
           <p className="text-[11px] text-emerald-600/70 dark:text-emerald-400 mt-0.5">Settled to suppliers</p>
         </div>
         <div className="rounded-2xl border border-rose-100 bg-rose-50/50 p-4 shadow-xs dark:border-rose-900/40 dark:bg-rose-950/20">
           <p className="text-xs font-semibold text-rose-700 dark:text-rose-300">Remaining Payables (بقیہ واجب الادا)</p>
           <p className="mt-1 text-2xl font-black text-rose-900 dark:text-rose-100 tabular-nums">
-            {formatMoney(purchases.reduce((acc, p) => acc + Number(p.remainingAmount || 0), 0))}
+            {formatMoney(filtered.reduce((acc, p) => acc + Number(p.remainingAmount || 0), 0))}
           </p>
           <p className="text-[11px] text-rose-600/70 dark:text-rose-400 mt-0.5">Outstanding supplier balances</p>
         </div>
       </div>
 
-      <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-          <input
-            type="text"
-            placeholder="Search by purchase # or supplier..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full rounded-lg border border-slate-300 bg-slate-50 pl-9 pr-3 py-1.5 text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-          />
+      {/* Selected Vendor Spotlight & Summary Card */}
+      {selectedSupplierObj && (
+        <div className="rounded-2xl border-2 border-blue-500/30 bg-blue-50/60 p-4 shadow-sm dark:bg-blue-950/30 dark:border-blue-700/50">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="rounded-md bg-blue-600 px-2 py-0.5 text-[10px] font-bold text-white uppercase">
+                  Vendor Summary (وینڈر تفصیلات)
+                </span>
+                <span className="text-sm font-extrabold text-blue-950 dark:text-blue-100">
+                  {selectedSupplierObj.name}
+                </span>
+                {selectedSupplierObj.phone && (
+                  <span className="text-xs text-slate-500 dark:text-slate-400">
+                    📞 {selectedSupplierObj.phone}
+                  </span>
+                )}
+              </div>
+              <p className="mt-1 text-xs text-blue-900/80 dark:text-blue-200">
+                Purchases from this vendor in filter: <strong>{filtered.length} bills</strong> | Total Value:{" "}
+                <strong>Rs {filtered.reduce((acc, p) => acc + Number(p.totalAmount || 0), 0).toLocaleString()}</strong> | Paid:{" "}
+                <strong>Rs {filtered.reduce((acc, p) => acc + Number(p.paidAmount || 0), 0).toLocaleString()}</strong>
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <div className="text-right mr-2">
+                <div className="text-[10px] uppercase font-bold text-slate-500">Current Outstanding (کل بقایا)</div>
+                <div className="text-base font-black text-rose-600 dark:text-rose-400">
+                  Rs {Number(selectedSupplierObj.currentBalance || 0).toLocaleString()}
+                </div>
+              </div>
+              <Link
+                href={`/accounting?tab=LEDGER&type=VENDOR&id=${selectedSupplierObj.id}`}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-3.5 py-2 text-xs font-bold text-white shadow-sm hover:bg-blue-700 transition"
+              >
+                <BookOpen className="h-3.5 w-3.5" />
+                <span>مکمل کھاتہ دیکھیں (View Full Ledger)</span>
+              </Link>
+            </div>
+          </div>
         </div>
+      )}
+
+      {/* Comprehensive Filter Bar: Vendor Selector, Date Filters, Custom Dates & Search */}
+      <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-3.5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+          {/* Search Input */}
+          <div className="relative flex-1 max-w-sm">
+            <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Search by purchase # or item..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full rounded-xl border border-slate-300 bg-slate-50 pl-9 pr-3 py-1.5 text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+            />
+          </div>
+
+          {/* Supplier Dropdown Filter */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-slate-700 dark:text-slate-300 whitespace-nowrap">
+              وینڈر (Supplier):
+            </span>
+            <select
+              value={selectedSupplier}
+              onChange={(e) => setSelectedSupplier(e.target.value)}
+              className="rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 shadow-xs focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+            >
+              <option value="ALL">All Suppliers (تمام وینڈرز)</option>
+              {suppliers.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name} {s.phone ? `(${s.phone})` : ""}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Date Filter Pills */}
+          <div className="flex items-center gap-1 overflow-x-auto py-0.5">
+            {[
+              { id: "ALL", label: "تمام (All)" },
+              { id: "TODAY", label: "آج (Today)" },
+              { id: "THIS_WEEK", label: "اس ہفتے (This Week)" },
+              { id: "THIS_MONTH", label: "اس ماہ (This Month)" },
+              { id: "CUSTOM", label: "کسٹم (Custom)" },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setDateFilter(tab.id as any)}
+                className={`rounded-xl px-3 py-1.5 text-xs font-semibold transition whitespace-nowrap ${
+                  dateFilter === tab.id
+                    ? "bg-blue-600 text-white shadow-xs"
+                    : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300"
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Custom Date Pickers (Shown if CUSTOM selected) */}
+        {dateFilter === "CUSTOM" && (
+          <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-slate-100 dark:border-slate-800">
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-semibold text-slate-500">تاریخ سے (From Date):</span>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="rounded-lg border border-slate-300 px-2 py-1 text-xs dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+              />
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-semibold text-slate-500">تاریخ تک (To Date):</span>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="rounded-lg border border-slate-300 px-2 py-1 text-xs dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+              />
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">

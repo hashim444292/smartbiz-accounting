@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import { formatMoney } from "@/lib/decimal";
 import { Badge } from "@/components/ui/badge";
@@ -71,7 +71,10 @@ export default function SalesPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
-  const [dateFilter, setDateFilter] = useState<"ALL" | "TODAY" | "YESTERDAY" | "THIS_WEEK" | "THIS_MONTH" | "LAST_30_DAYS">("ALL");
+  const [customerFilter, setCustomerFilter] = useState("ALL");
+  const [dateFilter, setDateFilter] = useState<"ALL" | "TODAY" | "YESTERDAY" | "THIS_WEEK" | "THIS_MONTH" | "LAST_30_DAYS" | "CUSTOM">("ALL");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
   const [reversingId, setReversingId] = useState<string | null>(null);
 
   // Helper for datetime-local input formatting
@@ -245,6 +248,11 @@ export default function SalesPage() {
     emerald: { border: "border-emerald-100 dark:border-emerald-900/40",bg: "bg-emerald-50/60 dark:bg-emerald-950/20",lbl: "text-emerald-700 dark:text-emerald-300",val: "text-emerald-900 dark:text-emerald-100",badge: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/60 dark:text-emerald-300" },
   };
 
+  const customerList = useMemo(
+    () => Array.from(new Set(sales.map((s) => s.customerName).filter(Boolean))),
+    [sales]
+  );
+
   // Filter Sales records
   const filteredSales = sales.filter((s) => {
     // 1. Search text filter
@@ -252,10 +260,14 @@ export default function SalesPage() {
       s.invoiceNumber.toLowerCase().includes(search.toLowerCase()) ||
       s.customerName.toLowerCase().includes(search.toLowerCase());
 
-    // 2. Payment Status filter
+    // 2. Customer filter
+    const matchesCustomer =
+      customerFilter === "ALL" || s.customerName.toLowerCase() === customerFilter.toLowerCase();
+
+    // 3. Payment Status filter
     const matchesStatus = statusFilter === "ALL" || s.paymentStatus === statusFilter;
 
-    // 3. Date Range filter (Today, Yesterday, This Week, This Month)
+    // 4. Date Range filter (Today, Yesterday, This Week, This Month, Custom)
     let matchesDate = true;
     if (dateFilter !== "ALL") {
       const saleDate = new Date(s.date);
@@ -278,10 +290,21 @@ export default function SalesPage() {
         const thirtyDaysAgo = new Date(now.getTime() - 30 * 86400000);
         thirtyDaysAgo.setHours(0, 0, 0, 0);
         matchesDate = saleDate >= thirtyDaysAgo;
+      } else if (dateFilter === "CUSTOM") {
+        if (startDate) {
+          const [y, m, d] = startDate.split("-").map(Number);
+          const s = new Date(y, m - 1, d, 0, 0, 0);
+          matchesDate = matchesDate && saleDate >= s;
+        }
+        if (endDate) {
+          const [y, m, d] = endDate.split("-").map(Number);
+          const e = new Date(y, m - 1, d, 23, 59, 59, 999);
+          matchesDate = matchesDate && saleDate <= e;
+        }
       }
     }
 
-    return matchesSearch && matchesStatus && matchesDate;
+    return matchesSearch && matchesCustomer && matchesStatus && matchesDate;
   });
 
   // Calculate Summary metrics on filtered data
@@ -430,6 +453,44 @@ export default function SalesPage() {
         })}
       </div>
 
+      {/* Customer Spotlight & Summary Card */}
+      {customerFilter !== "ALL" && (
+        <div className="rounded-2xl border-2 border-indigo-500/30 bg-indigo-50/60 p-4 shadow-sm dark:bg-indigo-950/30 dark:border-indigo-700/50">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="rounded-md bg-indigo-600 px-2 py-0.5 text-[10px] font-bold text-white uppercase">
+                  Customer Summary (گاہک تفصیلات)
+                </span>
+                <span className="text-sm font-extrabold text-indigo-950 dark:text-indigo-100">
+                  {customerFilter}
+                </span>
+              </div>
+              <p className="mt-1 text-xs text-indigo-900/80 dark:text-indigo-200">
+                Invoices for this customer in filter: <strong>{filteredSales.length} bills</strong> | Total Sales:{" "}
+                <strong>Rs {filteredSales.reduce((acc, s) => acc + Number(s.totalAmount || 0), 0).toLocaleString()}</strong> | Collected:{" "}
+                <strong>Rs {filteredSales.reduce((acc, s) => acc + Number(s.paidAmount || 0), 0).toLocaleString()}</strong>
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <div className="text-right mr-2">
+                <div className="text-[10px] uppercase font-bold text-slate-500">Remaining Receivable (بقیہ وصولی)</div>
+                <div className="text-base font-black text-rose-600 dark:text-rose-400">
+                  Rs {filteredSales.reduce((acc, s) => acc + Number(s.remainingAmount || 0), 0).toLocaleString()}
+                </div>
+              </div>
+              <Link
+                href="/accounting?tab=LEDGER&type=CUSTOMER"
+                className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-3.5 py-2 text-xs font-bold text-white shadow-sm hover:bg-indigo-700 transition"
+              >
+                <span>گاہک کا کھاتہ دیکھیں (Customer Ledger)</span>
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Enhanced Filters Bar with Date, Status & Quick Pills */}
       <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-3.5 shadow-sm">
         {/* Main Controls Row */}
@@ -460,7 +521,7 @@ export default function SalesPage() {
             )}
           </div>
 
-          {/* Quick Date Pills: Today, Yesterday, This Week, This Month */}
+          {/* Quick Date Pills: Today, Yesterday, This Week, This Month, Custom */}
           <div className="flex items-center gap-1 overflow-x-auto no-scrollbar py-0.5">
             {[
               { id: "ALL", label: "All Dates" },
@@ -468,6 +529,7 @@ export default function SalesPage() {
               { id: "YESTERDAY", label: "Yesterday (کل)" },
               { id: "THIS_WEEK", label: "This Week (اس ہفتے)" },
               { id: "THIS_MONTH", label: "This Month (اس ماہ)" },
+              { id: "CUSTOM", label: "Custom (کسٹم)" },
             ].map((tab) => {
               const isActive = dateFilter === tab.id;
               return (
@@ -490,8 +552,27 @@ export default function SalesPage() {
             })}
           </div>
 
-          {/* Dropdown Filters: Date Range + Payment Status */}
+          {/* Dropdown Filters: Customer + Date Range + Payment Status */}
           <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-semibold text-slate-500 whitespace-nowrap">Customer:</span>
+              <select
+                value={customerFilter}
+                onChange={(e) => {
+                  setCustomerFilter(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="rounded-xl border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-700 font-medium focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              >
+                <option value="ALL">All Customers (تمام)</option>
+                {customerList.map((c: any) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             <div className="flex items-center gap-1.5">
               <span className="text-xs font-semibold text-slate-500 whitespace-nowrap">Date:</span>
               <select
@@ -508,6 +589,7 @@ export default function SalesPage() {
                 <option value="THIS_WEEK">This Week (اس ہفتے)</option>
                 <option value="THIS_MONTH">This Month (اس ماہ)</option>
                 <option value="LAST_30_DAYS">Last 30 Days (30 دن)</option>
+                <option value="CUSTOM">Custom Date Range (کسٹم)</option>
               </select>
             </div>
 
@@ -529,6 +611,36 @@ export default function SalesPage() {
             </div>
           </div>
         </div>
+
+        {/* Custom Date Pickers (Shown if CUSTOM selected) */}
+        {dateFilter === "CUSTOM" && (
+          <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-slate-100">
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-semibold text-slate-500">تاریخ سے (From Date):</span>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => {
+                  setStartDate(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="rounded-lg border border-slate-300 px-2 py-1 text-xs"
+              />
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-semibold text-slate-500">تاریخ تک (To Date):</span>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => {
+                  setEndDate(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="rounded-lg border border-slate-300 px-2 py-1 text-xs"
+              />
+            </div>
+          </div>
+        )}
 
         {/* Filter Summary Counter Pills & Reset */}
         <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-2 text-[11px] text-slate-500">
