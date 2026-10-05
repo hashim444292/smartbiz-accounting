@@ -44,6 +44,7 @@ import {
 } from "recharts";
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
+import { useLanguage } from "@/context/LanguageContext";
 import { smartFetch, invalidateCache } from "@/lib/clientCache";
 import {
   BrandPageLoader,
@@ -59,6 +60,7 @@ type TableLayoutMode = "table" | "cards";
 export default function DashboardPage() {
   const router = useRouter();
   const { user, activeCompany, isInspectingClient, isLoading, switchBranch, isBranchLocked } = useAuth();
+  const { t, language } = useLanguage();
   const isAccountingOnly =
     activeCompany?.packageType === "ACCOUNTING_ONLY" ||
     (activeCompany?.enabledModules && !activeCompany.enabledModules.includes("compliance"));
@@ -182,13 +184,13 @@ export default function DashboardPage() {
         <div className="rounded-2xl border border-slate-200/80 bg-white p-4 sm:p-6 shadow-xs dark:border-slate-800/90 dark:bg-[#111827] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <div className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-200 px-2.5 py-0.5 text-xs font-bold mb-2 dark:bg-indigo-950/60 dark:text-indigo-300 dark:border-indigo-800">
-              <span>{isAccountingOnly ? "📊 کھاتہ و بک کیپنگ (Business Accounting)" : "💼 POS & Cashier Terminal"}</span>
+              <span>{isAccountingOnly ? t("Business Accounting", "کھاتہ و بک کیپنگ") : t("POS & Cashier Terminal", "پی او ایس و کیشیئر کاؤنٹر")}</span>
             </div>
             <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white font-sans">
-              Welcome, {user.name} 👋
+              {t("Welcome", "خوش آمدید")}, {user.name} 👋
             </h1>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-              Active Client: <strong className="text-slate-800 dark:text-slate-200">{activeCompany?.name}</strong> • {isAccountingOnly ? "Business Accounting & Ledger" : "Retail POS & Invoicing"}
+              {t("Active Client", "فعال ادارہ")}: <strong className="text-slate-800 dark:text-slate-200">{activeCompany?.name}</strong> • {isAccountingOnly ? t("Business Accounting & Ledger", "بزنس اکاؤنٹنگ و لیجر") : t("Retail POS & Invoicing", "ریٹیل پی او ایس و انوائسنگ")}
             </p>
           </div>
           <div className="flex flex-wrap gap-2 w-full sm:w-auto">
@@ -197,7 +199,7 @@ export default function DashboardPage() {
               className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-bold text-white shadow-xs hover:bg-emerald-700 transition shadow-emerald-600/20"
             >
               <Receipt className="h-4 w-4" />
-              <span>مال بیچیں (نیا بل بنائیں)</span>
+              <span>{t("New Sale", "نیا بل بنائیں")}</span>
             </Link>
             {!isAccountingOnly ? (
               <Link
@@ -205,7 +207,7 @@ export default function DashboardPage() {
                 className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-xs font-bold text-white shadow-xs hover:bg-indigo-700 transition shadow-indigo-600/20"
               >
                 <ShieldCheck className="h-4 w-4" />
-                <span>FBR POS انوائس</span>
+                <span>{t("FBR POS Invoice", "FBR ٹیکس انوائس")}</span>
               </Link>
             ) : (
               <Link
@@ -213,7 +215,7 @@ export default function DashboardPage() {
                 className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-xs font-bold text-white shadow-xs hover:bg-indigo-700 transition shadow-indigo-600/20"
               >
                 <Package className="h-4 w-4" />
-                <span>مال خریدیں (نیا بل)</span>
+                <span>{t("New Purchase", "نیا خریداری بل")}</span>
               </Link>
             )}
           </div>
@@ -221,22 +223,22 @@ export default function DashboardPage() {
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs dark:border-slate-800/90 dark:bg-[#111827]">
-            <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold block">آج کی کل فروخت (Today&apos;s Sales)</span>
+            <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold block">{t("Today's Gross Sales", "آج کی کل فروخت")}</span>
             <p className="text-xl font-bold text-slate-900 dark:text-white font-mono mt-1">
               Rs {data ? Number(data.totalGrossSales || data.netSales || 0).toLocaleString() : "..."}
             </p>
           </div>
           <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs dark:border-slate-800/90 dark:bg-[#111827]">
-            <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold block">کل جاری کردہ بل (Bills Made)</span>
+            <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold block">{t("Bills Generated", "کل جاری کردہ بل")}</span>
             <p className="text-xl font-bold text-indigo-600 dark:text-indigo-400 font-mono mt-1">
-              {data?.recentInvoices?.length || 0} Bills
+              {data?.recentInvoices?.length || 0} {t("Bills", "بل")}
             </p>
           </div>
           <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs dark:border-slate-800/90 dark:bg-[#111827]">
-            <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold block">{isAccountingOnly ? "اکاؤنٹنگ اسٹیٹس (Accounting Status)" : "FBR کنکشن (Tax Sync)"}</span>
+            <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold block">{isAccountingOnly ? t("Accounting Status", "کھاتے کی صورتحال") : t("FBR Sync Status", "FBR ٹیکس کنکشن")}</span>
             <p className="text-xl font-bold text-emerald-600 dark:text-emerald-400 font-mono mt-1 flex items-center gap-1.5">
               <CheckCircle2 className="h-5 w-5" />
-              <span>{isAccountingOnly ? "فعال و محفوظ (Active & Secure)" : "فعال و تصدیق شدہ (Active)"}</span>
+              <span>{isAccountingOnly ? t("Active & Balanced", "فعال و متوازن") : t("Active & Synchronized", "فعال و ہم آہنگ")}</span>
             </p>
           </div>
         </div>
@@ -313,13 +315,14 @@ export default function DashboardPage() {
               </>
             )}
           </div>
-          <h1 className="text-xl sm:text-2xl lg:text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white font-sans leading-tight flex items-center gap-2.5 flex-wrap">
-            <span>کاروباری ڈیش بورڈ</span>
-            <span className="text-slate-300 dark:text-slate-700 font-light text-base sm:text-xl">|</span>
-            <span className="text-base sm:text-lg lg:text-xl font-bold text-slate-700 dark:text-slate-300">Business Dashboard</span>
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white font-sans leading-tight">
+            {t("Business Dashboard", "کاروباری ڈیش بورڈ")}
           </h1>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-2xl leading-relaxed">
-            دکان کی روزمرہ فروخت، خریداری، بقایا رقم اور منافع کا آسان خلاصہ (Daily business overview, cash flow & profit)
+            {t(
+              "Daily business overview, cash flow, receivables, payables and net profit summary",
+              "دکان کی روزمرہ فروخت، خریداری، بقایا رقم اور منافع کا آسان خلاصہ"
+            )}
           </p>
         </div>
 
@@ -333,20 +336,20 @@ export default function DashboardPage() {
                 ? "bg-emerald-600 text-white border-emerald-500 hover:bg-emerald-700 shadow-emerald-600/20"
                 : "bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700"
             }`}
-            title="آسان موڈ یا تفصیلی موڈ میں تبدیل کریں"
+            title={t("Toggle simple or advanced dashboard mode", "آسان موڈ یا تفصیلی موڈ میں تبدیل کریں")}
           >
             <Sparkles className="h-3.5 w-3.5" />
-            <span>{isAsaanMode ? "⚡ آسان موڈ (Simple: ON)" : "📊 تفصیلی موڈ (Advanced)"}</span>
+            <span>{isAsaanMode ? t("⚡ Simple Mode: ON", "⚡ آسان موڈ: آن") : t("📊 Advanced Mode", "📊 تفصیلی موڈ")}</span>
           </button>
 
           <button
             onClick={fetchMetrics}
             disabled={loading}
             className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 shadow-2xs transition disabled:opacity-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
-            title="Refresh live metrics"
+            title={t("Refresh live metrics", "تازہ ترین ڈیٹا لائیں")}
           >
             <RefreshCw className={`h-3.5 w-3.5 text-slate-500 dark:text-slate-400 ${loading ? "animate-spin" : ""}`} />
-            <span className="truncate">تازہ کریں</span>
+            <span className="truncate">{t("Refresh", "تازہ کریں")}</span>
           </button>
         </div>
       </div>
@@ -357,7 +360,7 @@ export default function DashboardPage() {
           <div className="flex items-center gap-2">
             <Store className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
             <span>
-              Viewing Branch: <strong className="font-bold text-emerald-900 dark:text-emerald-100">{data.activeBranchName}</strong> (صرف اس برانچ کا ڈیٹا ظاہر ہے)
+              {t("Viewing Branch", "موجودہ برانچ")}: <strong className="font-bold text-emerald-900 dark:text-emerald-100">{data.activeBranchName}</strong>
             </span>
           </div>
           {!isBranchLocked && (
@@ -365,7 +368,7 @@ export default function DashboardPage() {
               onClick={() => switchBranch(null)}
               className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 hover:text-emerald-900 dark:text-emerald-300 dark:hover:text-emerald-100 underline self-start sm:self-auto"
             >
-              <span>Switch to All Branches (مجموعی کھاتہ دیکھیں)</span>
+              <span>{t("Switch to All Branches", "تمام برانچز کا مجموعی کھاتہ دیکھیں")}</span>
               <ArrowRight className="h-3 w-3" />
             </button>
           )}
@@ -375,7 +378,7 @@ export default function DashboardPage() {
           <div className="flex items-center gap-2">
             <span className="text-sm">🌐</span>
             <span>
-              <strong>All Branches View (مجموعی کھاتہ):</strong> Showing consolidated financials across all {data.branchesCount} sub-branches.
+              <strong>{t("All Branches View", "مجموعی کھاتہ")}:</strong> {t(`Showing consolidated financials across all ${data.branchesCount} sub-branches.`, `تمام ${data.branchesCount} برانچز کا مجموعی مالیاتی ریکارڈ ظاہر ہے۔`)}
             </span>
           </div>
           {(user?.role === "SUPER_ADMIN" || user?.role === "OWNER_ADMIN") && (
@@ -383,7 +386,7 @@ export default function DashboardPage() {
               href="/branches"
               className="inline-flex items-center gap-1 text-[11px] font-bold text-indigo-700 hover:text-indigo-900 dark:text-indigo-300 dark:hover:text-indigo-100 underline self-start sm:self-auto"
             >
-              <span>Manage Branches (برانچز)</span>
+              <span>{t("Manage Branches", "برانچز کا انتظام")}</span>
               <ArrowRight className="h-3 w-3" />
             </Link>
           )}
@@ -391,7 +394,7 @@ export default function DashboardPage() {
       ) : null}
 
       {/* ========================================================================= */}
-      {/* OVERDUE & PAYMENT PROMISE ALERT BANNER (اہم ادائیگیوں اور وصولیوں کا الرٹ) */}
+      {/* OVERDUE & PAYMENT PROMISE ALERT BANNER */}
       {/* ========================================================================= */}
       {data?.paymentReminders && (data.paymentReminders.overdueCount > 0 || data.paymentReminders.dueTodayCount > 0) && (
         <div className="rounded-2xl border-2 border-rose-400 bg-gradient-to-r from-rose-50 via-amber-50 to-rose-50 p-4 sm:p-5 text-xs text-rose-950 dark:border-rose-800 dark:from-rose-950/60 dark:via-amber-950/40 dark:to-rose-950/60 dark:text-rose-200 shadow-md animate-in fade-in slide-in-from-top-2 duration-200">
@@ -403,14 +406,17 @@ export default function DashboardPage() {
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-sm font-black text-rose-950 dark:text-rose-100">
-                    ⚠️ اہم یاد دہانی: {data.paymentReminders.overdueCount} ادائیگیاں / وصولیاں تاخیر کا شکار ہیں!
+                    ⚠️ {t(`Payment Due Alert: ${data.paymentReminders.overdueCount} payments are overdue!`, `اہم یاد دہانی: ${data.paymentReminders.overdueCount} ادائیگیاں / وصولیاں تاخیر کا شکار ہیں!`)}
                   </span>
                   <span className="rounded-full bg-rose-200/80 px-2 py-0.5 text-[10px] font-bold text-rose-900 dark:bg-rose-900 dark:text-rose-100">
-                    Overdue Payment Alert
+                    {t("Overdue Alert", "تاخیر شدہ واجبات")}
                   </span>
                 </div>
                 <p className="text-rose-800 dark:text-rose-300 mt-0.5 text-xs leading-relaxed">
-                  گاہکوں سے <strong>Rs {Number(data.paymentReminders.totalOverdueReceivables || 0).toLocaleString()}</strong> وصول کرنی ہے اور سپلائرز کو <strong>Rs {Number(data.paymentReminders.totalOverduePayables || 0).toLocaleString()}</strong> ادا کرنی ہے۔ یہ الرٹ تب تک رہے گا جب تک ادائیگی مکمل نہ ہو جائے۔
+                  {t(
+                    `Receivable from customers: Rs ${Number(data.paymentReminders.totalOverdueReceivables || 0).toLocaleString()} • Payable to suppliers: Rs ${Number(data.paymentReminders.totalOverduePayables || 0).toLocaleString()}`,
+                    `گاہکوں سے Rs ${Number(data.paymentReminders.totalOverdueReceivables || 0).toLocaleString()} وصول کرنی ہے اور سپلائرز کو Rs ${Number(data.paymentReminders.totalOverduePayables || 0).toLocaleString()} ادا کرنی ہے۔`
+                  )}
                 </p>
               </div>
             </div>
@@ -420,7 +426,7 @@ export default function DashboardPage() {
                 href="/payments"
                 className="inline-flex items-center gap-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white px-3.5 py-2 text-xs font-bold transition shadow-xs"
               >
-                <span>ادائیگی ریکارڈ کریں</span>
+                <span>{t("Record Payment", "ادائیگی ریکارڈ کریں")}</span>
                 <ArrowRight className="h-3.5 w-3.5" />
               </Link>
             </div>
@@ -429,18 +435,18 @@ export default function DashboardPage() {
       )}
 
       {/* ========================================================================= */}
-      {/* HERO QUICK ACTION COMMAND CENTER (آج کیا کرنا ہے؟ - Fast Action Center)    */}
+      {/* HERO QUICK ACTION COMMAND CENTER                                          */}
       {/* ========================================================================= */}
       <div className="rounded-2xl border border-slate-200/90 bg-gradient-to-b from-slate-50/80 to-white p-4 sm:p-5 shadow-xs dark:border-slate-800 dark:from-[#131b2e] dark:to-[#0f172a]">
         <div className="flex items-center justify-between mb-3.5">
           <div className="flex items-center gap-2">
             <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse" />
             <h2 className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white font-sans">
-              آج کیا کرنا ہے؟ <span className="text-xs font-normal text-slate-500 dark:text-slate-400 font-sans ml-1">(فوری کام • Daily Fast Actions)</span>
+              {t("Daily Fast Actions", "آج کیا کرنا ہے؟")}
             </h2>
           </div>
           <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 dark:bg-emerald-950/60 dark:text-emerald-300 px-2.5 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800">
-            فوری شارٹ کٹس
+            {t("Quick Shortcuts", "فوری شارٹ کٹس")}
           </span>
         </div>
 
@@ -455,15 +461,15 @@ export default function DashboardPage() {
                 <Receipt className="h-5 w-5" />
               </div>
               <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-md border border-emerald-200 dark:border-emerald-800">
-                + نیا بل
+                {t("+ New Sale", "+ نیا بل")}
               </span>
             </div>
             <div className="mt-3">
               <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
-                مال بیچیں (New Sale)
+                {t("New Sale", "مال بیچیں")}
               </h3>
               <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">
-                گاہک کو مال بیچیں اور نیا بل بنائیں
+                {t("Create customer invoice and record sale", "گاہک کو مال بیچیں اور نیا بل بنائیں")}
               </p>
             </div>
           </Link>
@@ -478,15 +484,15 @@ export default function DashboardPage() {
                 <ShoppingBag className="h-5 w-5" />
               </div>
               <span className="text-[10px] font-bold text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/60 px-2 py-0.5 rounded-md border border-purple-200 dark:border-purple-800">
-                + خریداری
+                {t("+ Purchase", "+ خریداری")}
               </span>
             </div>
             <div className="mt-3">
               <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors">
-                مال خریدیں (Purchase)
+                {t("New Purchase", "مال خریدیں")}
               </h3>
               <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">
-                سپلائر سے مال لیں اور گودام کا اسٹاک درج کریں
+                {t("Record supplier purchase and warehouse inventory", "سپلائر سے مال لیں اور گودام کا اسٹاک درج کریں")}
               </p>
             </div>
           </Link>
@@ -501,15 +507,15 @@ export default function DashboardPage() {
                 <ArrowDownLeft className="h-5 w-5" />
               </div>
               <span className="text-[10px] font-bold text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/60 px-2 py-0.5 rounded-md border border-blue-200 dark:border-blue-800">
-                پیسے آئے
+                {t("Money In", "وصولی +")}
               </span>
             </div>
             <div className="mt-3">
               <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-                پیسے وصول کریں (Receipt)
+                {t("Customer Receipt", "پیسے وصول کریں")}
               </h3>
               <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">
-                گاہک سے بقایا وصولی یا بینک میں رقم درج کریں
+                {t("Record customer dues or bank deposits", "گاہک سے بقایا وصولی یا بینک میں رقم درج کریں")}
               </p>
             </div>
           </Link>
@@ -524,15 +530,15 @@ export default function DashboardPage() {
                 <ArrowUpRight className="h-5 w-5" />
               </div>
               <span className="text-[10px] font-bold text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/60 px-2 py-0.5 rounded-md border border-rose-200 dark:border-rose-800">
-                خرچہ
+                {t("Expense", "خرچہ -")}
               </span>
             </div>
             <div className="mt-3">
               <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white group-hover:text-rose-600 dark:group-hover:text-rose-400 transition-colors">
-                خرچہ درج کریں (Expense)
+                {t("Record Expense", "خرچہ درج کریں")}
               </h3>
               <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">
-                دکان کا کرایہ، بجلی بل، چائے یا تنخواہ کا خرچہ
+                {t("Shop rent, electricity, bills or staff wages", "دکان کا کرایہ، بجلی بل، چائے یا تنخواہ کا خرچہ")}
               </p>
             </div>
           </Link>
@@ -550,8 +556,7 @@ export default function DashboardPage() {
                 : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200"
             }`}
           >
-            <span className="sm:hidden">تمام کھاتے</span>
-            <span className="hidden sm:inline">تمام کھاتے (All Modules)</span>
+            <span>{t("All Modules", "تمام کھاتے")}</span>
           </button>
           <button
             onClick={() => setActiveTab("accounting")}
@@ -561,8 +566,7 @@ export default function DashboardPage() {
                 : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200"
             }`}
           >
-            <span className="sm:hidden">روکڑ کھاتہ</span>
-            <span className="hidden sm:inline">روکڑ کھاتہ و بک کیپنگ (Accounting)</span>
+            <span>{t("Accounting & Bookkeeping", "روکڑ کھاتہ و بک کیپنگ")}</span>
           </button>
           {!isAccountingOnly && (
             <button
@@ -573,14 +577,13 @@ export default function DashboardPage() {
                   : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200"
               }`}
             >
-              <span className="sm:hidden">FBR ٹیکس</span>
-              <span className="hidden sm:inline">FBR ٹیکس انوائسنگ (Tax POS)</span>
+              <span>{t("FBR Digital Tax", "FBR ٹیکس انوائسنگ")}</span>
             </button>
           )}
         </div>
 
         <div className="text-[11px] text-slate-500 dark:text-slate-400 font-medium hidden md:block">
-          دکان: <strong className="text-slate-700 dark:text-slate-300">{activeCompany?.name}</strong>
+          {t("Business", "دکان")}: <strong className="text-slate-700 dark:text-slate-300">{activeCompany?.name}</strong>
         </div>
       </div>
 
@@ -592,13 +595,13 @@ export default function DashboardPage() {
           <div className="flex items-center justify-between">
             <h2 className="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 flex items-center gap-2">
               <span className="h-2 w-2 rounded-full bg-emerald-500 shrink-0" />
-              <span>مالی صورتحال و روکڑ کھاتہ (Financial Pulse & Cash Flow)</span>
+              <span>{t("Financial Pulse & Cash Flow", "مالی صورتحال و روکڑ کھاتہ")}</span>
             </h2>
             <Link
               href="/reports"
               className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300 flex items-center gap-1 shrink-0"
             >
-              <span>مکمل رپورٹیں</span>
+              <span>{t("Full Financial Reports", "مکمل مالیاتی رپورٹیں")}</span>
               <ArrowRight className="h-3 w-3" />
             </Link>
           </div>
@@ -608,10 +611,9 @@ export default function DashboardPage() {
             <div className="rounded-2xl border border-slate-200/80 bg-white p-3.5 sm:p-4 shadow-xs flex flex-col justify-between dark:border-slate-800/90 dark:bg-[#111827]">
               <div className="flex items-center justify-between gap-1">
                 <div>
-                  <span className="text-[11px] font-bold text-slate-800 dark:text-slate-200 block">
-                    کل فروخت
+                  <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">
+                    {t("Gross Sales", "کل فروخت")}
                   </span>
-                  <span className="text-[10px] text-slate-400 font-normal">Gross Sales</span>
                 </div>
                 <div className="h-7 w-7 rounded-lg bg-indigo-50 text-indigo-600 dark:bg-indigo-950/60 dark:text-indigo-400 flex items-center justify-center shrink-0">
                   <Receipt className="h-3.5 w-3.5" />
@@ -624,7 +626,7 @@ export default function DashboardPage() {
                 Rs {data ? Number(data.totalGrossSales || data.netSales || 0).toLocaleString() : "..."}
               </p>
               <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-medium mt-1 truncate block">
-                دکان کی کل آمدنی
+                {t("Total revenue earned", "دکان کی کل آمدنی")}
               </span>
             </div>
 
@@ -632,10 +634,9 @@ export default function DashboardPage() {
             <div className="rounded-2xl border border-slate-200/80 bg-white p-3.5 sm:p-4 shadow-xs flex flex-col justify-between dark:border-slate-800/90 dark:bg-[#111827]">
               <div className="flex items-center justify-between gap-1">
                 <div>
-                  <span className="text-[11px] font-bold text-slate-800 dark:text-slate-200 block">
-                    کل خریداری
+                  <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">
+                    {t("Purchases", "کل خریداری")}
                   </span>
-                  <span className="text-[10px] text-slate-400 font-normal">Purchases</span>
                 </div>
                 <div className="h-7 w-7 rounded-lg bg-purple-50 text-purple-600 dark:bg-purple-950/60 dark:text-purple-400 flex items-center justify-center shrink-0">
                   <ShoppingBag className="h-3.5 w-3.5" />
@@ -648,7 +649,7 @@ export default function DashboardPage() {
                 Rs {data ? Number(data.totalPurchases || 0).toLocaleString() : "..."}
               </p>
               <span className="text-[10px] text-purple-600 dark:text-purple-400 font-medium mt-1 truncate block">
-                دکان کا خریدا گیا مال
+                {t("Total inventory bought", "دکان کا خریدا گیا مال")}
               </span>
             </div>
 
@@ -656,10 +657,9 @@ export default function DashboardPage() {
             <div className="rounded-2xl border border-slate-200/80 bg-white p-3.5 sm:p-4 shadow-xs flex flex-col justify-between dark:border-slate-800/90 dark:bg-[#111827]">
               <div className="flex items-center justify-between gap-1">
                 <div>
-                  <span className="text-[11px] font-bold text-slate-800 dark:text-slate-200 block">
-                    کیش و بینک
+                  <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">
+                    {t("Cash & Bank", "کیش و بینک")}
                   </span>
-                  <span className="text-[10px] text-slate-400 font-normal">Cash & Bank</span>
                 </div>
                 <div className="h-7 w-7 rounded-lg bg-emerald-50 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400 flex items-center justify-center shrink-0">
                   <Wallet className="h-3.5 w-3.5" />
@@ -673,9 +673,9 @@ export default function DashboardPage() {
               </p>
               <span
                 className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium mt-1 truncate block"
-                title={`Cash: Rs ${cashAmount.toLocaleString()} • Bank: Rs ${bankAmount.toLocaleString()}`}
+                title={`${t("Cash", "کیش")}: Rs ${cashAmount.toLocaleString()} • ${t("Bank", "بینک")}: Rs ${bankAmount.toLocaleString()}`}
               >
-                کیش: Rs {(cashAmount / 1000).toFixed(0)}k • بینک: Rs {(bankAmount / 1000).toFixed(0)}k
+                {t("Cash", "کیش")}: Rs {(cashAmount / 1000).toFixed(0)}k • {t("Bank", "بینک")}: Rs {(bankAmount / 1000).toFixed(0)}k
               </span>
             </div>
 
@@ -683,10 +683,9 @@ export default function DashboardPage() {
             <div className="rounded-2xl border border-amber-200/90 bg-amber-50/40 p-3.5 sm:p-4 shadow-xs flex flex-col justify-between dark:border-amber-900/60 dark:bg-amber-950/25">
               <div className="flex items-center justify-between gap-1">
                 <div>
-                  <span className="text-[11px] font-bold text-amber-900 dark:text-amber-200 block">
-                    رقم لینی ہے
+                  <span className="text-xs font-bold text-amber-900 dark:text-amber-200 block">
+                    {t("Receivables", "رقم لینی ہے")}
                   </span>
-                  <span className="text-[10px] text-amber-600/80 dark:text-amber-400 font-normal">Receivables</span>
                 </div>
                 <div className="h-7 w-7 rounded-lg bg-amber-100 text-amber-700 dark:bg-amber-900/60 dark:text-amber-300 flex items-center justify-center shrink-0">
                   <Users className="h-3.5 w-3.5" />
@@ -699,7 +698,7 @@ export default function DashboardPage() {
                 Rs {data ? Number(data.totalReceivables || 0).toLocaleString() : "..."}
               </p>
               <Link href="/customers" className="text-[10px] text-amber-700 dark:text-amber-400 font-semibold hover:underline mt-1 truncate block">
-                گاہکوں کے ذمے بقایا &rarr;
+                {t("Customer dues", "گاہکوں کے ذمے بقایا")} &rarr;
               </Link>
             </div>
 
@@ -707,10 +706,9 @@ export default function DashboardPage() {
             <div className="rounded-2xl border border-slate-200/80 bg-white p-3.5 sm:p-4 shadow-xs flex flex-col justify-between dark:border-slate-800/90 dark:bg-[#111827]">
               <div className="flex items-center justify-between gap-1">
                 <div>
-                  <span className="text-[11px] font-bold text-slate-800 dark:text-slate-200 block">
-                    رقم دینی ہے
+                  <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">
+                    {t("Payables", "رقم دینی ہے")}
                   </span>
-                  <span className="text-[10px] text-slate-400 font-normal">Payables</span>
                 </div>
                 <div className="h-7 w-7 rounded-lg bg-rose-50 text-rose-600 dark:bg-rose-950/60 dark:text-rose-400 flex items-center justify-center shrink-0">
                   <Truck className="h-3.5 w-3.5" />
@@ -723,7 +721,7 @@ export default function DashboardPage() {
                 Rs {data ? Number(data.totalPayables || 0).toLocaleString() : "..."}
               </p>
               <Link href="/suppliers" className="text-[10px] text-rose-600 dark:text-rose-400 font-semibold hover:underline mt-1 truncate block">
-                سپلائرز کو بقایا &rarr;
+                {t("Supplier dues", "سپلائرز کو بقایا")} &rarr;
               </Link>
             </div>
 
@@ -731,10 +729,9 @@ export default function DashboardPage() {
             <div className="rounded-2xl border border-emerald-200/90 bg-emerald-50/40 p-3.5 sm:p-4 shadow-xs flex flex-col justify-between dark:border-emerald-900/60 dark:bg-emerald-950/25">
               <div className="flex items-center justify-between gap-1">
                 <div>
-                  <span className="text-[11px] font-bold text-emerald-800 dark:text-emerald-300 block">
-                    خالص بچت
+                  <span className="text-xs font-bold text-emerald-800 dark:text-emerald-300 block">
+                    {t("Net Profit", "خالص بچت")}
                   </span>
-                  <span className="text-[10px] text-emerald-600/80 dark:text-emerald-400 font-normal">Net Profit</span>
                 </div>
                 <div className="h-7 w-7 rounded-lg bg-emerald-100 text-emerald-700 dark:bg-emerald-900/60 dark:text-emerald-300 flex items-center justify-center shrink-0">
                   <TrendingUp className="h-3.5 w-3.5" />
@@ -748,9 +745,9 @@ export default function DashboardPage() {
               </p>
               <span
                 className="text-[10px] text-emerald-700 dark:text-emerald-400 font-medium mt-1 truncate block cursor-help"
-                title={`فروخت (Rs ${Number(data?.totalGrossSales || 0).toLocaleString()}) - مال کی لاگت COGS (Rs ${Number(data?.totalCogs || 0).toLocaleString()}) - اخراجات (Rs ${Number(data?.totalExpenses || 0).toLocaleString()})`}
+                title={`${t("Revenue minus COGS and Operating Expenses", "فروخت منفی مال کی لاگت و اخراجات")}`}
               >
-                فروخت منفی مال کی لاگت و اخراجات
+                {t("Revenue less COGS & expenses", "فروخت منفی مال کی لاگت و اخراجات")}
               </span>
             </div>
           </div>
@@ -764,10 +761,13 @@ export default function DashboardPage() {
             <div>
               <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white font-sans flex items-center gap-2">
                 <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                <span>Branch Performance Matrix (برانچ وائز تقابلی جائزہ)</span>
+                <span>{t("Branch Performance Matrix", "برانچ وائز تقابلی جائزہ")}</span>
               </h3>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                Real-time consolidated sales, purchases, operating expenses, and estimated net profit per branch
+                {t(
+                  "Real-time consolidated sales, purchases, operating expenses, and estimated net profit per branch",
+                  "تمام برانچز کی فروخت، خریداری، اخراجات اور متوقع خالص منافع کا تقابل"
+                )}
               </p>
             </div>
             {(user?.role === "SUPER_ADMIN" || user?.role === "OWNER_ADMIN") && (
@@ -775,7 +775,7 @@ export default function DashboardPage() {
                 href="/branches"
                 className="text-xs font-bold text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 flex items-center gap-1 shrink-0"
               >
-                <span>Manage Branches</span>
+                <span>{t("Manage Branches", "برانچز کا انتظام")}</span>
                 <ArrowRight className="h-3 w-3" />
               </Link>
             )}
@@ -785,13 +785,13 @@ export default function DashboardPage() {
             <table className="w-full min-w-[720px] text-left text-xs border-collapse">
               <thead>
                 <tr className="border-b border-slate-200/80 bg-slate-50/80 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-400">
-                  <th className="py-2.5 px-3">Branch Details</th>
-                  <th className="py-2.5 px-3">Manager / City</th>
-                  <th className="py-2.5 px-3">Gross Sales</th>
-                  <th className="py-2.5 px-3">Purchases</th>
-                  <th className="py-2.5 px-3">Expenses</th>
-                  <th className="py-2.5 px-3">Net Profit</th>
-                  <th className="py-2.5 px-3 text-right">Action</th>
+                  <th className="py-2.5 px-3">{t("Branch Details", "برانچ کی تفصیلات")}</th>
+                  <th className="py-2.5 px-3">{t("Manager / City", "منیجر / شہر")}</th>
+                  <th className="py-2.5 px-3">{t("Gross Sales", "کل فروخت")}</th>
+                  <th className="py-2.5 px-3">{t("Purchases", "کل خریداری")}</th>
+                  <th className="py-2.5 px-3">{t("Expenses", "اخراجات")}</th>
+                  <th className="py-2.5 px-3">{t("Net Profit", "خالص بچت")}</th>
+                  <th className="py-2.5 px-3 text-right">{t("Action", "کارروائی")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
@@ -817,7 +817,7 @@ export default function DashboardPage() {
                     <td className="py-3 px-3 font-mono font-bold text-slate-900 dark:text-white">
                       <div>Rs {Number(b.totalSales || 0).toLocaleString()}</div>
                       <div className="text-[10px] text-indigo-600 dark:text-indigo-400 font-sans font-medium">
-                        {b.salesSharePercent}% of total
+                        {b.salesSharePercent}% {t("of total", "کل کا")}
                       </div>
                     </td>
                     <td className="py-3 px-3 font-mono text-slate-700 dark:text-slate-300">
@@ -842,7 +842,7 @@ export default function DashboardPage() {
                         onClick={() => switchBranch(b.id)}
                         className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 hover:border-emerald-500 transition shadow-2xs"
                       >
-                        Inspect Branch &rarr;
+                        {t("Inspect Branch", "برانچ کھولیں")} &rarr;
                       </button>
                     </td>
                   </tr>
@@ -861,13 +861,13 @@ export default function DashboardPage() {
           <div className="flex items-center justify-between">
             <h2 className="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 flex items-center gap-2">
               <span className="h-2 w-2 rounded-full bg-emerald-500 shrink-0" />
-              <span>2. FBR Digital POS & Statutory Tax Center</span>
+              <span>{t("FBR Digital POS & Statutory Tax Center", "FBR ڈیجیٹل پی او ایس و ٹیکس سینٹر")}</span>
             </h2>
             <Link
               href="/compliance/fbr"
               className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300 flex items-center gap-1 shrink-0"
             >
-              <span>FBR Invoicing Hub</span>
+              <span>{t("FBR Invoicing Hub", "FBR انوائسنگ ہب")}</span>
               <ArrowRight className="h-3 w-3" />
             </Link>
           </div>
@@ -876,7 +876,7 @@ export default function DashboardPage() {
             {/* Net Taxable Sales */}
             <div className="rounded-2xl border border-slate-200/80 bg-white p-3.5 sm:p-4 shadow-xs flex flex-col justify-between dark:border-slate-800/90 dark:bg-[#111827]">
               <span className="text-[10px] sm:text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide block truncate">
-                Net Taxable Sales
+                {t("Net Taxable Sales", "قابل ٹیکس فروخت")}
               </span>
               <p
                 className="mt-2 text-sm sm:text-base lg:text-lg xl:text-xl font-bold text-slate-900 dark:text-white font-mono tabular-nums truncate"
@@ -885,14 +885,14 @@ export default function DashboardPage() {
                 Rs {data ? Number(data.netSales || 0).toLocaleString() : "..."}
               </p>
               <span className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 truncate block">
-                Excl. Sales Tax
+                {t("Excl. Sales Tax", "سیلز ٹیکس کے علاوہ")}
               </span>
             </div>
 
             {/* Total Tax Collected */}
             <div className="rounded-2xl border border-indigo-200/80 bg-indigo-50/40 p-3.5 sm:p-4 shadow-xs flex flex-col justify-between dark:border-indigo-900/60 dark:bg-indigo-950/25">
               <span className="text-[10px] sm:text-[11px] font-bold text-indigo-900 dark:text-indigo-200 uppercase tracking-wide block truncate">
-                Total Tax Collected
+                {t("Total Tax Collected", "وصول شدہ کل ٹیکس")}
               </span>
               <p
                 className="mt-2 text-sm sm:text-base lg:text-lg xl:text-xl font-bold text-indigo-700 dark:text-indigo-300 font-mono tabular-nums truncate"
@@ -908,7 +908,7 @@ export default function DashboardPage() {
             {/* 18% Sales Tax */}
             <div className="rounded-2xl border border-slate-200/80 bg-white p-3.5 sm:p-4 shadow-xs flex flex-col justify-between dark:border-slate-800/90 dark:bg-[#111827]">
               <span className="text-[10px] sm:text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide block truncate">
-                18% Sales Tax
+                {t("18% Sales Tax", "18% سیلز ٹیکس")}
               </span>
               <p
                 className="mt-2 text-sm sm:text-base lg:text-lg xl:text-xl font-bold text-slate-900 dark:text-white font-mono tabular-nums truncate"
@@ -917,14 +917,14 @@ export default function DashboardPage() {
                 Rs {data ? Number(data.salesTax || 0).toLocaleString() : "..."}
               </p>
               <span className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 truncate block">
-                Standard Schedule
+                {t("Standard Schedule", "معیاری شیڈول")}
               </span>
             </div>
 
             {/* 3% Further Tax */}
             <div className="rounded-2xl border border-slate-200/80 bg-white p-3.5 sm:p-4 shadow-xs flex flex-col justify-between dark:border-slate-800/90 dark:bg-[#111827]">
               <span className="text-[10px] sm:text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide block truncate">
-                3% Further Tax
+                {t("3% Further Tax", "3% مزید ٹیکس")}
               </span>
               <p
                 className="mt-2 text-sm sm:text-base lg:text-lg xl:text-xl font-bold text-amber-600 dark:text-amber-400 font-mono tabular-nums truncate"
@@ -933,33 +933,33 @@ export default function DashboardPage() {
                 Rs {data ? Number(data.furtherTax || 0).toLocaleString() : "..."}
               </p>
               <span className="text-[10px] text-amber-600/90 dark:text-amber-400/90 mt-1 truncate block">
-                Unregistered Buyers
+                {t("Unregistered Buyers", "غیر رجسٹرڈ خریدار")}
               </span>
             </div>
 
             {/* FBR Validated Invoices */}
             <div className="rounded-2xl border border-emerald-200/80 bg-emerald-50/40 p-3.5 sm:p-4 shadow-xs flex flex-col justify-between dark:border-emerald-900/60 dark:bg-emerald-950/25">
               <span className="text-[10px] sm:text-[11px] font-bold text-emerald-800 dark:text-emerald-200 uppercase tracking-wide block truncate">
-                FBR Validated
+                {t("FBR Validated", "FBR تصدیق شدہ")}
               </span>
               <p className="mt-2 text-sm sm:text-base lg:text-lg xl:text-xl font-bold text-emerald-700 dark:text-emerald-300 font-mono tabular-nums truncate">
-                {data?.successfulFbr ?? 0} Invoices
+                {data?.successfulFbr ?? 0} {t("Invoices", "انوائسز")}
               </p>
               <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold mt-1 truncate flex items-center gap-1">
-                <CheckCircle2 className="h-3 w-3 shrink-0" /> QR Generated
+                <CheckCircle2 className="h-3 w-3 shrink-0" /> {t("QR Generated", "کیو آر تصدیق شدہ")}
               </span>
             </div>
 
             {/* FBR Compliance Score */}
             <div className="rounded-2xl border border-slate-200/80 bg-white p-3.5 sm:p-4 shadow-xs flex flex-col justify-between dark:border-slate-800/90 dark:bg-[#111827]">
               <span className="text-[10px] sm:text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide block truncate">
-                Compliance Health
+                {t("Compliance Health", "ٹیکس کمپلائنس")}
               </span>
               <p className="mt-2 text-sm sm:text-base lg:text-lg xl:text-xl font-bold text-indigo-600 dark:text-indigo-400 font-mono tabular-nums truncate">
                 {data?.complianceScore ?? 100}%
               </p>
               <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold mt-1 truncate block">
-                {data?.failedFbr ? `${data.failedFbr} Failed (Action Req.)` : "All Sync Healthy"}
+                {data?.failedFbr ? `${data.failedFbr} ${t("Failed (Action Req.)", "ناکام (کارروائی درکار)")}` : t("All Sync Healthy", "تمام ڈیٹا اپ ڈیٹ ہے")}
               </span>
             </div>
           </div>
@@ -974,19 +974,23 @@ export default function DashboardPage() {
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 mb-4 sm:mb-6">
               <div>
                 <h2 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white tracking-tight font-sans">
-                  {isAccountingOnly ? "ماہانہ فروخت و آمدنی (Monthly Sales Performance)" : "Monthly Revenue & FBR POS Performance"}
+                  {isAccountingOnly
+                    ? t("Monthly Sales Performance", "ماہانہ فروخت و آمدنی")
+                    : t("Monthly Revenue & FBR POS Performance", "ماہانہ آمدنی و FBR پی او ایس کارکردگی")}
                 </h2>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  {isAccountingOnly ? "Net sales turnover and invoice performance" : "Gross Sales, Tax Collected, and Verified FBR Invoicing"}
+                  {isAccountingOnly
+                    ? t("Net sales turnover and invoice performance", "خالص فروخت اور بلوں کی کارکردگی")
+                    : t("Gross Sales, Tax Collected, and Verified FBR Invoicing", "کل فروخت، وصول شدہ ٹیکس اور تصدیق شدہ FBR انوائسز")}
                 </p>
               </div>
               <div className="flex items-center gap-3 sm:gap-4 text-xs font-semibold flex-wrap">
                 <span className="flex items-center gap-1.5 text-slate-700 dark:text-slate-300">
-                  <span className="h-2.5 w-2.5 rounded-sm bg-indigo-600 shrink-0" /> Net Sales
+                  <span className="h-2.5 w-2.5 rounded-sm bg-indigo-600 shrink-0" /> {t("Net Sales", "خالص فروخت")}
                 </span>
                 {!isAccountingOnly && (
                   <span className="flex items-center gap-1.5 text-slate-700 dark:text-slate-300">
-                    <span className="h-2.5 w-2.5 rounded-sm bg-emerald-500 shrink-0" /> FBR Compliant
+                    <span className="h-2.5 w-2.5 rounded-sm bg-emerald-500 shrink-0" /> {t("FBR Compliant", "FBR تصدیق شدہ")}
                   </span>
                 )}
               </div>
@@ -1028,9 +1032,9 @@ export default function DashboardPage() {
                     }}
                     formatter={(val: any) => [`Rs ${Number(val).toLocaleString()}`, ""]}
                   />
-                  <Bar dataKey="sales" name="Net Sales" fill="#4f46e5" radius={[4, 4, 0, 0]} maxBarSize={22} />
+                  <Bar dataKey="sales" name={t("Net Sales", "خالص فروخت")} fill="#4f46e5" radius={[4, 4, 0, 0]} maxBarSize={22} />
                   {!isAccountingOnly && (
-                    <Bar dataKey="fbrCompliant" name="FBR Compliant" fill="#10b981" radius={[4, 4, 0, 0]} maxBarSize={22} />
+                    <Bar dataKey="fbrCompliant" name={t("FBR Compliant", "FBR تصدیق شدہ")} fill="#10b981" radius={[4, 4, 0, 0]} maxBarSize={22} />
                   )}
                 </BarChart>
               </ResponsiveContainer>
@@ -1044,38 +1048,38 @@ export default function DashboardPage() {
                 <div className="flex items-center justify-between pb-3.5 border-b border-slate-100 dark:border-slate-800">
                   <div className="flex items-center gap-2">
                     <TrendingUp className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
-                    <h3 className="text-sm font-bold text-slate-900 dark:text-white font-sans">کاروباری خلاصہ • Quick Overview</h3>
+                    <h3 className="text-sm font-bold text-slate-900 dark:text-white font-sans">{t("Quick Overview", "کاروباری خلاصہ")}</h3>
                   </div>
                   <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-2.5 py-0.5 text-[10px] font-bold text-blue-700 border border-blue-200 dark:bg-blue-950/60 dark:text-blue-300 dark:border-blue-800">
                     <span className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse" />
-                    ACCOUNTING
+                    {t("ACCOUNTING", "اکاؤنٹنگ")}
                   </span>
                 </div>
 
                 <div className="mt-4 space-y-3.5">
                   <div className="rounded-xl border border-slate-100 bg-slate-50/80 p-3 space-y-2 dark:border-slate-800 dark:bg-slate-900/60">
                     <div className="flex justify-between text-xs text-slate-600 dark:text-slate-400">
-                      <span>ادارہ / بزنس:</span>
+                      <span>{t("Business Name", "ادارہ / بزنس")}:</span>
                       <strong className="text-slate-900 dark:text-slate-100 font-sans">{activeCompany?.name}</strong>
                     </div>
                     <div className="flex justify-between text-xs text-slate-600 dark:text-slate-400">
-                      <span>کل جاری کردہ بل:</span>
-                      <strong className="text-slate-900 dark:text-slate-100 font-mono">{data?.recentInvoices?.length || 0} Bills</strong>
+                      <span>{t("Total Bills Issued", "کل جاری کردہ بل")}:</span>
+                      <strong className="text-slate-900 dark:text-slate-100 font-mono">{data?.recentInvoices?.length || 0} {t("Bills", "بل")}</strong>
                     </div>
                     <div className="flex justify-between text-xs text-slate-600 dark:text-slate-400">
-                      <span>واجب الوصول (Receivables):</span>
+                      <span>{t("Receivables", "واجب الوصول")}:</span>
                       <strong className="text-indigo-600 dark:text-indigo-400 font-mono">Rs {Number(data?.receivablesTotal || 0).toLocaleString()}</strong>
                     </div>
                     <div className="flex justify-between text-xs text-slate-600 dark:text-slate-400">
-                      <span>واجب الادا (Payables):</span>
+                      <span>{t("Payables", "واجب الادا")}:</span>
                       <strong className="text-rose-600 dark:text-rose-400 font-mono">Rs {Number(data?.payablesTotal || 0).toLocaleString()}</strong>
                     </div>
                   </div>
 
                   <div className="rounded-xl border border-dashed border-slate-200 p-4 text-center dark:border-slate-800">
                     <CheckCircle2 className="h-6 w-6 text-emerald-500 mx-auto mb-1" />
-                    <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">لیجر و کھاتے اپ ڈیٹ ہیں</p>
-                    <p className="text-[10px] text-slate-400 dark:text-slate-500">Double-entry bookkeeping is active & balanced</p>
+                    <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">{t("Ledger & accounts are balanced", "لیجر و کھاتے اپ ڈیٹ اور متوازن ہیں")}</p>
+                    <p className="text-[10px] text-slate-400 dark:text-slate-500">{t("Double-entry bookkeeping is active & balanced", "ڈبل انٹری بک کیپنگ فعال ہے")}</p>
                   </div>
                 </div>
               </div>
@@ -1085,7 +1089,7 @@ export default function DashboardPage() {
                   href="/reports"
                   className="flex-1 rounded-xl bg-indigo-50 border border-indigo-200 py-2.5 text-center text-xs font-bold text-indigo-700 hover:bg-indigo-100 dark:border-indigo-800 dark:bg-indigo-950/50 dark:text-indigo-300 dark:hover:bg-indigo-900/50 transition"
                 >
-                  مکمل مالیاتی رپورٹیں &rarr;
+                  {t("Full Financial Reports", "مکمل مالیاتی رپورٹیں")} &rarr;
                 </Link>
               </div>
             </div>
@@ -1095,34 +1099,34 @@ export default function DashboardPage() {
                 <div className="flex items-center justify-between pb-3.5 border-b border-slate-100 dark:border-slate-800">
                   <div className="flex items-center gap-2">
                     <ShieldCheck className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
-                    <h3 className="text-sm font-bold text-slate-900 dark:text-white font-sans">FBR POS Live Status</h3>
+                    <h3 className="text-sm font-bold text-slate-900 dark:text-white font-sans">{t("FBR POS Live Status", "FBR پی او ایس لائیو صورتحال")}</h3>
                   </div>
                   <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[10px] font-bold text-emerald-700 border border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800">
                     <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                    ACTIVE
+                    {t("ACTIVE", "فعال")}
                   </span>
                 </div>
 
                 <div className="mt-4 space-y-3.5">
                   <div className="rounded-xl border border-slate-100 bg-slate-50/80 p-3 space-y-1.5 dark:border-slate-800 dark:bg-slate-900/60">
                     <div className="flex justify-between text-xs text-slate-600 dark:text-slate-400">
-                      <span>POS Terminal ID:</span>
+                      <span>{t("POS Terminal ID", "ٹرمینل آئی ڈی")}:</span>
                       <strong className="text-slate-900 dark:text-slate-100 font-mono">POS-KHI-001</strong>
                     </div>
                     <div className="flex justify-between text-xs text-slate-600 dark:text-slate-400">
-                      <span>Organization NTN:</span>
+                      <span>{t("Organization NTN", "ادارہ NTN")}:</span>
                       <strong className="text-slate-900 dark:text-slate-100 font-mono">{activeCompany?.ntn || "1234567-8"}</strong>
                     </div>
                     <div className="flex justify-between text-xs text-slate-600 dark:text-slate-400">
-                      <span>Tax Profile:</span>
-                      <strong className="text-slate-900 dark:text-slate-100 font-mono">Standard 18%</strong>
+                      <span>{t("Tax Profile", "ٹیکس پروفائل")}:</span>
+                      <strong className="text-slate-900 dark:text-slate-100 font-mono">{t("Standard 18%", "معیاری 18%")}</strong>
                     </div>
                   </div>
 
                   {/* Compliance Issues / Retries */}
                   <div>
                     <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">
-                      Transmission Queue ({data?.complianceIssues?.length || 0})
+                      {t("Transmission Queue", "FBR منتقلی کی قطار")} ({data?.complianceIssues?.length || 0})
                     </h4>
                     {data?.complianceIssues && data.complianceIssues.length > 0 ? (
                       <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
@@ -1136,7 +1140,7 @@ export default function DashboardPage() {
                                 {issue.invoiceNumber} • {issue.customerName}
                               </p>
                               <span className="text-[10px] text-amber-600 dark:text-amber-400 font-medium block truncate">
-                                {issue.reason || "Pending transmission batch"}
+                                {issue.reason || t("Pending transmission batch", "منتقلی زیر التواء")}
                               </span>
                             </div>
                             <button
@@ -1144,7 +1148,7 @@ export default function DashboardPage() {
                               disabled={retryingId === issue.invoiceId}
                               className="shrink-0 rounded-lg bg-indigo-600 px-2.5 py-1.5 text-[11px] font-bold text-white hover:bg-indigo-700 disabled:opacity-50 transition"
                             >
-                              {retryingId === issue.invoiceId ? "Retrying..." : "Retry"}
+                              {retryingId === issue.invoiceId ? t("Retrying...", "کوشش جاری...") : t("Retry", "دوبارہ بھیجیں")}
                             </button>
                           </div>
                         ))}
@@ -1152,8 +1156,8 @@ export default function DashboardPage() {
                     ) : (
                       <div className="rounded-xl border border-dashed border-slate-200 p-4 text-center dark:border-slate-800">
                         <CheckCircle2 className="h-6 w-6 text-emerald-500 mx-auto mb-1" />
-                        <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">All Invoices Synchronized</p>
-                        <p className="text-[10px] text-slate-400 dark:text-slate-500">Zero transmission backlogs detected</p>
+                        <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">{t("All Invoices Synchronized", "تمام انوائسز FBR پر منتقل ہیں")}</p>
+                        <p className="text-[10px] text-slate-400 dark:text-slate-500">{t("Zero transmission backlogs detected", "کوئی تاخیر شدہ ریکارڈ نہیں ہے")}</p>
                       </div>
                     )}
                   </div>
@@ -1165,7 +1169,7 @@ export default function DashboardPage() {
                   href="/compliance/fbr"
                   className="flex-1 rounded-xl bg-indigo-50 border border-indigo-200 py-2.5 text-center text-xs font-bold text-indigo-700 hover:bg-indigo-100 dark:border-indigo-800 dark:bg-indigo-950/50 dark:text-indigo-300 dark:hover:bg-indigo-900/50 transition"
                 >
-                  FBR Audit Center &rarr;
+                  {t("FBR Audit Center", "FBR آڈٹ سینٹر")} &rarr;
                 </Link>
               </div>
             </div>
@@ -1179,20 +1183,23 @@ export default function DashboardPage() {
           <div className="flex items-center gap-2.5">
             <Sparkles className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
             <span>
-              <strong>آسان موڈ آن ہے:</strong> غیر ضروری پیچیدہ گراف چھپا دیے گئے ہیں تاکہ آپ آسانی سے روزمرہ کا کام کر سکیں۔ تفصیلی چارٹس اور ٹیکس گوشوارے دیکھنے کیلئے اوپر <strong>تفصیلی موڈ</strong> کا بٹن دبائیں۔
+              <strong>{t("Simple Mode Active", "آسان موڈ آن ہے")}:</strong> {t(
+                "Complex analytics charts are hidden for high-speed daily bookkeeping. Switch to Advanced Mode above to view charts and tax queues.",
+                "غیر ضروری پیچیدہ گراف چھپا دیے گئے ہیں تاکہ آپ آسانی سے روزمرہ کا کام کر سکیں۔ تفصیلی چارٹس اور ٹیکس گوشوارے دیکھنے کیلئے اوپر تفصیلی موڈ کا بٹن دبائیں۔"
+              )}
             </span>
           </div>
           <button
             onClick={toggleAsaanMode}
             className="text-emerald-700 dark:text-emerald-300 font-bold hover:underline shrink-0 text-xs self-start sm:self-auto"
           >
-            تفصیلی موڈ کھولیں &rarr;
+            {t("Open Advanced Mode", "تفصیلی موڈ کھولیں")} &rarr;
           </button>
         </div>
       )}
 
       {/* ========================================================================= */}
-      {/* PAYMENT PROMISE & OVERDUE REMINDERS WIDGET (ادائیگی و وصولی کی یاد دہانیاں) */}
+      {/* PAYMENT PROMISE & OVERDUE REMINDERS WIDGET                                 */}
       {/* ========================================================================= */}
       {data?.paymentReminders && (
         <div className="rounded-2xl border border-slate-200/80 bg-white shadow-xs overflow-hidden dark:border-slate-800/90 dark:bg-[#111827]">
@@ -1202,13 +1209,11 @@ export default function DashboardPage() {
                 <Bell className="h-4.5 w-4.5" />
               </div>
               <div>
-                <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white tracking-tight font-sans flex items-center gap-2">
-                  <span>ادائیگی و وصولی کی یاد دہانی</span>
-                  <span className="text-slate-300 dark:text-slate-700 font-normal">|</span>
-                  <span className="text-xs sm:text-sm font-semibold text-slate-600 dark:text-slate-400">Payment Due Dates & Reminders</span>
+                <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white tracking-tight font-sans">
+                  {t("Payment Due Dates & Reminders", "ادائیگی و وصولی کی یاد دہانی")}
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                  وعدہ کے مطابق تاخیر شدہ اور آج کی وصولیاں اور ادائیگیاں (Continuous reminder alerts)
+                  {t("Scheduled and overdue customer receivables and supplier payables", "وعدہ کے مطابق تاخیر شدہ اور آج کی وصولیاں اور ادائیگیاں")}
                 </p>
               </div>
             </div>
@@ -1224,7 +1229,7 @@ export default function DashboardPage() {
                     : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200"
                 }`}
               >
-                سب ({data.paymentReminders.reminders?.length || 0})
+                {t("All", "سب")} ({data.paymentReminders.reminders?.length || 0})
               </button>
               <button
                 type="button"
@@ -1235,7 +1240,7 @@ export default function DashboardPage() {
                     : "text-emerald-700 hover:text-emerald-800 dark:text-emerald-400"
                 }`}
               >
-                وصولیاں ({data.paymentReminders.reminders?.filter((r: any) => r.type === "RECEIVABLE").length || 0})
+                {t("Receivables", "وصولیاں")} ({data.paymentReminders.reminders?.filter((r: any) => r.type === "RECEIVABLE").length || 0})
               </button>
               <button
                 type="button"
@@ -1246,7 +1251,7 @@ export default function DashboardPage() {
                     : "text-rose-700 hover:text-rose-800 dark:text-rose-400"
                 }`}
               >
-                ادائیگیاں ({data.paymentReminders.reminders?.filter((r: any) => r.type === "PAYABLE").length || 0})
+                {t("Payables", "ادائیگیاں")} ({data.paymentReminders.reminders?.filter((r: any) => r.type === "PAYABLE").length || 0})
               </button>
             </div>
           </div>
@@ -1265,10 +1270,10 @@ export default function DashboardPage() {
                   <div className="rounded-xl border border-dashed border-emerald-200 bg-emerald-50/50 p-6 text-center dark:border-emerald-900/60 dark:bg-emerald-950/20">
                     <CheckCircle2 className="h-7 w-7 text-emerald-500 mx-auto mb-2" />
                     <p className="text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-200">
-                      ماشاءاللہ، تمام وعدہ شدہ ادائیگیاں اور وصولیاں کلیئر ہیں!
+                      {t("All payment commitments are completely settled!", "تمام وعدہ شدہ ادائیگیاں اور وصولیاں کلیئر ہیں!")}
                     </p>
                     <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
-                      No overdue or pending payments requiring immediate attention in this filter.
+                      {t("No overdue or pending payments requiring immediate attention in this filter.", "کوئی تاخیر شدہ ادائیگیاں یا وصولیاں موجود نہیں ہیں۔")}
                     </p>
                   </div>
                 );
@@ -1302,23 +1307,23 @@ export default function DashboardPage() {
                                   : "bg-rose-100 text-rose-800 dark:bg-rose-900/60 dark:text-rose-300"
                               }`}
                             >
-                              {isReceivable ? "گاہک سے وصولی (Receivable)" : "سپلائر کو ادائیگی (Payable)"}
+                              {isReceivable ? t("Receivable", "گاہک سے وصولی") : t("Payable", "سپلائر کو ادائیگی")}
                             </span>
 
                             {isOverdue ? (
                               <span className="inline-flex items-center gap-1 text-[10px] font-black text-rose-700 dark:text-rose-400">
                                 <AlertTriangle className="h-3 w-3" />
-                                <span>{reminder.daysOverdue} دن تاخیر (Overdue)</span>
+                                <span>{reminder.daysOverdue} {t("Days Overdue", "دن تاخیر")}</span>
                               </span>
                             ) : isDueToday ? (
                               <span className="inline-flex items-center gap-1 text-[10px] font-black text-amber-700 dark:text-amber-400">
                                 <Clock className="h-3 w-3" />
-                                <span>آج کا وعدہ (Due Today)</span>
+                                <span>{t("Due Today", "آج کا وعدہ")}</span>
                               </span>
                             ) : (
                               <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-500 dark:text-slate-400">
                                 <Calendar className="h-3 w-3" />
-                                <span>{reminder.daysOverdue < 0 ? `${Math.abs(reminder.daysOverdue)} دن بعد` : "آئندہ"}</span>
+                                <span>{reminder.daysOverdue < 0 ? `${Math.abs(reminder.daysOverdue)} ${t("days remaining", "دن بعد")}` : t("Upcoming", "آئندہ")}</span>
                               </span>
                             )}
                           </div>
@@ -1334,7 +1339,7 @@ export default function DashboardPage() {
                                 <a
                                   href={`tel:${reminder.entityPhone}`}
                                   className="inline-flex items-center gap-0.5 text-indigo-600 dark:text-indigo-400 hover:underline"
-                                  title="کال کریں"
+                                  title={t("Call Phone", "کال کریں")}
                                 >
                                   <Phone className="h-3 w-3" />
                                   <span>{reminder.entityPhone}</span>
@@ -1346,7 +1351,7 @@ export default function DashboardPage() {
                           {/* Promised Date info */}
                           <div className="rounded-lg bg-white/70 dark:bg-slate-800/60 p-2 text-[11px] space-y-1 border border-slate-100 dark:border-slate-800 mb-3">
                             <div className="flex justify-between text-slate-600 dark:text-slate-400">
-                              <span>وعدہ تاریخ (Due Date):</span>
+                              <span>{t("Due Date", "وعدہ تاریخ")}:</span>
                               <strong className="text-slate-900 dark:text-slate-200">
                                 {new Date(reminder.dueDate).toLocaleDateString("en-GB", {
                                   day: "2-digit",
@@ -1356,11 +1361,11 @@ export default function DashboardPage() {
                               </strong>
                             </div>
                             <div className="flex justify-between text-slate-600 dark:text-slate-400">
-                              <span>کل رقم:</span>
+                              <span>{t("Total Amount", "کل رقم")}:</span>
                               <span className="font-mono">Rs {Number(reminder.totalAmount).toLocaleString()}</span>
                             </div>
                             <div className="flex justify-between text-slate-600 dark:text-slate-400">
-                              <span>ادا شدہ:</span>
+                              <span>{t("Paid", "ادا شدہ")}:</span>
                               <span className="font-mono text-emerald-600 dark:text-emerald-400">
                                 Rs {Number(reminder.paidAmount).toLocaleString()}
                               </span>
@@ -1371,7 +1376,7 @@ export default function DashboardPage() {
                         {/* Balance Remaining & 1-Click Action */}
                         <div className="pt-2 border-t border-slate-200/60 dark:border-slate-800/80 flex items-center justify-between gap-2">
                           <div>
-                            <span className="text-[10px] text-slate-400 uppercase font-bold block">بقایا رقم (Balance)</span>
+                            <span className="text-[10px] text-slate-400 uppercase font-bold block">{t("Remaining Balance", "بقایا رقم")}</span>
                             <span
                               className={`text-sm sm:text-base font-black font-mono ${
                                 isReceivable ? "text-emerald-700 dark:text-emerald-400" : "text-rose-700 dark:text-rose-400"
@@ -1393,7 +1398,7 @@ export default function DashboardPage() {
                                 : "bg-rose-600 hover:bg-rose-700"
                             }`}
                           >
-                            <span>{isReceivable ? "وصول کریں" : "ادائیگی کریں"}</span>
+                            <span>{isReceivable ? t("Receive Payment", "وصول کریں") : t("Make Payment", "ادائیگی کریں")}</span>
                             <ArrowRight className="h-3 w-3" />
                           </Link>
                         </div>
@@ -1411,13 +1416,14 @@ export default function DashboardPage() {
       <div className="rounded-2xl border border-slate-200/80 bg-white shadow-xs overflow-hidden dark:border-slate-800/90 dark:bg-[#111827]">
         <div className="p-4 sm:p-5 border-b border-slate-200/80 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
-            <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white tracking-tight font-sans flex items-center gap-2">
-              <span>حالیہ فروخت و انوائسز</span>
-              <span className="text-slate-300 dark:text-slate-700 font-normal">|</span>
-              <span className="text-xs sm:text-sm font-semibold text-slate-600 dark:text-slate-400">Recent Customer Bills</span>
+            <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white tracking-tight font-sans">
+              {t("Recent Customer Bills", "حالیہ فروخت و انوائسز")}
             </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              دکان کے حالیہ کسٹمر بل، ادائیگی کی تفصیلات اور رسید پرنٹ کرنے کی سہولت
+              {t(
+                "Recent sales invoices, payment status, receipts and FBR fiscal validation",
+                "دکان کے حالیہ کسٹمر بل، ادائیگی کی تفصیلات اور رسید پرنٹ کرنے کی سہولت"
+              )}
             </p>
           </div>
           <div className="flex items-center gap-2 justify-between sm:justify-end">
@@ -1430,10 +1436,10 @@ export default function DashboardPage() {
                     ? "bg-white text-slate-900 shadow-2xs dark:bg-slate-900 dark:text-white"
                     : "text-slate-500 dark:text-slate-400"
                 }`}
-                title="Table View"
+                title={t("Table View", "ٹیبل ویو")}
               >
                 <List className="h-3.5 w-3.5" />
-                <span className="text-[10px]">Table</span>
+                <span className="text-[10px]">{t("Table", "ٹیبل")}</span>
               </button>
               <button
                 onClick={() => setTableLayout("cards")}
@@ -1442,10 +1448,10 @@ export default function DashboardPage() {
                     ? "bg-white text-slate-900 shadow-2xs dark:bg-slate-900 dark:text-white"
                     : "text-slate-500 dark:text-slate-400"
                 }`}
-                title="Cards View"
+                title={t("Cards View", "کارڈ ویو")}
               >
                 <LayoutGrid className="h-3.5 w-3.5" />
-                <span className="text-[10px]">Cards</span>
+                <span className="text-[10px]">{t("Cards", "کارڈز")}</span>
               </button>
             </div>
 
@@ -1453,7 +1459,7 @@ export default function DashboardPage() {
               href="/sales"
               className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300 hover:underline"
             >
-              <span>تمام فروخت کا کھاتہ (Sales)</span>
+              <span>{t("All Sales Invoices", "تمام فروخت کا کھاتہ")}</span>
               <ArrowRight className="h-3 w-3" />
             </Link>
           </div>
@@ -1461,8 +1467,8 @@ export default function DashboardPage() {
 
         {/* Mobile Swipe Hint when in Table view */}
         <div className="md:hidden bg-slate-50/90 dark:bg-slate-900/60 border-b border-slate-100 dark:border-slate-800 px-4 py-1.5 text-[11px] text-slate-500 dark:text-slate-400 flex items-center justify-between">
-          <span>👉 Swipe table sideways to inspect all columns</span>
-          <span className="font-semibold text-slate-700 dark:text-slate-300">{data?.recentInvoices?.length || 0} bills</span>
+          <span>{t("👉 Swipe table sideways to inspect all columns", "👉 تمام کالم دیکھنے کے لیے ٹیبل کو بائیں دائیں گھمائیں")}</span>
+          <span className="font-semibold text-slate-700 dark:text-slate-300">{data?.recentInvoices?.length || 0} {t("bills", "بل")}</span>
         </div>
 
         {/* Mobile Cards View (Optional on small screens) */}
@@ -1484,7 +1490,7 @@ export default function DashboardPage() {
                           {inv.invoiceNumber}
                         </span>
                         <span className="text-xs text-slate-700 dark:text-slate-300 font-semibold mt-0.5 block">
-                          {inv.customerName || "Walk-in Retail Customer"}
+                          {inv.customerName || t("Walk-in Retail Customer", "واک اِن کسٹمر")}
                         </span>
                       </div>
                       {isAccountingOnly ? (
@@ -1520,13 +1526,13 @@ export default function DashboardPage() {
 
                     <div className="grid grid-cols-2 gap-2 text-xs pt-2 border-t border-slate-100 dark:border-slate-800">
                       <div>
-                        <span className="text-[10px] text-slate-400 dark:text-slate-500 block">Total Amount:</span>
+                        <span className="text-[10px] text-slate-400 dark:text-slate-500 block">{t("Total Amount:", "کل رقم:")}</span>
                         <strong className="text-slate-900 dark:text-white font-mono text-sm">
                           Rs {Number(inv.totalAmount || 0).toLocaleString()}
                         </strong>
                       </div>
                       <div>
-                        <span className="text-[10px] text-slate-400 dark:text-slate-500 block">{isAccountingOnly ? "Tax Amount:" : "Tax (18% / 3%):"}</span>
+                        <span className="text-[10px] text-slate-400 dark:text-slate-500 block">{isAccountingOnly ? t("Tax Amount:", "ٹیکس:") : t("Tax (18% / 3%):", "ٹیکس (18% / 3%):")}</span>
                         <strong className="text-indigo-600 dark:text-indigo-400 font-mono">
                           Rs {Number((inv.salesTax || 0) + (inv.furtherTax || 0)).toLocaleString()}
                         </strong>
@@ -1553,7 +1559,7 @@ export default function DashboardPage() {
                             className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-bold text-indigo-600 hover:bg-slate-50 shadow-2xs dark:border-slate-700 dark:bg-slate-800 dark:text-indigo-300"
                           >
                             <Eye className="h-3 w-3" />
-                            <span>تفصیل دیکھیں</span>
+                            <span>{t("View Bill", "بل دیکھیں")}</span>
                           </Link>
                         ) : inv.fbrQrCode ? (
                           <a
@@ -1580,7 +1586,7 @@ export default function DashboardPage() {
               })
             ) : (
               <div className="py-8 text-center text-slate-400 text-xs">
-                No transactions found for the selected period
+                {t("No transactions found for the selected period", "منتخب مدت کے لیے کوئی لین دین نہیں ملا")}
               </div>
             )}
           </div>
@@ -1590,15 +1596,15 @@ export default function DashboardPage() {
             <table className="w-full min-w-[850px] text-left text-xs border-collapse">
               <thead>
                 <tr className="border-b border-slate-200/80 bg-slate-50/80 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-400">
-                  <th className="py-3 px-4 whitespace-nowrap">Invoice #</th>
-                  <th className="py-3 px-4">Customer</th>
-                  <th className="py-3 px-4 whitespace-nowrap">Date</th>
-                  <th className="py-3 px-4 whitespace-nowrap">Subtotal</th>
-                  <th className="py-3 px-4 whitespace-nowrap">{isAccountingOnly ? "Tax" : "Tax (18% / 3%)"}</th>
-                  <th className="py-3 px-4 whitespace-nowrap">Total Amount</th>
-                  <th className="py-3 px-4 whitespace-nowrap">Payment</th>
-                  {!isAccountingOnly && <th className="py-3 px-4 whitespace-nowrap">FBR Status</th>}
-                  <th className="py-3 px-4 text-right whitespace-nowrap">{isAccountingOnly ? "Action" : "Receipt / Action"}</th>
+                  <th className="py-3 px-4 whitespace-nowrap">{t("Invoice #", "انوائس نمبر")}</th>
+                  <th className="py-3 px-4">{t("Customer", "گاہک")}</th>
+                  <th className="py-3 px-4 whitespace-nowrap">{t("Date", "تاریخ")}</th>
+                  <th className="py-3 px-4 whitespace-nowrap">{t("Subtotal", "سب ٹوٹل")}</th>
+                  <th className="py-3 px-4 whitespace-nowrap">{isAccountingOnly ? t("Tax", "ٹیکس") : t("Tax (18% / 3%)", "ٹیکس (18% / 3%)")}</th>
+                  <th className="py-3 px-4 whitespace-nowrap">{t("Total Amount", "کل رقم")}</th>
+                  <th className="py-3 px-4 whitespace-nowrap">{t("Payment", "ادائیگی")}</th>
+                  {!isAccountingOnly && <th className="py-3 px-4 whitespace-nowrap">{t("FBR Status", "FBR اسٹیٹس")}</th>}
+                  <th className="py-3 px-4 text-right whitespace-nowrap">{isAccountingOnly ? t("Action", "کارروائی") : t("Receipt / Action", "رسید / کارروائی")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
@@ -1616,7 +1622,7 @@ export default function DashboardPage() {
                           {inv.invoiceNumber}
                         </td>
                         <td className="py-3 px-4 text-slate-800 dark:text-slate-200 max-w-[180px] truncate font-semibold">
-                          {inv.customerName || "Walk-in Retail Customer"}
+                          {inv.customerName || t("Walk-in Retail Customer", "واک اِن کسٹمر")}
                         </td>
                         <td className="py-3 px-4 text-slate-500 dark:text-slate-400 font-mono whitespace-nowrap">
                           {new Date(inv.date).toLocaleDateString("en-PK", {
@@ -1663,7 +1669,7 @@ export default function DashboardPage() {
                               className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 shadow-2xs dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 transition"
                             >
                               <Eye className="h-3 w-3" />
-                              <span>بل دیکھیں</span>
+                              <span>{t("View Bill", "بل دیکھیں")}</span>
                             </Link>
                           ) : inv.fbrQrCode ? (
                             <a
@@ -1690,7 +1696,7 @@ export default function DashboardPage() {
                 ) : (
                   <tr>
                     <td colSpan={isAccountingOnly ? 8 : 9} className="py-8 text-center text-slate-400 text-xs dark:text-slate-500">
-                      No transactions found for the selected period
+                      {t("No transactions found for the selected period", "منتخب مدت کے لیے کوئی لین دین نہیں ملا")}
                     </td>
                   </tr>
                 )}
