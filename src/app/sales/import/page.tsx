@@ -56,6 +56,72 @@ interface Parsed27Row {
   validationError?: string;
 }
 
+// Intelligent date normalizer supporting YYYY-MM-DD, DD/MM/YYYY, DD-MM-YYYY, Excel serial dates, etc.
+function normalizeDate(input: any): string {
+  if (!input) return new Date().toISOString().slice(0, 10);
+  const trimmed = String(input).trim();
+  if (!trimmed) return new Date().toISOString().slice(0, 10);
+
+  // If already YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    return trimmed;
+  }
+
+  // If YYYY/MM/DD
+  if (/^\d{4}\/\d{1,2}\/\d{1,2}$/.test(trimmed)) {
+    const parts = trimmed.split("/");
+    return `${parts[0]}-${parts[1].padStart(2, "0")}-${parts[2].padStart(2, "0")}`;
+  }
+
+  // If DD/MM/YYYY, DD-MM-YYYY, or DD.MM.YYYY
+  const dmyMatch = trimmed.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})$/);
+  if (dmyMatch) {
+    const part1 = parseInt(dmyMatch[1], 10);
+    const part2 = parseInt(dmyMatch[2], 10);
+    const year = dmyMatch[3];
+
+    // Check if part2 > 12 -> it must be MM/DD/YYYY
+    if (part2 > 12 && part1 <= 12) {
+      return `${year}-${String(part1).padStart(2, "0")}-${String(part2).padStart(2, "0")}`;
+    }
+    // Otherwise standard DD/MM/YYYY (Day first)
+    return `${year}-${String(part2).padStart(2, "0")}-${String(part1).padStart(2, "0")}`;
+  }
+
+  // If Excel Serial Number (e.g. 45571)
+  if (/^\d{5}$/.test(trimmed)) {
+    const serial = parseInt(trimmed, 10);
+    const date = new Date((serial - 25569) * 86400 * 1000);
+    if (!isNaN(date.getTime())) {
+      return date.toISOString().slice(0, 10);
+    }
+  }
+
+  // Try standard parse
+  const parsed = new Date(trimmed);
+  if (!isNaN(parsed.getTime())) {
+    const y = parsed.getFullYear();
+    const m = String(parsed.getMonth() + 1).padStart(2, "0");
+    const d = String(parsed.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  }
+
+  return new Date().toISOString().slice(0, 10);
+}
+
+// Format CSV cell: dates and numbers should not be enclosed in quotes so Excel detects native types
+function formatCsvCell(val: any): string {
+  if (val === null || val === undefined) return "";
+  const str = String(val).trim();
+  // Don't quote dates or numeric values so Excel detects them as native types
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+  if (/^-?\d+(\.\d+)?$/.test(str)) return str;
+  if (str.includes(",") || str.includes('"') || str.includes("\n") || str.includes("\r")) {
+    return `"${str.replace(/"/g, '""')}"`;
+  }
+  return str;
+}
+
 export default function BulkSalesImportPage() {
   const router = useRouter();
   const { activeCompany } = useAuth();
@@ -93,11 +159,12 @@ export default function BulkSalesImportPage() {
       .catch(() => {});
   }, []);
 
-  // Download Sample Template with exact 27 FBR columns
+  // Download Sample Template with exact 26 FBR columns (Auto-generated invoices omit Invoice#)
   const downloadSampleTemplate = () => {
+    const todayStr = new Date().toISOString().slice(0, 10);
+
     const headers = [
       "Date",
-      "Invoice#",
       "Scenario",
       "Customer Name",
       "Customer NTN",
@@ -127,8 +194,7 @@ export default function BulkSalesImportPage() {
 
     const sampleRows = [
       [
-        "2026-10-06",
-        "INV-1001",
+        todayStr,
         "SN001",
         "Al-Madina Traders",
         "1234567-8",
@@ -156,8 +222,7 @@ export default function BulkSalesImportPage() {
         "Registered corporate customer invoice",
       ],
       [
-        "2026-10-06",
-        "INV-1002",
+        todayStr,
         "SN002",
         "Kashif Electronics",
         "",
@@ -185,8 +250,7 @@ export default function BulkSalesImportPage() {
         "Unregistered retail customer sale with CNIC",
       ],
       [
-        "2026-10-06",
-        "INV-1003",
+        todayStr,
         "SN002",
         "Walk-in Customer",
         "",
@@ -215,8 +279,12 @@ export default function BulkSalesImportPage() {
       ],
     ];
 
+    // Prepend UTF-8 BOM (\uFEFF) and use CRLF (\r\n) so Microsoft Excel opens cleanly without encoding or date issues
     const csvContent =
-      headers.join(",") + "\n" + sampleRows.map((r) => r.map((c) => `"${c.replace(/"/g, '""')}"`).join(",")).join("\n");
+      "\uFEFF" +
+      headers.join(",") +
+      "\r\n" +
+      sampleRows.map((r) => r.map(formatCsvCell).join(",")).join("\r\n");
 
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
@@ -256,7 +324,7 @@ export default function BulkSalesImportPage() {
 
       const rows = json.data.map((inv: any) => [
         inv.invoiceNumber,
-        new Date(inv.date).toLocaleDateString(),
+        new Date(inv.date).toISOString().slice(0, 10),
         `"${(inv.customerName || "").replace(/"/g, '""')}"`,
         Number(inv.subtotal || 0).toFixed(2),
         Number(inv.salesTax || inv.taxAmount || 0).toFixed(2),
@@ -270,7 +338,7 @@ export default function BulkSalesImportPage() {
         inv.fbrInvoiceNumber || "Un-transmitted",
       ]);
 
-      const csvContent = [headers.join(","), ...rows.map((r: any[]) => r.join(","))].join("\n");
+      const csvContent = "\uFEFF" + [headers.join(","), ...rows.map((r: any[]) => r.join(","))].join("\r\n");
       const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
@@ -345,7 +413,8 @@ export default function BulkSalesImportPage() {
         return "";
       };
 
-      const date = getVal(["date", "invdate"]) || new Date().toISOString().slice(0, 10);
+      const rawDate = getVal(["date", "invdate", "invoicedate"]);
+      const date = normalizeDate(rawDate);
       const invoiceNumber = getVal(["invoicenum", "invoice#", "invoiceno", "inv#", "bill#"]);
       const scenario = getVal(["scenario"]) || "SN001";
       const customerName = getVal(["customername", "customer", "buyername", "buyer"]) || "Walk-in Customer";
@@ -576,7 +645,7 @@ export default function BulkSalesImportPage() {
               </span>
               <span className="text-slate-300">•</span>
               <span className="text-[11px] font-mono text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                27 FBR Compliant Columns
+                26 FBR Compliant Columns
               </span>
               <span className="text-slate-300">•</span>
               <span
@@ -708,7 +777,7 @@ export default function BulkSalesImportPage() {
           {fileName ? fileName : "Upload CSV / Excel Sales Invoices"}
         </h3>
         <p className="text-xs text-slate-500 max-w-xl mx-auto mt-1">
-          Supports official 27 columns: Date, Scenario, Customer Name, NTN, CNIC, HS Code, Product Description, Remarks, UOM, Quantity, Rate, Taxes, Discounts, Advance Tax, and SRO details.
+          Supports official 26 columns: Date, Scenario, Customer Name, NTN, CNIC, HS Code, Product Description, Remarks, UOM, Quantity, Rate, Taxes, Discounts, Advance Tax, and SRO details.
         </p>
 
         <div className="mt-5 flex items-center justify-center gap-3">

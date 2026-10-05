@@ -93,11 +93,38 @@ export async function POST(req: NextRequest) {
 
     const groupedMap = new Map<string, GroupedInvoice>();
 
+function parseSafeDate(input?: string): Date {
+  if (!input) return new Date();
+  const trimmed = String(input).trim();
+  if (!trimmed) return new Date();
+
+  // YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    const d = new Date(trimmed + "T00:00:00Z");
+    return isNaN(d.getTime()) ? new Date() : d;
+  }
+
+  // DD/MM/YYYY or DD-MM-YYYY
+  const dmy = trimmed.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})$/);
+  if (dmy) {
+    const p1 = parseInt(dmy[1], 10);
+    const p2 = parseInt(dmy[2], 10);
+    const y = parseInt(dmy[3], 10);
+    if (p2 > 12 && p1 <= 12) {
+      return new Date(Date.UTC(y, p1 - 1, p2));
+    }
+    return new Date(Date.UTC(y, p2 - 1, p1));
+  }
+
+  const d = new Date(trimmed);
+  return isNaN(d.getTime()) ? new Date() : d;
+}
+
     rawInvoices.forEach((row, idx) => {
       // If row already has grouped items, treat it as a pre-grouped invoice
       if (row.items && Array.isArray(row.items) && row.items.length > 0) {
         const invKey = row.invoiceNumber || `row-idx-${idx}`;
-        const date = row.date ? new Date(row.date) : new Date();
+        const date = parseSafeDate(row.date);
         groupedMap.set(invKey, {
           invoiceNumber: row.invoiceNumber,
           date,
@@ -120,12 +147,12 @@ export async function POST(req: NextRequest) {
         return;
       }
 
-      // Flat 27-column row grouping:
+      // Flat 26-column row grouping:
       const invKey = row.invoiceNumber && row.invoiceNumber.trim() !== ""
         ? row.invoiceNumber.trim()
         : `row-${idx}`;
 
-      const date = row.date ? new Date(row.date) : new Date();
+      const date = parseSafeDate(row.date);
       const customerName = (row.customerName || "Walk-in Customer").trim();
       const customerNtn = (row.customerNtn || "").trim() || undefined;
       const customerCnic = (row.customerCnic || "").trim() || undefined;

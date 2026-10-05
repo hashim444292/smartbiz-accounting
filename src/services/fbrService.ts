@@ -301,7 +301,28 @@ export function formatHsCode(raw?: string | null): string {
 
 // ── FORMAT DATE (yyyy-MM-dd) ────────────────────────────────────────────────
 export function formatFbrDate(dateInput?: string | Date): string {
-  const d = dateInput ? new Date(dateInput) : new Date();
+  if (!dateInput) return new Date().toISOString().slice(0, 10);
+  if (dateInput instanceof Date) {
+    if (isNaN(dateInput.getTime())) return new Date().toISOString().slice(0, 10);
+    const year = dateInput.getFullYear();
+    const month = String(dateInput.getMonth() + 1).padStart(2, "0");
+    const day = String(dateInput.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  }
+  const str = String(dateInput).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+  const dmy = str.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})$/);
+  if (dmy) {
+    const p1 = parseInt(dmy[1], 10);
+    const p2 = parseInt(dmy[2], 10);
+    const y = dmy[3];
+    if (p2 > 12 && p1 <= 12) {
+      return `${y}-${String(p1).padStart(2, "0")}-${String(p2).padStart(2, "0")}`;
+    }
+    return `${y}-${String(p2).padStart(2, "0")}-${String(p1).padStart(2, "0")}`;
+  }
+  const d = new Date(str);
+  if (isNaN(d.getTime())) return new Date().toISOString().slice(0, 10);
   const year = d.getFullYear();
   const month = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
