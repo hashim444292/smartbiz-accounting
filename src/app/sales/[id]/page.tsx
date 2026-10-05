@@ -58,6 +58,16 @@ export default function SaleDetailPage() {
     );
   }
 
+  let fbrMeta: any = null;
+  let cleanNotes = sale.notes;
+  if (sale.notes && typeof sale.notes === "string" && sale.notes.trim().startsWith("{")) {
+    try {
+      const parsed = JSON.parse(sale.notes);
+      fbrMeta = parsed.fbrMeta || parsed;
+      cleanNotes = parsed.remarks || "";
+    } catch {}
+  }
+
   return (
     <div className="max-w-3xl mx-auto space-y-6">
       {/* Top Controls (Hidden on Print) */}
@@ -162,10 +172,33 @@ export default function SaleDetailPage() {
 
         {/* Bill To */}
         <div className="py-6 border-b border-slate-100 dark:border-slate-800">
-          <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Billed To:</p>
-          <p className="text-sm font-bold text-slate-900 dark:text-white mt-1">{sale.customerName}</p>
-          {sale.customer?.phone && <p className="text-xs text-slate-500">Phone: {sale.customer.phone}</p>}
-          {sale.customer?.address && <p className="text-xs text-slate-500">{sale.customer.address}</p>}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Billed To:</p>
+              <p className="text-sm font-bold text-slate-900 dark:text-white mt-1">{sale.customerName}</p>
+              {fbrMeta?.customerNtn && (
+                <p className="text-xs text-indigo-600 font-mono font-semibold">
+                  Buyer NTN: {fbrMeta.customerNtn}
+                </p>
+              )}
+              {fbrMeta?.customerCnic && (
+                <p className="text-xs text-slate-600 dark:text-slate-400 font-mono">
+                  Buyer CNIC: {fbrMeta.customerCnic}
+                </p>
+              )}
+              {sale.customer?.phone && <p className="text-xs text-slate-500">Phone: {sale.customer.phone}</p>}
+              {sale.customer?.address && <p className="text-xs text-slate-500">{sale.customer.address}</p>}
+            </div>
+
+            {fbrMeta?.scenario && (
+              <div className="sm:text-right">
+                <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">FBR Scenario</span>
+                <p className="text-xs font-mono font-bold text-indigo-700 bg-indigo-50 dark:bg-indigo-950/50 px-2 py-0.5 rounded border border-indigo-200 dark:border-indigo-800 mt-0.5 inline-block">
+                  {fbrMeta.scenario}
+                </p>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Items Table */}
@@ -174,6 +207,7 @@ export default function SaleDetailPage() {
             <thead className="border-b border-slate-200 text-[11px] font-bold uppercase text-slate-500 dark:border-slate-800">
               <tr>
                 <th className="pb-2">Item Description</th>
+                <th className="pb-2 text-center">HS Code / UOM</th>
                 <th className="pb-2 text-center">Qty</th>
                 <th className="pb-2 text-right">Unit Price</th>
                 <th className="pb-2 text-right">Amount</th>
@@ -185,6 +219,9 @@ export default function SaleDetailPage() {
                   <td className="py-3 pr-2">
                     <p className="font-semibold text-slate-800 dark:text-slate-200">{item.productName}</p>
                     {item.sku && <p className="text-[10px] text-slate-400">SKU: {item.sku}</p>}
+                  </td>
+                  <td className="py-3 px-2 text-center text-[10px] font-mono text-slate-500">
+                    {item.hsCode || "8517.1390"}
                   </td>
                   <td className="py-3 px-2 text-center tabular-nums">{item.quantity}</td>
                   <td className="py-3 px-2 text-right tabular-nums">{formatMoney(item.unitPrice)}</td>
@@ -200,13 +237,31 @@ export default function SaleDetailPage() {
         {/* Totals */}
         <div className="border-t border-slate-200 pt-4 space-y-2 text-xs dark:border-slate-800">
           <div className="flex justify-between text-slate-600 dark:text-slate-400">
-            <span>Subtotal</span>
+            <span>Subtotal (Exclusive Value)</span>
             <span className="font-semibold tabular-nums">{formatMoney(sale.subtotal)}</span>
           </div>
           {Number(sale.discountAmount) > 0 && (
             <div className="flex justify-between text-slate-600 dark:text-slate-400">
               <span>Discount</span>
               <span className="tabular-nums">-{formatMoney(sale.discountAmount)}</span>
+            </div>
+          )}
+          {Number(sale.salesTax || sale.taxAmount) > 0 && (
+            <div className="flex justify-between text-slate-600 dark:text-slate-400">
+              <span>Sales Tax (GST 18%)</span>
+              <span className="tabular-nums font-semibold text-indigo-600">+{formatMoney(sale.salesTax || sale.taxAmount)}</span>
+            </div>
+          )}
+          {Number(sale.extraTax) > 0 && (
+            <div className="flex justify-between text-slate-600 dark:text-slate-400">
+              <span>Extra Tax</span>
+              <span className="tabular-nums font-semibold text-indigo-600">+{formatMoney(sale.extraTax)}</span>
+            </div>
+          )}
+          {Number(fbrMeta?.advanceIncomeTax) > 0 && (
+            <div className="flex justify-between text-slate-600 dark:text-slate-400">
+              <span>Advance Income Tax (Sec 236G/H)</span>
+              <span className="tabular-nums font-semibold text-amber-600">+{formatMoney(fbrMeta.advanceIncomeTax)}</span>
             </div>
           )}
           <div className="flex justify-between text-base font-bold text-slate-900 dark:text-white pt-2 border-t border-slate-100 dark:border-slate-800">
@@ -224,10 +279,10 @@ export default function SaleDetailPage() {
         </div>
 
         {/* Notes */}
-        {sale.notes && (
+        {cleanNotes && (
           <div className="mt-6 rounded-xl bg-slate-50 p-3 text-xs text-slate-600 dark:bg-slate-800/50 dark:text-slate-300">
             <span className="font-semibold">Notes: </span>
-            {sale.notes}
+            {cleanNotes}
           </div>
         )}
 

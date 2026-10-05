@@ -319,16 +319,27 @@ export function buildFbrPayload(
   const sellerProvince = config?.sellerProvince || business?.province || "Sindh";
   const sellerAddress = config?.sellerAddress || business?.address || "R-70 rehman villas, Karachi";
 
+  // Check if sale has JSON metadata stored in notes
+  let fbrMeta: any = null;
+  if (sale.notes) {
+    try {
+      if (typeof sale.notes === "string" && sale.notes.trim().startsWith("{")) {
+        const parsed = JSON.parse(sale.notes);
+        fbrMeta = parsed.fbrMeta || parsed;
+      }
+    } catch {}
+  }
+
   const customer = sale.customer || null;
-  const rawBuyerNTN = (customer?.ntn || "").trim();
-  const rawBuyerCNIC = (customer?.cnic || "").trim();
+  const rawBuyerNTN = (fbrMeta?.customerNtn || fbrMeta?.buyerNTN || customer?.ntn || "").trim();
+  const rawBuyerCNIC = (fbrMeta?.customerCnic || fbrMeta?.buyerCNIC || customer?.cnic || "").trim();
   const isRegistered = Boolean(rawBuyerNTN && rawBuyerNTN !== "0000000" && rawBuyerNTN.length >= 7);
 
   const buyerNTNCNIC = isRegistered
     ? rawBuyerNTN.replace(/[^0-9]/g, "")
     : (rawBuyerCNIC.replace(/[^0-9]/g, "") || "4210100000000");
 
-  let scenarioId = config?.scenarioId;
+  let scenarioId = fbrMeta?.scenario || config?.scenarioId;
   if (!isRegistered) {
     // Unregistered / walk-in buyers can NEVER use SN001 in FBR DI
     scenarioId = "SN002";
@@ -351,23 +362,23 @@ export function buildFbrPayload(
     const totalLineValue = round2(lineSubtotal + taxAmountVal).toNumber();
 
     return {
-      hsCode: formatHsCode(item.hsCode || item.product?.hsCode || business?.defaultHsCode),
+      hsCode: formatHsCode(item.hsCode || fbrMeta?.hsCode || item.product?.hsCode || business?.defaultHsCode),
       productDescription: item.productName || item.product?.name || "Retail Merchandise",
       rate: `${taxRateVal}%`,
-      uoM: "Numbers, pieces, units",
+      uoM: item.uom || fbrMeta?.uom || "Numbers, pieces, units",
       quantity: qty,
       totalValues: totalLineValue,
       valueSalesExcludingST: round2(lineSubtotal).toNumber(),
       fixedNotifiedValueOrRetailPrice: round2(unitPrice).toNumber(),
       salesTaxApplicable: round2(taxAmountVal).toNumber(),
       salesTaxWithheldAtSource: 0,
-      extraTax: "",
+      extraTax: item.extraTax ? String(item.extraTax) : (fbrMeta?.extraTax ? String(fbrMeta.extraTax) : ""),
       furtherTax: isRegistered ? 0 : round2(lineSubtotal * 0.03).toNumber(),
-      sroScheduleNo: "",
+      sroScheduleNo: item.sroSchedule || fbrMeta?.sroSchedule || "",
       fedPayable: 0,
       discount: round2(discount).toNumber(),
       saleType: "Goods at standard rate (default)",
-      sroItemSerialNo: "",
+      sroItemSerialNo: item.sroItem || fbrMeta?.sroItem || "",
     };
   });
 

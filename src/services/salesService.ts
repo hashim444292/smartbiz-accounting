@@ -6,12 +6,21 @@ import { createJournalEntry, assertPeriodOpen } from "./accountingService";
 import { createSafeAuditLog } from "@/lib/auditHelper";
 
 export interface SaleItemInput {
-  productId: string;
+  productId?: string;
+  productName?: string;
+  sku?: string;
   quantity: Decimal.Value;
   unitPrice: Decimal.Value;
   discount?: Decimal.Value;
+  discount2?: Decimal.Value;
   taxRate?: Decimal.Value;
+  taxAmount?: Decimal.Value;
+  extraTax?: Decimal.Value;
   hsCode?: string;
+  uom?: string;
+  productRemarks?: string;
+  sroSchedule?: string;
+  sroItem?: string;
 }
 
 export interface CreateSaleInput {
@@ -20,8 +29,13 @@ export interface CreateSaleInput {
   date?: Date;
   customerId?: string | null;
   customerName: string;
+  customerNtn?: string;
+  customerCnic?: string;
+  customerPhone?: string;
+  scenario?: string;
   items: SaleItemInput[];
   overallDiscount?: Decimal.Value;
+  discount2?: Decimal.Value;
   paidAmount?: Decimal.Value;
   paymentMethod?: string;
   dueDate?: Date | string | null;
@@ -29,14 +43,15 @@ export interface CreateSaleInput {
   notes?: string;
   createdById?: string;
   createdByName?: string;
-  customerPhone?: string;
   salesTax?: Decimal.Value;
   furtherTax?: Decimal.Value;
   extraTax?: Decimal.Value;
+  advanceIncomeTax?: Decimal.Value;
   posFee?: Decimal.Value;
   fbrStatus?: string;
   fbrInvoiceNumber?: string;
   fbrQrCode?: string;
+  fbrMeta?: any;
 }
 
 /**
@@ -126,9 +141,15 @@ export async function createAndPostSale(input: CreateSaleInput) {
     }> = [];
 
     for (const item of items) {
-      let product = item.productId ? await tx.product.findUnique({
+      let product = item.productId && item.productId !== "prod-default" && !item.productId.startsWith("prod-") ? await tx.product.findUnique({
         where: { id: item.productId },
       }) : null;
+
+      if (!product && item.sku) {
+        product = await tx.product.findFirst({
+          where: { businessId, sku: { equals: item.sku.trim(), mode: "insensitive" } },
+        });
+      }
 
       if (!product && (item as any).productName) {
         product = await tx.product.findFirst({
@@ -136,24 +157,29 @@ export async function createAndPostSale(input: CreateSaleInput) {
         });
       }
 
-      if (!product && (item as any).productName) {
+      if (!product) {
+        if (!isFbrInvoicingOnly) {
+          throw new Error(
+            `Product '${(item as any).productName || item.productId || "Item"}' is not available in catalog. In Accounting & Full Suite editions, products must exist in inventory before sales invoices can be created.`
+          );
+        }
+
+        // For FBR_INVOICING_ONLY: Auto-create lightweight product so foreign key constraint passes, without stock tracking
         const defaultCat = await tx.category.findFirst({ where: { businessId } });
         product = await tx.product.create({
           data: {
             businessId,
-            name: (item as any).productName.trim(),
-            sku: item.productId && item.productId !== "prod-default" && !item.productId.startsWith("prod-") ? item.productId : `SKU-${Date.now().toString().slice(-6)}`,
+            name: ((item as any).productName || "General Merchandise").trim(),
+            sku: item.sku || (item.productId && !item.productId.startsWith("prod-") ? item.productId : `SKU-${Date.now().toString().slice(-6)}`),
             sellingPrice: Number(item.unitPrice || 0),
             purchasePrice: Number(item.unitPrice || 0) * 0.8,
             currentStock: 100,
             categoryId: defaultCat?.id || null,
-            unit: "pcs",
+            unit: (item as any).uom || "pcs",
+            uom: (item as any).uom || "pcs",
+            hsCode: item.hsCode || "8517.1390",
           },
         });
-      }
-
-      if (!product) {
-        throw new Error(`Product '${(item as any).productName || item.productId}' not found in catalog.`);
       }
 
       const q = round4(item.quantity);
@@ -220,8 +246,46 @@ export async function createAndPostSale(input: CreateSaleInput) {
         }
       }
     }
+    if (!validCustomerId && resolvedCustomerName && resolvedCustomerName !== "Walk-in Retail Customer") {
+      let cust = await tx.customer.findFirst({
+        where: { businessId, name: { equals: resolvedCustomerName, mode: "insensitive" } },
+      });
+      const custNote = [input.customerNtn ? `NTN: ${input.customerNtn}` : null, input.customerCnic ? `CNIC: ${input.customerCnic}` : null].filter(Boolean).join(" | ") || null;
+      if (!cust) {
+        cust = await tx.customer.create({
+          data: {
+            businessId,
+            name: resolvedCustomerName,
+            notes: custNote,
+            phone: input.customerPhone || null,
+          },
+        });
+      } else if (custNote && !cust.notes) {
+        await tx.customer.update({
+          where: { id: cust.id },
+          data: {
+            notes: custNote,
+          },
+        });
+      }
+      validCustomerId = cust.id;
+    }
     if (!resolvedCustomerName) {
       resolvedCustomerName = "Walk-in Retail Customer";
+    }
+
+    // Merge FBR / extra tax metadata into notes
+    let notesToSave = notes || null;
+    if (input.fbrMeta || input.scenario || input.customerNtn || input.customerCnic || input.advanceIncomeTax) {
+      const metaObj = {
+        ...(typeof input.fbrMeta === "object" ? input.fbrMeta : {}),
+        scenario: input.scenario || input.fbrMeta?.scenario || "SN001",
+        customerNtn: input.customerNtn || input.fbrMeta?.customerNtn,
+        customerCnic: input.customerCnic || input.fbrMeta?.customerCnic,
+        advanceIncomeTax: input.advanceIncomeTax ? Number(input.advanceIncomeTax) : 0,
+        extraTax: extraTaxVal.toNumber(),
+      };
+      notesToSave = JSON.stringify({ fbrMeta: metaObj, remarks: notes || "" });
     }
 
     // 2. Create the Sale record
@@ -245,7 +309,7 @@ export async function createAndPostSale(input: CreateSaleInput) {
         paymentStatus,
         paymentMethod,
         dueDate: input.dueDate ? (input.dueDate instanceof Date ? input.dueDate : new Date(input.dueDate)) : null,
-        notes,
+        notes: notesToSave,
         status: "POSTED",
         fbrStatus: input.fbrStatus || "PENDING",
         fbrInvoiceNumber: fbrInvNumber,
