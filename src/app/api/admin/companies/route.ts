@@ -312,6 +312,35 @@ export async function POST(req: NextRequest) {
         create: { businessId: newBiz.id, key: "software_package_type", value: packageType || "FULL_SUITE" },
       }).catch(() => null);
 
+      // Initialize zero-balance Cash in Hand and Bank accounts for the new company
+      await prisma.cashBankAccount.upsert({
+        where: { id: `${newBiz.id}-cash` },
+        update: { balance: 0 },
+        create: {
+          id: `${newBiz.id}-cash`,
+          businessId: newBiz.id,
+          name: "Cash in Hand",
+          type: "CASH",
+          balance: 0,
+          isDefault: true,
+          isActive: true,
+        },
+      }).catch(() => null);
+
+      await prisma.cashBankAccount.upsert({
+        where: { id: `${newBiz.id}-bank` },
+        update: { balance: 0 },
+        create: {
+          id: `${newBiz.id}-bank`,
+          businessId: newBiz.id,
+          name: "Company Bank Account",
+          type: "BANK",
+          balance: 0,
+          isDefault: false,
+          isActive: true,
+        },
+      }).catch(() => null);
+
       // Save FBR Digital Invoicing Configuration (Only for Full Suite)
       if (packageType !== "ACCOUNTING_ONLY" && (body.fbrToken || body.fbrEnv || body.fbrIntegrationType || body.fbrPosId || body.fbrScenarioId || body.fbrAutoSync !== undefined)) {
         await saveFbrConfig(newBiz.id, {

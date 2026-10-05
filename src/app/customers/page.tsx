@@ -25,7 +25,7 @@ export default function CustomersPage() {
   const [email, setEmail] = useState("");
   const [address, setAddress] = useState("");
   const [openingBalance, setOpeningBalance] = useState(0);
-  const [creditLimit, setCreditLimit] = useState(50000);
+  const [creditLimit, setCreditLimit] = useState(0);
   const [submitting, setSubmitting] = useState(false);
 
   const fetchCustomers = async () => {

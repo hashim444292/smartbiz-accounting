@@ -140,7 +140,7 @@ async function seedBusiness(bizData, user) {
       accountId: cashAccountInChart?.id,
       name: "Cash in Hand",
       type: "CASH",
-      balance: 100000,
+      balance: 0,
       isDefault: true,
     },
   });
@@ -158,7 +158,7 @@ async function seedBusiness(bizData, user) {
       bankName: "Meezan Bank",
       accountNumber: "0101-0203040506",
       branch: "Main Boulevard Branch",
-      balance: 500000,
+      balance: 0,
       isDefault: false,
     },
   });
@@ -274,9 +274,9 @@ async function seedBusiness(bizData, user) {
       phone: "+92 321 9876543",
       email: "alitrader@example.com",
       address: "Bolton Market, Karachi",
-      openingBalance: 25000,
-      currentBalance: 25000,
-      creditLimit: 100000,
+      openingBalance: 0,
+      currentBalance: 0,
+      creditLimit: 0,
     },
     {
       name: "Bilal Electronics",
@@ -284,9 +284,9 @@ async function seedBusiness(bizData, user) {
       phone: "+92 333 4455667",
       email: "bilal@example.com",
       address: "Hafeez Center, Lahore",
-      openingBalance: 8000,
-      currentBalance: 8000,
-      creditLimit: 50000,
+      openingBalance: 0,
+      currentBalance: 0,
+      creditLimit: 0,
     },
     {
       name: "Walk-in Retail Customer",
@@ -316,8 +316,8 @@ async function seedBusiness(bizData, user) {
       phone: "+92 312 1122334",
       email: "sales@ahmedtech.com",
       address: "Techno City, Karachi",
-      openingBalance: 45000,
-      currentBalance: 45000,
+      openingBalance: 0,
+      currentBalance: 0,
     },
     {
       name: "National Distribution Co",
@@ -325,8 +325,8 @@ async function seedBusiness(bizData, user) {
       phone: "+92 345 9988776",
       email: "orders@nationaldist.pk",
       address: "SITE Area, Karachi",
-      openingBalance: 15000,
-      currentBalance: 15000,
+      openingBalance: 0,
+      currentBalance: 0,
     },
   ];
 

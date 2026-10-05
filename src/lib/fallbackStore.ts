@@ -677,53 +677,53 @@ function initializeState(): StoreState {
   // 4. Customers
   const customers = [
     // biz-101 Customers
-    { id: "cust-101-1", businessId: "biz-101", code: "CUST-101-01", name: "Saddar Mobile Zone", businessName: "Saddar Cellular Traders", phone: "+92 300 1234047", openingBalance: 85000, currentBalance: 85000, creditLimit: 300000, sales: [], payments: [] },
-    { id: "cust-101-2", businessId: "biz-101", code: "CUST-101-02", name: "Bilal Tech Clifton", businessName: "Bilal Communication Network", phone: "+92 321 5550178", openingBalance: 140000, currentBalance: 140000, creditLimit: 500000, sales: [], payments: [] },
-    { id: "cust-101-3", businessId: "biz-101", code: "CUST-101-03", name: "Walk-in Retail Cash Counter", businessName: "Retail Walk-in Customers", phone: "+92 300 0000001", openingBalance: 0, currentBalance: 0, creditLimit: 50000, sales: [], payments: [] },
+    { id: "cust-101-1", businessId: "biz-101", code: "CUST-101-01", name: "Saddar Mobile Zone", businessName: "Saddar Cellular Traders", phone: "+92 300 1234047", openingBalance: 0, currentBalance: 0, creditLimit: 0, sales: [], payments: [] },
+    { id: "cust-101-2", businessId: "biz-101", code: "CUST-101-02", name: "Bilal Tech Clifton", businessName: "Bilal Communication Network", phone: "+92 321 5550178", openingBalance: 0, currentBalance: 0, creditLimit: 0, sales: [], payments: [] },
+    { id: "cust-101-3", businessId: "biz-101", code: "CUST-101-03", name: "Walk-in Retail Cash Counter", businessName: "Retail Walk-in Customers", phone: "+92 300 0000001", openingBalance: 0, currentBalance: 0, creditLimit: 0, sales: [], payments: [] },
 
     // biz-102 Customers
-    { id: "cust-102-1", businessId: "biz-102", code: "CUST-102-01", name: "Metro Cash & Carry Pakistan", businessName: "Metro Wholesale Hub", phone: "+92 21 111786111", openingBalance: 420000, currentBalance: 420000, creditLimit: 2000000, sales: [], payments: [] },
-    { id: "cust-102-2", businessId: "biz-102", code: "CUST-102-02", name: "Imtiaz Super Market Karachi", businessName: "Imtiaz Mart Distribution Center", phone: "+92 21 34567890", openingBalance: 680000, currentBalance: 680000, creditLimit: 3000000, sales: [], payments: [] },
-    { id: "cust-102-3", businessId: "biz-102", code: "CUST-102-03", name: "Al-Fatah Departmental Store", businessName: "Al-Fatah Superstores", phone: "+92 42 111328328", openingBalance: 195000, currentBalance: 195000, creditLimit: 1000000, sales: [], payments: [] },
+    { id: "cust-102-1", businessId: "biz-102", code: "CUST-102-01", name: "Metro Cash & Carry Pakistan", businessName: "Metro Wholesale Hub", phone: "+92 21 111786111", openingBalance: 0, currentBalance: 0, creditLimit: 0, sales: [], payments: [] },
+    { id: "cust-102-2", businessId: "biz-102", code: "CUST-102-02", name: "Imtiaz Super Market Karachi", businessName: "Imtiaz Mart Distribution Center", phone: "+92 21 34567890", openingBalance: 0, currentBalance: 0, creditLimit: 0, sales: [], payments: [] },
+    { id: "cust-102-3", businessId: "biz-102", code: "CUST-102-03", name: "Al-Fatah Departmental Store", businessName: "Al-Fatah Superstores", phone: "+92 42 111328328", openingBalance: 0, currentBalance: 0, creditLimit: 0, sales: [], payments: [] },
 
     // biz-103 Customers
-    { id: "cust-103-1", businessId: "biz-103", code: "CUST-103-01", name: "Islamabad Club Residences", businessName: "Islamabad Club Hospitality Wing", phone: "+92 51 9227100", openingBalance: 280000, currentBalance: 280000, creditLimit: 1500000, sales: [], payments: [] },
-    { id: "cust-103-2", businessId: "biz-103", code: "CUST-103-02", name: "Capital Builders F-7", businessName: "Capital Luxury Homes & Construction", phone: "+92 51 2654321", openingBalance: 540000, currentBalance: 540000, creditLimit: 2500000, sales: [], payments: [] },
-    { id: "cust-103-3", businessId: "biz-103", code: "CUST-103-03", name: "Blue Area Walk-in Client Registry", businessName: "Showroom Walk-in Clients", phone: "+92 333 5544332", openingBalance: 45000, currentBalance: 45000, creditLimit: 200000, sales: [], payments: [] },
+    { id: "cust-103-1", businessId: "biz-103", code: "CUST-103-01", name: "Islamabad Club Residences", businessName: "Islamabad Club Hospitality Wing", phone: "+92 51 9227100", openingBalance: 0, currentBalance: 0, creditLimit: 0, sales: [], payments: [] },
+    { id: "cust-103-2", businessId: "biz-103", code: "CUST-103-02", name: "Capital Builders F-7", businessName: "Capital Luxury Homes & Construction", phone: "+92 51 2654321", openingBalance: 0, currentBalance: 0, creditLimit: 0, sales: [], payments: [] },
+    { id: "cust-103-3", businessId: "biz-103", code: "CUST-103-03", name: "Blue Area Walk-in Client Registry", businessName: "Showroom Walk-in Clients", phone: "+92 333 5544332", openingBalance: 0, currentBalance: 0, creditLimit: 0, sales: [], payments: [] },
   ];
 
   // 5. Suppliers
   const suppliers = [
     // biz-101 Suppliers
-    { id: "sup-101-1", businessId: "biz-101", code: "SUP-101-01", name: "Apple Distributor Pakistan", businessName: "Apple Official Regional Distributor", phone: "+92 21 111277531", address: "Shahrah-e-Faisal, Karachi", openingBalance: 450000, currentBalance: 450000, purchases: [], payments: [] },
-    { id: "sup-101-2", businessId: "biz-101", code: "SUP-101-02", name: "Samsung Official Wholesaler", businessName: "Samsung Pakistan Mobility", phone: "+92 21 34329988", address: "Techno City Mall, Karachi", openingBalance: 280000, currentBalance: 280000, purchases: [], payments: [] },
+    { id: "sup-101-1", businessId: "biz-101", code: "SUP-101-01", name: "Apple Distributor Pakistan", businessName: "Apple Official Regional Distributor", phone: "+92 21 111277531", address: "Shahrah-e-Faisal, Karachi", openingBalance: 0, currentBalance: 0, purchases: [], payments: [] },
+    { id: "sup-101-2", businessId: "biz-101", code: "SUP-101-02", name: "Samsung Official Wholesaler", businessName: "Samsung Pakistan Mobility", phone: "+92 21 34329988", address: "Techno City Mall, Karachi", openingBalance: 0, currentBalance: 0, purchases: [], payments: [] },
 
     // biz-102 Suppliers
-    { id: "sup-102-1", businessId: "biz-102", code: "SUP-102-01", name: "Punjab Rice Mills Ltd", businessName: "Punjab Agro Industries Lahore", phone: "+92 42 35789900", address: "G.T. Road, Gujranwala", openingBalance: 850000, currentBalance: 850000, purchases: [], payments: [] },
-    { id: "sup-102-2", businessId: "biz-102", code: "SUP-102-02", name: "Dalda Foods Corporation", businessName: "Dalda Foods Wholesale Division", phone: "+92 21 111325321", address: "SITE Industrial Area, Karachi", openingBalance: 620000, currentBalance: 620000, purchases: [], payments: [] },
-    { id: "sup-102-3", businessId: "biz-102", code: "SUP-102-03", name: "Fauji Sugar Mills Ltd", businessName: "Fauji Fertilizer & Foods Complex", phone: "+92 51 8450001", address: "Rawalpindi Agro Zone", openingBalance: 480000, currentBalance: 480000, purchases: [], payments: [] },
+    { id: "sup-102-1", businessId: "biz-102", code: "SUP-102-01", name: "Punjab Rice Mills Ltd", businessName: "Punjab Agro Industries Lahore", phone: "+92 42 35789900", address: "G.T. Road, Gujranwala", openingBalance: 0, currentBalance: 0, purchases: [], payments: [] },
+    { id: "sup-102-2", businessId: "biz-102", code: "SUP-102-02", name: "Dalda Foods Corporation", businessName: "Dalda Foods Wholesale Division", phone: "+92 21 111325321", address: "SITE Industrial Area, Karachi", openingBalance: 0, currentBalance: 0, purchases: [], payments: [] },
+    { id: "sup-102-3", businessId: "biz-102", code: "SUP-102-03", name: "Fauji Sugar Mills Ltd", businessName: "Fauji Fertilizer & Foods Complex", phone: "+92 51 8450001", address: "Rawalpindi Agro Zone", openingBalance: 0, currentBalance: 0, purchases: [], payments: [] },
 
     // biz-103 Suppliers
-    { id: "sup-103-1", businessId: "biz-103", code: "SUP-103-01", name: "Haier Pakistan Corporation", businessName: "Haier Appliances Manufacturing Ltd", phone: "+92 42 111142437", address: "Industrial Estate, Lahore", openingBalance: 780000, currentBalance: 780000, purchases: [], payments: [] },
-    { id: "sup-103-2", businessId: "biz-103", code: "SUP-103-02", name: "Dawlance Electronics Pvt Ltd", businessName: "Dawlance Manufacturing Hub", phone: "+92 21 111119725", address: "Landhi Industrial Area, Karachi", openingBalance: 550000, currentBalance: 550000, purchases: [], payments: [] },
+    { id: "sup-103-1", businessId: "biz-103", code: "SUP-103-01", name: "Haier Pakistan Corporation", businessName: "Haier Appliances Manufacturing Ltd", phone: "+92 42 111142437", address: "Industrial Estate, Lahore", openingBalance: 0, currentBalance: 0, purchases: [], payments: [] },
+    { id: "sup-103-2", businessId: "biz-103", code: "SUP-103-02", name: "Dawlance Electronics Pvt Ltd", businessName: "Dawlance Manufacturing Hub", phone: "+92 21 111119725", address: "Landhi Industrial Area, Karachi", openingBalance: 0, currentBalance: 0, purchases: [], payments: [] },
   ];
 
   // 6. Cash & Bank Accounts
   const cashBankAccounts = [
     // biz-101 Accounts (Branch-specific & Corporate)
-    { id: "cb-101-cash", businessId: "biz-101", branchId: "br-101-1", branchName: "Saddar Main Branch", name: "Shop Cash Drawer (Saddar)", type: "CASH", balance: 391500, isDefault: true },
-    { id: "cb-101-bank", businessId: "biz-101", branchId: "br-101-1", branchName: "Saddar Main Branch", name: "Habib Bank Limited (HBL Saddar)", type: "BANK", balance: 528500, isDefault: false },
-    { id: "cb-101-cash-gulshan", businessId: "biz-101", branchId: "br-101-2", branchName: "Gulshan Outlet", name: "Shop Cash Drawer (Gulshan)", type: "CASH", balance: 245000, isDefault: true },
-    { id: "cb-101-bank-gulshan", businessId: "biz-101", branchId: "br-101-2", branchName: "Gulshan Outlet", name: "Meezan Bank (Gulshan Branch)", type: "BANK", balance: 680000, isDefault: false },
-    { id: "cb-101-bank-central", businessId: "biz-101", branchId: null, branchName: "Corporate / All Branches", name: "Corporate Central Treasury Account", type: "BANK", balance: 1500000, isDefault: false },
+    { id: "cb-101-cash", businessId: "biz-101", branchId: "br-101-1", branchName: "Saddar Main Branch", name: "Shop Cash Drawer (Saddar)", type: "CASH", balance: 0, isDefault: true },
+    { id: "cb-101-bank", businessId: "biz-101", branchId: "br-101-1", branchName: "Saddar Main Branch", name: "Habib Bank Limited (HBL Saddar)", type: "BANK", balance: 0, isDefault: false },
+    { id: "cb-101-cash-gulshan", businessId: "biz-101", branchId: "br-101-2", branchName: "Gulshan Outlet", name: "Shop Cash Drawer (Gulshan)", type: "CASH", balance: 0, isDefault: true },
+    { id: "cb-101-bank-gulshan", businessId: "biz-101", branchId: "br-101-2", branchName: "Gulshan Outlet", name: "Meezan Bank (Gulshan Branch)", type: "BANK", balance: 0, isDefault: false },
+    { id: "cb-101-bank-central", businessId: "biz-101", branchId: null, branchName: "Corporate / All Branches", name: "Corporate Central Treasury Account", type: "BANK", balance: 0, isDefault: false },
 
     // biz-102
-    { id: "cb-102-cash", businessId: "biz-102", name: "Wholesale Cash Vault", type: "CASH", balance: 1250000, isDefault: true },
-    { id: "cb-102-bank", businessId: "biz-102", name: "Meezan Bank Islamic Current", type: "BANK", balance: 2850000, isDefault: false },
+    { id: "cb-102-cash", businessId: "biz-102", name: "Wholesale Cash Vault", type: "CASH", balance: 0, isDefault: true },
+    { id: "cb-102-bank", businessId: "biz-102", name: "Meezan Bank Islamic Current", type: "BANK", balance: 0, isDefault: false },
 
     // biz-103
-    { id: "cb-103-cash", businessId: "biz-103", name: "Showroom Cash Counter", type: "CASH", balance: 420000, isDefault: true },
-    { id: "cb-103-bank", businessId: "biz-103", name: "Bank Alfalah Blue Area Corporate", type: "BANK", balance: 1650000, isDefault: false },
+    { id: "cb-103-cash", businessId: "biz-103", name: "Showroom Cash Counter", type: "CASH", balance: 0, isDefault: true },
+    { id: "cb-103-bank", businessId: "biz-103", name: "Bank Alfalah Blue Area Corporate", type: "BANK", balance: 0, isDefault: false },
   ];
 
   // 7. Expense Categories
@@ -1670,9 +1670,9 @@ function initializeState(): StoreState {
   ];
 
   const accounts = [
-    ...makeCompanyAccounts("biz-101", 391500, 528500, 2850000, 225000, 730000, 3265000),
-    ...makeCompanyAccounts("biz-102", 1250000, 2850000, 4800000, 1295000, 1950000, 8245000),
-    ...makeCompanyAccounts("biz-103", 420000, 1650000, 3450000, 865000, 1330000, 5055000),
+    ...makeCompanyAccounts("biz-101", 0, 0, 0, 0, 0, 0),
+    ...makeCompanyAccounts("biz-102", 0, 0, 0, 0, 0, 0),
+    ...makeCompanyAccounts("biz-103", 0, 0, 0, 0, 0, 0),
   ];
 
   // 13. Journal Entries
@@ -2174,7 +2174,7 @@ export function storeAddCompany(data: any) {
 
   // Automatically provision isolated cash & bank accounts
   fallbackStore.cashBankAccounts.push(
-    { id: `cb-cash-${compId}`, businessId: compId, name: "Main Cash Counter", type: "CASH", balance: 0, isDefault: true },
+    { id: `cb-cash-${compId}`, businessId: compId, name: "Cash in Hand", type: "CASH", balance: 0, isDefault: true },
     { id: `cb-bank-${compId}`, businessId: compId, name: "Company Bank Account", type: "BANK", balance: 0, isDefault: false }
   );
 
