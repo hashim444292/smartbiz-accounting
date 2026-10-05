@@ -74,7 +74,16 @@ export async function createAndPostSale(input: CreateSaleInput) {
     } = input;
 
     const date = input.date ? (input.date instanceof Date ? input.date : new Date(input.date)) : new Date();
-    await assertPeriodOpen(tx, businessId, date);
+
+    const business = await tx.business.findUnique({
+      where: { id: businessId },
+      select: { packageType: true, negativeStockPolicy: true },
+    });
+    const isFbrInvoicingOnly = business?.packageType === "FBR_INVOICING_ONLY";
+
+    if (!isFbrInvoicingOnly) {
+      await assertPeriodOpen(tx, businessId, date);
+    }
 
     if (!items || items.length === 0) {
       throw new Error("A sale must contain at least one item.");
@@ -263,188 +272,185 @@ export async function createAndPostSale(input: CreateSaleInput) {
       },
     });
 
-    // 3. Deduct inventory for each item sold
-    for (const pi of processedItems) {
-      await recordStockMovement(tx, {
-        businessId,
-        productId: pi.productId,
-        type: "SALE",
-        quantity: pi.quantity,
-        unitCost: pi.costPrice,
-        referenceType: "SALE",
-        referenceId: sale.id,
-        notes: `Sale invoice #${invoiceNumber}`,
-        date,
-      });
-    }
-
-    // 4. Update Customer receivable balance
-    let effectiveCustomerId = customerId;
-    if (customerId && remainingAmount.gt(0)) {
-      const customer = await tx.customer.findUnique({ where: { id: customerId } });
-      if (customer) {
-        const newBalance = toDecimal(customer.currentBalance).add(remainingAmount);
-        await tx.customer.update({
-          where: { id: customerId },
-          data: { currentBalance: newBalance.toNumber() },
+    // 3. Inventory & Accounting Double-Entry (Bypassed for FBR_INVOICING_ONLY)
+    if (!isFbrInvoicingOnly) {
+      // 3. Deduct inventory for each item sold
+      for (const pi of processedItems) {
+        await recordStockMovement(tx, {
+          businessId,
+          productId: pi.productId,
+          type: "SALE",
+          quantity: pi.quantity,
+          unitCost: pi.costPrice,
+          referenceType: "SALE",
+          referenceId: sale.id,
+          notes: `Sale invoice #${invoiceNumber}`,
+          date,
         });
       }
-    } else if (!customerId && remainingAmount.gt(0) && customerName && !customerName.toLowerCase().startsWith("walk in (walk in)")) {
-      let existingCust = await tx.customer.findFirst({
-        where: { businessId, name: customerName },
-      });
-      if (!existingCust) {
-        existingCust = await tx.customer.create({
-          data: {
-            businessId,
-            name: customerName,
-            phone: input.customerPhone || null,
-            currentBalance: remainingAmount.toNumber(),
-          },
+
+      // 4. Update Customer receivable balance
+      let effectiveCustomerId = customerId;
+      if (customerId && remainingAmount.gt(0)) {
+        const customer = await tx.customer.findUnique({ where: { id: customerId } });
+        if (customer) {
+          const newBalance = toDecimal(customer.currentBalance).add(remainingAmount);
+          await tx.customer.update({
+            where: { id: customerId },
+            data: { currentBalance: newBalance.toNumber() },
+          });
+        }
+      } else if (!customerId && remainingAmount.gt(0) && customerName && !customerName.toLowerCase().startsWith("walk in (walk in)")) {
+        let existingCust = await tx.customer.findFirst({
+          where: { businessId, name: customerName },
         });
-      } else {
-        await tx.customer.update({
-          where: { id: existingCust.id },
-          data: {
-            currentBalance: toDecimal(existingCust.currentBalance).add(remainingAmount).toNumber(),
-            ...(input.customerPhone && !existingCust.phone ? { phone: input.customerPhone } : {}),
-          },
+        if (!existingCust) {
+          existingCust = await tx.customer.create({
+            data: {
+              businessId,
+              name: customerName,
+              phone: input.customerPhone || null,
+              currentBalance: remainingAmount.toNumber(),
+            },
+          });
+        } else {
+          await tx.customer.update({
+            where: { id: existingCust.id },
+            data: {
+              currentBalance: toDecimal(existingCust.currentBalance).add(remainingAmount).toNumber(),
+              ...(input.customerPhone && !existingCust.phone ? { phone: input.customerPhone } : {}),
+            },
+          });
+        }
+        effectiveCustomerId = existingCust.id;
+        await tx.sale.update({
+          where: { id: sale.id },
+          data: { customerId: existingCust.id },
         });
       }
-      effectiveCustomerId = existingCust.id;
-      await tx.sale.update({
-        where: { id: sale.id },
-        data: { customerId: existingCust.id },
-      });
-    }
 
-    // 5. Update Cash/Bank account balance if payment was received
-    let targetCashBankAccountId = accountId;
-    if (paidAmount.gt(0)) {
-      let cashBank = targetCashBankAccountId
-        ? await tx.cashBankAccount.findUnique({ where: { id: targetCashBankAccountId } })
-        : await tx.cashBankAccount.findFirst({
-            where: { businessId, isDefault: true, isActive: true },
+      // 5. Update Cash/Bank account balance if payment was received
+      let targetCashBankAccountId = accountId;
+      if (paidAmount.gt(0)) {
+        let cashBank = targetCashBankAccountId
+          ? await tx.cashBankAccount.findUnique({ where: { id: targetCashBankAccountId } })
+          : await tx.cashBankAccount.findFirst({
+              where: { businessId, isDefault: true, isActive: true },
+            });
+
+        if (!cashBank) {
+          // Find any active cash account or create default
+          cashBank = await tx.cashBankAccount.findFirst({
+            where: { businessId, type: "CASH", isActive: true },
+          });
+        }
+
+        if (!cashBank) {
+          cashBank = await tx.cashBankAccount.findFirst({
+            where: { businessId },
+          });
+        }
+
+        if (!cashBank) {
+          cashBank = await tx.cashBankAccount.create({
+            data: {
+              businessId,
+              name: "Cash in Hand",
+              type: "CASH",
+              balance: 0,
+              isDefault: true,
+              isActive: true,
+            },
+          });
+        }
+
+        if (cashBank) {
+          targetCashBankAccountId = cashBank.id;
+          const newBal = toDecimal(cashBank.balance).add(paidAmount);
+          await tx.cashBankAccount.update({
+            where: { id: cashBank.id },
+            data: { balance: newBal.toNumber() },
           });
 
-      if (!cashBank) {
-        // Find any active cash account or create default
-        cashBank = await tx.cashBankAccount.findFirst({
-          where: { businessId, type: "CASH", isActive: true },
-        });
-      }
-
-      if (!cashBank) {
-        cashBank = await tx.cashBankAccount.findFirst({
-          where: { businessId },
-        });
-      }
-
-      if (!cashBank) {
-        cashBank = await tx.cashBankAccount.create({
-          data: {
-            businessId,
-            name: "Cash in Hand",
-            type: "CASH",
-            balance: 0,
-            isDefault: true,
-            isActive: true,
-          },
-        });
-      }
-
-      if (cashBank) {
-        targetCashBankAccountId = cashBank.id;
-        const newBal = toDecimal(cashBank.balance).add(paidAmount);
-        await tx.cashBankAccount.update({
-          where: { id: cashBank.id },
-          data: { balance: newBal.toNumber() },
-        });
-
-        // Record a payment receipt linked to this sale
-        await tx.payment.create({
-          data: {
-            businessId,
-            type: "RECEIPT",
-            date,
-            partyType: "CUSTOMER",
-            customerId: effectiveCustomerId || null,
-            partyName: customerName,
-            amount: paidAmount.toNumber(),
-            paymentMethod,
-            accountId: cashBank.id,
-            referenceNumber: invoiceNumber,
-            notes: `Payment received against sale ${invoiceNumber}`,
-            createdById,
-            allocations: {
-              create: {
-                saleId: sale.id,
-                amount: paidAmount.toNumber(),
+          // Record a payment receipt linked to this sale
+          await tx.payment.create({
+            data: {
+              businessId,
+              type: "RECEIPT",
+              date,
+              partyType: "CUSTOMER",
+              customerId: effectiveCustomerId || null,
+              partyName: customerName,
+              amount: paidAmount.toNumber(),
+              paymentMethod,
+              accountId: cashBank.id,
+              referenceNumber: invoiceNumber,
+              notes: `Payment received against sale ${invoiceNumber}`,
+              createdById,
+              allocations: {
+                create: {
+                  saleId: sale.id,
+                  amount: paidAmount.toNumber(),
+                },
               },
             },
-          },
+          });
+        }
+      }
+
+      // 6. Create Balanced Double-Entry Journal Entry
+      const journalLines: Array<{ accountCode: string; debit: Decimal; credit: Decimal; description?: string }> = [];
+
+      if (paidAmount.gt(0)) {
+        journalLines.push({
+          accountCode: paymentMethod === "BANK" ? "1020" : "1010",
+          debit: paidAmount,
+          credit: new Decimal(0),
+          description: `Payment received for ${invoiceNumber}`,
         });
       }
-    }
 
-    // 6. Create Balanced Double-Entry Journal Entry
-    // Revenue entry:
-    // Debit Cash/Bank (for paid amount)
-    // Debit Accounts Receivable (for remaining amount)
-    // Credit Sales Revenue (for total amount)
-    const journalLines: Array<{ accountCode: string; debit: Decimal; credit: Decimal; description?: string }> = [];
+      if (remainingAmount.gt(0)) {
+        journalLines.push({
+          accountCode: "1100", // Accounts Receivable
+          debit: remainingAmount,
+          credit: new Decimal(0),
+          description: `Receivable from ${customerName} for ${invoiceNumber}`,
+        });
+      }
 
-    if (paidAmount.gt(0)) {
       journalLines.push({
-        accountCode: paymentMethod === "BANK" ? "1020" : "1010",
-        debit: paidAmount,
-        credit: new Decimal(0),
-        description: `Payment received for ${invoiceNumber}`,
+        accountCode: "4010", // Sales Revenue
+        debit: new Decimal(0),
+        credit: totalAmount,
+        description: `Sales revenue for ${invoiceNumber}`,
       });
-    }
 
-    if (remainingAmount.gt(0)) {
-      journalLines.push({
-        accountCode: "1100", // Accounts Receivable
-        debit: remainingAmount,
-        credit: new Decimal(0),
-        description: `Receivable from ${customerName} for ${invoiceNumber}`,
-      });
-    }
-
-    journalLines.push({
-      accountCode: "4010", // Sales Revenue
-      debit: new Decimal(0),
-      credit: totalAmount,
-      description: `Sales revenue for ${invoiceNumber}`,
-    });
-
-    await createJournalEntry(tx, {
-      businessId,
-      date,
-      description: `Sale Invoice #${invoiceNumber} to ${customerName}`,
-      referenceType: "SALE",
-      referenceId: sale.id,
-      createdById,
-      lines: journalLines,
-    });
-
-    // Perpetual Inventory Cost of Goods Sold Entry:
-    // Debit COGS (5010)
-    // Credit Merchandise Inventory (1200)
-    if (totalCOGS.gt(0)) {
       await createJournalEntry(tx, {
         businessId,
         date,
-        description: `COGS for Sale Invoice #${invoiceNumber}`,
+        description: `Sale Invoice #${invoiceNumber} to ${customerName}`,
         referenceType: "SALE",
         referenceId: sale.id,
         createdById,
-        lines: [
-          { accountCode: "5010", debit: totalCOGS, credit: new Decimal(0), description: "Cost of Goods Sold" },
-          { accountCode: "1200", debit: new Decimal(0), credit: totalCOGS, description: "Inventory reduction for sale" },
-        ],
+        lines: journalLines,
       });
+
+      // Perpetual Inventory Cost of Goods Sold Entry:
+      if (totalCOGS.gt(0)) {
+        await createJournalEntry(tx, {
+          businessId,
+          date,
+          description: `COGS for Sale Invoice #${invoiceNumber}`,
+          referenceType: "SALE",
+          referenceId: sale.id,
+          createdById,
+          lines: [
+            { accountCode: "5010", debit: totalCOGS, credit: new Decimal(0), description: "Cost of Goods Sold" },
+            { accountCode: "1200", debit: new Decimal(0), credit: totalCOGS, description: "Inventory reduction for sale" },
+          ],
+        });
+      }
     }
 
     // 7. Audit Log

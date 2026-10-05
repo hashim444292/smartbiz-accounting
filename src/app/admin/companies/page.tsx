@@ -110,7 +110,7 @@ export default function CompaniesManagementPage() {
     fbrPosId: "822646",
     fbrScenarioId: "SN000",
     fbrAutoSync: false,
-    packageType: "FULL_SUITE" as "ACCOUNTING_ONLY" | "FULL_SUITE",
+    packageType: "FULL_SUITE" as "ACCOUNTING_ONLY" | "FBR_INVOICING_ONLY" | "FULL_SUITE",
     enabledModules: [
       "sales",
       "pos",
@@ -295,6 +295,7 @@ export default function CompaniesManagementPage() {
 
     try {
       const isAcctOnly = formData.packageType === "ACCOUNTING_ONLY";
+      const isFbrOnly = formData.packageType === "FBR_INVOICING_ONLY";
       const payload = {
         ...formData,
         defaultHsCode: isAcctOnly ? "" : formData.defaultHsCode,
@@ -305,8 +306,10 @@ export default function CompaniesManagementPage() {
         fbrScenarioId: isAcctOnly ? "" : formData.fbrScenarioId,
         fbrAutoSync: isAcctOnly ? false : formData.fbrAutoSync,
         enabledModules: isAcctOnly
-          ? (formData.enabledModules || []).filter((m: string) => m !== "pos" && m !== "compliance")
-          : formData.enabledModules,
+          ? ["sales", "purchases", "inventory", "accounting", "reports", "aiEntry", "bulkImport"]
+          : isFbrOnly
+          ? ["sales", "pos", "compliance", "bulkImport", "reports"]
+          : ["sales", "pos", "purchases", "inventory", "accounting", "compliance", "reports", "aiEntry", "bulkImport"],
       };
 
       const res = await fetch("/api/admin/companies", {
@@ -338,6 +341,7 @@ export default function CompaniesManagementPage() {
 
     try {
       const isAcctOnly = formData.packageType === "ACCOUNTING_ONLY";
+      const isFbrOnly = formData.packageType === "FBR_INVOICING_ONLY";
       const payload = {
         ...formData,
         defaultHsCode: isAcctOnly ? "" : formData.defaultHsCode,
@@ -348,8 +352,10 @@ export default function CompaniesManagementPage() {
         fbrScenarioId: isAcctOnly ? "" : formData.fbrScenarioId,
         fbrAutoSync: isAcctOnly ? false : formData.fbrAutoSync,
         enabledModules: isAcctOnly
-          ? (formData.enabledModules || []).filter((m: string) => m !== "pos" && m !== "compliance")
-          : formData.enabledModules,
+          ? ["sales", "purchases", "inventory", "accounting", "reports", "aiEntry", "bulkImport"]
+          : isFbrOnly
+          ? ["sales", "pos", "compliance", "bulkImport", "reports"]
+          : ["sales", "pos", "purchases", "inventory", "accounting", "compliance", "reports", "aiEntry", "bulkImport"],
       };
 
       const res = await fetch(`/api/admin/companies/${selectedCompany.id}`, {
@@ -445,8 +451,9 @@ export default function CompaniesManagementPage() {
       fbrPosId: comp.fbrPosId || "822646",
       fbrScenarioId: comp.fbrScenarioId || "SN000",
       fbrAutoSync: Boolean(comp.fbrAutoSync),
-      packageType: (comp.packageType === "ACCOUNTING_ONLY" || 
-        (comp.enabledModules && !comp.enabledModules.includes("compliance") && !comp.enabledModules.includes("pos")))
+      packageType: comp.packageType === "FBR_INVOICING_ONLY"
+        ? "FBR_INVOICING_ONLY"
+        : (comp.packageType === "ACCOUNTING_ONLY" || (comp.enabledModules && !comp.enabledModules.includes("compliance") && !comp.enabledModules.includes("pos")))
         ? "ACCOUNTING_ONLY"
         : "FULL_SUITE",
       enabledModules: comp.enabledModules || [
@@ -840,7 +847,11 @@ export default function CompaniesManagementPage() {
                                 HS {comp.defaultHsCode}
                               </span>
                             )}
-                            {comp.packageType === "ACCOUNTING_ONLY" || (comp.enabledModules && !comp.enabledModules.includes("compliance") && !comp.enabledModules.includes("pos")) ? (
+                            {comp.packageType === "FBR_INVOICING_ONLY" ? (
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                ⚡ FBR Invoicing Only (خالص FBR انوائسنگ)
+                              </span>
+                            ) : comp.packageType === "ACCOUNTING_ONLY" || (comp.enabledModules && !comp.enabledModules.includes("compliance") && !comp.enabledModules.includes("pos")) ? (
                               <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200">
                                 📘 Accounting Only (صرف اکاؤنٹنگ)
                               </span>
@@ -1413,7 +1424,7 @@ export default function CompaniesManagementPage() {
                 </div>
               </div>
 
-              {/* Software Package & Edition (2 Clean Options) */}
+              {/* Software Package & Edition (3 Clean Options) */}
               <div className="p-4 rounded-2xl border border-purple-200 bg-purple-50/30 dark:bg-purple-950/20 dark:border-purple-800/60 space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 text-xs font-bold text-purple-950 dark:text-purple-200">
@@ -1421,14 +1432,14 @@ export default function CompaniesManagementPage() {
                     <span className="uppercase tracking-wider">Software Package & Edition (سافٹ ویئر پیکیج منتخب کریں) *</span>
                   </div>
                   <span className="text-[10px] font-bold text-purple-700 bg-purple-100 dark:bg-purple-900/60 dark:text-purple-300 px-2.5 py-0.5 rounded-full">
-                    2 Plans Available
+                    3 Plans Available
                   </span>
                 </div>
                 <p className="text-[11px] text-slate-600 dark:text-slate-400">
-                  منتخب کریں کہ کلائنٹ صرف اکاؤنٹنگ کے لیے سافٹ ویئر لے رہا ہے یا مکمل سافٹ ویئر مع POS اور FBR ڈیجیٹل انوائسنگ:
+                  منتخب کریں کہ کلائنٹ صرف اکاؤنٹنگ لے رہا ہے، خالص FBR انوائسنگ لے رہا ہے، یا مکمل آل ان ون سافٹ ویئر:
                 </p>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                   {/* Option 1: Accounting Only */}
                   <div
                     onClick={() =>
@@ -1471,7 +1482,7 @@ export default function CompaniesManagementPage() {
                         ✓ ڈبل انٹری جنرل لیجر و کھاتہ
                       </div>
                       <div className="text-emerald-600 font-semibold flex items-center gap-1">
-                        ✓ خریداری، اخراجات، کسٹمر/سپلائر لیجر
+                        ✓ خریداری، اخراجات، کسٹمر/سپلائر
                       </div>
                       <div className="text-rose-500 font-medium flex items-center gap-1">
                         ✗ POS ریٹیل کاؤنٹر شامل نہیں
@@ -1482,7 +1493,63 @@ export default function CompaniesManagementPage() {
                     </div>
                   </div>
 
-                  {/* Option 2: Full Enterprise Suite */}
+                  {/* Option 2: FBR Digital Invoicing & POS Only */}
+                  <div
+                    onClick={() =>
+                      setFormData({
+                        ...formData,
+                        packageType: "FBR_INVOICING_ONLY",
+                        enabledModules: ["sales", "pos", "compliance", "bulkImport", "reports"],
+                      })
+                    }
+                    className={`flex flex-col justify-between p-3.5 rounded-2xl border-2 cursor-pointer transition select-none ${
+                      formData.packageType === "FBR_INVOICING_ONLY"
+                        ? "bg-white dark:bg-slate-900 border-emerald-500 shadow-md ring-2 ring-emerald-500/20"
+                        : "bg-white/60 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800 hover:border-slate-300 opacity-75"
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        <span className="px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300 text-[10px] font-black uppercase tracking-wide">
+                          Option 2: FBR Invoicing Only
+                        </span>
+                        <input
+                          type="radio"
+                          name="registerPackageType"
+                          value="FBR_INVOICING_ONLY"
+                          checked={formData.packageType === "FBR_INVOICING_ONLY"}
+                          onChange={() => {}}
+                          className="text-emerald-600 focus:ring-emerald-500 h-4 w-4"
+                        />
+                      </div>
+                      <h4 className="text-xs font-black text-slate-900 dark:text-white flex items-center gap-1.5">
+                        <span>⚡ خالص FBR انوائسنگ و بلنگ</span>
+                      </h4>
+                      <p className="text-[11px] text-slate-500 mt-1">
+                        صرف سیلز انوائس بنائیں یا ایکسل/CSV سے بلک اپلوڈ کریں اور لائیو FBR ہٹ کریں۔ کوئی کھاتہ یا اسٹاک کا جھنجھٹ نہیں۔
+                      </p>
+                    </div>
+
+                    <div className="mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800 space-y-1 text-[10px]">
+                      <div className="text-emerald-600 font-semibold flex items-center gap-1">
+                        ✓ سیلز انوائس و فاسٹ POS کاؤنٹر
+                      </div>
+                      <div className="text-emerald-600 font-semibold flex items-center gap-1">
+                        ✓ ایکسل / CSV بلک انوائس اپلوڈ
+                      </div>
+                      <div className="text-emerald-600 font-semibold flex items-center gap-1">
+                        ✓ FBR لائیو ہٹ، QR کوڈ و تصدیق
+                      </div>
+                      <div className="text-rose-500 font-medium flex items-center gap-1">
+                        ✗ اسٹاک و انونٹری مینجمنٹ بند
+                      </div>
+                      <div className="text-rose-500 font-medium flex items-center gap-1">
+                        ✗ کھاتہ، اخراجات و جنرل لیجر بند
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Option 3: Full Enterprise Suite */}
                   <div
                     onClick={() =>
                       setFormData({
@@ -1510,7 +1577,7 @@ export default function CompaniesManagementPage() {
                     <div>
                       <div className="flex items-center justify-between gap-2 mb-2">
                         <span className="px-2 py-0.5 rounded-md bg-purple-100 text-purple-800 dark:bg-purple-900/60 dark:text-purple-300 text-[10px] font-black uppercase tracking-wide">
-                          Option 2: Full Suite (Recommended)
+                          Option 3: Full Suite (Recommended)
                         </span>
                         <input
                           type="radio"
@@ -1522,10 +1589,10 @@ export default function CompaniesManagementPage() {
                         />
                       </div>
                       <h4 className="text-xs font-black text-slate-900 dark:text-white flex items-center gap-1.5">
-                        <span>🚀 مکمل سافٹ ویئر (Accounting + POS + DI)</span>
+                        <span>🚀 مکمل سافٹ ویئر (All-in-One)</span>
                       </h4>
                       <p className="text-[11px] text-slate-500 mt-1">
-                        تمام سہولیات شامل: ریٹیل POS بلنگ کاؤنٹر، FBR لائیو ڈیجیٹل انوائسنگ مع QR رسید + مکمل اکاؤنٹنگ۔
+                        تمام سہولیات شامل: ریٹیل POS، FBR لائیو ڈیجیٹل انوائسنگ، ایکسل اپلوڈ + مکمل ڈبل انٹری اکاؤنٹنگ و اسٹاک۔
                       </p>
                     </div>
 
@@ -1569,8 +1636,8 @@ export default function CompaniesManagementPage() {
                 </p>
               </div>
 
-              {/* Critical Default HS Code & UOM - Only for Full Suite */}
-              {formData.packageType === "FULL_SUITE" && (
+              {/* Critical Default HS Code & UOM - For FBR Invoicing & Full Suite */}
+              {formData.packageType !== "ACCOUNTING_ONLY" && (
                 <div className="p-3.5 rounded-xl border border-indigo-200 bg-indigo-50/50 space-y-3">
                   <div className="flex items-center gap-1.5 text-xs font-bold text-indigo-900">
                     <Layers className="h-4 w-4 text-indigo-600" />
@@ -1584,7 +1651,7 @@ export default function CompaniesManagementPage() {
                       </label>
                       <input
                         type="text"
-                        required={formData.packageType === "FULL_SUITE"}
+                        required
                         placeholder="e.g. 8517.13"
                         value={formData.defaultHsCode}
                         onChange={(e) => setFormData({ ...formData, defaultHsCode: e.target.value })}
@@ -1640,8 +1707,8 @@ export default function CompaniesManagementPage() {
                 </div>
               </div>
 
-              {/* NTN & STRN - Only for Full Suite */}
-              {formData.packageType === "FULL_SUITE" && (
+              {/* NTN & STRN - For FBR Invoicing & Full Suite */}
+              {formData.packageType !== "ACCOUNTING_ONLY" && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
@@ -1684,8 +1751,8 @@ export default function CompaniesManagementPage() {
                 />
               </div>
 
-              {/* FBR Compliance & Integration Profile - Only for Full Suite */}
-              {formData.packageType === "FULL_SUITE" && (
+              {/* FBR Compliance & Integration Profile - For FBR Invoicing & Full Suite */}
+              {formData.packageType !== "ACCOUNTING_ONLY" && (
                 <div className="p-3.5 rounded-xl border border-indigo-200 bg-indigo-50/50 space-y-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-1.5 text-xs font-bold text-indigo-950">
@@ -2029,7 +2096,7 @@ export default function CompaniesManagementPage() {
                 </div>
               </div>
 
-              {/* Software Package & Edition (2 Clean Options) */}
+              {/* Software Package & Edition (3 Clean Options) */}
               <div className="p-4 rounded-2xl border border-purple-200 bg-purple-50/30 dark:bg-purple-950/20 dark:border-purple-800/60 space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 text-xs font-bold text-purple-950 dark:text-purple-200">
@@ -2037,14 +2104,14 @@ export default function CompaniesManagementPage() {
                     <span className="uppercase tracking-wider">Software Package & Edition (سافٹ ویئر پیکیج) *</span>
                   </div>
                   <span className="text-[10px] font-bold text-purple-700 bg-purple-100 dark:bg-purple-900/60 dark:text-purple-300 px-2.5 py-0.5 rounded-full">
-                    2 Plans Available
+                    3 Plans Available
                   </span>
                 </div>
                 <p className="text-[11px] text-slate-600 dark:text-slate-400">
                   اس کمپنی کا پیکیج منتخب یا تبدیل کریں:
                 </p>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                   {/* Option 1: Accounting Only */}
                   <div
                     onClick={() =>
@@ -2098,7 +2165,63 @@ export default function CompaniesManagementPage() {
                     </div>
                   </div>
 
-                  {/* Option 2: Full Enterprise Suite */}
+                  {/* Option 2: FBR Digital Invoicing & POS Only */}
+                  <div
+                    onClick={() =>
+                      setFormData({
+                        ...formData,
+                        packageType: "FBR_INVOICING_ONLY",
+                        enabledModules: ["sales", "pos", "compliance", "bulkImport", "reports"],
+                      })
+                    }
+                    className={`flex flex-col justify-between p-3.5 rounded-2xl border-2 cursor-pointer transition select-none ${
+                      formData.packageType === "FBR_INVOICING_ONLY"
+                        ? "bg-white dark:bg-slate-900 border-emerald-500 shadow-md ring-2 ring-emerald-500/20"
+                        : "bg-white/60 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800 hover:border-slate-300 opacity-75"
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        <span className="px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300 text-[10px] font-black uppercase tracking-wide">
+                          Option 2: FBR Invoicing Only
+                        </span>
+                        <input
+                          type="radio"
+                          name="editPackageType"
+                          value="FBR_INVOICING_ONLY"
+                          checked={formData.packageType === "FBR_INVOICING_ONLY"}
+                          onChange={() => {}}
+                          className="text-emerald-600 focus:ring-emerald-500 h-4 w-4"
+                        />
+                      </div>
+                      <h4 className="text-xs font-black text-slate-900 dark:text-white flex items-center gap-1.5">
+                        <span>⚡ خالص FBR انوائسنگ و بلنگ</span>
+                      </h4>
+                      <p className="text-[11px] text-slate-500 mt-1">
+                        صرف سیلز انوائس بنائیں یا ایکسل/CSV سے بلک اپلوڈ کریں اور لائیو FBR ہٹ کریں۔ کوئی کھاتہ یا اسٹاک کا جھنجھٹ نہیں۔
+                      </p>
+                    </div>
+
+                    <div className="mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800 space-y-1 text-[10px]">
+                      <div className="text-emerald-600 font-semibold flex items-center gap-1">
+                        ✓ سیلز انوائس و فاسٹ POS کاؤنٹر
+                      </div>
+                      <div className="text-emerald-600 font-semibold flex items-center gap-1">
+                        ✓ ایکسل / CSV بلک انوائس اپلوڈ
+                      </div>
+                      <div className="text-emerald-600 font-semibold flex items-center gap-1">
+                        ✓ FBR لائیو ہٹ، QR کوڈ و تصدیق
+                      </div>
+                      <div className="text-rose-500 font-medium flex items-center gap-1">
+                        ✗ اسٹاک و انونٹری مینجمنٹ بند
+                      </div>
+                      <div className="text-rose-500 font-medium flex items-center gap-1">
+                        ✗ کھاتہ، اخراجات و جنرل لیجر بند
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Option 3: Full Enterprise Suite */}
                   <div
                     onClick={() =>
                       setFormData({
@@ -2126,7 +2249,7 @@ export default function CompaniesManagementPage() {
                     <div>
                       <div className="flex items-center justify-between gap-2 mb-2">
                         <span className="px-2 py-0.5 rounded-md bg-purple-100 text-purple-800 dark:bg-purple-900/60 dark:text-purple-300 text-[10px] font-black uppercase tracking-wide">
-                          Option 2: Full Suite (Recommended)
+                          Option 3: Full Suite (Recommended)
                         </span>
                         <input
                           type="radio"
@@ -2138,10 +2261,10 @@ export default function CompaniesManagementPage() {
                         />
                       </div>
                       <h4 className="text-xs font-black text-slate-900 dark:text-white flex items-center gap-1.5">
-                        <span>🚀 مکمل سافٹ ویئر (Accounting + POS + DI)</span>
+                        <span>🚀 مکمل سافٹ ویئر (All-in-One)</span>
                       </h4>
                       <p className="text-[11px] text-slate-500 mt-1">
-                        تمام سہولیات شامل: ریٹیل POS بلنگ کاؤنٹر، FBR لائیو ڈیجیٹل انوائسنگ مع QR رسید + مکمل اکاؤنٹنگ۔
+                        تمام سہولیات شامل: ریٹیل POS، FBR لائیو ڈیجیٹل انوائسنگ، ایکسل اپلوڈ + مکمل ڈبل انٹری اکاؤنٹنگ و اسٹاک۔
                       </p>
                     </div>
 
@@ -2185,8 +2308,39 @@ export default function CompaniesManagementPage() {
                 </p>
               </div>
 
-              {/* Classification - Only for Full Suite */}
-              {formData.packageType === "FULL_SUITE" && (
+              {/* NTN & STRN - For FBR Invoicing & Full Suite */}
+              {formData.packageType !== "ACCOUNTING_ONLY" && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                      National Tax Number (NTN)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. 1234567-8"
+                      value={formData.ntn}
+                      onChange={(e) => setFormData({ ...formData, ntn: e.target.value })}
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 font-mono focus:border-indigo-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                      Sales Tax Reg Number (STRN)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. 3277876123456"
+                      value={formData.strn}
+                      onChange={(e) => setFormData({ ...formData, strn: e.target.value })}
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 font-mono focus:border-indigo-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Classification - For FBR Invoicing & Full Suite */}
+              {formData.packageType !== "ACCOUNTING_ONLY" && (
                 <div className="p-3.5 rounded-xl border border-indigo-200 bg-indigo-50/50 space-y-3">
                   <div className="flex items-center gap-1.5 text-xs font-bold text-indigo-900">
                     <Layers className="h-4 w-4 text-indigo-600" />
@@ -2200,7 +2354,7 @@ export default function CompaniesManagementPage() {
                       </label>
                       <input
                         type="text"
-                        required={formData.packageType === "FULL_SUITE"}
+                        required
                         value={formData.defaultHsCode}
                         onChange={(e) => setFormData({ ...formData, defaultHsCode: e.target.value })}
                         className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 font-mono focus:border-indigo-500 focus:outline-none"
@@ -2248,8 +2402,8 @@ export default function CompaniesManagementPage() {
                 </div>
               </div>
 
-              {/* FBR Compliance & Integration Profile - Only for Full Suite */}
-              {formData.packageType === "FULL_SUITE" && (
+              {/* FBR Compliance & Integration Profile - For FBR Invoicing & Full Suite */}
+              {formData.packageType !== "ACCOUNTING_ONLY" && (
                 <div className="p-3.5 rounded-xl border border-indigo-200 bg-indigo-50/50 space-y-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-1.5 text-xs font-bold text-indigo-950">

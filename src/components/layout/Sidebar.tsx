@@ -64,6 +64,7 @@ const TENANT_NAVIGATION_GROUPS: NavGroup[] = [
     items: [
       { name: "Sales & Invoices", nameUrdu: "سیلز اور انوائسز", href: "/sales", icon: Receipt, moduleKey: "sales", userPermKey: "sales" },
       { name: "POS Counter", nameUrdu: "پی او ایس کاؤنٹر", href: "/sales/create", icon: ShoppingCart, moduleKey: "pos", userPermKey: "pos" },
+      { name: "Excel / CSV Bulk Upload", nameUrdu: "ایکسل بلک اپلوڈ", href: "/sales/import", icon: UploadCloud, moduleKey: "bulkImport", userPermKey: "sales" },
       { name: "Purchases & Bills", nameUrdu: "خریداری اور بلز", href: "/purchases", icon: ShoppingBag, moduleKey: "purchases", userPermKey: "purchases" },
       { name: "Cash & Payments", nameUrdu: "کیش اور ادائیگیاں", href: "/payments", icon: Wallet, moduleKey: "accounting", userPermKey: "payments" },
       { name: "Daily Expenses", nameUrdu: "روزمرہ کے اخراجات", href: "/expenses", icon: Coins, moduleKey: "accounting", userPermKey: "expenses" },
@@ -140,7 +141,11 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
 
   const userRole = user?.role || "STAFF";
   const isPlatformMode = (userRole === "SUPER_ADMIN" || userRole === "ADMIN") && !isInspectingClient;
-  const isAccountingOnly = activeCompany?.packageType === "ACCOUNTING_ONLY" || (activeCompany?.enabledModules && !activeCompany.enabledModules.includes("compliance"));
+  const isFbrInvoicingOnly = activeCompany?.packageType === "FBR_INVOICING_ONLY";
+  const isAccountingOnly =
+    !isFbrInvoicingOnly &&
+    (activeCompany?.packageType === "ACCOUNTING_ONLY" ||
+      (activeCompany?.enabledModules && !activeCompany.enabledModules.includes("compliance")));
 
   const platformGroups: NavGroup[] = PLATFORM_ADMIN_GROUPS.map((g) => ({
     ...g,
@@ -205,7 +210,7 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
                   </span>
                 </div>
                 <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
-                  {isPlatformMode ? "SaaS Multi-Tenant Admin" : isAccountingOnly ? "Business Accounting" : "Accounting & FBR Suite"}
+                  {isPlatformMode ? "SaaS Multi-Tenant Admin" : isFbrInvoicingOnly ? "FBR Digital Invoicing & POS" : isAccountingOnly ? "Business Accounting" : "Accounting & FBR Suite"}
                 </span>
               </div>
             )}
@@ -269,9 +274,25 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
                 if (isAccountingOnly && (item.moduleKey === "pos" || item.moduleKey === "compliance")) {
                   return false;
                 }
+                if (isFbrInvoicingOnly) {
+                  // In FBR Invoicing Only, strictly hide Purchases, Stock/Inventory, Cash/Payments, Expenses, Customers, AI Scanner
+                  if (
+                    item.href === "/customers" ||
+                    item.moduleKey === "accounting" ||
+                    item.moduleKey === "purchases" ||
+                    item.moduleKey === "inventory" ||
+                    item.moduleKey === "aiEntry"
+                  ) {
+                    return false;
+                  }
+                }
                 if (activeCompany?.enabledModules && !activeCompany.enabledModules.includes(item.moduleKey)) {
                   return false;
                 }
+              }
+
+              if (isFbrInvoicingOnly && (item.href === "/branches" || item.href === "/audit-logs")) {
+                return false;
               }
 
               // 2. User-level granular module permissions (Decisive when defined)
@@ -297,8 +318,18 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
             if (filteredItems.length === 0) return null;
 
             const sectionTitle = language === "ur"
-              ? (group.sectionUrdu || group.section)
-              : (group.section.includes("REPORTS & TAX") && isAccountingOnly ? "REPORTS & LEDGER" : group.section);
+              ? (isFbrInvoicingOnly && group.section.includes("REPORTS")
+                  ? "سیلز رپورٹس و ڈاؤنلوڈ"
+                  : isFbrInvoicingOnly && group.section.includes("DAILY")
+                  ? "انوائسنگ و بلنگ"
+                  : group.sectionUrdu || group.section)
+              : (isFbrInvoicingOnly && group.section.includes("REPORTS")
+                  ? "REPORTS & FBR"
+                  : isFbrInvoicingOnly && group.section.includes("DAILY")
+                  ? "INVOICING & POS"
+                  : group.section.includes("REPORTS & TAX") && isAccountingOnly
+                  ? "REPORTS & LEDGER"
+                  : group.section);
 
             return (
               <div key={group.section} className="space-y-1">
@@ -316,7 +347,9 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
                   {filteredItems.map((item) => {
                     const active = isItemActive(item.href);
                     const Icon = item.icon;
-                    const displayName = language === "ur" ? (item.nameUrdu || item.name) : item.name;
+                    const displayName = language === "ur"
+                      ? (isFbrInvoicingOnly && item.href === "/reports" ? "سیلز رپورٹس و ڈاؤنلوڈ" : (item.nameUrdu || item.name))
+                      : (isFbrInvoicingOnly && item.href === "/reports" ? "Sales Reports & Downloads" : item.name);
 
                     return (
                       <Link

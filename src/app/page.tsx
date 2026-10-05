@@ -32,6 +32,8 @@ import {
   Clock,
   Calendar,
   Phone,
+  UploadCloud,
+  BarChart3,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -61,9 +63,11 @@ export default function DashboardPage() {
   const router = useRouter();
   const { user, activeCompany, isInspectingClient, isLoading, switchBranch, isBranchLocked } = useAuth();
   const { t, language } = useLanguage();
+  const isFbrInvoicingOnly = activeCompany?.packageType === "FBR_INVOICING_ONLY";
   const isAccountingOnly =
-    activeCompany?.packageType === "ACCOUNTING_ONLY" ||
-    (activeCompany?.enabledModules && !activeCompany.enabledModules.includes("compliance"));
+    !isFbrInvoicingOnly &&
+    (activeCompany?.packageType === "ACCOUNTING_ONLY" ||
+      (activeCompany?.enabledModules && !activeCompany.enabledModules.includes("compliance")));
   const { range } = useDateRange();
   const { resolvedTheme } = useTheme();
   const [data, setData] = useState<any>(null);
@@ -148,8 +152,8 @@ export default function DashboardPage() {
     }
   };
 
-  const showAccounting = activeTab === "all" || activeTab === "accounting";
-  const showFbr = !isAccountingOnly && (activeTab === "all" || activeTab === "fbr");
+  const showAccounting = !isFbrInvoicingOnly && (activeTab === "all" || activeTab === "accounting");
+  const showFbr = !isAccountingOnly && (activeTab === "all" || activeTab === "fbr" || isFbrInvoicingOnly);
 
   // Super Admin Platform Mode: Do NOT display customer books by default
   if (!isLoading && user?.role === "SUPER_ADMIN" && !isInspectingClient) {
@@ -184,13 +188,13 @@ export default function DashboardPage() {
         <div className="rounded-2xl border border-slate-200/80 bg-white p-4 sm:p-6 shadow-xs dark:border-slate-800/90 dark:bg-[#111827] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <div className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-200 px-2.5 py-0.5 text-xs font-bold mb-2 dark:bg-indigo-950/60 dark:text-indigo-300 dark:border-indigo-800">
-              <span>{isAccountingOnly ? t("Business Accounting", "کھاتہ و بک کیپنگ") : t("POS & Cashier Terminal", "پی او ایس و کیشیئر کاؤنٹر")}</span>
+              <span>{isFbrInvoicingOnly ? t("FBR Digital Invoicing & POS", "خالص FBR انوائسنگ و بلنگ") : isAccountingOnly ? t("Business Accounting", "کھاتہ و بک کیپنگ") : t("POS & Cashier Terminal", "پی او ایس و کیشیئر کاؤنٹر")}</span>
             </div>
             <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white font-sans">
               {t("Welcome", "خوش آمدید")}, {user.name} 👋
             </h1>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-              {t("Active Client", "فعال ادارہ")}: <strong className="text-slate-800 dark:text-slate-200">{activeCompany?.name}</strong> • {isAccountingOnly ? t("Business Accounting & Ledger", "بزنس اکاؤنٹنگ و لیجر") : t("Retail POS & Invoicing", "ریٹیل پی او ایس و انوائسنگ")}
+              {t("Active Client", "فعال ادارہ")}: <strong className="text-slate-800 dark:text-slate-200">{activeCompany?.name}</strong> • {isFbrInvoicingOnly ? t("FBR Digital Invoicing & POS", "FBR ڈیجیٹل بلنگ") : isAccountingOnly ? t("Business Accounting & Ledger", "بزنس اکاؤنٹنگ و لیجر") : t("Retail POS & Invoicing", "ریٹیل پی او ایس و انوائسنگ")}
             </p>
           </div>
           <div className="flex flex-wrap gap-2 w-full sm:w-auto">
@@ -201,7 +205,15 @@ export default function DashboardPage() {
               <Receipt className="h-4 w-4" />
               <span>{t("New Sale", "نیا بل بنائیں")}</span>
             </Link>
-            {!isAccountingOnly ? (
+            {isFbrInvoicingOnly ? (
+              <Link
+                href="/sales/import"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-xs font-bold text-white shadow-xs hover:bg-indigo-700 transition shadow-indigo-600/20"
+              >
+                <UploadCloud className="h-4 w-4" />
+                <span>{t("Excel Bulk Upload", "ایکسل بلک اپلوڈ")}</span>
+              </Link>
+            ) : !isAccountingOnly ? (
               <Link
                 href="/compliance/fbr"
                 className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-xs font-bold text-white shadow-xs hover:bg-indigo-700 transition shadow-indigo-600/20"
@@ -451,97 +463,195 @@ export default function DashboardPage() {
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
-          {/* Action 1: New Sale */}
-          <Link
-            href="/sales/create"
-            className="group relative flex flex-col justify-between p-4 rounded-xl border border-emerald-200/80 bg-white hover:bg-emerald-50/50 hover:border-emerald-400 shadow-2xs hover:shadow-md transition-all duration-200 dark:border-emerald-900/60 dark:bg-[#111827] dark:hover:bg-emerald-950/30"
-          >
-            <div className="flex items-center justify-between">
-              <div className="h-10 w-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold dark:bg-emerald-950/80 dark:text-emerald-300 group-hover:scale-105 transition-transform">
-                <Receipt className="h-5 w-5" />
-              </div>
-              <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-md border border-emerald-200 dark:border-emerald-800">
-                {t("+ New Sale", "+ نیا بل")}
-              </span>
-            </div>
-            <div className="mt-3">
-              <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
-                {t("New Sale", "مال بیچیں")}
-              </h3>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">
-                {t("Create customer invoice and record sale", "گاہک کو مال بیچیں اور نیا بل بنائیں")}
-              </p>
-            </div>
-          </Link>
+          {isFbrInvoicingOnly ? (
+            <>
+              {/* Action 1: New Sale Invoice */}
+              <Link
+                href="/sales/create"
+                className="group relative flex flex-col justify-between p-4 rounded-xl border border-emerald-200/80 bg-white hover:bg-emerald-50/50 hover:border-emerald-400 shadow-2xs hover:shadow-md transition-all duration-200 dark:border-emerald-900/60 dark:bg-[#111827] dark:hover:bg-emerald-950/30"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="h-10 w-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold dark:bg-emerald-950/80 dark:text-emerald-300 group-hover:scale-105 transition-transform">
+                    <Receipt className="h-5 w-5" />
+                  </div>
+                  <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-md border border-emerald-200 dark:border-emerald-800">
+                    {t("+ New Invoice", "+ نیا بل")}
+                  </span>
+                </div>
+                <div className="mt-3">
+                  <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
+                    {t("New Sale Invoice", "سیلز انوائس بنائیں")}
+                  </h3>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">
+                    {t("Create single invoice and sync to FBR live", "سیلز بل بنائیں اور فوری FBR پر بھیجیں")}
+                  </p>
+                </div>
+              </Link>
 
-          {/* Action 2: New Purchase */}
-          <Link
-            href="/purchases/create"
-            className="group relative flex flex-col justify-between p-4 rounded-xl border border-purple-200/80 bg-white hover:bg-purple-50/50 hover:border-purple-400 shadow-2xs hover:shadow-md transition-all duration-200 dark:border-purple-900/60 dark:bg-[#111827] dark:hover:bg-purple-950/30"
-          >
-            <div className="flex items-center justify-between">
-              <div className="h-10 w-10 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center font-bold dark:bg-purple-950/80 dark:text-purple-300 group-hover:scale-105 transition-transform">
-                <ShoppingBag className="h-5 w-5" />
-              </div>
-              <span className="text-[10px] font-bold text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/60 px-2 py-0.5 rounded-md border border-purple-200 dark:border-purple-800">
-                {t("+ Purchase", "+ خریداری")}
-              </span>
-            </div>
-            <div className="mt-3">
-              <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors">
-                {t("New Purchase", "مال خریدیں")}
-              </h3>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">
-                {t("Record supplier purchase and warehouse inventory", "سپلائر سے مال لیں اور گودام کا اسٹاک درج کریں")}
-              </p>
-            </div>
-          </Link>
+              {/* Action 2: Excel / CSV Bulk Upload */}
+              <Link
+                href="/sales/import"
+                className="group relative flex flex-col justify-between p-4 rounded-xl border border-indigo-200/80 bg-white hover:bg-indigo-50/50 hover:border-indigo-400 shadow-2xs hover:shadow-md transition-all duration-200 dark:border-indigo-900/60 dark:bg-[#111827] dark:hover:bg-indigo-950/30"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="h-10 w-10 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold dark:bg-indigo-950/80 dark:text-indigo-300 group-hover:scale-105 transition-transform">
+                    <UploadCloud className="h-5 w-5" />
+                  </div>
+                  <span className="text-[10px] font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 px-2 py-0.5 rounded-md border border-indigo-200 dark:border-indigo-800">
+                    {t("Bulk Upload", "بلک اپلوڈ")}
+                  </span>
+                </div>
+                <div className="mt-3">
+                  <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                    {t("Excel / CSV Import", "ایکسل سے بلک انوائسز")}
+                  </h3>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">
+                    {t("Upload sales invoice spreadsheet and hit FBR", "شیٹ اپلوڈ کریں اور تمام انوائسز FBR پر ہٹ کریں")}
+                  </p>
+                </div>
+              </Link>
 
-          {/* Action 3: Money In / Payment */}
-          <Link
-            href="/payments"
-            className="group relative flex flex-col justify-between p-4 rounded-xl border border-blue-200/80 bg-white hover:bg-blue-50/50 hover:border-blue-400 shadow-2xs hover:shadow-md transition-all duration-200 dark:border-blue-900/60 dark:bg-[#111827] dark:hover:bg-blue-950/30"
-          >
-            <div className="flex items-center justify-between">
-              <div className="h-10 w-10 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center font-bold dark:bg-blue-950/80 dark:text-blue-300 group-hover:scale-105 transition-transform">
-                <ArrowDownLeft className="h-5 w-5" />
-              </div>
-              <span className="text-[10px] font-bold text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/60 px-2 py-0.5 rounded-md border border-blue-200 dark:border-blue-800">
-                {t("Money In", "وصولی +")}
-              </span>
-            </div>
-            <div className="mt-3">
-              <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-                {t("Customer Receipt", "پیسے وصول کریں")}
-              </h3>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">
-                {t("Record customer dues or bank deposits", "گاہک سے بقایا وصولی یا بینک میں رقم درج کریں")}
-              </p>
-            </div>
-          </Link>
+              {/* Action 3: FBR Compliance Hub */}
+              <Link
+                href="/compliance/fbr"
+                className="group relative flex flex-col justify-between p-4 rounded-xl border border-purple-200/80 bg-white hover:bg-purple-50/50 hover:border-purple-400 shadow-2xs hover:shadow-md transition-all duration-200 dark:border-purple-900/60 dark:bg-[#111827] dark:hover:bg-purple-950/30"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="h-10 w-10 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center font-bold dark:bg-purple-950/80 dark:text-purple-300 group-hover:scale-105 transition-transform">
+                    <ShieldCheck className="h-5 w-5" />
+                  </div>
+                  <span className="text-[10px] font-bold text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/60 px-2 py-0.5 rounded-md border border-purple-200 dark:border-purple-800">
+                    {t("FBR Gateway", "FBR گیٹ وے")}
+                  </span>
+                </div>
+                <div className="mt-3">
+                  <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors">
+                    {t("FBR Live Hub", "FBR ڈیجیٹل ہب")}
+                  </h3>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">
+                    {t("Monitor live transmission queue & retry errors", "لائیو ٹرانسمیشن کیو اور غلط انوائسز دوبارہ بھیجیں")}
+                  </p>
+                </div>
+              </Link>
 
-          {/* Action 4: Expenses / Money Out */}
-          <Link
-            href="/expenses"
-            className="group relative flex flex-col justify-between p-4 rounded-xl border border-rose-200/80 bg-white hover:bg-rose-50/50 hover:border-rose-400 shadow-2xs hover:shadow-md transition-all duration-200 dark:border-rose-900/60 dark:bg-[#111827] dark:hover:bg-rose-950/30"
-          >
-            <div className="flex items-center justify-between">
-              <div className="h-10 w-10 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center font-bold dark:bg-rose-950/80 dark:text-rose-300 group-hover:scale-105 transition-transform">
-                <ArrowUpRight className="h-5 w-5" />
-              </div>
-              <span className="text-[10px] font-bold text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/60 px-2 py-0.5 rounded-md border border-rose-200 dark:border-rose-800">
-                {t("Expense", "خرچہ -")}
-              </span>
-            </div>
-            <div className="mt-3">
-              <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white group-hover:text-rose-600 dark:group-hover:text-rose-400 transition-colors">
-                {t("Record Expense", "خرچہ درج کریں")}
-              </h3>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">
-                {t("Shop rent, electricity, bills or staff wages", "دکان کا کرایہ، بجلی بل، چائے یا تنخواہ کا خرچہ")}
-              </p>
-            </div>
-          </Link>
+              {/* Action 4: Sales Reports & Downloads */}
+              <Link
+                href="/reports"
+                className="group relative flex flex-col justify-between p-4 rounded-xl border border-blue-200/80 bg-white hover:bg-blue-50/50 hover:border-blue-400 shadow-2xs hover:shadow-md transition-all duration-200 dark:border-blue-900/60 dark:bg-[#111827] dark:hover:bg-blue-950/30"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="h-10 w-10 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center font-bold dark:bg-blue-950/80 dark:text-blue-300 group-hover:scale-105 transition-transform">
+                    <BarChart3 className="h-5 w-5" />
+                  </div>
+                  <span className="text-[10px] font-bold text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/60 px-2 py-0.5 rounded-md border border-blue-200 dark:border-blue-800">
+                    {t("Reports", "رپورٹس")}
+                  </span>
+                </div>
+                <div className="mt-3">
+                  <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                    {t("Sales Reports & Export", "سیلز رپورٹس و ڈاؤنلوڈ")}
+                  </h3>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">
+                    {t("View sales summary and export invoice sheets", "سیلز سمری دیکھیں اور ایکسل و پی ڈی ایف ڈاؤنلوڈ کریں")}
+                  </p>
+                </div>
+              </Link>
+            </>
+          ) : (
+            <>
+              {/* Action 1: New Sale */}
+              <Link
+                href="/sales/create"
+                className="group relative flex flex-col justify-between p-4 rounded-xl border border-emerald-200/80 bg-white hover:bg-emerald-50/50 hover:border-emerald-400 shadow-2xs hover:shadow-md transition-all duration-200 dark:border-emerald-900/60 dark:bg-[#111827] dark:hover:bg-emerald-950/30"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="h-10 w-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold dark:bg-emerald-950/80 dark:text-emerald-300 group-hover:scale-105 transition-transform">
+                    <Receipt className="h-5 w-5" />
+                  </div>
+                  <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-md border border-emerald-200 dark:border-emerald-800">
+                    {t("+ New Sale", "+ نیا بل")}
+                  </span>
+                </div>
+                <div className="mt-3">
+                  <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
+                    {t("New Sale", "مال بیچیں")}
+                  </h3>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">
+                    {t("Create customer invoice and record sale", "گاہک کو مال بیچیں اور نیا بل بنائیں")}
+                  </p>
+                </div>
+              </Link>
+
+              {/* Action 2: New Purchase */}
+              <Link
+                href="/purchases/create"
+                className="group relative flex flex-col justify-between p-4 rounded-xl border border-purple-200/80 bg-white hover:bg-purple-50/50 hover:border-purple-400 shadow-2xs hover:shadow-md transition-all duration-200 dark:border-purple-900/60 dark:bg-[#111827] dark:hover:bg-purple-950/30"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="h-10 w-10 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center font-bold dark:bg-purple-950/80 dark:text-purple-300 group-hover:scale-105 transition-transform">
+                    <ShoppingBag className="h-5 w-5" />
+                  </div>
+                  <span className="text-[10px] font-bold text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/60 px-2 py-0.5 rounded-md border border-purple-200 dark:border-purple-800">
+                    {t("+ Purchase", "+ خریداری")}
+                  </span>
+                </div>
+                <div className="mt-3">
+                  <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors">
+                    {t("New Purchase", "مال خریدیں")}
+                  </h3>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">
+                    {t("Record supplier purchase and warehouse inventory", "سپلائر سے مال لیں اور گودام کا اسٹاک درج کریں")}
+                  </p>
+                </div>
+              </Link>
+
+              {/* Action 3: Money In / Payment */}
+              <Link
+                href="/payments"
+                className="group relative flex flex-col justify-between p-4 rounded-xl border border-blue-200/80 bg-white hover:bg-blue-50/50 hover:border-blue-400 shadow-2xs hover:shadow-md transition-all duration-200 dark:border-blue-900/60 dark:bg-[#111827] dark:hover:bg-blue-950/30"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="h-10 w-10 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center font-bold dark:bg-blue-950/80 dark:text-blue-300 group-hover:scale-105 transition-transform">
+                    <ArrowDownLeft className="h-5 w-5" />
+                  </div>
+                  <span className="text-[10px] font-bold text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/60 px-2 py-0.5 rounded-md border border-blue-200 dark:border-blue-800">
+                    {t("Money In", "وصولی +")}
+                  </span>
+                </div>
+                <div className="mt-3">
+                  <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                    {t("Customer Receipt", "پیسے وصول کریں")}
+                  </h3>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">
+                    {t("Record customer dues or bank deposits", "گاہک سے بقایا وصولی یا بینک میں رقم درج کریں")}
+                  </p>
+                </div>
+              </Link>
+
+              {/* Action 4: Expenses / Money Out */}
+              <Link
+                href="/expenses"
+                className="group relative flex flex-col justify-between p-4 rounded-xl border border-rose-200/80 bg-white hover:bg-rose-50/50 hover:border-rose-400 shadow-2xs hover:shadow-md transition-all duration-200 dark:border-rose-900/60 dark:bg-[#111827] dark:hover:bg-rose-950/30"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="h-10 w-10 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center font-bold dark:bg-rose-950/80 dark:text-rose-300 group-hover:scale-105 transition-transform">
+                    <ArrowUpRight className="h-5 w-5" />
+                  </div>
+                  <span className="text-[10px] font-bold text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/60 px-2 py-0.5 rounded-md border border-rose-200 dark:border-rose-800">
+                    {t("Expense", "خرچہ -")}
+                  </span>
+                </div>
+                <div className="mt-3">
+                  <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white group-hover:text-rose-600 dark:group-hover:text-rose-400 transition-colors">
+                    {t("Record Expense", "خرچہ درج کریں")}
+                  </h3>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">
+                    {t("Shop rent, electricity, bills or staff wages", "دکان کا کرایہ، بجلی بل، چائے یا تنخواہ کا خرچہ")}
+                  </p>
+                </div>
+              </Link>
+            </>
+          )}
         </div>
       </div>
 
@@ -556,18 +666,20 @@ export default function DashboardPage() {
                 : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200"
             }`}
           >
-            <span>{t("All Modules", "تمام کھاتے")}</span>
+            <span>{isFbrInvoicingOnly ? t("Sales & FBR Hub", "سیلز و FBR ہب") : t("All Modules", "تمام کھاتے")}</span>
           </button>
-          <button
-            onClick={() => setActiveTab("accounting")}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition whitespace-nowrap ${
-              activeTab === "accounting"
-                ? "bg-white text-indigo-700 shadow-2xs font-bold dark:bg-slate-800 dark:text-indigo-400"
-                : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200"
-            }`}
-          >
-            <span>{t("Accounting & Bookkeeping", "روکڑ کھاتہ و بک کیپنگ")}</span>
-          </button>
+          {!isFbrInvoicingOnly && (
+            <button
+              onClick={() => setActiveTab("accounting")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition whitespace-nowrap ${
+                activeTab === "accounting"
+                  ? "bg-white text-indigo-700 shadow-2xs font-bold dark:bg-slate-800 dark:text-indigo-400"
+                  : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200"
+              }`}
+            >
+              <span>{t("Accounting & Bookkeeping", "روکڑ کھاتہ و بک کیپنگ")}</span>
+            </button>
+          )}
           {!isAccountingOnly && (
             <button
               onClick={() => setActiveTab("fbr")}
@@ -1201,7 +1313,7 @@ export default function DashboardPage() {
       {/* ========================================================================= */}
       {/* PAYMENT PROMISE & OVERDUE REMINDERS WIDGET                                 */}
       {/* ========================================================================= */}
-      {data?.paymentReminders && (
+      {!isFbrInvoicingOnly && data?.paymentReminders && (
         <div className="rounded-2xl border border-slate-200/80 bg-white shadow-xs overflow-hidden dark:border-slate-800/90 dark:bg-[#111827]">
           <div className="p-4 sm:p-5 border-b border-slate-200/80 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div className="flex items-center gap-2.5">

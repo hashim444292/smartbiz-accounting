@@ -764,7 +764,7 @@ export default function UsersManagementPage() {
                   <option value="ALL">All Companies</option>
                   {companies.map((c) => (
                     <option key={c.id} value={c.id}>
-                      {c.name} {c.packageType === "ACCOUNTING_ONLY" ? "(Accounting Only)" : "(Full Suite)"}
+                      {c.name} {c.packageType === "ACCOUNTING_ONLY" ? "(Accounting Only)" : c.packageType === "FBR_INVOICING_ONLY" ? "(FBR Invoicing Only)" : "(Full Suite)"}
                     </option>
                   ))}
                 </select>
@@ -872,11 +872,15 @@ export default function UsersManagementPage() {
                                 >
                                   <Building2 className="h-3 w-3 text-blue-500" />
                                   <span className="truncate max-w-[120px]">{c.name}</span>
-                                  {c.packageType === "ACCOUNTING_ONLY" && (
+                                  {c.packageType === "ACCOUNTING_ONLY" ? (
                                     <span className="text-[8px] bg-blue-100 text-blue-800 dark:bg-blue-900/60 dark:text-blue-300 px-1 rounded font-bold">
                                       Acc
                                     </span>
-                                  )}
+                                  ) : c.packageType === "FBR_INVOICING_ONLY" ? (
+                                    <span className="text-[8px] bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300 px-1 rounded font-bold">
+                                      FBR
+                                    </span>
+                                  ) : null}
                                 </span>
                               ))
                             ) : (
@@ -1308,12 +1312,18 @@ export default function UsersManagementPage() {
                         </div>
                         <span
                           className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
-                            isAccOnly
+                            c.packageType === "FBR_INVOICING_ONLY"
+                              ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300"
+                              : isAccOnly
                               ? "bg-blue-100 text-blue-800 dark:bg-blue-900/60 dark:text-blue-300"
                               : "bg-purple-100 text-purple-800 dark:bg-purple-900/60 dark:text-purple-300"
                           }`}
                         >
-                          {isAccOnly ? "📘 Accounting Only" : "🚀 Full Suite"}
+                          {c.packageType === "FBR_INVOICING_ONLY"
+                            ? "⚡ FBR Invoicing Only"
+                            : isAccOnly
+                            ? "📘 Accounting Only"
+                            : "🚀 Full Suite"}
                         </span>
                       </label>
                     );
@@ -1867,12 +1877,18 @@ export default function UsersManagementPage() {
                             </div>
                             <span
                               className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
-                                isAccOnly
+                                c.packageType === "FBR_INVOICING_ONLY"
+                                  ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300"
+                                  : isAccOnly
                                   ? "bg-blue-100 text-blue-800 dark:bg-blue-900/60 dark:text-blue-300"
                                   : "bg-purple-100 text-purple-800 dark:bg-purple-900/60 dark:text-purple-300"
                               }`}
                             >
-                              {isAccOnly ? "📘 Accounting Only" : "🚀 Full Suite"}
+                              {c.packageType === "FBR_INVOICING_ONLY"
+                                ? "⚡ FBR Invoicing Only"
+                                : isAccOnly
+                                ? "📘 Accounting Only"
+                                : "🚀 Full Suite"}
                             </span>
                           </label>
                         );

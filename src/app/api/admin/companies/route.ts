@@ -86,17 +86,19 @@ export async function GET() {
             ? (c as any).enabledModules
             : (c as any).packageType === "ACCOUNTING_ONLY"
               ? ["sales", "purchases", "inventory", "accounting", "reports", "aiEntry", "bulkImport"]
-              : [
-                  "sales",
-                  "pos",
-                  "purchases",
-                  "inventory",
-                  "accounting",
-                  "compliance",
-                  "reports",
-                  "aiEntry",
-                  "bulkImport",
-                ],
+              : (c as any).packageType === "FBR_INVOICING_ONLY"
+                ? ["sales", "pos", "compliance", "bulkImport", "reports"]
+                : [
+                    "sales",
+                    "pos",
+                    "purchases",
+                    "inventory",
+                    "accounting",
+                    "compliance",
+                    "reports",
+                    "aiEntry",
+                    "bulkImport",
+                  ],
           billingCycleStart: c.billingCycleStart ? c.billingCycleStart.toISOString() : c.createdAt.toISOString(),
           billingCycleEnd: c.billingCycleEnd ? c.billingCycleEnd.toISOString() : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
           lastPaymentDate: (c as any).lastPaymentDate || c.createdAt,
@@ -233,20 +235,24 @@ export async function POST(req: NextRequest) {
     const computedModules = Array.isArray(enabledModules) && enabledModules.length > 0
       ? (packageType === "ACCOUNTING_ONLY" 
           ? enabledModules.filter((m: string) => m !== "pos" && m !== "compliance")
-          : enabledModules)
+          : packageType === "FBR_INVOICING_ONLY"
+            ? ["sales", "pos", "compliance", "bulkImport", "reports"]
+            : enabledModules)
       : (packageType === "ACCOUNTING_ONLY"
           ? ["sales", "purchases", "inventory", "accounting", "reports", "aiEntry", "bulkImport"]
-          : [
-              "sales",
-              "pos",
-              "purchases",
-              "inventory",
-              "accounting",
-              "compliance",
-              "reports",
-              "aiEntry",
-              "bulkImport",
-            ]);
+          : packageType === "FBR_INVOICING_ONLY"
+            ? ["sales", "pos", "compliance", "bulkImport", "reports"]
+            : [
+                "sales",
+                "pos",
+                "purchases",
+                "inventory",
+                "accounting",
+                "compliance",
+                "reports",
+                "aiEntry",
+                "bulkImport",
+              ]);
 
     // Try DB
     try {

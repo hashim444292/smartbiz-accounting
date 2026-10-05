@@ -12,10 +12,18 @@ import {
   Wallet,
   ArrowRight,
   Package,
+  Receipt,
+  ShieldCheck,
+  FileSpreadsheet,
+  Download,
 } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
 
 export default function ReportsHubPage() {
-  const reports = [
+  const { activeCompany } = useAuth();
+  const isFbrInvoicingOnly = activeCompany?.packageType === "FBR_INVOICING_ONLY";
+
+  const standardReports = [
     {
       title: "Items Summary (Stock In/Out)",
       description: "Client standard format: Opening, In, Out, and Balance stock ledger grouped by category.",
@@ -77,14 +85,55 @@ export default function ReportsHubPage() {
     },
   ];
 
+  const fbrInvoicingReports = [
+    {
+      title: "Sales Invoices Register & Downloads",
+      description: "Complete chronological sales register with filterable dates, customer details, PDF invoice download, and print receipts.",
+      icon: Receipt,
+      href: "/sales",
+      badge: "Primary Sales",
+    },
+    {
+      title: "Daily Sales & Tax Breakdown",
+      description: "Daily gross sales totals, 18% GST collected, 3% further tax, POS fee reconciliation, and verified invoice counts.",
+      icon: Calendar,
+      href: "/reports/daily",
+      badge: "Daily Tax",
+    },
+    {
+      title: "Weekly Sales Performance",
+      description: "Day-by-day turnover summary, weekly comparisons, and invoice velocity analysis.",
+      icon: CalendarRange,
+      href: "/reports/weekly",
+    },
+    {
+      title: "FBR Digital Invoicing & Fiscal Audit",
+      description: "Live FBR transmission status, official FBR invoice numbers, scannable QR verification, and retry queue.",
+      icon: ShieldCheck,
+      href: "/compliance/fbr",
+      badge: "FBR Official",
+    },
+    {
+      title: "Excel / CSV Bulk Export & Imports",
+      description: "Download CSV invoice templates, historical batch import sheets, and bulk sales spreadsheet exports.",
+      icon: FileSpreadsheet,
+      href: "/sales/import",
+      badge: "Spreadsheet",
+    },
+  ];
+
+  const reports = isFbrInvoicingOnly ? fbrInvoicingReports : standardReports;
+
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
       <div>
         <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">
-          Financial & Managerial Reports
+          {isFbrInvoicingOnly ? "Sales Invoicing & FBR Compliance Reports" : "Financial & Managerial Reports"}
         </h2>
         <p className="text-xs text-slate-500">
-          Audited financial statements, daily sales/cash logs, and monthly closing reconciliations
+          {isFbrInvoicingOnly
+            ? "Simple sales invoice logs, FBR tax breakdowns, and spreadsheet export downloads"
+            : "Audited financial statements, daily sales/cash logs, and monthly closing reconciliations"}
         </p>
       </div>
 
