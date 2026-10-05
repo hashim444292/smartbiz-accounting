@@ -43,6 +43,11 @@ interface SaleRecord {
   paymentMethod: string;
   status: "DRAFT" | "POSTED" | "CANCELLED";
   fbrStatus?: string;
+  fbrInvoiceNumber?: string;
+  fbrQrCode?: string;
+  dueDate?: string;
+  discountAmount?: number;
+  subtotal?: number;
   createdById?: string;
   createdByName?: string;
   isEdited?: boolean;
@@ -69,11 +74,27 @@ export default function SalesPage() {
   const [dateFilter, setDateFilter] = useState<"ALL" | "TODAY" | "YESTERDAY" | "THIS_WEEK" | "THIS_MONTH" | "LAST_30_DAYS">("ALL");
   const [reversingId, setReversingId] = useState<string | null>(null);
 
+  // Helper for datetime-local input formatting
+  const formatDatetimeLocal = (d?: string | Date | null) => {
+    if (!d) return "";
+    const dt = new Date(d);
+    if (isNaN(dt.getTime())) return "";
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}T${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
+  };
+
   // Edit Invoice State & User Tracking
   const [editingSale, setEditingSale] = useState<SaleRecord | null>(null);
+  const [editDate, setEditDate] = useState("");
+  const [editDueDate, setEditDueDate] = useState("");
   const [editCustomerName, setEditCustomerName] = useState("");
+  const [editPaymentMethod, setEditPaymentMethod] = useState("CASH");
+  const [editTotalAmount, setEditTotalAmount] = useState<number>(0);
+  const [editDiscountAmount, setEditDiscountAmount] = useState<number>(0);
   const [editPaymentStatus, setEditPaymentStatus] = useState<"PAID" | "PARTIAL" | "UNPAID">("PAID");
   const [editPaidAmount, setEditPaidAmount] = useState<number>(0);
+  const [editFbrStatus, setEditFbrStatus] = useState("PENDING");
+  const [editFbrInvoiceNumber, setEditFbrInvoiceNumber] = useState("");
   const [editNotes, setEditNotes] = useState("");
   const [editReason, setEditReason] = useState("");
   const [editSaving, setEditSaving] = useState(false);
@@ -135,9 +156,16 @@ export default function SalesPage() {
 
   const openEditModal = (sale: SaleRecord) => {
     setEditingSale(sale);
+    setEditDate(formatDatetimeLocal(sale.date));
+    setEditDueDate((sale as any).dueDate ? new Date((sale as any).dueDate).toISOString().slice(0, 10) : "");
     setEditCustomerName(sale.customerName || "");
+    setEditPaymentMethod(sale.paymentMethod || "CASH");
+    setEditTotalAmount(Number(sale.totalAmount || 0));
+    setEditDiscountAmount(Number(sale.discountAmount || 0));
     setEditPaymentStatus(sale.paymentStatus);
     setEditPaidAmount(Number(sale.paidAmount || 0));
+    setEditFbrStatus(sale.fbrStatus || "PENDING");
+    setEditFbrInvoiceNumber(sale.fbrInvoiceNumber || "");
     setEditNotes(sale.notes || "");
     setEditReason("");
   };
@@ -155,9 +183,16 @@ export default function SalesPage() {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          date: editDate ? new Date(editDate).toISOString() : editingSale.date,
+          dueDate: editDueDate ? new Date(editDueDate).toISOString() : null,
           customerName: editCustomerName,
+          paymentMethod: editPaymentMethod,
+          totalAmount: editTotalAmount,
+          discountAmount: editDiscountAmount,
           paidAmount: editPaidAmount,
           paymentStatus: editPaymentStatus,
+          fbrStatus: editFbrStatus,
+          fbrInvoiceNumber: editFbrInvoiceNumber.trim() || null,
           notes: editNotes,
           editReason: editReason.trim(),
         }),
@@ -796,8 +831,9 @@ export default function SalesPage() {
           isOpen={!!editingSale}
           onClose={() => setEditingSale(null)}
           title={`Edit Invoice #${editingSale.invoiceNumber}`}
+          maxWidth="2xl"
         >
-          <form onSubmit={handleSaveEdit} className="space-y-4">
+          <form onSubmit={handleSaveEdit} className="space-y-4 max-h-[78vh] overflow-y-auto pr-1">
             {/* Creator Attribution Info Card */}
             <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3 text-xs dark:border-slate-800 dark:bg-slate-800/50">
               <div className="flex items-center justify-between">
@@ -816,9 +852,38 @@ export default function SalesPage() {
               )}
             </div>
 
+            {/* 1. Date & Due Date Row */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Invoice Date & Time (انوائس کی تاریخ اور وقت) *
+                </label>
+                <input
+                  type="datetime-local"
+                  value={editDate}
+                  onChange={(e) => setEditDate(e.target.value)}
+                  required
+                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 dark:bg-slate-900 dark:border-slate-700 dark:text-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Payment Due Date (ادھار واجب الادا تاریخ)
+                </label>
+                <input
+                  type="date"
+                  value={editDueDate}
+                  onChange={(e) => setEditDueDate(e.target.value)}
+                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 dark:bg-slate-900 dark:border-slate-700 dark:text-white"
+                />
+              </div>
+            </div>
+
+            {/* 2. Customer Name */}
             <div>
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                Customer Name
+                Customer Name (گاہک کا نام) *
               </label>
               <Input
                 value={editCustomerName}
@@ -828,7 +893,78 @@ export default function SalesPage() {
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            {/* 3. Amounts Row (Total, Discount, Payment Method) */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Grand Total (Rs) *
+                </label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={editTotalAmount}
+                  onChange={(e) => {
+                    const val = Number(e.target.value) || 0;
+                    setEditTotalAmount(val);
+                    if (editPaidAmount >= val && val > 0) setEditPaymentStatus("PAID");
+                    else if (editPaidAmount > 0) setEditPaymentStatus("PARTIAL");
+                    else setEditPaymentStatus("UNPAID");
+                  }}
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Discount (Rs)
+                </label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={editDiscountAmount}
+                  onChange={(e) => setEditDiscountAmount(Number(e.target.value) || 0)}
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Payment Method
+                </label>
+                <select
+                  value={editPaymentMethod}
+                  onChange={(e) => setEditPaymentMethod(e.target.value)}
+                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 dark:bg-slate-900 dark:border-slate-700 dark:text-white"
+                >
+                  <option value="CASH">CASH (نقد)</option>
+                  <option value="BANK_TRANSFER">Bank Transfer (بینک)</option>
+                  <option value="ONLINE">Online / Card (آن لائن)</option>
+                  <option value="CHEQUE">Cheque (چیک)</option>
+                  <option value="CREDIT">Credit / Udhaar (ادھار)</option>
+                </select>
+              </div>
+            </div>
+
+            {/* 4. Payment Settlement Row */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Paid Amount (Rs) *
+                </label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={editPaidAmount}
+                  onChange={(e) => {
+                    const val = Number(e.target.value) || 0;
+                    setEditPaidAmount(val);
+                    if (val >= editTotalAmount && editTotalAmount > 0) setEditPaymentStatus("PAID");
+                    else if (val > 0) setEditPaymentStatus("PARTIAL");
+                    else setEditPaymentStatus("UNPAID");
+                  }}
+                  required
+                />
+              </div>
+
               <div>
                 <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                   Payment Status
@@ -836,7 +972,7 @@ export default function SalesPage() {
                 <select
                   value={editPaymentStatus}
                   onChange={(e) => setEditPaymentStatus(e.target.value as any)}
-                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 dark:bg-slate-900 dark:border-slate-700 dark:text-white"
                 >
                   <option value="PAID">PAID (مکمل ادا)</option>
                   <option value="PARTIAL">PARTIAL (جزوی ادا)</option>
@@ -845,22 +981,54 @@ export default function SalesPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Paid Amount (Rs)
+                <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">
+                  Remaining Receivable (بقایا)
                 </label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  value={editPaidAmount}
-                  onChange={(e) => setEditPaidAmount(Number(e.target.value) || 0)}
-                  required
-                />
+                <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-mono font-bold text-rose-600 dark:border-slate-800 dark:bg-slate-800/60">
+                  Rs {Math.max(0, editTotalAmount - editPaidAmount).toLocaleString()}
+                </div>
               </div>
             </div>
 
+            {/* 5. FBR Compliance Info */}
+            <div className="rounded-xl border border-blue-200 bg-blue-50/50 p-3 space-y-2 dark:border-blue-900/50 dark:bg-blue-950/20">
+              <span className="block text-[11px] font-bold text-blue-900 dark:text-blue-200 uppercase tracking-wider">
+                FBR Statutory & POS Info (ایف بی آر تفصیلات)
+              </span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    FBR Status
+                  </label>
+                  <select
+                    value={editFbrStatus}
+                    onChange={(e) => setEditFbrStatus(e.target.value)}
+                    className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:bg-slate-900 dark:border-slate-700 dark:text-white"
+                  >
+                    <option value="PENDING">PENDING (منتظر)</option>
+                    <option value="SUCCESS">SUCCESS (کامیاب)</option>
+                    <option value="FAILED">FAILED (ناکام)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    FBR Official Invoice Number
+                  </label>
+                  <Input
+                    value={editFbrInvoiceNumber}
+                    onChange={(e) => setEditFbrInvoiceNumber(e.target.value)}
+                    placeholder="e.g. 201327FJ5V3432560"
+                    className="font-mono text-xs"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* 6. Invoice Notes */}
             <div>
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                Invoice Notes
+                Invoice Notes / Remarks
               </label>
               <Input
                 value={editNotes}
@@ -869,7 +1037,7 @@ export default function SalesPage() {
               />
             </div>
 
-            {/* Required Audit Reason */}
+            {/* 7. Required Audit Reason */}
             <div className="rounded-xl border border-amber-300 bg-amber-50/70 p-3 dark:border-amber-800 dark:bg-amber-950/40">
               <label className="block text-xs font-bold text-amber-900 dark:text-amber-200 mb-1">
                 Reason for Editing (ترمیم کی وجہ درج کرنا لازمی ہے) *
@@ -880,14 +1048,14 @@ export default function SalesPage() {
               <textarea
                 value={editReason}
                 onChange={(e) => setEditReason(e.target.value)}
-                placeholder="e.g. Corrected typo in customer name / received additional payment..."
+                placeholder="e.g. Corrected invoice date / customer name typo / adjusted payment..."
                 rows={2}
                 required
                 className="w-full rounded-lg border border-amber-300 bg-white p-2 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500 dark:bg-slate-900 dark:text-white dark:border-amber-700"
               />
             </div>
 
-            <div className="flex justify-end gap-2 pt-2">
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
               <Button
                 type="button"
                 variant="secondary"

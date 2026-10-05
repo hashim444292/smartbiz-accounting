@@ -55,33 +55,67 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       return NextResponse.json({ success: false, error: "Invoice not found" }, { status: 404 });
     }
 
+    const newTotal = body.totalAmount !== undefined ? Number(body.totalAmount) : Number(existing.totalAmount);
+    const newPaid = body.paidAmount !== undefined ? Number(body.paidAmount) : Number(existing.paidAmount);
+    const newRemaining = Math.max(0, newTotal - newPaid);
+
+    let newPaymentStatus = body.paymentStatus;
+    if (!newPaymentStatus) {
+      if (newPaid >= newTotal && newTotal > 0) newPaymentStatus = "PAID";
+      else if (newPaid > 0) newPaymentStatus = "PARTIAL";
+      else newPaymentStatus = "UNPAID";
+    }
+
     const previousSnapshot = {
+      date: existing.date,
       customerName: existing.customerName,
       totalAmount: existing.totalAmount.toString(),
       paidAmount: existing.paidAmount.toString(),
+      paymentStatus: existing.paymentStatus,
+      paymentMethod: existing.paymentMethod,
+      fbrInvoiceNumber: existing.fbrInvoiceNumber,
       notes: existing.notes,
     };
+
+    const updateData: any = {
+      customerName: body.customerName !== undefined ? body.customerName : existing.customerName,
+      notes: body.notes !== undefined ? body.notes : existing.notes,
+      paymentMethod: body.paymentMethod !== undefined ? body.paymentMethod : existing.paymentMethod,
+      paymentStatus: newPaymentStatus,
+      totalAmount: newTotal,
+      paidAmount: newPaid,
+      remainingAmount: newRemaining,
+      isEdited: true,
+      editCount: { increment: 1 },
+      updatedById: editorId,
+      updatedByName: editorName,
+      editReason,
+      updatedAt: new Date(),
+    };
+
+    if (body.date) {
+      updateData.date = new Date(body.date);
+    }
+    if (body.dueDate !== undefined) {
+      updateData.dueDate = body.dueDate ? new Date(body.dueDate) : null;
+    }
+    if (body.discountAmount !== undefined) {
+      updateData.discountAmount = Number(body.discountAmount);
+    }
+    if (body.fbrStatus !== undefined) {
+      updateData.fbrStatus = body.fbrStatus;
+    }
+    if (body.fbrInvoiceNumber !== undefined) {
+      updateData.fbrInvoiceNumber = body.fbrInvoiceNumber;
+      if (body.fbrInvoiceNumber) {
+        updateData.fbrQrCode = `https://e.fbr.gov.pk/verify?inv=${encodeURIComponent(body.fbrInvoiceNumber)}&pos=${encodeURIComponent(existing.branchId || "POS-101")}&amt=${newTotal}`;
+      }
+    }
 
     const updatedSale = await prisma.$transaction(async (tx) => {
       const updated = await tx.sale.update({
         where: { id },
-        data: {
-          customerName: body.customerName !== undefined ? body.customerName : existing.customerName,
-          notes: body.notes !== undefined ? body.notes : existing.notes,
-          paymentMethod: body.paymentMethod !== undefined ? body.paymentMethod : existing.paymentMethod,
-          paymentStatus: body.paymentStatus !== undefined ? body.paymentStatus : existing.paymentStatus,
-          paidAmount: body.paidAmount !== undefined ? Number(body.paidAmount) : existing.paidAmount,
-          remainingAmount:
-            body.paidAmount !== undefined
-              ? Math.max(0, Number(existing.totalAmount) - Number(body.paidAmount))
-              : existing.remainingAmount,
-          isEdited: true,
-          editCount: { increment: 1 },
-          updatedById: editorId,
-          updatedByName: editorName,
-          editReason,
-          updatedAt: new Date(),
-        },
+        data: updateData,
         include: { customer: true, items: true, branch: true },
       });
 
@@ -98,9 +132,13 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         changes: JSON.stringify({
           previous: previousSnapshot,
           updated: {
+            date: updated.date,
             customerName: updated.customerName,
             totalAmount: updated.totalAmount.toString(),
             paidAmount: updated.paidAmount.toString(),
+            paymentStatus: updated.paymentStatus,
+            paymentMethod: updated.paymentMethod,
+            fbrInvoiceNumber: updated.fbrInvoiceNumber,
             notes: updated.notes,
           },
         }),

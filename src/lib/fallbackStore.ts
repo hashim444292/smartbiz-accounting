@@ -2635,6 +2635,16 @@ export function storeUpdateSale(
     notes: sale.notes,
   };
 
+  if (updates.date !== undefined) sale.date = new Date(updates.date).toISOString();
+  if (updates.dueDate !== undefined) sale.dueDate = updates.dueDate ? new Date(updates.dueDate).toISOString() : null;
+  if (updates.discountAmount !== undefined) sale.discountAmount = Number(updates.discountAmount);
+  if (updates.fbrStatus !== undefined) sale.fbrStatus = updates.fbrStatus;
+  if (updates.fbrInvoiceNumber !== undefined) {
+    sale.fbrInvoiceNumber = updates.fbrInvoiceNumber;
+    if (updates.fbrInvoiceNumber) {
+      sale.fbrQrCode = `https://e.fbr.gov.pk/verify?inv=${encodeURIComponent(updates.fbrInvoiceNumber)}&pos=${encodeURIComponent(sale.branchId || "POS-101")}&amt=${sale.totalAmount}`;
+    }
+  }
   if (updates.customerName !== undefined) sale.customerName = updates.customerName;
   if (updates.notes !== undefined) sale.notes = updates.notes;
   if (updates.paymentMethod !== undefined) sale.paymentMethod = updates.paymentMethod;
