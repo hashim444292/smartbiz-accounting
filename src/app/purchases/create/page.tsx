@@ -100,15 +100,16 @@ export default function CreatePurchasePage() {
       setProducts(prods);
 
       if (prods.length > 0) {
-        const first = prods[0];
-        const cost = Number(first.purchasePrice || first.costPrice || first.averageCost || 0);
-        const sellPrice = Number(first.sellingPrice || first.retailPrice || 0);
-        const stock = Number(first.currentStock || 0);
+        const queryProdId = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("productId") : null;
+        const initialProd = (queryProdId && prods.find((p) => p.id === queryProdId)) || prods[0];
+        const cost = Number(initialProd.purchasePrice || initialProd.costPrice || initialProd.averageCost || 0);
+        const sellPrice = Number(initialProd.sellingPrice || initialProd.retailPrice || 0);
+        const stock = Number(initialProd.currentStock || 0);
 
         setItems([
           {
-            productId: first.id,
-            productName: first.name,
+            productId: initialProd.id,
+            productName: initialProd.name,
             quantity: 1,
             unitCost: cost,
             previousCost: cost,
@@ -121,20 +122,7 @@ export default function CreatePurchasePage() {
         ]);
         setPaidAmount(cost);
       } else {
-        setItems([
-          {
-            productId: "__custom__",
-            productName: "",
-            quantity: 1,
-            unitCost: 0,
-            previousCost: 0,
-            currentStock: 0,
-            previousSellingPrice: 0,
-            newSellingPrice: 0,
-            updateCatalogPrice: true,
-            lineTotal: 0,
-          },
-        ]);
+        setItems([]);
       }
     } catch (err: any) {
       console.error(err);
@@ -161,42 +149,26 @@ export default function CreatePurchasePage() {
 
   const handleProductChange = (index: number, prodId: string) => {
     const newItems = [...items];
-    if (prodId === "__custom__") {
+    const prod = products.find((p) => p.id === prodId);
+    if (prod) {
+      const cost = Number(prod.purchasePrice || prod.costPrice || prod.averageCost || 0);
+      const sellPrice = Number(prod.sellingPrice || prod.retailPrice || 0);
+      const stock = Number(prod.currentStock || 0);
+      const qty = Number(newItems[index]?.quantity || 1);
+
       newItems[index] = {
         ...newItems[index],
-        productId: "__custom__",
-        productName: "",
-        quantity: 1,
-        unitCost: 0,
-        previousCost: 0,
-        currentStock: 0,
-        previousSellingPrice: 0,
-        newSellingPrice: 0,
+        productId: prod.id,
+        productName: prod.name,
+        quantity: qty,
+        unitCost: cost,
+        previousCost: cost,
+        currentStock: stock,
+        previousSellingPrice: sellPrice,
+        newSellingPrice: sellPrice,
         updateCatalogPrice: true,
-        lineTotal: 0,
+        lineTotal: qty * cost,
       };
-    } else {
-      const prod = products.find((p) => p.id === prodId);
-      if (prod) {
-        const cost = Number(prod.purchasePrice || prod.costPrice || prod.averageCost || 0);
-        const sellPrice = Number(prod.sellingPrice || prod.retailPrice || 0);
-        const stock = Number(prod.currentStock || 0);
-        const qty = Number(newItems[index].quantity || 1);
-
-        newItems[index] = {
-          ...newItems[index],
-          productId: prod.id,
-          productName: prod.name,
-          quantity: qty,
-          unitCost: cost,
-          previousCost: cost,
-          currentStock: stock,
-          previousSellingPrice: sellPrice,
-          newSellingPrice: sellPrice,
-          updateCatalogPrice: true,
-          lineTotal: qty * cost,
-        };
-      }
     }
     setItems(newItems);
   };
@@ -236,6 +208,11 @@ export default function CreatePurchasePage() {
   };
 
   const handleAddItem = (prodIdToSelect?: string) => {
+    if (products.length === 0) {
+      alert("No products found in catalog. Please create products in Products & Rates first.");
+      return;
+    }
+
     const targetProd = prodIdToSelect
       ? products.find((p) => p.id === prodIdToSelect)
       : products[0];
@@ -260,22 +237,6 @@ export default function CreatePurchasePage() {
           lineTotal: cost,
         },
       ]);
-    } else {
-      setItems([
-        ...items,
-        {
-          productId: "__custom__",
-          productName: "",
-          quantity: 1,
-          unitCost: 0,
-          previousCost: 0,
-          currentStock: 0,
-          previousSellingPrice: 0,
-          newSellingPrice: 0,
-          updateCatalogPrice: true,
-          lineTotal: 0,
-        },
-      ]);
     }
   };
 
@@ -297,6 +258,20 @@ export default function CreatePurchasePage() {
       const operatingBranchId = isBranchLocked ? (user?.branchId || null) : (purchaseBranchId || effectiveBranch || null);
       if (operatingBranchId) {
         headers["x-branch-id"] = operatingBranchId;
+      }
+
+      if (items.length === 0) {
+        setError("Please add at least one registered product to the purchase bill.");
+        setSubmitting(false);
+        return;
+      }
+
+      for (const it of items) {
+        if (!it.productId || it.productId === "__custom__") {
+          setError("All items in the purchase bill must be selected from registered products in the catalog.");
+          setSubmitting(false);
+          return;
+        }
       }
 
       const payload = {
@@ -616,54 +591,53 @@ export default function CreatePurchasePage() {
             </div>
 
             {/* Line items list */}
-            <div className="divide-y divide-slate-100 dark:divide-slate-800">
-              {items.map((item, idx) => {
-                const analysis = getItemAnalysis(item);
-                const isCustom = item.productId === "__custom__";
-
-                return (
-                  <div
-                    key={idx}
-                    className="p-4 sm:p-5 hover:bg-slate-50/40 transition-colors space-y-3.5"
+            {items.length === 0 ? (
+              <div className="p-8 text-center space-y-3">
+                <p className="text-xs text-slate-500 font-medium">
+                  {products.length === 0
+                    ? "No products registered in catalog yet. Please add a product in Products & Rates first."
+                    : "No items added to this purchase bill yet."}
+                </p>
+                {products.length === 0 ? (
+                  <Link
+                    href="/products/create"
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-3.5 py-2 text-xs font-bold text-white shadow-sm hover:bg-indigo-700 transition"
                   >
-                    {/* Main Row Inputs */}
-                    <div className="grid grid-cols-1 md:grid-cols-12 gap-3.5 items-end">
-                      {/* Product Selector / Name */}
-                      <div className="md:col-span-4 space-y-1">
-                        <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 flex items-center justify-between">
-                          <span>Product / Stock Item</span>
-                          {!isCustom && (
+                    <Plus className="h-4 w-4" />
+                    <span>Register New Product First (پہلے پراڈکٹ ایڈ کریں)</span>
+                  </Link>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => handleAddItem()}
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-3.5 py-2 text-xs font-bold text-white shadow-sm hover:bg-indigo-700 transition"
+                  >
+                    <Plus className="h-4 w-4" />
+                    <span>Add Product Item</span>
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                {items.map((item, idx) => {
+                  const analysis = getItemAnalysis(item);
+
+                  return (
+                    <div
+                      key={idx}
+                      className="p-4 sm:p-5 hover:bg-slate-50/40 transition-colors space-y-3.5"
+                    >
+                      {/* Main Row Inputs */}
+                      <div className="grid grid-cols-1 md:grid-cols-12 gap-3.5 items-end">
+                        {/* Product Selector / Name */}
+                        <div className="md:col-span-4 space-y-1">
+                          <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 flex items-center justify-between">
+                            <span>Product / Stock Item</span>
                             <span className="text-[10px] font-mono text-indigo-600 dark:text-indigo-400 font-semibold">
                               In Stock: {item.currentStock} pcs
                             </span>
-                          )}
-                        </label>
+                          </label>
 
-                        {isCustom ? (
-                          <div className="flex items-center gap-1.5">
-                            <input
-                              type="text"
-                              placeholder="Enter custom stock item name..."
-                              value={item.productName}
-                              onChange={(e) => {
-                                const newItems = [...items];
-                                newItems[idx].productName = e.target.value;
-                                setItems(newItems);
-                              }}
-                              className="w-full rounded-lg border border-indigo-300 bg-white px-3 py-2 text-xs font-semibold text-slate-900 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 dark:bg-slate-900 dark:border-slate-700"
-                              autoFocus
-                            />
-                            {products.length > 0 && (
-                              <button
-                                type="button"
-                                onClick={() => handleProductChange(idx, products[0]?.id || "")}
-                                className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 underline whitespace-nowrap px-1"
-                              >
-                                Catalog
-                              </button>
-                            )}
-                          </div>
-                        ) : (
                           <select
                             value={item.productId}
                             onChange={(e) => handleProductChange(idx, e.target.value)}
@@ -674,10 +648,8 @@ export default function CreatePurchasePage() {
                                 {p.name} — (Stock: {p.currentStock ?? 0} | Cost: Rs {Number(p.purchasePrice || p.averageCost || 0).toLocaleString()} | Sell: Rs {Number(p.sellingPrice || p.retailPrice || 0).toLocaleString()})
                               </option>
                             ))}
-                            <option value="__custom__">➕ Add New / Custom Item...</option>
                           </select>
-                        )}
-                      </div>
+                        </div>
 
                       {/* Inward Qty */}
                       <div className="md:col-span-2 space-y-1">
@@ -875,7 +847,8 @@ export default function CreatePurchasePage() {
                 );
               })}
             </div>
-          </CardContent>
+          )}
+        </CardContent>
         </Card>
 
         {/* Payment & Bill Settlement Cards */}

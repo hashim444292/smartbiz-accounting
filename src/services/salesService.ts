@@ -62,11 +62,45 @@ export async function getNextInvoiceNumber(
   businessId: string,
   prefix = "INV-"
 ): Promise<string> {
-  const count = await tx.sale.count({
-    where: { businessId },
-  });
   const year = new Date().getFullYear();
-  return `${prefix}${year}-${String(count + 1).padStart(5, "0")}`;
+  const searchPrefix = `${prefix}${year}-`;
+
+  const existing = await tx.sale.findMany({
+    where: {
+      businessId,
+      invoiceNumber: { startsWith: searchPrefix },
+    },
+    select: { invoiceNumber: true },
+    orderBy: { invoiceNumber: "desc" },
+    take: 50,
+  });
+
+  let maxSeq = 0;
+  for (const item of existing) {
+    const parts = item.invoiceNumber.split("-");
+    const last = parseInt(parts[parts.length - 1], 10);
+    if (!isNaN(last) && last > maxSeq) {
+      maxSeq = last;
+    }
+  }
+
+  let nextSeq = maxSeq + 1;
+  let candidate = `${searchPrefix}${String(nextSeq).padStart(5, "0")}`;
+
+  while (
+    await tx.sale.findFirst({
+      where: {
+        businessId,
+        invoiceNumber: candidate,
+      },
+      select: { id: true },
+    })
+  ) {
+    nextSeq++;
+    candidate = `${searchPrefix}${String(nextSeq).padStart(5, "0")}`;
+  }
+
+  return candidate;
 }
 
 /**

@@ -37,11 +37,45 @@ export async function getNextPurchaseNumber(
   businessId: string,
   prefix = "PUR-"
 ): Promise<string> {
-  const count = await tx.purchase.count({
-    where: { businessId },
-  });
   const year = new Date().getFullYear();
-  return `${prefix}${year}-${String(count + 1).padStart(5, "0")}`;
+  const searchPrefix = `${prefix}${year}-`;
+
+  const existing = await tx.purchase.findMany({
+    where: {
+      businessId,
+      purchaseNumber: { startsWith: searchPrefix },
+    },
+    select: { purchaseNumber: true },
+    orderBy: { purchaseNumber: "desc" },
+    take: 50,
+  });
+
+  let maxSeq = 0;
+  for (const item of existing) {
+    const parts = item.purchaseNumber.split("-");
+    const last = parseInt(parts[parts.length - 1], 10);
+    if (!isNaN(last) && last > maxSeq) {
+      maxSeq = last;
+    }
+  }
+
+  let nextSeq = maxSeq + 1;
+  let candidate = `${searchPrefix}${String(nextSeq).padStart(5, "0")}`;
+
+  while (
+    await tx.purchase.findFirst({
+      where: {
+        businessId,
+        purchaseNumber: candidate,
+      },
+      select: { id: true },
+    })
+  ) {
+    nextSeq++;
+    candidate = `${searchPrefix}${String(nextSeq).padStart(5, "0")}`;
+  }
+
+  return candidate;
 }
 
 export async function createAndPostPurchase(input: CreatePurchaseInput) {

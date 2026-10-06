@@ -55,13 +55,43 @@ export async function getNextJournalNumber(
 ): Promise<string> {
   const d = date instanceof Date ? date : new Date(date || Date.now());
   const prefix = `JE-${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}`;
-  const count = await tx.journalEntry.count({
+
+  const existing = await tx.journalEntry.findMany({
     where: {
       businessId,
       entryNumber: { startsWith: prefix },
     },
+    select: { entryNumber: true },
+    orderBy: { entryNumber: "desc" },
+    take: 50,
   });
-  return `${prefix}-${String(count + 1).padStart(4, "0")}`;
+
+  let maxSeq = 0;
+  for (const item of existing) {
+    const parts = item.entryNumber.split("-");
+    const last = parseInt(parts[parts.length - 1], 10);
+    if (!isNaN(last) && last > maxSeq) {
+      maxSeq = last;
+    }
+  }
+
+  let nextSeq = maxSeq + 1;
+  let candidate = `${prefix}-${String(nextSeq).padStart(4, "0")}`;
+
+  while (
+    await tx.journalEntry.findFirst({
+      where: {
+        businessId,
+        entryNumber: candidate,
+      },
+      select: { id: true },
+    })
+  ) {
+    nextSeq++;
+    candidate = `${prefix}-${String(nextSeq).padStart(4, "0")}`;
+  }
+
+  return candidate;
 }
 
 export interface JournalLineInput {
@@ -177,34 +207,48 @@ export async function createJournalEntry(
     })
   );
 
-  // 4. Generate entry number
-  const entryNumber = await getNextJournalNumber(tx, businessId, entryDate);
+  // 4 & 5. Generate entry number and create Journal Entry with collision resilience
+  let entry: any = null;
+  let attempts = 0;
+  while (!entry && attempts < 5) {
+    attempts++;
+    const entryNumber = await getNextJournalNumber(tx, businessId, entryDate);
+    try {
+      entry = await tx.journalEntry.create({
+        data: {
+          businessId,
+          entryNumber,
+          date: entryDate,
+          description,
+          referenceType,
+          referenceId,
+          isBalanced: true,
+          status: "POSTED",
+          createdById,
+          lines: {
+            create: resolvedLines.map((l) => ({
+              accountId: l.accountId,
+              debit: l.debit.toNumber(),
+              credit: l.credit.toNumber(),
+              description: l.description,
+            })),
+          },
+        },
+        include: {
+          lines: true,
+        },
+      });
+    } catch (createErr: any) {
+      if (createErr?.code === "P2002" && attempts < 5) {
+        continue;
+      }
+      throw createErr;
+    }
+  }
 
-  // 5. Create Journal Entry
-  const entry = await tx.journalEntry.create({
-    data: {
-      businessId,
-      entryNumber,
-      date: entryDate,
-      description,
-      referenceType,
-      referenceId,
-      isBalanced: true,
-      status: "POSTED",
-      createdById,
-      lines: {
-        create: resolvedLines.map((l) => ({
-          accountId: l.accountId,
-          debit: l.debit.toNumber(),
-          credit: l.credit.toNumber(),
-          description: l.description,
-        })),
-      },
-    },
-    include: {
-      lines: true,
-    },
-  });
+  if (!entry) {
+    throw new Error("Failed to create Journal Entry: Unique constraint conflict on entryNumber.");
+  }
 
   // 6. Update Account running balances
   for (const line of resolvedLines) {

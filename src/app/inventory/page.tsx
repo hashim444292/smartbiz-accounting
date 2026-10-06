@@ -1,13 +1,12 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import Link from "next/link";
 import { formatMoney } from "@/lib/decimal";
 import { Button } from "@/components/ui/button";
-import { Input, Select } from "@/components/ui/input";
-import { Modal } from "@/components/ui/modal";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Search, Sliders, AlertTriangle, ArrowUpDown, Download, Package } from "lucide-react";
+import { Search, AlertTriangle, ArrowUpDown, Download, Package, Plus } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { TableRowsSkeleton } from "@/components/ui/loader";
 import { smartFetch, invalidateCache } from "@/lib/clientCache";
@@ -21,17 +20,6 @@ export default function InventoryPage() {
   const [txLoading, setTxLoading] = useState(false);
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState<"PRODUCTS" | "ALERTS" | "MOVEMENTS">("PRODUCTS");
-
-  // Modals
-  const [showAdjustModal, setShowAdjustModal] = useState(false);
-  const [selectedProduct, setSelectedProduct] = useState<any>(null);
-  const [submitting, setSubmitting] = useState(false);
-
-  // Adjustment Form
-  const [targetStock, setTargetStock] = useState(0);
-  const [adjustReason, setAdjustReason] = useState("PHYSICAL_COUNT");
-  const [adjustNotes, setAdjustNotes] = useState("");
-  const [adjustBranchId, setAdjustBranchId] = useState("");
 
   const fetchProducts = async () => {
     setLoading(true);
@@ -72,8 +60,6 @@ export default function InventoryPage() {
 
   useEffect(() => {
     fetchProducts();
-    const initialBranch = isBranchLocked ? (user?.branchId || "") : (selectedBranch?.id || activeBranchId || "");
-    setAdjustBranchId(initialBranch);
   }, [activeCompany?.id, activeBranchId, isBranchLocked, user?.branchId]);
 
   // SMART LAZY LOAD: Only hit transactions endpoint when user opens the MOVEMENTS tab
@@ -82,45 +68,6 @@ export default function InventoryPage() {
       fetchTransactions();
     }
   }, [activeTab, activeCompany?.id, activeBranchId]);
-
-  const handleAdjustSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedProduct) return;
-    setSubmitting(true);
-    try {
-      const headers: Record<string, string> = { "Content-Type": "application/json" };
-      if (activeCompany?.id) headers["x-business-id"] = activeCompany.id;
-      if (activeBranchId) headers["x-branch-id"] = activeBranchId;
-
-      const res = await fetch("/api/products/adjust", {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          productId: selectedProduct.id,
-          targetStock,
-          reason: adjustReason,
-          notes: adjustNotes,
-          branchId: isBranchLocked ? user?.branchId : (adjustBranchId || selectedBranch?.id || activeBranchId || null),
-          createdById: user?.userId,
-          createdByName: user?.name,
-        }),
-      });
-      const json = await res.json();
-      if (json.success) {
-        setShowAdjustModal(false);
-        invalidateCache("/api/products");
-        invalidateCache("/api/inventory/transactions");
-        fetchProducts();
-        if (activeTab === "MOVEMENTS") {
-          fetchTransactions();
-        }
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setSubmitting(false);
-    }
-  };
 
   const safeProducts = Array.isArray(products) ? products : [];
 
@@ -354,7 +301,7 @@ export default function InventoryPage() {
                   <th className="px-4 py-3 text-right">Selling Price</th>
                   <th className="px-4 py-3 text-right">Total Valuation</th>
                   <th className="px-4 py-3 text-center">Status</th>
-                  <th className="px-4 py-3 text-right">Actions</th>
+                  <th className="px-4 py-3 text-right">Inward / Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -403,20 +350,17 @@ export default function InventoryPage() {
                           </Badge>
                         </td>
                         <td className="px-4 py-3 text-right">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              setSelectedProduct(p);
-                              setTargetStock(Number(p.currentStock || 0));
-                              const branchForAdjust = isBranchLocked ? (user?.branchId || "") : (selectedBranch?.id || activeBranchId || (branches[0]?.id || ""));
-                              setAdjustBranchId(branchForAdjust);
-                              setShowAdjustModal(true);
-                            }}
-                          >
-                            <Sliders className="h-3.5 w-3.5 mr-1" />
-                            Adjust Stock
-                          </Button>
+                          <Link href={`/purchases/create?productId=${p.id}`}>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="text-xs font-semibold hover:bg-indigo-50 hover:text-indigo-700 transition"
+                              title="Inward / Buy stock via verified Purchase Bill (پرچیز بل کے ذریعے اسٹاک خریدیں)"
+                            >
+                              <Plus className="h-3.5 w-3.5 mr-1 text-indigo-600" />
+                              Purchase Bill
+                            </Button>
+                          </Link>
                         </td>
                       </tr>
                     );
@@ -427,93 +371,6 @@ export default function InventoryPage() {
           </div>
         </div>
       )}
-
-      {/* Stock Adjustment Modal */}
-      <Modal
-        isOpen={showAdjustModal}
-        onClose={() => setShowAdjustModal(false)}
-        title={`Adjust Stock: ${selectedProduct?.name || "Product"}`}
-        description="Record verified physical stock discrepancy, damage, or breakage with complete audit tracking"
-      >
-        <form onSubmit={handleAdjustSubmit} className="space-y-4">
-          <div className="rounded-xl border border-indigo-100 bg-indigo-50/70 p-3 text-xs text-indigo-950 dark:border-indigo-900/60 dark:bg-indigo-950/40 dark:text-indigo-200">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-indigo-600 text-[11px] font-bold text-white uppercase">
-                  {user?.name?.charAt(0) || "U"}
-                </span>
-                <div>
-                  <span className="font-bold">{user?.name || "Logged User"}</span>
-                  <span className="text-[11px] text-indigo-600 dark:text-indigo-400 ml-1.5 font-medium">({user?.role?.replace("_", " ") || "Admin"})</span>
-                  <div className="text-[10px] text-indigo-700/80 dark:text-indigo-300">Auditing Officer / Stock Adjuster</div>
-                </div>
-              </div>
-              <span className="rounded-md bg-white/80 dark:bg-slate-800 px-2 py-0.5 text-[11px] font-medium border border-indigo-200 dark:border-indigo-800">
-                🏢 {branches.find((b) => b.id === adjustBranchId)?.name || selectedBranch?.name || "Main Warehouse"}
-              </span>
-            </div>
-          </div>
-
-          {branches.length > 1 && !isBranchLocked && (
-            <Select
-              label="Adjustment Branch / Outlet (برانچ جہاں گنتی ہوئی)"
-              value={adjustBranchId}
-              onChange={(e) => setAdjustBranchId(e.target.value)}
-            >
-              {branches.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name} ({b.code})
-                </option>
-              ))}
-            </Select>
-          )}
-
-          <div className="rounded-xl bg-slate-50 p-3 text-xs dark:bg-slate-800">
-            <p>
-              Current Recorded Stock: <span className="font-bold">{selectedProduct?.currentStock ?? 0} {selectedProduct?.unit || selectedProduct?.uom || "pcs"}</span>
-            </p>
-            <p className="text-slate-500 mt-0.5">
-              Average Cost: {formatMoney(selectedProduct?.averageCost || selectedProduct?.purchasePrice || 0)}
-            </p>
-          </div>
-
-          <Input
-            label="Verified Physical Count / Target Stock"
-            type="number"
-            value={targetStock}
-            onChange={(e) => setTargetStock(parseFloat(e.target.value) || 0)}
-            required
-          />
-
-          <Select
-            label="Adjustment Reason"
-            value={adjustReason}
-            onChange={(e) => setAdjustReason(e.target.value)}
-          >
-            <option value="PHYSICAL_COUNT">Physical Audit Count Discrepancy</option>
-            <option value="DAMAGE">Damaged / Broken Goods</option>
-            <option value="EXPIRY">Expired Product Write-off</option>
-            <option value="WRITE_OFF">General Inventory Loss</option>
-            <option value="OTHER">Other Adjustment</option>
-          </Select>
-
-          <Input
-            label="Reason Details / Audit Notes"
-            value={adjustNotes}
-            onChange={(e) => setAdjustNotes(e.target.value)}
-            placeholder="e.g. Month-end physical verification count"
-          />
-
-          <div className="pt-3 flex justify-end gap-2">
-            <Button type="button" variant="secondary" onClick={() => setShowAdjustModal(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" variant="primary" isLoading={submitting}>
-              Apply Stock Adjustment
-            </Button>
-          </div>
-        </form>
-      </Modal>
     </div>
   );
 }
