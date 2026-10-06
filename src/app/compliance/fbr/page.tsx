@@ -33,6 +33,7 @@ import {
   Copy,
   CheckCheck,
   Pencil,
+  Trash2,
 } from "lucide-react";
 import { TableRowsSkeleton } from "@/components/ui/loader";
 import { useAuth } from "@/context/AuthContext";
@@ -132,6 +133,81 @@ export default function FbrCompliancePage() {
     }
   };
 
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [isBatchDeleting, setIsBatchDeleting] = useState(false);
+
+  const handleDeleteInvoice = async (inv: any) => {
+    const isStamped = inv.fbrStatus === "SUCCESS";
+    const confirmMsg = isStamped
+      ? `انوائس #${inv.invoiceNumber} پہلے سے FBR پر منظور شدہ ہے۔ کیا آپ اسے واقعی اس سسٹم سے ڈیلیٹ کرنا چاہتے ہیں؟`
+      : `کیا آپ انوائس #${inv.invoiceNumber} کو مستقل ڈیلیٹ کرنا چاہتے ہیں؟ اس سے کھاتے اور اسٹاک واپس درست ہو جائیں گے۔`;
+
+    if (!window.confirm(confirmMsg)) return;
+
+    setDeletingId(inv.id);
+    try {
+      const res = await fetch(`/api/sales/${inv.id}`, { method: "DELETE" });
+      const json = await res.json();
+      if (json.success) {
+        setActionMessage({
+          type: "success",
+          text: `انوائس #${inv.invoiceNumber} کامیابی سے ڈیلیٹ ہو گئی۔`,
+        });
+        setSelectedIds((prev) => prev.filter((id) => id !== inv.id));
+        loadCompliance();
+      } else {
+        setActionMessage({
+          type: "error",
+          text: json.error || "انوائس ڈیلیٹ کرنے میں ناکامی ہوئی۔",
+        });
+      }
+    } catch (err: any) {
+      setActionMessage({
+        type: "error",
+        text: err.message || "نیٹ ورک کی خرابی۔",
+      });
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const handleBatchDelete = async () => {
+    if (selectedIds.length === 0) return;
+    if (!window.confirm(`کیا آپ منتخب کردہ تمام ${selectedIds.length} انوائسز کو مستقل ڈیلیٹ کرنا چاہتے ہیں؟`)) {
+      return;
+    }
+
+    setIsBatchDeleting(true);
+    try {
+      const res = await fetch("/api/sales", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: selectedIds }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        setActionMessage({
+          type: "success",
+          text: `کامیابی سے ${json.deletedCount} انوائسز ڈیلیٹ کر دی گئیں۔`,
+        });
+        setSelectedIds([]);
+        loadCompliance();
+      } else {
+        setActionMessage({
+          type: "error",
+          text: json.error || "بلک ڈیلیٹ میں ناکامی ہوئی۔",
+        });
+      }
+    } catch (err: any) {
+      setActionMessage({
+        type: "error",
+        text: err.message || "نیٹ ورک کی خرابی۔",
+      });
+    } finally {
+      setIsBatchDeleting(false);
+    }
+  };
+
   const loadCompliance = async () => {
     setLoading(true);
     try {
@@ -166,9 +242,9 @@ export default function FbrCompliancePage() {
         scenarioId: complianceData.config.scenarioId || "SN001",
         autoSync: Boolean(complianceData.config.autoSync),
         sellerNtn: rawNtn,
-        sellerBusinessName: complianceData.config.sellerBusinessName || (activeCompany?.name && !activeCompany.name.includes("Enterprise") ? activeCompany.name : "Shakeel mobiles"),
+        sellerBusinessName: complianceData.config.sellerBusinessName || activeCompany?.name || "Business",
         sellerProvince: complianceData.config.sellerProvince || activeCompany?.province || "Sindh",
-        sellerAddress: complianceData.config.sellerAddress || activeCompany?.address || "R-70 rehman villas",
+        sellerAddress: complianceData.config.sellerAddress || activeCompany?.address || "",
       });
     }
   }, [complianceData, activeCompany]);
@@ -486,10 +562,26 @@ export default function FbrCompliancePage() {
     document.body.removeChild(link);
   };
 
-  // Toggle selection (Only selects eligible fully paid invoices)
+  // Safe date formatter for clean date display without time
+  const formatDateDisplay = (dateVal: any) => {
+    if (!dateVal) return "-";
+    try {
+      const dStr = String(dateVal);
+      if (dStr.includes("T")) {
+        return dStr.split("T")[0];
+      }
+      const d = new Date(dateVal);
+      if (isNaN(d.getTime())) return String(dateVal);
+      return d.toISOString().slice(0, 10);
+    } catch {
+      return String(dateVal);
+    }
+  };
+
+  // Toggle selection: selects all un-transmitted invoices in the current view
   const toggleSelectAll = () => {
     const selectable = filteredInvoices.filter(
-      (inv) => (!inv.fbrStatus || inv.fbrStatus === "PENDING") && inv.paymentStatus === "PAID"
+      (inv) => !inv.fbrStatus || inv.fbrStatus !== "SUCCESS"
     );
     if (selectedIds.length === selectable.length && selectable.length > 0) {
       setSelectedIds([]);
@@ -498,8 +590,8 @@ export default function FbrCompliancePage() {
     }
   };
 
-  const toggleSelectOne = (id: string, isEligible: boolean) => {
-    if (!isEligible) return;
+  const toggleSelectOne = (id: string, isSelectable: boolean = true) => {
+    if (!isSelectable) return;
     setSelectedIds((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]));
   };
 
@@ -863,17 +955,31 @@ export default function FbrCompliancePage() {
             </div>
 
             {selectedIds.length > 0 && (
-              <Button
-                type="button"
-                variant="primary"
-                size="sm"
-                onClick={handleBatchHitFbr}
-                isLoading={isBatchHitting}
-                className="bg-indigo-600 hover:bg-indigo-700 text-xs shadow-sm"
-              >
-                <Zap className="h-3.5 w-3.5 mr-1" />
-                Hit Selected ({selectedIds.length})
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="sm"
+                  onClick={handleBatchHitFbr}
+                  isLoading={isBatchHitting}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-xs shadow-sm"
+                >
+                  <Zap className="h-3.5 w-3.5 mr-1" />
+                  Hit Selected ({selectedIds.length})
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleBatchDelete}
+                  isLoading={isBatchDeleting}
+                  className="border-rose-300 text-rose-700 hover:bg-rose-50 hover:border-rose-400 text-xs shadow-sm"
+                  title="Delete selected invoices from system"
+                >
+                  <Trash2 className="h-3.5 w-3.5 mr-1 text-rose-600" />
+                  Delete Selected ({selectedIds.length})
+                </Button>
+              </div>
             )}
           </div>
         </div>
@@ -905,9 +1011,9 @@ export default function FbrCompliancePage() {
                     type="button"
                     onClick={toggleSelectAll}
                     className="text-slate-500 hover:text-slate-800"
-                    title="Select all fully paid invoices"
+                    title="Select all un-transmitted invoices"
                   >
-                    {selectedIds.length > 0 && selectedIds.length === filteredInvoices.filter((i) => i.paymentStatus === "PAID" && (!i.fbrStatus || i.fbrStatus === "PENDING")).length ? (
+                    {selectedIds.length > 0 && selectedIds.length === filteredInvoices.filter((i) => !i.fbrStatus || i.fbrStatus !== "SUCCESS").length ? (
                       <CheckSquare className="h-4 w-4 text-indigo-600" />
                     ) : (
                       <Square className="h-4 w-4" />
@@ -948,6 +1054,7 @@ export default function FbrCompliancePage() {
                   const isFullyPaid = inv.paymentStatus === "PAID";
                   const isPartial = inv.paymentStatus === "PARTIAL";
                   const isEligibleToHit = isPending && isFullyPaid;
+                  const isSelectable = !isSuccess;
                   const isSelected = selectedIds.includes(inv.id);
                   const isHittingThis = hittingId === inv.id;
 
@@ -960,11 +1067,12 @@ export default function FbrCompliancePage() {
                     >
                       {/* Checkbox */}
                       <td className="py-3 px-3 text-center">
-                        {isEligibleToHit ? (
+                        {isSelectable ? (
                           <button
                             type="button"
                             onClick={() => toggleSelectOne(inv.id, true)}
                             className="text-slate-400 hover:text-slate-700"
+                            title={isEligibleToHit ? "Select for FBR Hit or Bulk Delete" : "Select for Bulk Delete"}
                           >
                             {isSelected ? (
                               <CheckSquare className="h-4 w-4 text-indigo-600" />
@@ -975,11 +1083,7 @@ export default function FbrCompliancePage() {
                         ) : (
                           <span
                             className="inline-block cursor-not-allowed opacity-40 text-slate-400"
-                            title={
-                              isSuccess
-                                ? "Invoice already transmitted"
-                                : "Partial / Credit invoice locked from FBR until fully paid"
-                            }
+                            title="Invoice already transmitted to FBR"
                           >
                             <Lock className="h-3.5 w-3.5 mx-auto" />
                           </span>
@@ -993,7 +1097,7 @@ export default function FbrCompliancePage() {
 
                       {/* Date */}
                       <td className="py-3 px-3 text-slate-500 whitespace-nowrap">
-                        {new Date(inv.date).toLocaleDateString()}
+                        {formatDateDisplay(inv.date)}
                       </td>
 
                       {/* Customer */}
@@ -1165,20 +1269,36 @@ export default function FbrCompliancePage() {
                             <span>Edit</span>
                           </Link>
 
+                          {/* Delete Invoice Button */}
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteInvoice(inv)}
+                            disabled={deletingId === inv.id}
+                            className="inline-flex items-center gap-1 rounded-lg border border-rose-200 bg-rose-50/70 px-2 py-1 text-[11px] font-bold text-rose-700 hover:bg-rose-100 shadow-2xs transition"
+                            title={
+                              inv.fbrStatus === "SUCCESS"
+                                ? "Delete Stamped Invoice (Reverses stock & ledger)"
+                                : "Permanently Delete Invoice"
+                            }
+                          >
+                            <Trash2 className={`h-3 w-3 ${deletingId === inv.id ? "animate-spin text-rose-600" : ""}`} />
+                            <span>Delete</span>
+                          </button>
+
                           {/* Reverse / Credit Note Button */}
                           {inv.status !== "CANCELLED" && (
                             <button
                               type="button"
                               onClick={() => handleReverseInvoice(inv)}
                               disabled={reversingId === inv.id}
-                              className="inline-flex items-center gap-1 rounded-lg border border-rose-200 bg-rose-50/70 px-2 py-1 text-[11px] font-bold text-rose-700 hover:bg-rose-100 shadow-2xs transition"
+                              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] font-medium text-slate-600 hover:bg-slate-100 shadow-2xs transition"
                               title={
                                 inv.fbrStatus === "SUCCESS"
                                   ? "Issue Credit Note / Sale Return for FBR Stamped Invoice"
                                   : "Cancel / Reverse Unverified Invoice"
                               }
                             >
-                              <RotateCcw className={`h-3 w-3 ${reversingId === inv.id ? "animate-spin text-rose-600" : ""}`} />
+                              <RotateCcw className={`h-3 w-3 ${reversingId === inv.id ? "animate-spin text-slate-600" : ""}`} />
                               <span>{inv.fbrStatus === "SUCCESS" ? "Credit Note" : "Reverse"}</span>
                             </button>
                           )}

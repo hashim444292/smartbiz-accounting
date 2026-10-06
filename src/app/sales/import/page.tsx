@@ -73,19 +73,23 @@ function normalizeDate(input: any): string {
     return `${parts[0]}-${parts[1].padStart(2, "0")}-${parts[2].padStart(2, "0")}`;
   }
 
-  // If DD/MM/YYYY, DD-MM-YYYY, or DD.MM.YYYY
+  // If DD/MM/YYYY, MM/DD/YYYY, or DD-MM-YYYY
   const dmyMatch = trimmed.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})$/);
   if (dmyMatch) {
     const part1 = parseInt(dmyMatch[1], 10);
     const part2 = parseInt(dmyMatch[2], 10);
     const year = dmyMatch[3];
 
-    // Check if part2 > 12 -> it must be MM/DD/YYYY
+    // If part1 > 12 -> must be DD/MM/YYYY (part1 is Day, part2 is Month)
+    if (part1 > 12 && part2 <= 12) {
+      return `${year}-${String(part2).padStart(2, "0")}-${String(part1).padStart(2, "0")}`;
+    }
+    // If part2 > 12 -> must be MM/DD/YYYY (part1 is Month, part2 is Day)
     if (part2 > 12 && part1 <= 12) {
       return `${year}-${String(part1).padStart(2, "0")}-${String(part2).padStart(2, "0")}`;
     }
-    // Otherwise standard DD/MM/YYYY (Day first)
-    return `${year}-${String(part2).padStart(2, "0")}-${String(part1).padStart(2, "0")}`;
+    // Ambiguous (e.g. 9/1/2026, 9/2/2026, 9/12/2026) -> In Excel, M/D/YYYY is standard: part1 is Month (9=Sept), part2 is Day
+    return `${year}-${String(part1).padStart(2, "0")}-${String(part2).padStart(2, "0")}`;
   }
 
   // If Excel Serial Number (e.g. 45571)

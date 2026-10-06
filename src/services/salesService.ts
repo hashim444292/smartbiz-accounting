@@ -681,3 +681,125 @@ export async function reverseSale(
     return { status: "REVERSED", saleId };
   });
 }
+
+/**
+ * Permanently deletes a sale invoice and restores stock / balances cleanly.
+ */
+export async function deleteSale(
+  saleId: string,
+  businessId: string,
+  userId?: string,
+  userName?: string
+) {
+  return await prisma.$transaction(async (tx) => {
+    const sale = await tx.sale.findFirst({
+      where: { id: saleId, businessId },
+      include: { items: true },
+    });
+
+    if (!sale) throw new Error("Sale invoice not found.");
+
+    // 1. Revert customer receivable balance if remaining amount was unpaid
+    const remaining = toDecimal(sale.remainingAmount);
+    if (sale.customerId && remaining.gt(0)) {
+      const customer = await tx.customer.findUnique({ where: { id: sale.customerId } });
+      if (customer) {
+        const newBal = Decimal.max(0, toDecimal(customer.currentBalance).sub(remaining));
+        await tx.customer.update({
+          where: { id: sale.customerId },
+          data: { currentBalance: newBal.toNumber() },
+        });
+      }
+    }
+
+    // 2. Revert inventory stock if deducted
+    for (const item of sale.items) {
+      const movements = await tx.inventoryTransaction.findMany({
+        where: { businessId, referenceId: sale.id },
+      });
+      for (const m of movements) {
+        const product = await tx.product.findUnique({ where: { id: m.productId } });
+        if (product) {
+          const qty = toDecimal(m.quantity).abs();
+          await tx.product.update({
+            where: { id: m.productId },
+            data: { currentStock: { increment: qty.toNumber() } },
+          });
+        }
+      }
+    }
+
+    // 3. Delete inventory transactions linked to this sale
+    await tx.inventoryTransaction.deleteMany({
+      where: { businessId, referenceId: sale.id },
+    });
+
+    // 4. Delete journal entries linked to this sale
+    const journalEntries = await tx.journalEntry.findMany({
+      where: { businessId, referenceId: sale.id },
+      select: { id: true },
+    });
+    if (journalEntries.length > 0) {
+      const jeIds = journalEntries.map((j) => j.id);
+      await tx.journalLine.deleteMany({
+        where: { journalEntryId: { in: jeIds } },
+      });
+      await tx.journalEntry.deleteMany({
+        where: { businessId, referenceId: sale.id },
+      });
+    }
+
+    // 5. Delete payment allocations
+    await tx.paymentAllocation.deleteMany({
+      where: { saleId: sale.id },
+    });
+
+    // 6. Delete sale items
+    await tx.saleItem.deleteMany({
+      where: { saleId: sale.id },
+    });
+
+    // 7. Delete the sale record
+    await tx.sale.delete({
+      where: { id: sale.id },
+    });
+
+    // 8. Audit log
+    await createSafeAuditLog(tx, {
+      businessId,
+      userId: userId || null,
+      userName: userName || null,
+      action: "DELETE_SALE",
+      entity: "Sale",
+      entityId: sale.id,
+      details: `Permanently deleted sale invoice #${sale.invoiceNumber} (Total: Rs ${Number(sale.totalAmount).toLocaleString()})`,
+    });
+
+    return { success: true, id: sale.id, invoiceNumber: sale.invoiceNumber };
+  });
+}
+
+/**
+ * Permanently deletes multiple sale invoices.
+ */
+export async function deleteMultipleSales(
+  saleIds: string[],
+  businessId: string,
+  userId?: string,
+  userName?: string
+) {
+  let deletedCount = 0;
+  const errors: Array<{ id: string; error: string }> = [];
+
+  for (const id of saleIds) {
+    try {
+      await deleteSale(id, businessId, userId, userName);
+      deletedCount++;
+    } catch (err: any) {
+      errors.push({ id, error: err.message });
+    }
+  }
+
+  return { success: deletedCount > 0, deletedCount, errors };
+}
+

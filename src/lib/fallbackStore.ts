@@ -2698,6 +2698,13 @@ export function storeUpdateSale(
   return sale;
 }
 
+export function storeDeleteSale(id: string, businessId?: string) {
+  const idx = fallbackStore.sales.findIndex((s) => s.id === id && (!businessId || s.businessId === businessId));
+  if (idx === -1) return null;
+  const [removed] = fallbackStore.sales.splice(idx, 1);
+  return removed;
+}
+
 export function storeGetCompanyUsers(businessId: string) {
   if (!fallbackStore.users) return [];
   return fallbackStore.users

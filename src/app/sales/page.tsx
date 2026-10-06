@@ -26,6 +26,7 @@ import {
   Pencil,
   AlertCircle,
   Building2,
+  Trash2,
 } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { useAuth } from "@/context/AuthContext";
@@ -78,14 +79,16 @@ export default function SalesPage() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [reversingId, setReversingId] = useState<string | null>(null);
+  const [deletingSaleId, setDeletingSaleId] = useState<string | null>(null);
 
-  // Helper for datetime-local input formatting
-  const formatDatetimeLocal = (d?: string | Date | null) => {
+  // Helper for date-only input formatting (YYYY-MM-DD, no time)
+  const formatDateOnly = (d?: string | Date | null) => {
     if (!d) return "";
+    const str = String(d);
+    if (str.includes("T")) return str.split("T")[0];
     const dt = new Date(d);
     if (isNaN(dt.getTime())) return "";
-    const pad = (n: number) => String(n).padStart(2, "0");
-    return `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}T${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
+    return dt.toISOString().slice(0, 10);
   };
 
   // Edit Invoice State & User Tracking
@@ -166,10 +169,43 @@ export default function SalesPage() {
     }
   };
 
+  const handleDeleteSale = async (sale: SaleRecord) => {
+    const isTransmitted = sale.fbrStatus === "SUCCESS";
+    const confirmPrompt = isTransmitted
+      ? `انوائس #${sale.invoiceNumber} FBR سے منسلک ہے!\nکیا آپ واقعی اس انوائس کو مکمل ڈیلیٹ کرنا چاہتے ہیں؟\nاس سے گاہک کا لیجر اور انوینٹری اسٹاک خودکار طور پر بحال (reverse) ہو جائے گا۔`
+      : `کیا آپ واقعی انوائس #${sale.invoiceNumber} کو مکمل ڈیلیٹ کرنا چاہتے ہیں؟\nاس سے انوینٹری اور کھاتہ خودکار ریورس ہو جائے گا۔`;
+
+    if (!confirm(confirmPrompt)) return;
+
+    setDeletingSaleId(sale.id);
+    try {
+      const res = await fetch(`/api/sales/${sale.id}`, {
+        method: "DELETE",
+      });
+      const json = await res.json();
+      if (json.success) {
+        alert(`انوائس #${sale.invoiceNumber} کامیابی سے ڈیلیٹ کر دی گئی ہے۔`);
+        invalidateCache("/api/sales");
+        invalidateCache("/api/products");
+        invalidateCache("/api/dashboard");
+        if (editingSale?.id === sale.id) {
+          setEditingSale(null);
+        }
+        fetchSales();
+      } else {
+        alert(json.error || "انوائس ڈیلیٹ کرنے میں ناکامی ہوئی۔");
+      }
+    } catch (err: any) {
+      alert(`خرابی: ${err.message}`);
+    } finally {
+      setDeletingSaleId(null);
+    }
+  };
+
   const openEditModal = (sale: SaleRecord) => {
     setEditingSale(sale);
-    setEditDate(formatDatetimeLocal(sale.date));
-    setEditDueDate((sale as any).dueDate ? new Date((sale as any).dueDate).toISOString().slice(0, 10) : "");
+    setEditDate(formatDateOnly(sale.date));
+    setEditDueDate((sale as any).dueDate ? formatDateOnly((sale as any).dueDate) : "");
     setEditCustomerName(sale.customerName || "");
     setEditPaymentMethod(sale.paymentMethod || "CASH");
     setEditTotalAmount(Number(sale.totalAmount || 0));
@@ -195,8 +231,8 @@ export default function SalesPage() {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          date: editDate ? new Date(editDate).toISOString() : editingSale.date,
-          dueDate: editDueDate ? new Date(editDueDate).toISOString() : null,
+          date: editDate ? new Date(`${editDate}T12:00:00Z`).toISOString() : editingSale.date,
+          dueDate: editDueDate ? new Date(`${editDueDate}T12:00:00Z`).toISOString() : null,
           customerName: editCustomerName,
           paymentMethod: editPaymentMethod,
           totalAmount: editTotalAmount,
@@ -917,6 +953,14 @@ export default function SalesPage() {
                             <RotateCcw className="h-3.5 w-3.5" />
                           </button>
                         )}
+                        <button
+                          onClick={() => handleDeleteSale(sale)}
+                          disabled={deletingSaleId === sale.id}
+                          className="rounded-lg p-1.5 text-rose-600 hover:bg-rose-100/70 hover:text-rose-800 dark:hover:bg-rose-950/50"
+                          title="Delete Invoice (مکمل ڈیلیٹ کریں)"
+                        >
+                          <Trash2 className={`h-3.5 w-3.5 ${deletingSaleId === sale.id ? "animate-spin" : ""}`} />
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -1054,10 +1098,10 @@ export default function SalesPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Invoice Date & Time (انوائس کی تاریخ اور وقت) *
+                  Invoice Date (انوائس کی تاریخ) *
                 </label>
                 <input
-                  type="datetime-local"
+                  type="date"
                   value={editDate}
                   onChange={(e) => setEditDate(e.target.value)}
                   required
@@ -1253,21 +1297,34 @@ export default function SalesPage() {
               />
             </div>
 
-            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+            <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800">
               <Button
                 type="button"
-                variant="secondary"
-                onClick={() => setEditingSale(null)}
+                variant="outline"
+                className="border-rose-200 text-rose-600 hover:bg-rose-50 hover:border-rose-300 text-xs"
+                onClick={() => handleDeleteSale(editingSale)}
+                disabled={deletingSaleId === editingSale.id}
               >
-                Cancel
+                <Trash2 className="h-3.5 w-3.5 mr-1" />
+                Delete Invoice (انوائس ڈیلیٹ کریں)
               </Button>
-              <Button
-                type="submit"
-                variant="primary"
-                isLoading={editSaving}
-              >
-                Save Changes (ترمیم محفوظ کریں)
-              </Button>
+
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => setEditingSale(null)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  variant="primary"
+                  isLoading={editSaving}
+                >
+                  Save Changes (ترمیم محفوظ کریں)
+                </Button>
+              </div>
             </div>
           </form>
         </Modal>

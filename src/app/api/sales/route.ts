@@ -321,3 +321,41 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, error: error.message }, { status: 400 });
   }
 }
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const session = await getSession();
+    const businessId = await getActiveBusinessId(req);
+    const body = await req.json();
+
+    const ids: string[] = body.ids || body.invoiceIds || (body.id ? [body.id] : []);
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return NextResponse.json(
+        { success: false, error: "Please provide one or more invoice IDs to delete." },
+        { status: 400 }
+      );
+    }
+
+    const { deleteMultipleSales } = await import("@/services/salesService");
+    const result = await deleteMultipleSales(
+      ids,
+      businessId,
+      session?.userId,
+      session?.name
+    );
+
+    return NextResponse.json({
+      success: result.success,
+      deletedCount: result.deletedCount,
+      errors: result.errors,
+      message: `Successfully deleted ${result.deletedCount} invoices.`,
+    });
+  } catch (err: any) {
+    return NextResponse.json(
+      { success: false, error: err.message || "Failed to delete invoices." },
+      { status: 500 }
+    );
+  }
+}
+

@@ -104,16 +104,22 @@ function parseSafeDate(input?: string): Date {
     return isNaN(d.getTime()) ? new Date() : d;
   }
 
-  // DD/MM/YYYY or DD-MM-YYYY
+  // DD/MM/YYYY or MM/DD/YYYY
   const dmy = trimmed.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})$/);
   if (dmy) {
     const p1 = parseInt(dmy[1], 10);
     const p2 = parseInt(dmy[2], 10);
     const y = parseInt(dmy[3], 10);
+    // If p1 > 12 -> must be DD/MM/YYYY (p1 is day, p2 is month)
+    if (p1 > 12 && p2 <= 12) {
+      return new Date(Date.UTC(y, p2 - 1, p1));
+    }
+    // If p2 > 12 -> must be MM/DD/YYYY (p1 is month, p2 is day)
     if (p2 > 12 && p1 <= 12) {
       return new Date(Date.UTC(y, p1 - 1, p2));
     }
-    return new Date(Date.UTC(y, p2 - 1, p1));
+    // Ambiguous (e.g. 9/1/2026, 9/12/2026) -> In Excel, M/D/YYYY is standard: p1 is Month (9=Sept), p2 is Day
+    return new Date(Date.UTC(y, p1 - 1, p2));
   }
 
   const d = new Date(trimmed);

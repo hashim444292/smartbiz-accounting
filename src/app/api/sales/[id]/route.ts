@@ -168,3 +168,43 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     return NextResponse.json({ success: true, data: updated, fallback: true });
   }
 }
+
+export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+  const { id } = params;
+  try {
+    const session = await getSession();
+    const businessId = await getActiveBusinessId(req);
+    const { deleteSale } = await import("@/services/salesService");
+
+    const result = await deleteSale(
+      id,
+      businessId,
+      session?.userId,
+      session?.name
+    );
+
+    return NextResponse.json({
+      success: true,
+      message: `Invoice #${result.invoiceNumber} deleted successfully.`,
+      data: result,
+    });
+  } catch (err: any) {
+    const businessId = await getActiveBusinessId(req);
+    const { storeDeleteSale } = await import("@/lib/fallbackStore");
+    const removed = storeDeleteSale(id, businessId);
+
+    if (removed) {
+      return NextResponse.json({
+        success: true,
+        message: `Invoice #${removed.invoiceNumber} deleted successfully.`,
+        fallback: true,
+      });
+    }
+
+    return NextResponse.json(
+      { success: false, error: err.message || "Failed to delete invoice." },
+      { status: 400 }
+    );
+  }
+}
+
