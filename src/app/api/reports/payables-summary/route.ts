@@ -37,7 +37,7 @@ export async function GET(req: NextRequest) {
     });
 
     const fallbackReport = {
-      businessName: fallbackStore.business.name || "HANIF",
+      businessName: fallbackStore.business?.name || "Business Account",
       reportTitle: "ACCOUNTS PAYABLES SUMMARY",
       reportDate: new Date().toISOString(),
       printingTime: new Date().toISOString(),

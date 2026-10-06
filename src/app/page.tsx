@@ -1109,47 +1109,59 @@ export default function DashboardPage() {
             </div>
 
             <div className="h-64 sm:h-72 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={data?.monthlyTrends || []}
-                  margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
-                >
-                  <CartesianGrid
-                    strokeDasharray="3 3"
-                    stroke={resolvedTheme === "dark" ? "#1e293b" : "#f1f5f9"}
-                    vertical={false}
-                  />
-                  <XAxis
-                    dataKey="month"
-                    stroke={resolvedTheme === "dark" ? "#64748b" : "#94a3b8"}
-                    fontSize={10}
-                    tickLine={false}
-                    axisLine={{ stroke: resolvedTheme === "dark" ? "#1e293b" : "#e2e8f0" }}
-                  />
-                  <YAxis
-                    stroke={resolvedTheme === "dark" ? "#64748b" : "#94a3b8"}
-                    fontSize={10}
-                    tickLine={false}
-                    axisLine={false}
-                    tickFormatter={(val) => `Rs ${(val / 1000).toFixed(0)}k`}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: resolvedTheme === "dark" ? "#111827" : "#ffffff",
-                      borderColor: resolvedTheme === "dark" ? "#1e293b" : "#e2e8f0",
-                      borderRadius: "14px",
-                      boxShadow: "0 10px 15px -3px rgb(0 0 0 / 0.15)",
-                      fontSize: "12px",
-                      color: resolvedTheme === "dark" ? "#f8fafc" : "#0f172a",
-                    }}
-                    formatter={(val: any) => [`Rs ${Number(val).toLocaleString()}`, ""]}
-                  />
-                  <Bar dataKey="sales" name={t("Net Sales", "خالص فروخت")} fill="#4f46e5" radius={[4, 4, 0, 0]} maxBarSize={22} />
-                  {!isAccountingOnly && (
-                    <Bar dataKey="fbrCompliant" name={t("FBR Compliant", "FBR تصدیق شدہ")} fill="#10b981" radius={[4, 4, 0, 0]} maxBarSize={22} />
-                  )}
-                </BarChart>
-              </ResponsiveContainer>
+              {data?.monthlyTrends && data.monthlyTrends.some((t: any) => Number(t.sales || 0) > 0) ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    data={data.monthlyTrends}
+                    margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+                  >
+                    <CartesianGrid
+                      strokeDasharray="3 3"
+                      stroke={resolvedTheme === "dark" ? "#1e293b" : "#f1f5f9"}
+                      vertical={false}
+                    />
+                    <XAxis
+                      dataKey="month"
+                      stroke={resolvedTheme === "dark" ? "#64748b" : "#94a3b8"}
+                      fontSize={10}
+                      tickLine={false}
+                      axisLine={{ stroke: resolvedTheme === "dark" ? "#1e293b" : "#e2e8f0" }}
+                    />
+                    <YAxis
+                      stroke={resolvedTheme === "dark" ? "#64748b" : "#94a3b8"}
+                      fontSize={10}
+                      tickLine={false}
+                      axisLine={false}
+                      tickFormatter={(val) => `Rs ${(val / 1000).toFixed(0)}k`}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: resolvedTheme === "dark" ? "#111827" : "#ffffff",
+                        borderColor: resolvedTheme === "dark" ? "#1e293b" : "#e2e8f0",
+                        borderRadius: "14px",
+                        boxShadow: "0 10px 15px -3px rgb(0 0 0 / 0.15)",
+                        fontSize: "12px",
+                        color: resolvedTheme === "dark" ? "#f8fafc" : "#0f172a",
+                      }}
+                      formatter={(val: any) => [`Rs ${Number(val).toLocaleString()}`, ""]}
+                    />
+                    <Bar dataKey="sales" name={t("Net Sales", "خالص فروخت")} fill="#4f46e5" radius={[4, 4, 0, 0]} maxBarSize={22} />
+                    {!isAccountingOnly && (
+                      <Bar dataKey="fbrCompliant" name={t("FBR Compliant", "FBR تصدیق شدہ")} fill="#10b981" radius={[4, 4, 0, 0]} maxBarSize={22} />
+                    )}
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-full flex flex-col items-center justify-center text-center p-6 rounded-xl border border-dashed border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30">
+                  <BarChart3 className="h-8 w-8 text-slate-300 dark:text-slate-600 mb-2" />
+                  <p className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                    {t("No Sales History in this Period", "اس مدت میں کوئی فروخت ریکارڈ نہیں ہوئی")}
+                  </p>
+                  <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5 max-w-xs">
+                    {t("Monthly sales trend bars will automatically appear as you create customer sales invoices.", "جب آپ سیلز بل جاری کریں گے تو ماہانہ چارٹ خودکار طور پر بن جائے گا۔")}
+                  </p>
+                </div>
+              )}
             </div>
           </div>
 

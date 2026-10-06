@@ -100,7 +100,11 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
 
   useEffect(() => {
     fetchReminders();
-    const interval = setInterval(fetchReminders, 45000);
+    const interval = setInterval(() => {
+      if (typeof document !== "undefined" && document.visibilityState === "visible") {
+        fetchReminders();
+      }
+    }, 60000);
     return () => clearInterval(interval);
   }, [activeCompany?.id]);
 
@@ -552,7 +556,7 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
           <DateRangeSelector />
 
           {/* Typography / Font Family Switcher */}
-          <div className="relative" ref={fontMenuRef}>
+          <div className="hidden sm:block relative" ref={fontMenuRef}>
             <button
               onClick={() => setFontMenuOpen(!fontMenuOpen)}
               className="flex h-9 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white transition shadow-2xs"
@@ -820,9 +824,9 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
               className="flex h-9 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 hover:text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white transition shadow-2xs"
               title="Change Language (زبان تبدیل کریں)"
             >
-              <Languages className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-              <span className="font-bold text-[11px]">{language === "en" ? "English" : "اردو"}</span>
-              <ChevronDown className="h-3 w-3 text-slate-400" />
+              <Languages className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0" />
+              <span className="hidden sm:inline font-bold text-[11px]">{language === "en" ? "English" : "اردو"}</span>
+              <ChevronDown className="hidden sm:inline h-3 w-3 text-slate-400 shrink-0" />
             </button>
 
             {langMenuOpen && (

@@ -5,7 +5,7 @@ import { formatMoney } from "@/lib/decimal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
-import { Plus, Search, Building2, Phone, Mail, ArrowRight } from "lucide-react";
+import { Plus, Search, Phone, ArrowRight } from "lucide-react";
 import { TableRowsSkeleton } from "@/components/ui/loader";
 import { useAuth } from "@/context/AuthContext";
 import { invalidateCache } from "@/lib/clientCache";

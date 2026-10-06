@@ -5,7 +5,7 @@ import { formatMoney } from "@/lib/decimal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
-import { Plus, Search, User, Phone, Mail, MapPin, ArrowRight } from "lucide-react";
+import { Plus, Search, Phone, ArrowRight } from "lucide-react";
 
 import { useAuth } from "@/context/AuthContext";
 import { invalidateCache } from "@/lib/clientCache";

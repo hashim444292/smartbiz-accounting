@@ -6,8 +6,10 @@ import { Printer, Download, ArrowLeft, RefreshCw, Search } from "lucide-react";
 import Link from "next/link";
 import { formatMoney } from "@/lib/decimal";
 import { BrandPageLoader, TableSkeleton } from "@/components/ui/loader";
+import { useAuth } from "@/context/AuthContext";
 
 export default function PayablesSummaryPage() {
+  const { activeCompany } = useAuth();
   const [report, setReport] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -151,7 +153,7 @@ export default function PayablesSummaryPage() {
 
           <div className="mb-4">
             <h1 className="text-xl font-bold tracking-tight text-slate-900 uppercase">
-              {report.businessName || "HANIF"}
+              {report.businessName || activeCompany?.name || "Business Account"}
             </h1>
             <h2 className="text-sm font-semibold tracking-wide text-slate-800 uppercase mt-0.5">
               ACCOUNTS PAYABLES SUMMARY
@@ -159,7 +161,7 @@ export default function PayablesSummaryPage() {
           </div>
 
           {/* Table */}
-          <div className="w-full">
+          <div className="w-full overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="border-t border-b border-slate-400 text-[11px] font-bold text-slate-900">

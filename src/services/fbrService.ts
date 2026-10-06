@@ -336,9 +336,9 @@ export function buildFbrPayload(
   config?: Partial<FbrConfig>
 ): FbrDigitalInvoicePayload {
   const sellerNTN = cleanFbrNtn(config?.sellerNtn || business?.ntn);
-  const sellerBusinessName = config?.sellerBusinessName || (business?.name && !business.name.includes("Enterprise") ? business.name : "Shakeel mobiles");
+  const sellerBusinessName = config?.sellerBusinessName || business?.name || "Business";
   const sellerProvince = config?.sellerProvince || business?.province || "Sindh";
-  const sellerAddress = config?.sellerAddress || business?.address || "R-70 rehman villas, Karachi";
+  const sellerAddress = config?.sellerAddress || business?.address || "";
 
   // Check if sale has JSON metadata stored in notes
   let fbrMeta: any = null;
@@ -606,9 +606,9 @@ export async function testFbrToken(
           invoiceType: "Sale Invoice",
           invoiceDate: formatFbrDate(),
           sellerNTNCNIC: cleanNtn,
-          sellerBusinessName: sellerName || "Shakeel mobiles",
+          sellerBusinessName: sellerName || "Registered Business",
           sellerProvince: sellerProvince || "Sindh",
-          sellerAddress: sellerAddress || "R-70 rehman villas",
+          sellerAddress: sellerAddress || "",
           buyerNTNCNIC: "4210100000000",
           buyerBusinessName: "Walk-in Buyer",
           buyerProvince: "Sindh",

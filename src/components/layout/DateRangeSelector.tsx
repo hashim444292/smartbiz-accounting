@@ -31,11 +31,11 @@ export function DateRangeSelector() {
     <div className="relative inline-block text-left">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+        className="inline-flex items-center gap-1.5 sm:gap-2 rounded-xl border border-slate-200 bg-white px-2 sm:px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
       >
-        <CalendarIcon className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
-        <span className="font-semibold">{range.label}</span>
-        <ChevronDown className="h-3 w-3 text-slate-400" />
+        <CalendarIcon className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
+        <span className="hidden sm:inline font-semibold">{range.label}</span>
+        <ChevronDown className="h-3 w-3 text-slate-400 shrink-0" />
       </button>
 
       {isOpen && (

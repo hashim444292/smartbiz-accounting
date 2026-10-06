@@ -222,7 +222,7 @@ export default function AdminDashboardPage() {
                   Active Company
                 </p>
                 <p className="text-base font-bold text-slate-900 dark:text-white mt-1 truncate max-w-full sm:max-w-[170px]">
-                  {activeCompany?.name || "HANIF Mobile"}
+                  {activeCompany?.name || "Active Workspace"}
                 </p>
               </div>
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-900/40">

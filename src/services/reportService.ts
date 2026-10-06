@@ -701,7 +701,7 @@ export async function getItemsSummaryReport(
   let grandBal = 0;
 
   for (const prod of products) {
-    const catName = prod.category?.name || "MIX MOBILE";
+    const catName = prod.category?.name || "General Category";
     if (!categoryMap.has(catName)) {
       categoryMap.set(catName, {
         name: catName,
@@ -763,7 +763,7 @@ export async function getItemsSummaryReport(
   }
 
   return {
-    businessName: business?.name || "HANIF",
+    businessName: business?.name || "Business Account",
     reportTitle: "ITEMS SUMMARY",
     fromDate: sDate.toISOString(),
     toDate: eDate.toISOString(),
@@ -820,7 +820,7 @@ export async function getReceivablesSummaryReport(businessId: string) {
   });
 
   return {
-    businessName: business?.name || "HANIF",
+    businessName: business?.name || "Business Account",
     reportTitle: "ACCOUNTS RECEIVABLES SUMMARY",
     reportDate: new Date().toISOString(),
     printingTime: new Date().toISOString(),
@@ -875,7 +875,7 @@ export async function getPayablesSummaryReport(businessId: string) {
   });
 
   return {
-    businessName: business?.name || "HANIF",
+    businessName: business?.name || "Business Account",
     reportTitle: "ACCOUNTS PAYABLES SUMMARY",
     reportDate: new Date().toISOString(),
     printingTime: new Date().toISOString(),

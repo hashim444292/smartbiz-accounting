@@ -80,7 +80,7 @@ export async function GET(req: NextRequest) {
     }
 
     const fallbackReport = {
-      businessName: fallbackStore.business.name || "HANIF",
+      businessName: fallbackStore.business?.name || "Business Account",
       reportTitle: "ITEMS SUMMARY",
       fromDate: startDate.toISOString(),
       toDate: endDate.toISOString(),

@@ -126,7 +126,34 @@ export async function GET(req: NextRequest) {
       }));
 
     // Generate real monthly revenue trend based on actual data only (no dummy data)
+    const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
     const monthlyTrends: { month: string; sales: number; tax: number; fbrCompliant: number }[] = [];
+    const curr = new Date();
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(curr.getFullYear(), curr.getMonth() - i, 1);
+      const mIdx = d.getMonth();
+      const y = d.getFullYear();
+      const mLabel = i === 0 ? `${monthNames[mIdx]} (Current)` : monthNames[mIdx];
+
+      const mSales = sales.filter((s) => {
+        if (!s.date) return false;
+        const sd = new Date(s.date);
+        return sd.getFullYear() === y && sd.getMonth() === mIdx;
+      });
+
+      const sTotal = mSales.reduce((sum, s) => sum + Number(s.totalAmount || 0), 0);
+      const tTotal = mSales.reduce((sum, s) => sum + Number((s.salesTax || 0) + (s.furtherTax || 0) + (s.extraTax || 0)), 0);
+      const fbrTotal = mSales
+        .filter((s) => s.fbrInvoiceNumber || s.fbrStatus === "VALID" || s.fbrStatus === "VERIFIED" || s.fbrStatus === "SUBMITTED")
+        .reduce((sum, s) => sum + Number(s.totalAmount || 0), 0);
+
+      monthlyTrends.push({
+        month: mLabel,
+        sales: round2(sTotal).toNumber(),
+        tax: round2(tTotal).toNumber(),
+        fbrCompliant: round2(fbrTotal).toNumber(),
+      });
+    }
 
     // Calculate Payment Reminders for Overdue & Upcoming Receivables & Payables
     const now = new Date();
