@@ -435,14 +435,17 @@ export default function FbrCompliancePage() {
 
     if (
       !confirm(
-        `Transmit ${idsToHit.length} fully paid invoice(s) to FBR?\n\n- Statutory Rs. 1/- POS fee per invoice will be charged.\n- Partial & Credit invoices (${awaitingPaymentCount}) are safely held back.`
+        `Transmit ${idsToHit.length} fully paid invoice(s) to FBR?\n\n- ہر انوائس 2 سیکنڈ کے وقفے سے محفوظ طریقے سے ہٹ ہوگی (FBR Rate-Limiting Protection).\n- Statutory Rs. 1/- POS fee per invoice will be charged.\n- Partial & Credit invoices (${awaitingPaymentCount}) are safely held back.`
       )
     ) {
       return;
     }
 
     setIsBatchHitting(true);
-    setActionMessage(null);
+    setActionMessage({
+      type: "info",
+      text: `FBR پر ${idsToHit.length} انوائسز کی ترسیل جاری ہے... (ہر انوائس کے درمیان 2 سیکنڈ کا وقفہ ہے، برائے مہربانی انتظار فرمائیں)`,
+    });
 
     try {
       const res = await fetch("/api/compliance/fbr", {
@@ -458,7 +461,7 @@ export default function FbrCompliancePage() {
 
       setActionMessage({
         type: "success",
-        text: data.message || `${idsToHit.length} fully paid invoice(s) successfully transmitted to FBR.`,
+        text: data.message || `کامیابی سے ${idsToHit.length} انوائسز 2 سیکنڈ کے وقفے کے ساتھ FBR پر منتقل ہو گئیں۔`,
       });
       setSelectedIds([]);
       await loadCompliance();

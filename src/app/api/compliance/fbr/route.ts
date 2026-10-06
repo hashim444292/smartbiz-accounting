@@ -170,14 +170,21 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // 5. Batch Transmit Invoices to FBR
+    // 5. Batch Transmit Invoices to FBR (with 2-second throttle between each hit)
     if (body.action === "transmit_batch") {
       const { invoiceIds = [], allowIncomplete = false } = body;
       const results = [];
       const skippedPartial = [];
       const errors = [];
 
-      for (const id of invoiceIds) {
+      for (let i = 0; i < invoiceIds.length; i++) {
+        const id = invoiceIds[i];
+
+        // 2-second pause before hitting the next invoice (except the first one)
+        if (i > 0) {
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+        }
+
         try {
           const res = await transmitSaleToFbr(id, { allowIncomplete });
           results.push(res.sale);
@@ -190,7 +197,7 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      let msg = `${results.length} invoice(s) transmitted to FBR.`;
+      let msg = `${results.length} invoice(s) transmitted to FBR (with 2s statutory interval).`;
       if (skippedPartial.length > 0) {
         msg += ` (${skippedPartial.length} partial/credit invoice(s) held back until full payment is received).`;
       }

@@ -25,6 +25,13 @@ export default function ReportsHubPage() {
 
   const standardReports = [
     {
+      title: "Sales Report & Invoices Register",
+      description: "Chronological sales register with dates, products sold, customer receivables, printable receipts, and CSV exports.",
+      icon: Receipt,
+      href: "/sales",
+      badge: "Sales & Invoices",
+    },
+    {
       title: "Items Summary (Stock In/Out)",
       description: "Client standard format: Opening, In, Out, and Balance stock ledger grouped by category.",
       icon: Package,
