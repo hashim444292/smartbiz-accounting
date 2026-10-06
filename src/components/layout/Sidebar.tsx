@@ -28,9 +28,11 @@ import {
   ChevronRight,
   ArrowLeft,
   ExternalLink,
+  Plus,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useLanguage } from "@/context/LanguageContext";
+import { smartFetch } from "@/lib/clientCache";
 
 interface NavItem {
   name: string;
@@ -75,6 +77,7 @@ const TENANT_NAVIGATION_GROUPS: NavGroup[] = [
     sectionUrdu: "اسٹاک اور کھاتہ",
     items: [
       { name: "Inventory & Stock", nameUrdu: "انونٹری اور اسٹاک", href: "/inventory", icon: Boxes, moduleKey: "inventory", userPermKey: "inventory" },
+      { name: "Add Inventory", nameUrdu: "نئی انونٹری اندراج", href: "/products/create", icon: Plus, moduleKey: "inventory", userPermKey: "products" },
       { name: "Customers (Receivables)", nameUrdu: "کسٹمرز کھاتہ (وصولیاں)", href: "/customers", icon: Users, moduleKey: "sales", userPermKey: "customers" },
       { name: "Suppliers (Payables)", nameUrdu: "سپلائرز کھاتہ (واجبات)", href: "/suppliers", icon: Truck, moduleKey: "purchases", userPermKey: "suppliers" },
       { name: "Products & Rates", nameUrdu: "پروڈکٹس اور ریٹس", href: "/products", icon: Package, moduleKey: "inventory", userPermKey: "products" },
@@ -142,6 +145,43 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
   const userRole = user?.role || "STAFF";
   const isPlatformMode = (userRole === "SUPER_ADMIN" || userRole === "ADMIN") && !isInspectingClient;
   const isFbrInvoicingOnly = activeCompany?.packageType === "FBR_INVOICING_ONLY";
+
+  // Stock & Accounts live totals (Inventory, Receivables, Payables)
+  const [stockTotals, setStockTotals] = useState<{
+    inventory: number;
+    receivables: number;
+    payables: number;
+  } | null>(null);
+
+  useEffect(() => {
+    if (isPlatformMode || isFbrInvoicingOnly) return;
+    let mounted = true;
+    const fetchTotals = async () => {
+      try {
+        const headers: Record<string, string> = {};
+        if (activeCompany?.id) headers["x-business-id"] = activeCompany.id;
+        const res = await smartFetch("/api/dashboard", { headers, ttlMs: 60000 });
+        if (mounted && res?.success && res?.data) {
+          setStockTotals({
+            inventory: Number(res.data.totalInventoryValue || 0),
+            receivables: Number(res.data.totalReceivables || 0),
+            payables: Number(res.data.totalPayables || 0),
+          });
+        }
+      } catch {}
+    };
+    fetchTotals();
+    return () => {
+      mounted = false;
+    };
+  }, [activeCompany?.id, isPlatformMode, isFbrInvoicingOnly]);
+
+  const formatShortCurrency = (val: number) => {
+    if (!val || isNaN(val)) return "0";
+    if (Math.abs(val) >= 1_000_000) return `${(val / 1_000_000).toFixed(1)}M`;
+    if (Math.abs(val) >= 1_000) return `${(val / 1_000).toFixed(1)}k`;
+    return Math.round(val).toLocaleString();
+  };
   const isAccountingOnly =
     !isFbrInvoicingOnly &&
     (activeCompany?.packageType === "ACCOUNTING_ONLY" ||
@@ -342,6 +382,30 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
                   <div className="my-2 border-t border-slate-200 dark:border-slate-800 mx-2" />
                 )}
 
+                {/* Stock & Accounts Totals Summary Pill Widget */}
+                {group.section === "STOCK & ACCOUNTS" && !isCollapsed && stockTotals && (
+                  <div className="mx-1 my-1.5 p-2 rounded-xl bg-slate-100/70 dark:bg-slate-900/50 border border-slate-200/70 dark:border-slate-800 text-[10px] space-y-1">
+                    <div className="flex items-center justify-between text-slate-600 dark:text-slate-300">
+                      <span className="font-medium">📦 Inventory:</span>
+                      <span className="font-bold text-indigo-700 dark:text-indigo-400 font-mono">
+                        Rs {formatShortCurrency(stockTotals.inventory)}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-slate-600 dark:text-slate-300">
+                      <span className="font-medium">📥 Receivables:</span>
+                      <span className="font-bold text-emerald-600 dark:text-emerald-400 font-mono">
+                        Rs {formatShortCurrency(stockTotals.receivables)}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-slate-600 dark:text-slate-300">
+                      <span className="font-medium">📤 Payables:</span>
+                      <span className="font-bold text-rose-600 dark:text-rose-400 font-mono">
+                        Rs {formatShortCurrency(stockTotals.payables)}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
                 {/* Items */}
                 <div className="space-y-0.5">
                   {filteredItems.map((item) => {
@@ -350,6 +414,17 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
                     const displayName = language === "ur"
                       ? (isFbrInvoicingOnly && item.href === "/reports" ? "سیلز رپورٹس و ڈاؤنلوڈ" : (item.nameUrdu || item.name))
                       : (isFbrInvoicingOnly && item.href === "/reports" ? "Sales Reports & Downloads" : item.name);
+
+                    let itemBadge = item.badge;
+                    if (!itemBadge && stockTotals) {
+                      if (item.href === "/inventory") {
+                        itemBadge = `Rs ${formatShortCurrency(stockTotals.inventory)}`;
+                      } else if (item.href === "/customers") {
+                        itemBadge = `Rs ${formatShortCurrency(stockTotals.receivables)}`;
+                      } else if (item.href === "/suppliers") {
+                        itemBadge = `Rs ${formatShortCurrency(stockTotals.payables)}`;
+                      }
+                    }
 
                     return (
                       <Link
@@ -377,15 +452,19 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
                             </span>
                           </div>
                         )}
-                        {!isCollapsed && item.badge && (
+                        {!isCollapsed && itemBadge && (
                           <span
-                            className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider ${
+                            className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold tracking-wider font-mono ${
                               active
                                 ? "bg-indigo-600 text-white dark:bg-indigo-500"
-                                : "bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800"
+                                : item.href === "/customers"
+                                ? "bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800"
+                                : item.href === "/suppliers"
+                                ? "bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-800"
+                                : "bg-indigo-50 text-indigo-700 border border-indigo-200 dark:bg-indigo-950/60 dark:text-indigo-300 dark:border-indigo-800"
                             }`}
                           >
-                            {item.badge}
+                            {itemBadge}
                           </span>
                         )}
                       </Link>

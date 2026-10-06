@@ -37,15 +37,15 @@ export default function BalanceSheetPage() {
     );
   }
 
-  const cash = data?.cashBalance ?? 0;
-  const bank = data?.bankBalance ?? 0;
-  const receivables = data?.totalReceivables ?? 0;
-  const inventory = data?.totalInventoryValue ?? 0;
+  const cash = Number(data?.cashBalance || 0);
+  const bank = Number(data?.bankBalance || 0);
+  const receivables = Number(data?.totalReceivables || 0);
+  const inventory = Number(data?.totalInventoryValue || 0);
   const totalAssets = cash + bank + receivables + inventory;
 
-  const payables = data?.totalPayables ?? 60000;
-  const otherLiab = 15000;
-  const totalLiab = payables + otherLiab;
+  const payables = Number(data?.totalPayables || 0);
+  const accruedTaxes = Number(data?.taxCollected || 0);
+  const totalLiab = payables + accruedTaxes;
 
   const equity = totalAssets - totalLiab;
 
@@ -116,8 +116,8 @@ export default function BalanceSheetPage() {
                 <span className="tabular-nums font-semibold text-rose-600">{formatMoney(payables)}</span>
               </div>
               <div className="flex justify-between">
-                <span>Tax & Other Accrued Liabilities</span>
-                <span className="tabular-nums font-semibold">{formatMoney(otherLiab)}</span>
+                <span>Tax & Sales Tax Accrued (واجب الادا ٹیکس)</span>
+                <span className="tabular-nums font-semibold">{formatMoney(accruedTaxes)}</span>
               </div>
               <div className="flex justify-between border-t border-slate-100 pt-1 font-bold">
                 <span>Total Liabilities</span>

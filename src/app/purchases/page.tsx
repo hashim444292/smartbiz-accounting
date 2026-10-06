@@ -435,6 +435,24 @@ export default function PurchasesPage() {
             <span>{t("Bulk Import", "بلک امپورٹ")}</span>
           </Link>
 
+          {/* Quick Add Supplier */}
+          <Link
+            href="/suppliers"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-xs hover:bg-slate-50 transition dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200"
+          >
+            <Plus className="h-3.5 w-3.5 text-slate-500" />
+            <span>{t("Add Supplier", "نیا سپلائر")}</span>
+          </Link>
+
+          {/* Quick Add Product */}
+          <Link
+            href="/products/create"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-xs hover:bg-slate-50 transition dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200"
+          >
+            <Plus className="h-3.5 w-3.5 text-slate-500" />
+            <span>{t("New Product", "نیا پروڈکٹ")}</span>
+          </Link>
+
           {/* Add Purchase (Primary Button) */}
           <Link href="/purchases/create">
             <Button variant="primary" size="md" className="gap-1.5 shadow-sm">

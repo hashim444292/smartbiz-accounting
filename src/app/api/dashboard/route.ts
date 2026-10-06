@@ -19,6 +19,7 @@ export async function GET(req: NextRequest) {
     let allSales: any[] = [];
     let allPurchases: any[] = [];
     let allExpenses: any[] = [];
+    let allPayments: any[] = [];
     let products: any[] = [];
     let customers: any[] = [];
     let suppliers: any[] = [];
@@ -26,10 +27,11 @@ export async function GET(req: NextRequest) {
     let cashBankAccounts: any[] = [];
 
     try {
-      [allSales, allPurchases, allExpenses, products, customers, suppliers, branches, cashBankAccounts] = await Promise.all([
+      [allSales, allPurchases, allExpenses, allPayments, products, customers, suppliers, branches, cashBankAccounts] = await Promise.all([
         prisma.sale.findMany({ where: { businessId }, include: { items: true }, orderBy: { date: "desc" } }),
         prisma.purchase.findMany({ where: { businessId } }),
         prisma.expense.findMany({ where: { businessId } }),
+        prisma.payment.findMany({ where: { businessId } }),
         prisma.product.findMany({ where: { businessId } }),
         prisma.customer.findMany({ where: { businessId, isActive: true } }),
         prisma.supplier.findMany({ where: { businessId, isActive: true } }),
@@ -40,6 +42,7 @@ export async function GET(req: NextRequest) {
       allSales = fallbackStore.sales.filter((s) => s.businessId === businessId);
       allPurchases = fallbackStore.purchases.filter((p) => p.businessId === businessId);
       allExpenses = fallbackStore.expenses.filter((e) => e.businessId === businessId);
+      allPayments = fallbackStore.payments.filter((p) => p.businessId === businessId);
       products = fallbackStore.products.filter((p) => p.businessId === businessId);
       customers = fallbackStore.customers.filter((c) => c.businessId === businessId);
       suppliers = fallbackStore.suppliers.filter((s) => s.businessId === businessId);
@@ -102,6 +105,8 @@ export async function GET(req: NextRequest) {
     const purchases = activeBranchId ? allPurchases.filter((p) => p.branchId === activeBranchId) : allPurchases;
     const expenses = activeBranchId ? allExpenses.filter((e) => e.branchId === activeBranchId) : allExpenses;
 
+    const payments = activeBranchId ? allPayments.filter((p) => p.branchId === activeBranchId) : allPayments;
+
     const totalGrossSales = sales.reduce((acc, s) => acc + Number(s.totalAmount || 0), 0);
     const totalPurchases = purchases.reduce((acc, p) => acc + Number(p.totalAmount || 0), 0);
     const totalExpenses = expenses.reduce((acc, e) => acc + Number(e.amount || 0), 0);
@@ -111,6 +116,19 @@ export async function GET(req: NextRequest) {
     const totalReceivables = customers.reduce((acc, c) => acc + Number(c.currentBalance || 0), 0);
     const totalPayables = suppliers.reduce((acc, s) => acc + Number(s.currentBalance || 0), 0);
     const totalInventoryValue = products.reduce((acc, p) => acc + Number(p.currentStock || 0) * Number(p.averageCost || p.purchasePrice || 0), 0);
+
+    // Calculate Cash Flow: Real receipts (Customer receipts + direct cash sales) and disbursements (Vendor disbursements + direct purchases)
+    const paymentReceipts = payments
+      .filter((p) => p.type === "RECEIPT" || (p.partyType === "CUSTOMER" && Number(p.amount || 0) > 0))
+      .reduce((sum, p) => sum + Number(p.amount || 0), 0);
+    const directSalesCollected = sales.reduce((sum, s) => sum + Number(s.paidAmount || 0), 0);
+    const paymentsReceived = Math.max(paymentReceipts, directSalesCollected);
+
+    const paymentDisbursements = payments
+      .filter((p) => p.type === "PAYMENT" || (p.partyType === "SUPPLIER" && Number(p.amount || 0) > 0))
+      .reduce((sum, p) => sum + Number(p.amount || 0), 0);
+    const directPurchasesPaid = purchases.reduce((sum, p) => sum + Number(p.paidAmount || 0), 0);
+    const paymentsMade = Math.max(paymentDisbursements, directPurchasesPaid);
 
     const cashBalance = cashBankAccounts.filter((a) => a.type === "CASH").reduce((sum, a) => sum + Number(a.balance || 0), 0);
     const bankBalance = cashBankAccounts.filter((a) => a.type === "BANK").reduce((sum, a) => sum + Number(a.balance || 0), 0);
@@ -270,6 +288,8 @@ export async function GET(req: NextRequest) {
         totalInventoryValue: round2(totalInventoryValue),
         cashBalance: round2(cashBalance),
         bankBalance: round2(bankBalance),
+        paymentsReceived: round2(paymentsReceived),
+        paymentsMade: round2(paymentsMade),
         lowStockCount: lowStockAlerts.length,
         lowStockAlerts,
 

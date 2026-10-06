@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
             include: { account: true },
           },
         },
-        orderBy: { date: "desc" },
+        orderBy: [{ date: "desc" }, { createdAt: "desc" }],
         take: 500,
       }),
       prisma.supplier.findMany({

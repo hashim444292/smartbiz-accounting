@@ -6,6 +6,7 @@ import Link from "next/link";
 import { formatMoney } from "@/lib/decimal";
 import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/input";
+import { Modal } from "@/components/ui/modal";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import {
   Plus,
@@ -68,6 +69,24 @@ export default function CreatePurchasePage() {
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Quick Add Supplier Modal State
+  const [showAddSupplierModal, setShowAddSupplierModal] = useState(false);
+  const [newSupName, setNewSupName] = useState("");
+  const [newSupBusiness, setNewSupBusiness] = useState("");
+  const [newSupPhone, setNewSupPhone] = useState("");
+  const [newSupAddress, setNewSupAddress] = useState("");
+  const [isAddingSupplier, setIsAddingSupplier] = useState(false);
+
+  // Quick Add Product Modal State
+  const [showAddProductModal, setShowAddProductModal] = useState(false);
+  const [newProdName, setNewProdName] = useState("");
+  const [newProdSku, setNewProdSku] = useState("");
+  const [newProdCost, setNewProdCost] = useState("");
+  const [newProdPrice, setNewProdPrice] = useState("");
+  const [newProdStock, setNewProdStock] = useState("");
+  const [newProdUom, setNewProdUom] = useState("pcs");
+  const [isAddingProduct, setIsAddingProduct] = useState(false);
 
   // Quick search term for filtering the catalog items
   const [productSearchTerm, setProductSearchTerm] = useState("");
@@ -237,6 +256,108 @@ export default function CreatePurchasePage() {
           lineTotal: cost,
         },
       ]);
+    }
+  };
+
+  const handleQuickCreateSupplier = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newSupName.trim()) return;
+    setIsAddingSupplier(true);
+    try {
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (activeCompany?.id) headers["x-business-id"] = activeCompany.id;
+      const res = await fetch("/api/suppliers", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          name: newSupName.trim(),
+          businessName: newSupBusiness.trim() || undefined,
+          phone: newSupPhone.trim() || undefined,
+          address: newSupAddress.trim() || undefined,
+          openingBalance: 0,
+        }),
+      });
+      const result = await res.json();
+      if (result.success && result.data) {
+        const created = result.data;
+        setSuppliers((prev) => [created, ...prev]);
+        setSupplierId(created.id);
+        setSupplierName(created.name);
+        setShowAddSupplierModal(false);
+        setNewSupName("");
+        setNewSupBusiness("");
+        setNewSupPhone("");
+        setNewSupAddress("");
+      } else {
+        alert(result.error || "Failed to create supplier");
+      }
+    } catch (err: any) {
+      alert(err.message || "Failed to create supplier");
+    } finally {
+      setIsAddingSupplier(false);
+    }
+  };
+
+  const handleQuickCreateProduct = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newProdName.trim()) return;
+    setIsAddingProduct(true);
+    try {
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (activeCompany?.id) headers["x-business-id"] = activeCompany.id;
+      const cost = parseFloat(newProdCost) || 0;
+      const price = parseFloat(newProdPrice) || (cost > 0 ? cost * 1.2 : 0);
+      const stock = parseFloat(newProdStock) || 0;
+      const res = await fetch("/api/products", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          name: newProdName.trim(),
+          sku: newProdSku.trim() || `SKU-${Date.now().toString().slice(-6)}`,
+          purchasePrice: cost,
+          costPrice: cost,
+          sellingPrice: price,
+          retailPrice: price,
+          currentStock: stock,
+          openingQuantity: stock,
+          uom: newProdUom || "pcs",
+          hsCode: "8517.13",
+          status: "ACTIVE",
+        }),
+      });
+      const result = await res.json();
+      if (result.success && (result.data || result.product)) {
+        const created = result.data || result.product;
+        setProducts((prev) => [created, ...prev]);
+        setItems((prev) => [
+          ...prev,
+          {
+            productId: created.id,
+            productName: created.name,
+            quantity: 1,
+            unitCost: cost,
+            previousCost: cost,
+            currentStock: stock,
+            previousSellingPrice: price,
+            newSellingPrice: price,
+            updateCatalogPrice: true,
+            lineTotal: cost,
+          },
+        ]);
+        setShowAddProductModal(false);
+        setNewProdName("");
+        setNewProdSku("");
+        setNewProdCost("");
+        setNewProdPrice("");
+        setNewProdStock("");
+        setNewProdUom("pcs");
+      } else {
+        alert(result.error || "Failed to create product");
+      }
+    } catch (err: any) {
+      alert(err.message || "Failed to create product");
+    } finally {
+      setIsAddingProduct(false);
     }
   };
 
@@ -460,10 +581,20 @@ export default function CreatePurchasePage() {
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Supplier & Bill Metadata */}
         <Card className="shadow-xs border-slate-200 bg-white dark:bg-slate-900">
-          <CardHeader className="pb-3 border-b border-slate-100 dark:border-slate-800">
+          <CardHeader className="flex flex-row items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
             <CardTitle className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">
               Supplier & Purchase Metadata
             </CardTitle>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setShowAddSupplierModal(true)}
+              className="gap-1.5 text-xs font-semibold bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:border-indigo-800 dark:text-indigo-300"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              <span>Add Supplier</span>
+            </Button>
           </CardHeader>
           <CardContent className="pt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
@@ -543,6 +674,15 @@ export default function CreatePurchasePage() {
             </div>
 
             <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setShowAddProductModal(true)}
+                className="gap-1.5 font-bold text-xs bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:border-emerald-800 dark:text-emerald-300"
+              >
+                <Plus className="h-3.5 w-3.5" /> New Product
+              </Button>
               <Button
                 type="button"
                 variant="outline"
@@ -1019,6 +1159,153 @@ export default function CreatePurchasePage() {
           </Card>
         </div>
       </form>
+
+      {/* Quick Add Supplier Modal */}
+      <Modal
+        isOpen={showAddSupplierModal}
+        onClose={() => setShowAddSupplierModal(false)}
+        title="Quick Add Supplier (نیا سپلائر درج کریں)"
+        description="Add a new vendor or supplier to your system without leaving this purchase bill."
+        maxWidth="md"
+      >
+        <form onSubmit={handleQuickCreateSupplier} className="space-y-4">
+          <Input
+            label="Supplier / Contact Name *"
+            value={newSupName}
+            onChange={(e) => setNewSupName(e.target.value)}
+            placeholder="e.g. Tariq Goods / Tariq Mahmood"
+            required
+            autoFocus
+          />
+          <Input
+            label="Business / Company Name"
+            value={newSupBusiness}
+            onChange={(e) => setNewSupBusiness(e.target.value)}
+            placeholder="e.g. Tariq Traders & Importers"
+          />
+          <Input
+            label="Phone / Mobile Number"
+            value={newSupPhone}
+            onChange={(e) => setNewSupPhone(e.target.value)}
+            placeholder="e.g. 0300-1234567"
+          />
+          <Input
+            label="Address / City"
+            value={newSupAddress}
+            onChange={(e) => setNewSupAddress(e.target.value)}
+            placeholder="e.g. Circular Road, Lahore"
+          />
+          <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setShowAddSupplierModal(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              variant="primary"
+              size="sm"
+              isLoading={isAddingSupplier}
+            >
+              <CheckCircle2 className="h-4 w-4 mr-1.5" />
+              Save Supplier
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Quick Add Product Modal */}
+      <Modal
+        isOpen={showAddProductModal}
+        onClose={() => setShowAddProductModal(false)}
+        title="Quick Add Product (نیا آئٹم درج کریں)"
+        description="Add a new catalog product directly into your inventory and insert it into this purchase bill."
+        maxWidth="lg"
+      >
+        <form onSubmit={handleQuickCreateProduct} className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="sm:col-span-2">
+              <Input
+                label="Product Name *"
+                value={newProdName}
+                onChange={(e) => setNewProdName(e.target.value)}
+                placeholder="e.g. Steel Pipe 2 inch / A4 Paper Ream"
+                required
+                autoFocus
+              />
+            </div>
+            <Input
+              label="SKU / Barcode"
+              value={newProdSku}
+              onChange={(e) => setNewProdSku(e.target.value)}
+              placeholder="e.g. PRD-9001 (auto if empty)"
+            />
+            <Select
+              label="Unit of Measure"
+              value={newProdUom}
+              onChange={(e) => setNewProdUom(e.target.value)}
+            >
+              <option value="pcs">Pieces (pcs)</option>
+              <option value="kg">Kilogram (kg)</option>
+              <option value="box">Box / Carton</option>
+              <option value="meter">Meter (m)</option>
+              <option value="liter">Liter (L)</option>
+              <option value="pack">Pack</option>
+              <option value="bag">Bag / Bori</option>
+            </Select>
+            <Input
+              label="Purchase / Cost Price (Rs) *"
+              type="number"
+              step="any"
+              min="0"
+              value={newProdCost}
+              onChange={(e) => setNewProdCost(e.target.value)}
+              placeholder="e.g. 500"
+              required
+            />
+            <Input
+              label="Selling / Retail Price (Rs)"
+              type="number"
+              step="any"
+              min="0"
+              value={newProdPrice}
+              onChange={(e) => setNewProdPrice(e.target.value)}
+              placeholder="e.g. 650 (optional)"
+            />
+            <Input
+              label="Initial / Existing Stock"
+              type="number"
+              step="any"
+              min="0"
+              value={newProdStock}
+              onChange={(e) => setNewProdStock(e.target.value)}
+              placeholder="0"
+            />
+          </div>
+          <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setShowAddProductModal(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              variant="primary"
+              size="sm"
+              isLoading={isAddingProduct}
+            >
+              <CheckCircle2 className="h-4 w-4 mr-1.5" />
+              Save & Add to Bill
+            </Button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }

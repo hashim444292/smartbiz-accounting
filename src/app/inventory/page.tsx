@@ -58,8 +58,24 @@ export default function InventoryPage() {
     }
   };
 
+  const [totalReceivables, setTotalReceivables] = useState<number>(0);
+  const [totalPayables, setTotalPayables] = useState<number>(0);
+
+  const fetchAccountsSummary = async () => {
+    try {
+      const headers: Record<string, string> = {};
+      if (activeCompany?.id) headers["x-business-id"] = activeCompany.id;
+      const res = await smartFetch("/api/dashboard", { headers, ttlMs: 30000 });
+      if (res?.success && res?.data) {
+        setTotalReceivables(Number(res.data.totalReceivables || 0));
+        setTotalPayables(Number(res.data.totalPayables || 0));
+      }
+    } catch {}
+  };
+
   useEffect(() => {
     fetchProducts();
+    fetchAccountsSummary();
   }, [activeCompany?.id, activeBranchId, isBranchLocked, user?.branchId]);
 
   // SMART LAZY LOAD: Only hit transactions endpoint when user opens the MOVEMENTS tab
@@ -121,10 +137,62 @@ export default function InventoryPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Link href="/products/create">
+            <Button variant="primary" size="sm">
+              <Plus className="h-3.5 w-3.5 mr-1" />
+              Add Inventory
+            </Button>
+          </Link>
           <Button variant="outline" size="sm" onClick={exportCSV}>
             <Download className="h-3.5 w-3.5 mr-1" />
             Export CSV
           </Button>
+        </div>
+      </div>
+
+      {/* Stock & Accounts Totals Summary Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+        <div className="rounded-2xl border border-indigo-100 bg-white p-4 shadow-2xs dark:border-indigo-900/40 dark:bg-slate-900">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-slate-500">Total Inventories Valuation</span>
+            <span className="rounded-lg bg-indigo-50 p-2 text-indigo-600 dark:bg-indigo-950/60 dark:text-indigo-400">📦</span>
+          </div>
+          <div className="mt-2 flex items-baseline gap-2">
+            <span className="text-xl font-bold tracking-tight text-indigo-950 dark:text-white font-mono">
+              {formatMoney(totalValuation)}
+            </span>
+          </div>
+          <p className="mt-1 text-[11px] text-slate-400">Live inventory across {safeProducts.length} items</p>
+        </div>
+
+        <div className="rounded-2xl border border-emerald-100 bg-white p-4 shadow-2xs dark:border-emerald-900/40 dark:bg-slate-900">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-slate-500">Total Customer Receivables</span>
+            <span className="rounded-lg bg-emerald-50 p-2 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400">📥</span>
+          </div>
+          <div className="mt-2 flex items-baseline gap-2">
+            <span className="text-xl font-bold tracking-tight text-emerald-950 dark:text-white font-mono">
+              {formatMoney(totalReceivables)}
+            </span>
+          </div>
+          <Link href="/customers" className="mt-1 inline-block text-[11px] text-emerald-600 hover:underline">
+            View customer ledgers →
+          </Link>
+        </div>
+
+        <div className="rounded-2xl border border-rose-100 bg-white p-4 shadow-2xs dark:border-rose-900/40 dark:bg-slate-900">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-slate-500">Total Supplier Payables</span>
+            <span className="rounded-lg bg-rose-50 p-2 text-rose-600 dark:bg-rose-950/60 dark:text-rose-400">📤</span>
+          </div>
+          <div className="mt-2 flex items-baseline gap-2">
+            <span className="text-xl font-bold tracking-tight text-rose-950 dark:text-white font-mono">
+              {formatMoney(totalPayables)}
+            </span>
+          </div>
+          <Link href="/suppliers" className="mt-1 inline-block text-[11px] text-rose-600 hover:underline">
+            View supplier dues →
+          </Link>
         </div>
       </div>
 

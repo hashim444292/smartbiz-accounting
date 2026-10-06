@@ -63,6 +63,7 @@ function AccountingContent() {
   const [journalSearch, setJournalSearch] = useState<string>("");
   const [journalDateFilter, setJournalDateFilter] = useState<DateFilterType>("ALL");
   const [journalAccountFilter, setJournalAccountFilter] = useState<string>("ALL");
+  const [journalSort, setJournalSort] = useState<"DATE_DESC" | "DATE_ASC" | "ENTRY_ASC" | "ENTRY_DESC">("DATE_DESC");
 
   // Core Data
   const [accounts, setAccounts] = useState<any[]>([]);
@@ -804,8 +805,26 @@ function AccountingContent() {
       }
 
       return matchesSearch && matchesAccount && matchesDate;
+    }).sort((a, b) => {
+      if (journalSort === "DATE_DESC") {
+        const timeDiff = new Date(b.date).getTime() - new Date(a.date).getTime();
+        if (timeDiff !== 0) return timeDiff;
+        return (b.entryNumber || "").localeCompare(a.entryNumber || "", undefined, { numeric: true });
+      }
+      if (journalSort === "DATE_ASC") {
+        const timeDiff = new Date(a.date).getTime() - new Date(b.date).getTime();
+        if (timeDiff !== 0) return timeDiff;
+        return (a.entryNumber || "").localeCompare(b.entryNumber || "", undefined, { numeric: true });
+      }
+      if (journalSort === "ENTRY_ASC") {
+        return (a.entryNumber || "").localeCompare(b.entryNumber || "", undefined, { numeric: true });
+      }
+      if (journalSort === "ENTRY_DESC") {
+        return (b.entryNumber || "").localeCompare(a.entryNumber || "", undefined, { numeric: true });
+      }
+      return 0;
     });
-  }, [journals, journalSearch, journalAccountFilter, journalDateFilter]);
+  }, [journals, journalSearch, journalAccountFilter, journalDateFilter, journalSort]);
 
   const totalDebits = accounts
     .filter((a) => ["ASSET", "EXPENSE", "COGS"].includes(a.type))
@@ -1386,6 +1405,18 @@ function AccountingContent() {
                     [{a.code}] {a.name}
                   </option>
                 ))}
+              </select>
+
+              <select
+                value={journalSort}
+                onChange={(e) => setJournalSort(e.target.value as any)}
+                className="rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                title="Sort journal entries"
+              >
+                <option value="DATE_DESC">{t("Sort: Newest First (تاریخ: نیا پہلے)", "تاریخ: نیا پہلے")}</option>
+                <option value="DATE_ASC">{t("Sort: Oldest First (تاریخ: پرانا پہلے)", "تاریخ: پرانا پہلے")}</option>
+                <option value="ENTRY_DESC">{t("Sort: Entry # (High to Low)", "اندراج نمبر: زیادہ سے کم")}</option>
+                <option value="ENTRY_ASC">{t("Sort: Entry # (Low to High)", "اندراج نمبر: کم سے زیادہ")}</option>
               </select>
             </div>
           </div>
