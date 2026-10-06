@@ -41,6 +41,18 @@ export default function SaleDetailPage() {
     if (params.id) fetchSale();
   }, [params.id]);
 
+  useEffect(() => {
+    if (sale && typeof window !== "undefined") {
+      const searchParams = new URLSearchParams(window.location.search);
+      if (searchParams.get("print") === "true") {
+        const timer = setTimeout(() => {
+          window.print();
+        }, 400);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [sale]);
+
   if (loading) {
     return (
       <BrandPageLoader

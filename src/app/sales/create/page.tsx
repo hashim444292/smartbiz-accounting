@@ -2821,13 +2821,26 @@ export default function CreateSalePage() {
 
             {/* Modal Actions */}
             <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-200 dark:border-slate-800">
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={() => router.push("/sales")}
-              >
-                View Sales Invoices List
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => router.push("/sales")}
+                >
+                  View Sales List
+                </Button>
+                {savedInvoiceResult.id && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="border-indigo-300 text-indigo-700 hover:bg-indigo-50 dark:border-indigo-800 dark:text-indigo-300"
+                    onClick={() => window.open(`/sales/${savedInvoiceResult.id}?print=true`, "_blank")}
+                  >
+                    <Receipt className="h-4 w-4 mr-1.5 text-indigo-600" />
+                    Print Invoice / Receipt
+                  </Button>
+                )}
+              </div>
 
               <div className="flex items-center gap-2">
                 <Button

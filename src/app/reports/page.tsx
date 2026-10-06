@@ -105,6 +105,21 @@ export default function ReportsHubPage() {
       description: "Day-by-day turnover summary, weekly comparisons, and invoice velocity analysis.",
       icon: CalendarRange,
       href: "/reports/weekly",
+      badge: "Weekly Summary",
+    },
+    {
+      title: "Monthly Sales Closing & Audit",
+      description: "Monthly gross revenue, total tax breakdown, payment collections, and period reconciliation.",
+      icon: Lock,
+      href: "/reports/monthly-closing",
+      badge: "Monthly Closing",
+    },
+    {
+      title: "Sales Report (Custom Date Range)",
+      description: "Select custom Start Date and End Date to filter, print, and download comprehensive sales summaries.",
+      icon: CalendarRange,
+      href: "/sales?date=CUSTOM",
+      badge: "Custom Range",
     },
     {
       title: "FBR Digital Invoicing & Fiscal Audit",

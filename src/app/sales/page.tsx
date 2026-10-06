@@ -129,6 +129,13 @@ export default function SalesPage() {
 
   useEffect(() => {
     fetchSales();
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const dParam = params.get("date");
+      if (dParam && ["ALL", "TODAY", "YESTERDAY", "THIS_WEEK", "THIS_MONTH", "LAST_30_DAYS", "CUSTOM"].includes(dParam)) {
+        setDateFilter(dParam as any);
+      }
+    }
   }, [activeCompany?.id, effectiveBranch]);
 
   const handleReverse = async (id: string, invoiceNumber: string) => {
@@ -311,6 +318,8 @@ export default function SalesPage() {
 
   // Calculate Summary metrics on filtered data
   const totalInvoices = filteredSales.length;
+  const filteredTotalGross = useMemo(() => filteredSales.reduce((a, s) => a + Number(s.totalAmount || 0), 0), [filteredSales]);
+  const filteredTotalPaid = useMemo(() => filteredSales.reduce((a, s) => a + Number(s.paidAmount || 0), 0), [filteredSales]);
   const paidCount = filteredSales.filter((s) => s.paymentStatus === "PAID").length;
   const partialCount = filteredSales.filter((s) => s.paymentStatus === "PARTIAL").length;
   const unpaidCount = filteredSales.filter((s) => s.paymentStatus === "UNPAID").length;
@@ -365,7 +374,39 @@ export default function SalesPage() {
   return (
     <div className="space-y-5">
       {/* Page Header */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      {/* Printable Report Header */}
+      <div className="hidden print:block mb-6 border-b-2 border-slate-900 pb-4">
+        <div className="flex justify-between items-start">
+          <div>
+            <h1 className="text-2xl font-black text-slate-900">
+              {activeCompany?.name || "SmartBiz Accounting"}
+            </h1>
+            <h2 className="text-lg font-bold text-slate-700 mt-0.5">Sales & Revenue Report</h2>
+            <p className="text-xs text-slate-600 mt-1">
+              <strong>Period:</strong>{" "}
+              {dateFilter === "CUSTOM"
+                ? `${startDate || "Start"} to ${endDate || "End"}`
+                : dateFilter === "ALL"
+                ? "All Recorded Transactions"
+                : dateFilter.replace("_", " ")}{" "}
+              | <strong>Status:</strong> {statusFilter} | <strong>Outlet:</strong>{" "}
+              {user?.branchName || (effectiveBranch ? branches.find((b) => b.id === effectiveBranch)?.name : "All Outlets")}
+            </p>
+          </div>
+          <div className="text-right border-l-2 border-slate-300 pl-4">
+            <p className="text-xs text-slate-500">Generated: {new Date().toLocaleString()}</p>
+            <p className="text-xs font-semibold text-slate-700 mt-1">Total Invoices: {totalInvoices}</p>
+            <p className="text-sm font-black text-slate-900">
+              Total Sales: Rs. {formatMoney(filteredTotalGross)}
+            </p>
+            <p className="text-xs font-bold text-emerald-700">
+              Collected: Rs. {formatMoney(filteredTotalPaid)}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between print:hidden">
         <div>
           <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">Sales & Invoices</h2>
           <p className="text-xs text-slate-500">Track customer sales, payments, and receivables</p>
@@ -388,6 +429,15 @@ export default function SalesPage() {
             <span>Export CSV</span>
           </button>
 
+          <button
+            onClick={() => window.print()}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 shadow-2xs transition"
+            title="Print Sales Report for filtered period (سیلز رپورٹ پرنٹ کریں)"
+          >
+            <Printer className="h-3.5 w-3.5 text-slate-600" />
+            <span>Print Sales Report</span>
+          </button>
+
           <Link href="/sales/create">
             <Button variant="primary" size="md">
               <Plus className="h-4 w-4 mr-1.5" />
@@ -398,7 +448,7 @@ export default function SalesPage() {
       </div>
 
       {/* Active Branch Scope Indicator Banner */}
-      <div className="flex items-center justify-between rounded-xl border border-indigo-100 bg-indigo-50/60 px-4 py-2.5 text-xs text-indigo-950 dark:border-indigo-900/50 dark:bg-indigo-950/20 dark:text-indigo-200">
+      <div className="print:hidden flex items-center justify-between rounded-xl border border-indigo-100 bg-indigo-50/60 px-4 py-2.5 text-xs text-indigo-950 dark:border-indigo-900/50 dark:bg-indigo-950/20 dark:text-indigo-200">
         <div className="flex items-center gap-2">
           <Building2 className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
           <span>
@@ -456,7 +506,7 @@ export default function SalesPage() {
 
       {/* Customer Spotlight & Summary Card */}
       {customerFilter !== "ALL" && (
-        <div className="rounded-2xl border-2 border-indigo-500/30 bg-indigo-50/60 p-4 shadow-sm dark:bg-indigo-950/30 dark:border-indigo-700/50">
+        <div className="print:hidden rounded-2xl border-2 border-indigo-500/30 bg-indigo-50/60 p-4 shadow-sm dark:bg-indigo-950/30 dark:border-indigo-700/50">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <div className="flex items-center gap-2">
@@ -495,7 +545,7 @@ export default function SalesPage() {
       )}
 
       {/* Enhanced Filters Bar with Date, Status & Quick Pills */}
-      <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-3.5 shadow-sm">
+      <div className="print:hidden space-y-3 rounded-2xl border border-slate-200 bg-white p-3.5 shadow-sm">
         {/* Main Controls Row */}
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
           {/* Search Input */}
@@ -699,7 +749,7 @@ export default function SalesPage() {
                 <th className="px-4 py-3 text-right">Balance</th>
                 <th className="px-4 py-3 text-center">Payment</th>
                 <th className="px-4 py-3 text-center">Status</th>
-                <th className="px-4 py-3 text-right">Actions</th>
+                <th className="px-4 py-3 text-right print:hidden">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -808,7 +858,7 @@ export default function SalesPage() {
                         {sale.status}
                       </Badge>
                     </td>
-                    <td className="px-4 py-3 text-right">
+                    <td className="px-4 py-3 text-right print:hidden">
                       <div className="flex items-center justify-end gap-1.5">
                         <button
                           onClick={() => openEditModal(sale)}
@@ -823,6 +873,14 @@ export default function SalesPage() {
                           title="View Invoice"
                         >
                           <Eye className="h-3.5 w-3.5" />
+                        </Link>
+                        <Link
+                          href={`/sales/${sale.id}?print=true`}
+                          target="_blank"
+                          className="rounded-lg p-1.5 text-emerald-600 hover:bg-emerald-50 hover:text-emerald-800 dark:hover:bg-emerald-950/40"
+                          title="Print Invoice / Receipt (انوائس پرنٹ کریں)"
+                        >
+                          <Printer className="h-3.5 w-3.5" />
                         </Link>
                         {sale.status === "POSTED" && (
                           <button
@@ -844,7 +902,7 @@ export default function SalesPage() {
         </div>
 
         {/* Responsive Pagination Bar */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-3 border-t border-slate-200 bg-slate-50/80 text-xs text-slate-600">
+        <div className="print:hidden flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-3 border-t border-slate-200 bg-slate-50/80 text-xs text-slate-600">
           <div className="flex items-center gap-3">
             <div>
               Showing <strong className="text-slate-900">{totalInvoices === 0 ? 0 : startIndex + 1}</strong> to{" "}
