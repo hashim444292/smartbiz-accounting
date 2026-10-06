@@ -27,6 +27,9 @@ import {
   AlertCircle,
   Building2,
   Trash2,
+  CheckSquare,
+  Square,
+  Edit,
 } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { useAuth } from "@/context/AuthContext";
@@ -106,6 +109,18 @@ export default function SalesPage() {
   const [editNotes, setEditNotes] = useState("");
   const [editReason, setEditReason] = useState("");
   const [editSaving, setEditSaving] = useState(false);
+
+  // Bulk Selection & Actions State
+  const [selectedSaleIds, setSelectedSaleIds] = useState<string[]>([]);
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+  const [showBulkEditModal, setShowBulkEditModal] = useState(false);
+  const [bulkEditDate, setBulkEditDate] = useState("");
+  const [bulkEditCustomerName, setBulkEditCustomerName] = useState("");
+  const [bulkEditPaymentMethod, setBulkEditPaymentMethod] = useState("");
+  const [bulkEditPaymentStatus, setBulkEditPaymentStatus] = useState("");
+  const [bulkEditNotes, setBulkEditNotes] = useState("");
+  const [bulkEditReason, setBulkEditReason] = useState("");
+  const [isBulkSaving, setIsBulkSaving] = useState(false);
 
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
@@ -199,6 +214,105 @@ export default function SalesPage() {
       alert(`خرابی: ${err.message}`);
     } finally {
       setDeletingSaleId(null);
+    }
+  };
+
+  const handleToggleSelectSale = (id: string) => {
+    setSelectedSaleIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
+  const handleToggleSelectAllSales = () => {
+    const selectable = paginatedSales.map((s) => s.id);
+    const allSelected = selectable.length > 0 && selectable.every((id) => selectedSaleIds.includes(id));
+    if (allSelected) {
+      setSelectedSaleIds((prev) => prev.filter((id) => !selectable.includes(id)));
+    } else {
+      setSelectedSaleIds((prev) => Array.from(new Set([...prev, ...selectable])));
+    }
+  };
+
+  const handleBulkDeleteSales = async () => {
+    if (selectedSaleIds.length === 0) return;
+    const confirmPrompt = `کیا آپ واقعی منتخب کردہ ${selectedSaleIds.length} انوائسز کو مکمل ڈیلیٹ کرنا چاہتے ہیں؟\n\n- گاہک کا لیجر (Accounts Receivable) اور انوینٹری اسٹاک خودکار طور پر بحال (reverse) ہو جائے گا۔\n- اس عمل کو واپس نہیں لایا جا سکتا۔`;
+    if (!confirm(confirmPrompt)) return;
+
+    setIsBulkDeleting(true);
+    try {
+      const res = await fetch("/api/sales", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: selectedSaleIds }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        alert(`کامیابی سے ${json.deletedCount} انوائسز ڈیلیٹ کر دی گئیں۔`);
+        setSelectedSaleIds([]);
+        invalidateCache("/api/sales");
+        invalidateCache("/api/products");
+        invalidateCache("/api/dashboard");
+        fetchSales();
+      } else {
+        alert(json.error || "بلک ڈیلیٹ میں خرابی پیش آئی۔");
+      }
+    } catch (err: any) {
+      alert(`خرابی: ${err.message}`);
+    } finally {
+      setIsBulkDeleting(false);
+    }
+  };
+
+  const handleBulkEditSales = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (selectedSaleIds.length === 0) return;
+
+    const updates: any = {};
+    if (bulkEditDate) updates.date = new Date(`${bulkEditDate}T12:00:00Z`).toISOString();
+    if (bulkEditCustomerName.trim()) updates.customerName = bulkEditCustomerName.trim();
+    if (bulkEditPaymentMethod) updates.paymentMethod = bulkEditPaymentMethod;
+    if (bulkEditPaymentStatus) updates.paymentStatus = bulkEditPaymentStatus;
+    if (bulkEditNotes.trim()) updates.notes = bulkEditNotes.trim();
+    if (bulkEditReason.trim()) updates.editReason = bulkEditReason.trim();
+
+    if (Object.keys(updates).length === 0) {
+      alert("برائے مہربانی کم از کم ایک فیلڈ منتخب کریں جس میں ترمیم کرنی ہے۔");
+      return;
+    }
+
+    if (!bulkEditReason.trim()) {
+      alert("ترمیم کی وجہ درج کرنا لازمی ہے۔");
+      return;
+    }
+
+    setIsBulkSaving(true);
+    try {
+      const res = await fetch("/api/sales", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: selectedSaleIds, updates }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        alert(`کامیابی سے ${json.updatedCount} انوائسز میں ترمیم کر دی گئی۔`);
+        setShowBulkEditModal(false);
+        setSelectedSaleIds([]);
+        setBulkEditDate("");
+        setBulkEditCustomerName("");
+        setBulkEditPaymentMethod("");
+        setBulkEditPaymentStatus("");
+        setBulkEditNotes("");
+        setBulkEditReason("");
+        invalidateCache("/api/sales");
+        invalidateCache("/api/dashboard");
+        fetchSales();
+      } else {
+        alert(json.error || "بلک ایڈیٹ میں ناکامی ہوئی۔");
+      }
+    } catch (err: any) {
+      alert(`خرابی: ${err.message}`);
+    } finally {
+      setIsBulkSaving(false);
     }
   };
 
@@ -775,12 +889,74 @@ export default function SalesPage() {
         </div>
       </div>
 
+      {/* Bulk Selection Actions Bar */}
+      {selectedSaleIds.length > 0 && (
+        <div className="print:hidden flex flex-wrap items-center justify-between gap-3 rounded-2xl border-2 border-indigo-500/40 bg-indigo-50/90 dark:bg-slate-800 dark:border-indigo-600/50 p-3.5 shadow-md animate-fadeIn">
+          <div className="flex items-center gap-2">
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-600 text-xs font-bold text-white shadow-xs">
+              {selectedSaleIds.length}
+            </span>
+            <span className="text-xs font-bold text-indigo-950 dark:text-indigo-100">
+              Invoices Selected (منتخب انوائسز)
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setShowBulkEditModal(true)}
+              className="bg-white border-indigo-300 text-indigo-700 hover:bg-indigo-50 dark:bg-slate-900 dark:text-indigo-300 dark:border-indigo-700 text-xs shadow-2xs"
+            >
+              <Edit className="h-3.5 w-3.5 mr-1.5" />
+              Bulk Edit ({selectedSaleIds.length})
+            </Button>
+
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleBulkDeleteSales}
+              isLoading={isBulkDeleting}
+              className="bg-white border-rose-300 text-rose-700 hover:bg-rose-50 dark:bg-slate-900 dark:text-rose-400 dark:border-rose-800 text-xs shadow-2xs"
+            >
+              <Trash2 className="h-3.5 w-3.5 mr-1.5 text-rose-600" />
+              Delete Selected ({selectedSaleIds.length})
+            </Button>
+
+            <button
+              type="button"
+              onClick={() => setSelectedSaleIds([])}
+              className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-200/60 dark:hover:bg-slate-700"
+              title="Clear selection"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Sales List Table */}
       <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs text-slate-600 dark:text-slate-300">
             <thead className="border-b border-slate-200 bg-slate-50/75 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-400">
               <tr>
+                <th className="py-3 px-3 w-8 text-center print:hidden">
+                  <button
+                    type="button"
+                    onClick={handleToggleSelectAllSales}
+                    className="text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                    title="Select all on this page"
+                  >
+                    {paginatedSales.length > 0 && paginatedSales.every((s) => selectedSaleIds.includes(s.id)) ? (
+                      <CheckSquare className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+                    ) : (
+                      <Square className="h-4 w-4" />
+                    )}
+                  </button>
+                </th>
                 <th className="px-4 py-3">Invoice #</th>
                 <th className="px-4 py-3">Date</th>
                 <th className="px-4 py-3">Customer</th>
@@ -798,6 +974,7 @@ export default function SalesPage() {
               {loading ? (
                 Array.from({ length: 6 }).map((_, idx) => (
                   <tr key={idx} className="animate-pulse">
+                    <td className="px-3 py-3.5 print:hidden"><div className="h-4 w-4 bg-slate-200 dark:bg-slate-800 rounded" /></td>
                     <td className="px-4 py-3.5"><div className="h-4 w-24 bg-slate-200 dark:bg-slate-800 rounded-md" /></td>
                     <td className="px-4 py-3.5"><div className="h-4 w-18 bg-slate-100 dark:bg-slate-800/60 rounded" /></td>
                     <td className="px-4 py-3.5"><div className="h-4 w-36 bg-slate-200 dark:bg-slate-800 rounded" /></td>
@@ -813,13 +990,33 @@ export default function SalesPage() {
                 ))
               ) : paginatedSales.length === 0 ? (
                 <tr>
-                  <td colSpan={11} className="py-8 text-center text-xs text-slate-400">
+                  <td colSpan={12} className="py-8 text-center text-xs text-slate-400">
                     No sales invoices found matching your criteria. Try adjusting date or payment filters.
                   </td>
                 </tr>
               ) : (
-                paginatedSales.map((sale) => (
-                  <tr key={sale.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition-colors">
+                paginatedSales.map((sale) => {
+                  const isSelected = selectedSaleIds.includes(sale.id);
+                  return (
+                  <tr
+                    key={sale.id}
+                    className={`hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition-colors ${
+                      isSelected ? "bg-indigo-50/40 dark:bg-indigo-950/30" : ""
+                    }`}
+                  >
+                    <td className="py-3 px-3 text-center print:hidden">
+                      <button
+                        type="button"
+                        onClick={() => handleToggleSelectSale(sale.id)}
+                        className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                      >
+                        {isSelected ? (
+                          <CheckSquare className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+                        ) : (
+                          <Square className="h-4 w-4" />
+                        )}
+                      </button>
+                    </td>
                     <td className="px-4 py-3 font-semibold text-slate-900 dark:text-white">
                       <div className="flex flex-col gap-1 items-start">
                         <div className="flex items-center gap-1.5 flex-wrap">
@@ -964,7 +1161,8 @@ export default function SalesPage() {
                       </div>
                     </td>
                   </tr>
-                ))
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -1325,6 +1523,133 @@ export default function SalesPage() {
                   Save Changes (ترمیم محفوظ کریں)
                 </Button>
               </div>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {/* Bulk Edit Modal */}
+      {showBulkEditModal && (
+        <Modal
+          isOpen={showBulkEditModal}
+          onClose={() => setShowBulkEditModal(false)}
+          title={`Bulk Edit Invoices (${selectedSaleIds.length} Selected)`}
+          maxWidth="lg"
+        >
+          <form onSubmit={handleBulkEditSales} className="space-y-4">
+            <div className="rounded-xl border border-indigo-200 bg-indigo-50/70 p-3 text-xs text-indigo-900 dark:border-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-200">
+              <p className="font-semibold mb-1">
+                آپ بیک وقت {selectedSaleIds.length} انوائسز میں تبدیلیاں کر رہے ہیں۔
+              </p>
+              <p className="text-[11px] text-indigo-700 dark:text-indigo-300">
+                جس فیلڈ کو آپ خالی چھوڑیں گے اس میں کوئی تبدیلی نہیں ہوگی۔ صرف مطلوبہ فیلڈز کو پر کریں۔
+              </p>
+            </div>
+
+            {/* 1. Date */}
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                New Invoice Date (نئی تاریخ - اختیاری)
+              </label>
+              <input
+                type="date"
+                value={bulkEditDate}
+                onChange={(e) => setBulkEditDate(e.target.value)}
+                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 dark:bg-slate-900 dark:border-slate-700 dark:text-white"
+              />
+            </div>
+
+            {/* 2. Customer Name */}
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                New Customer Name (گاہک کا نام - اختیاری)
+              </label>
+              <Input
+                value={bulkEditCustomerName}
+                onChange={(e) => setBulkEditCustomerName(e.target.value)}
+                placeholder="Leave blank to keep existing customer names"
+              />
+            </div>
+
+            {/* 3. Payment Method & Payment Status */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Payment Method (طریقہ ادائیگی)
+                </label>
+                <select
+                  value={bulkEditPaymentMethod}
+                  onChange={(e) => setBulkEditPaymentMethod(e.target.value)}
+                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 dark:bg-slate-900 dark:border-slate-700 dark:text-white"
+                >
+                  <option value="">(تبدیل نہ کریں - Keep Existing)</option>
+                  <option value="CASH">CASH (نقد)</option>
+                  <option value="BANK">BANK (بینک)</option>
+                  <option value="ONLINE">ONLINE (آن لائن)</option>
+                  <option value="CHEQUE">CHEQUE (چیک)</option>
+                  <option value="CREDIT">CREDIT (ادھار)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Payment Status (ادائیگی کی صورتحال)
+                </label>
+                <select
+                  value={bulkEditPaymentStatus}
+                  onChange={(e) => setBulkEditPaymentStatus(e.target.value)}
+                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 dark:bg-slate-900 dark:border-slate-700 dark:text-white"
+                >
+                  <option value="">(تبدیل نہ کریں - Keep Existing)</option>
+                  <option value="PAID">PAID (مکمل ادا شدہ)</option>
+                  <option value="PARTIAL">PARTIAL (جزوی ادائیگی)</option>
+                  <option value="UNPAID">UNPAID (غیر ادا شدہ / ادھار)</option>
+                </select>
+              </div>
+            </div>
+
+            {/* 4. Notes */}
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                Invoice Notes (ریمارکس - اختیاری)
+              </label>
+              <Input
+                value={bulkEditNotes}
+                onChange={(e) => setBulkEditNotes(e.target.value)}
+                placeholder="Leave blank to keep existing notes"
+              />
+            </div>
+
+            {/* 5. Audit Reason (Required) */}
+            <div className="rounded-xl border border-amber-300 bg-amber-50/70 p-3 dark:border-amber-800 dark:bg-amber-950/40">
+              <label className="block text-xs font-bold text-amber-900 dark:text-amber-200 mb-1">
+                Reason for Bulk Edit (بلک ترمیم کی وجہ درج کریں) *
+              </label>
+              <textarea
+                value={bulkEditReason}
+                onChange={(e) => setBulkEditReason(e.target.value)}
+                placeholder="مثال: تاریخ درست کی گئی، غلط کسٹمر اپڈیٹ کیا گیا، وغیرہ..."
+                rows={2}
+                required
+                className="w-full rounded-lg border border-amber-300 bg-white p-2 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500 dark:bg-slate-900 dark:text-white dark:border-amber-700"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setShowBulkEditModal(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                variant="primary"
+                isLoading={isBulkSaving}
+              >
+                Apply to {selectedSaleIds.length} Invoices
+              </Button>
             </div>
           </form>
         </Modal>

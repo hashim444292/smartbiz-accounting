@@ -322,6 +322,92 @@ export async function POST(req: NextRequest) {
   }
 }
 
+export async function PUT(req: NextRequest) {
+  try {
+    const session = await getSession();
+    const businessId = await getActiveBusinessId(req);
+    const body = await req.json();
+
+    const ids: string[] = body.ids || (body.id ? [body.id] : []);
+    const updates = body.updates || body;
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return NextResponse.json(
+        { success: false, error: "Please provide invoice IDs to bulk update." },
+        { status: 400 }
+      );
+    }
+
+    const editorId = session?.userId || "usr-2";
+    const editorName = session?.name || "Administrator";
+    const editReason = updates.editReason || "Bulk invoice update by administrator";
+
+    const updateData: any = {
+      isEdited: true,
+      editCount: { increment: 1 },
+      updatedById: editorId,
+      updatedByName: editorName,
+      editReason,
+      updatedAt: new Date(),
+    };
+
+    if (updates.date) {
+      updateData.date = new Date(updates.date);
+    }
+    if (updates.customerName) {
+      updateData.customerName = updates.customerName;
+    }
+    if (updates.paymentMethod) {
+      updateData.paymentMethod = updates.paymentMethod;
+    }
+    if (updates.paymentStatus) {
+      updateData.paymentStatus = updates.paymentStatus;
+    }
+    if (updates.notes !== undefined) {
+      updateData.notes = updates.notes;
+    }
+
+    let updatedCount = 0;
+    try {
+      const res = await prisma.sale.updateMany({
+        where: { id: { in: ids }, businessId },
+        data: updateData,
+      });
+      updatedCount = res.count;
+    } catch {
+      // Fallback in-memory
+      for (const id of ids) {
+        const s = fallbackStore.sales.find((item) => item.id === id && item.businessId === businessId);
+        if (s) {
+          if (updates.date) s.date = new Date(updates.date).toISOString();
+          if (updates.customerName) s.customerName = updates.customerName;
+          if (updates.paymentMethod) s.paymentMethod = updates.paymentMethod;
+          if (updates.paymentStatus) s.paymentStatus = updates.paymentStatus;
+          if (updates.notes !== undefined) s.notes = updates.notes;
+          s.isEdited = true;
+          s.editCount = (s.editCount || 0) + 1;
+          s.updatedById = editorId;
+          s.updatedByName = editorName;
+          s.updatedAt = new Date().toISOString();
+          s.editReason = editReason;
+          updatedCount++;
+        }
+      }
+    }
+
+    return NextResponse.json({
+      success: true,
+      updatedCount,
+      message: `Successfully updated ${updatedCount} invoices.`,
+    });
+  } catch (err: any) {
+    return NextResponse.json(
+      { success: false, error: err.message || "Failed to update invoices." },
+      { status: 500 }
+    );
+  }
+}
+
 export async function DELETE(req: NextRequest) {
   try {
     const session = await getSession();
