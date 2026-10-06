@@ -51,6 +51,8 @@ export default function SettingsPage() {
   const [fbrSaving, setFbrSaving] = useState(false);
   const [fbrTesting, setFbrTesting] = useState(false);
   const [fbrTestResult, setFbrTestResult] = useState<any | null>(null);
+  const [realUsers, setRealUsers] = useState<any[]>([]);
+  const [realAuditLogs, setRealAuditLogs] = useState<any[]>([]);
 
   useEffect(() => {
     async function loadFbrSettings() {
@@ -74,6 +76,26 @@ export default function SettingsPage() {
       }
     }
     loadFbrSettings();
+
+    async function loadUsersAndAudit() {
+      try {
+        const [uRes, aRes] = await Promise.all([
+          fetch("/api/branches/users"),
+          fetch("/api/audit-logs"),
+        ]);
+        const uJson = await uRes.json();
+        const aJson = await aRes.json();
+        if (uJson.success && Array.isArray(uJson.data)) {
+          setRealUsers(uJson.data);
+        }
+        if (aJson.success && Array.isArray(aJson.data)) {
+          setRealAuditLogs(aJson.data);
+        }
+      } catch (e) {
+        console.error("Failed loading users or audit logs:", e);
+      }
+    }
+    loadUsersAndAudit();
   }, [activeCompany?.id]);
 
   useEffect(() => {
@@ -197,18 +219,8 @@ export default function SettingsPage() {
     }
   };
 
-  const users = [
-    { name: "Hashim Khan", email: "admin@smartbiz.com", role: "OWNER_ADMIN", status: "Active" },
-    { name: "Farhan Accountant", email: "accountant@smartbiz.com", role: "ACCOUNTANT", status: "Active" },
-    { name: "Bilal Cashier", email: "staff@smartbiz.com", role: "STAFF", status: "Active" },
-  ];
-
-  const auditLogs = [
-    { action: "CREATE_SALE", entity: "Sale", details: "Invoice #INV-2026-00001 created (Rs 144,500)", time: "Just now" },
-    { action: "FBR_TRANSMISSION", entity: "Compliance", details: "FBR POS invoice FBR-POS-2026-00001 transmitted successfully", time: "10 mins ago" },
-    { action: "BULK_IMPORT", entity: "Products", details: "Imported 31 catalog products with HS code inheritance", time: "1 hour ago" },
-    { action: "HS_CODE_CONFIG", entity: "Company", details: "Organization Default HS Code set to 8517.13", time: "2 hours ago" },
-  ];
+  const usersList = realUsers.length > 0 ? realUsers : (user ? [{ name: user.name, email: user.email, role: user.role, status: "Active" }] : []);
+  const logsList = realAuditLogs;
 
   if (isLoading || !activeCompany) {
     return (
@@ -786,22 +798,26 @@ export default function SettingsPage() {
           </div>
 
           <div className="divide-y divide-slate-100">
-            {users.map((u, idx) => (
-              <div key={idx} className="py-3 flex items-center justify-between text-xs">
-                <div>
-                  <p className="font-semibold text-slate-900">{u.name}</p>
-                  <p className="text-slate-500 text-[11px]">{u.email}</p>
+            {usersList.length === 0 ? (
+              <p className="text-xs text-slate-400 py-3 text-center">No active users found.</p>
+            ) : (
+              usersList.map((u, idx) => (
+                <div key={idx} className="py-3 flex items-center justify-between text-xs">
+                  <div>
+                    <p className="font-semibold text-slate-900">{u.name}</p>
+                    <p className="text-slate-500 text-[11px]">{u.email}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="rounded bg-indigo-50 px-2 py-0.5 text-[10px] font-bold text-indigo-700 border border-indigo-200">
+                      {u.role}
+                    </span>
+                    <span className="rounded bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 border border-emerald-200">
+                      {u.status || "Active"}
+                    </span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="rounded bg-indigo-50 px-2 py-0.5 text-[10px] font-bold text-indigo-700 border border-indigo-200">
-                    {u.role}
-                  </span>
-                  <span className="rounded bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 border border-emerald-200">
-                    {u.status}
-                  </span>
-                </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
       )}
@@ -815,21 +831,27 @@ export default function SettingsPage() {
           </div>
 
           <div className="space-y-2">
-            {auditLogs.map((log, idx) => (
-              <div key={idx} className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-indigo-700 uppercase tracking-wide text-[10px]">
-                      {log.action}
-                    </span>
-                    <span className="text-slate-400">•</span>
-                    <span className="text-slate-900 font-medium">{log.details}</span>
+            {logsList.length === 0 ? (
+              <p className="text-xs text-slate-400 py-4 text-center">No audit log records recorded yet.</p>
+            ) : (
+              logsList.slice(0, 10).map((log, idx) => (
+                <div key={idx} className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-indigo-700 uppercase tracking-wide text-[10px]">
+                        {log.action}
+                      </span>
+                      <span className="text-slate-400">•</span>
+                      <span className="text-slate-900 font-medium">{log.details || log.entity}</span>
+                    </div>
+                    <p className="text-[10px] text-slate-500 mt-0.5">Target: {log.entity}</p>
                   </div>
-                  <p className="text-[10px] text-slate-500 mt-0.5">Target: {log.entity}</p>
+                  <span className="text-slate-500 text-[11px] font-mono">
+                    {log.createdAt ? new Date(log.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "Recently"}
+                  </span>
                 </div>
-                <span className="text-slate-500 text-[11px] font-mono">{log.time}</span>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
       )}

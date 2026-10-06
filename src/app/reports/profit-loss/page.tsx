@@ -103,7 +103,7 @@ export default function ProfitLossPage() {
                 <span className="font-semibold tabular-nums">-{formatMoney(cogs)}</span>
               </div>
               <div className="flex justify-between font-bold pt-2 text-sm text-blue-600 dark:text-blue-400">
-                <span>GROSS PROFIT (Margin: 35.0%)</span>
+                <span>GROSS PROFIT (Margin: {salesRevenue > 0 ? ((grossProfit / salesRevenue) * 100).toFixed(1) : "0.0"}%)</span>
                 <span className="tabular-nums">{formatMoney(grossProfit)}</span>
               </div>
             </div>
@@ -116,20 +116,8 @@ export default function ProfitLossPage() {
             </h3>
             <div className="space-y-2 border-b border-slate-100 pb-3 dark:border-slate-800">
               <div className="flex justify-between">
-                <span>Shop & Warehouse Rent</span>
-                <span className="tabular-nums">Rs 25,000.00</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Electricity & Utilities</span>
-                <span className="tabular-nums">Rs 8,500.00</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Transport & Vehicle Fuel</span>
-                <span className="tabular-nums">Rs 6,200.00</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Office Supplies & Misc</span>
-                <span className="tabular-nums">Rs 5,300.00</span>
+                <span>General Operating & Administrative Expenses</span>
+                <span className="tabular-nums">{formatMoney(expenses)}</span>
               </div>
               <div className="flex justify-between font-bold pt-1 text-slate-800 dark:text-slate-200">
                 <span>Total Operating Expenses</span>
