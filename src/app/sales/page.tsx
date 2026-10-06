@@ -265,9 +265,12 @@ export default function SalesPage() {
   // Filter Sales records
   const filteredSales = sales.filter((s) => {
     // 1. Search text filter
+    const q = search.trim().toLowerCase();
     const matchesSearch =
-      s.invoiceNumber.toLowerCase().includes(search.toLowerCase()) ||
-      s.customerName.toLowerCase().includes(search.toLowerCase());
+      !q ||
+      s.invoiceNumber.toLowerCase().includes(q) ||
+      s.customerName.toLowerCase().includes(q) ||
+      s.items?.some((it) => it.productName?.toLowerCase().includes(q));
 
     // 2. Customer filter
     const matchesCustomer =
@@ -340,6 +343,7 @@ export default function SalesPage() {
       "Invoice Number",
       "Date",
       "Customer Name",
+      "Products Sold",
       "Total Amount",
       "Paid Amount",
       "Remaining Receivable",
@@ -352,6 +356,7 @@ export default function SalesPage() {
       s.invoiceNumber,
       new Date(s.date).toLocaleDateString(),
       `"${(s.customerName || "").replace(/"/g, '""')}"`,
+      `"${(s.items?.map((it) => `${it.productName} (x${it.quantity})`).join("; ") || "").replace(/"/g, '""')}"`,
       Number(s.totalAmount || 0).toFixed(2),
       Number(s.paidAmount || 0).toFixed(2),
       Number(s.remainingAmount || 0).toFixed(2),
@@ -743,6 +748,7 @@ export default function SalesPage() {
                 <th className="px-4 py-3">Invoice #</th>
                 <th className="px-4 py-3">Date</th>
                 <th className="px-4 py-3">Customer</th>
+                <th className="px-4 py-3">Products Sold (اشیاء)</th>
                 <th className="px-4 py-3">Created By (بنایا گیا)</th>
                 <th className="px-4 py-3 text-right">Total Amount</th>
                 <th className="px-4 py-3 text-right">Paid</th>
@@ -759,6 +765,7 @@ export default function SalesPage() {
                     <td className="px-4 py-3.5"><div className="h-4 w-24 bg-slate-200 dark:bg-slate-800 rounded-md" /></td>
                     <td className="px-4 py-3.5"><div className="h-4 w-18 bg-slate-100 dark:bg-slate-800/60 rounded" /></td>
                     <td className="px-4 py-3.5"><div className="h-4 w-36 bg-slate-200 dark:bg-slate-800 rounded" /></td>
+                    <td className="px-4 py-3.5"><div className="h-4 w-32 bg-slate-100 dark:bg-slate-800/60 rounded" /></td>
                     <td className="px-4 py-3.5"><div className="h-4 w-28 bg-slate-200 dark:bg-slate-800 rounded" /></td>
                     <td className="px-4 py-3.5 text-right"><div className="h-4 w-20 bg-slate-200 dark:bg-slate-800 rounded ml-auto" /></td>
                     <td className="px-4 py-3.5 text-right"><div className="h-4 w-16 bg-slate-100 dark:bg-slate-800/60 rounded ml-auto" /></td>
@@ -770,7 +777,7 @@ export default function SalesPage() {
                 ))
               ) : paginatedSales.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="py-8 text-center text-xs text-slate-400">
+                  <td colSpan={11} className="py-8 text-center text-xs text-slate-400">
                     No sales invoices found matching your criteria. Try adjusting date or payment filters.
                   </td>
                 </tr>
@@ -813,6 +820,24 @@ export default function SalesPage() {
                     <td className="px-4 py-3">{new Date(sale.date).toLocaleDateString()}</td>
                     <td className="px-4 py-3 font-medium text-slate-800 dark:text-slate-200">
                       {sale.customerName}
+                    </td>
+                    <td className="px-4 py-3 min-w-[180px]">
+                      {sale.items && sale.items.length > 0 ? (
+                        <div className="flex flex-col gap-1">
+                          {sale.items.map((item, i) => (
+                            <div key={i} className="flex items-center gap-1.5 text-xs">
+                              <span className="font-bold text-slate-900 dark:text-white">
+                                {item.productName || "Product"}
+                              </span>
+                              <span className="rounded bg-emerald-50 border border-emerald-200/60 px-1.5 py-0.2 text-[10px] font-bold text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800 shrink-0">
+                                {Number(item.quantity || 1)} pcs
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-slate-400 text-xs italic">—</span>
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">

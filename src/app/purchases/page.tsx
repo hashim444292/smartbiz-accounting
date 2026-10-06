@@ -312,6 +312,7 @@ export default function PurchasesPage() {
       "Purchase Number",
       "Date",
       "Supplier Name",
+      "Purchased Items / Products",
       "Total Amount",
       "Paid Amount",
       "Payable Balance",
@@ -323,6 +324,7 @@ export default function PurchasesPage() {
       `"${p.purchaseNumber || ""}"`,
       `"${new Date(p.date).toISOString().slice(0, 10)}"`,
       `"${(p.supplierName || "").replace(/"/g, '""')}"`,
+      `"${(p.items?.map((it: any) => `${it.productName || it.name || "Item"} (x${it.quantity})`).join("; ") || "").replace(/"/g, '""')}"`,
       Number(p.totalAmount || 0),
       Number(p.paidAmount || 0),
       Number(p.remainingAmount || 0),
@@ -649,6 +651,7 @@ export default function PurchasesPage() {
                 <th className="px-4 py-3">{t("Purchase #", "خریداری نمبر")}</th>
                 <th className="px-4 py-3">{t("Date", "تاریخ")}</th>
                 <th className="px-4 py-3">{t("Supplier", "سپلائر")}</th>
+                <th className="px-4 py-3">{t("Purchased Items", "خریدی گئی اشیاء")}</th>
                 <th className="px-4 py-3">{t("Created By", "اندراج کنندہ")}</th>
                 <th className="px-4 py-3 text-right">{t("Total Cost", "کل رقم")}</th>
                 <th className="px-4 py-3 text-right">{t("Paid", "ادا شدہ")}</th>
@@ -659,10 +662,10 @@ export default function PurchasesPage() {
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {loading ? (
-                <TableRowsSkeleton rows={6} cols={9} />
+                <TableRowsSkeleton rows={6} cols={10} />
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="py-8 text-center text-xs text-slate-400">
+                  <td colSpan={10} className="py-8 text-center text-xs text-slate-400">
                     No purchase bills found. Click "Record Purchase Bill" to add incoming stock.
                   </td>
                 </tr>
@@ -690,6 +693,24 @@ export default function PurchasesPage() {
                         <span className="inline-block mt-0.5 text-[10px] font-semibold text-slate-500 dark:text-slate-400">
                           📍 {p.branch.name}
                         </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 min-w-[180px]">
+                      {p.items && p.items.length > 0 ? (
+                        <div className="flex flex-col gap-1">
+                          {p.items.map((item: any, i: number) => (
+                            <div key={i} className="flex items-center gap-1.5 text-xs">
+                              <span className="font-bold text-slate-900 dark:text-white">
+                                {item.productName || item.name || "Item"}
+                              </span>
+                              <span className="rounded bg-indigo-50 border border-indigo-200/60 px-1.5 py-0.2 text-[10px] font-bold text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 dark:border-indigo-800 shrink-0">
+                                {Number(item.quantity || 1)} pcs
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-slate-400 text-xs italic">—</span>
                       )}
                     </td>
                     <td className="px-4 py-3">
