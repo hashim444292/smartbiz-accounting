@@ -33,8 +33,8 @@ export async function GET(req: NextRequest) {
     const totalReceivables = fallbackStore.customers.reduce((a, c) => a + c.currentBalance, 0);
     const totalPayables = fallbackStore.suppliers.reduce((a, s) => a + s.currentBalance, 0);
 
-    const cash = fallbackStore.cashBankAccounts.find((a) => a.type === "CASH")?.balance || 50000;
-    const bank = fallbackStore.cashBankAccounts.find((a) => a.type === "BANK")?.balance || 250000;
+    const cash = fallbackStore.cashBankAccounts.find((a) => a.type === "CASH")?.balance || 0;
+    const bank = fallbackStore.cashBankAccounts.find((a) => a.type === "BANK")?.balance || 0;
 
     const fallbackReport = {
       year,

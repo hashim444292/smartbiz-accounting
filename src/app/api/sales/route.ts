@@ -236,7 +236,7 @@ export async function POST(req: NextRequest) {
             address: null,
             taxStatus: body.buyerTaxStatus || "EXEMPT",
             currentBalance: remaining,
-            creditLimit: 500000,
+            creditLimit: 0,
             notes: `Auto-registered from Walk-in sale invoice #${invNum}`,
             createdAt: new Date().toISOString(),
           };

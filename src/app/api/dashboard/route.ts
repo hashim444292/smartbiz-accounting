@@ -125,16 +125,8 @@ export async function GET(req: NextRequest) {
         min: Number(p.minStockLevel || 1),
       }));
 
-    // Generate monthly revenue trend tailored to this business or branch
-    const baseVolume = totalGrossSales > 0 ? totalGrossSales : 1200000;
-    const monthlyTrends = [
-      { month: "Apr", sales: Math.round(baseVolume * 0.55), tax: Math.round(baseVolume * 0.55 * 0.18), fbrCompliant: Math.round(baseVolume * 0.55 * 0.95) },
-      { month: "May", sales: Math.round(baseVolume * 0.68), tax: Math.round(baseVolume * 0.68 * 0.18), fbrCompliant: Math.round(baseVolume * 0.68 * 0.96) },
-      { month: "Jun", sales: Math.round(baseVolume * 0.82), tax: Math.round(baseVolume * 0.82 * 0.18), fbrCompliant: Math.round(baseVolume * 0.82 * 0.95) },
-      { month: "Jul", sales: Math.round(baseVolume * 0.75), tax: Math.round(baseVolume * 0.75 * 0.18), fbrCompliant: Math.round(baseVolume * 0.75 * 0.96) },
-      { month: "Aug", sales: Math.round(baseVolume * 0.92), tax: Math.round(baseVolume * 0.92 * 0.18), fbrCompliant: Math.round(baseVolume * 0.92 * 0.97) },
-      { month: "Sep (Current)", sales: Math.round(totalGrossSales || baseVolume), tax: Math.round(fbrOverview.totalTaxCollected || baseVolume * 0.18), fbrCompliant: Math.round((totalGrossSales || baseVolume) * 0.98) },
-    ];
+    // Generate real monthly revenue trend based on actual data only (no dummy data)
+    const monthlyTrends: { month: string; sales: number; tax: number; fbrCompliant: number }[] = [];
 
     // Calculate Payment Reminders for Overdue & Upcoming Receivables & Payables
     const now = new Date();
@@ -249,8 +241,8 @@ export async function GET(req: NextRequest) {
         totalReceivables: round2(totalReceivables),
         totalPayables: round2(totalPayables),
         totalInventoryValue: round2(totalInventoryValue),
-        cashBalance: round2(cashBalance || 250000),
-        bankBalance: round2(bankBalance || 500000),
+        cashBalance: round2(cashBalance),
+        bankBalance: round2(bankBalance),
         lowStockCount: lowStockAlerts.length,
         lowStockAlerts,
 
