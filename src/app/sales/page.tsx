@@ -629,7 +629,7 @@ export default function SalesPage() {
       </div>
 
       {/* ── KPI Summary Cards ── */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 print:hidden">
         {kpiCards.map((card) => {
           const cl = kpiColor[card.c];
           return (
@@ -937,8 +937,8 @@ export default function SalesPage() {
         </div>
       )}
 
-      {/* Sales List Table */}
-      <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+      {/* Sales List Table (Screen View with Pagination) */}
+      <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 print:hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs text-slate-600 dark:text-slate-300">
             <thead className="border-b border-slate-200 bg-slate-50/75 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-400">
@@ -1263,6 +1263,91 @@ export default function SalesPage() {
             </button>
           </div>
         </div>
+      </div>
+
+      {/* ── Complete Dedicated Printable Sales Register Table (Includes ALL Filtered Invoices, No Pagination Clipping) ── */}
+      <div className="hidden print:block">
+        <table className="w-full text-left text-[11px] border-collapse">
+          <thead>
+            <tr className="border-b-2 border-slate-900 bg-slate-100 text-[10px] font-black uppercase tracking-wider text-slate-800">
+              <th className="py-2 px-2 text-center w-8">#</th>
+              <th className="py-2 px-2">Invoice #</th>
+              <th className="py-2 px-2">Date</th>
+              <th className="py-2 px-2">Customer</th>
+              <th className="py-2 px-2">Items Detail</th>
+              <th className="py-2 px-2 text-right">Total (Rs)</th>
+              <th className="py-2 px-2 text-right">Paid (Rs)</th>
+              <th className="py-2 px-2 text-right">Balance (Rs)</th>
+              <th className="py-2 px-2 text-center">Payment</th>
+              <th className="py-2 px-2 text-center">Status</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-300">
+            {filteredSales.length === 0 ? (
+              <tr>
+                <td colSpan={10} className="py-6 text-center text-slate-500 italic">
+                  No sales invoices found for the selected period / filters.
+                </td>
+              </tr>
+            ) : (
+              filteredSales.map((sale, idx) => (
+                <tr key={sale.id} className="break-inside-avoid">
+                  <td className="py-1.5 px-2 text-center font-bold text-slate-500 text-[10px]">
+                    {idx + 1}
+                  </td>
+                  <td className="py-1.5 px-2 font-black text-slate-900 whitespace-nowrap">
+                    {sale.invoiceNumber}
+                  </td>
+                  <td className="py-1.5 px-2 text-slate-700 whitespace-nowrap">
+                    {new Date(sale.date).toLocaleDateString()}
+                  </td>
+                  <td className="py-1.5 px-2 font-semibold text-slate-900">
+                    {sale.customerName}
+                  </td>
+                  <td className="py-1.5 px-2 text-slate-700 max-w-[200px]">
+                    {sale.items && sale.items.length > 0
+                      ? sale.items.map((it) => `${it.productName || "Product"} (${Number(it.quantity || 1)})`).join(", ")
+                      : "—"}
+                  </td>
+                  <td className="py-1.5 px-2 text-right font-black text-slate-900 tabular-nums whitespace-nowrap">
+                    {formatMoney(sale.totalAmount)}
+                  </td>
+                  <td className="py-1.5 px-2 text-right font-bold text-emerald-800 tabular-nums whitespace-nowrap">
+                    {formatMoney(sale.paidAmount)}
+                  </td>
+                  <td className="py-1.5 px-2 text-right font-bold text-rose-800 tabular-nums whitespace-nowrap">
+                    {formatMoney(sale.remainingAmount)}
+                  </td>
+                  <td className="py-1.5 px-2 text-center font-bold text-[9px] uppercase whitespace-nowrap">
+                    {sale.paymentStatus}
+                  </td>
+                  <td className="py-1.5 px-2 text-center font-bold text-[9px] uppercase whitespace-nowrap">
+                    {sale.status}
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+          <tfoot>
+            <tr className="border-t-2 border-slate-900 bg-slate-100 font-black text-slate-900 text-[11px]">
+              <td colSpan={5} className="py-2.5 px-2 text-right uppercase">
+                Grand Summary ({filteredSales.length} Invoices Filtered):
+              </td>
+              <td className="py-2.5 px-2 text-right tabular-nums whitespace-nowrap">
+                Rs. {formatMoney(filteredTotalGross)}
+              </td>
+              <td className="py-2.5 px-2 text-right tabular-nums whitespace-nowrap text-emerald-800">
+                Rs. {formatMoney(filteredTotalPaid)}
+              </td>
+              <td className="py-2.5 px-2 text-right tabular-nums whitespace-nowrap text-rose-800">
+                Rs. {formatMoney(Math.max(0, filteredTotalGross - filteredTotalPaid))}
+              </td>
+              <td colSpan={2} className="py-2.5 px-2 text-center text-[10px] text-slate-600">
+                End of Report
+              </td>
+            </tr>
+          </tfoot>
+        </table>
       </div>
 
       {/* Edit Sale Invoice Modal with Audit Logging */}

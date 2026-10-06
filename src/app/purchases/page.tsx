@@ -657,7 +657,7 @@ export default function PurchasesPage() {
                 <th className="px-4 py-3 text-right">{t("Paid", "ادا شدہ")}</th>
                 <th className="px-4 py-3 text-right">{t("Payable Balance", "واجب الادا بقایا")}</th>
                 <th className="px-4 py-3 text-center">{t("Status", "حیثیت")}</th>
-                <th className="px-4 py-3 text-right">{t("Actions", "ایکشنز")}</th>
+                <th className="px-4 py-3 text-right print:hidden">{t("Actions", "ایکشنز")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -744,7 +744,7 @@ export default function PurchasesPage() {
                         {p.paymentStatus}
                       </Badge>
                     </td>
-                    <td className="px-4 py-3 text-right">
+                    <td className="px-4 py-3 text-right print:hidden">
                       <div className="flex items-center justify-end gap-1.5">
                         <button
                           onClick={() => setViewingPurchase(p)}
