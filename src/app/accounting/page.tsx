@@ -233,9 +233,9 @@ function AccountingContent() {
           date: new Date(p.date),
           refNumber: p.purchaseNumber,
           type: "PURCHASE BILL",
-          description: `Purchase Bill #${p.purchaseNumber} (خریداری بل)${
-            p.items?.length ? ` - ${p.items.length} items` : ""
-          }`,
+          description: language === "ur"
+            ? `خریداری بل #${p.purchaseNumber}`
+            : `Purchase Bill #${p.purchaseNumber}${p.items?.length ? ` - ${p.items.length} items` : ""}`,
           debit: 0,
           credit: Number(p.totalAmount || 0),
         });
@@ -247,9 +247,9 @@ function AccountingContent() {
           date: new Date(pm.date),
           refNumber: pm.referenceNumber || `PMT-${pm.id.slice(0, 6)}`,
           type: "PAYMENT",
-          description: `Payment to Supplier (ادائیگی) via ${pm.paymentMethod || "CASH"} ${
-            pm.notes ? `(${pm.notes})` : ""
-          }`,
+          description: language === "ur"
+            ? `ادائیگی سپلائر بذریعہ ${pm.paymentMethod || "CASH"}`
+            : `Payment to Supplier via ${pm.paymentMethod || "CASH"} ${pm.notes ? `(${pm.notes})` : ""}`,
           debit: Number(pm.amount || 0),
           credit: 0,
         });
@@ -338,7 +338,9 @@ function AccountingContent() {
         date: new Date(s.date),
         refNumber: s.invoiceNumber,
         type: "SALES INVOICE",
-        description: `Sales Invoice #${s.invoiceNumber} (سیلز انوائس)`,
+        description: language === "ur"
+          ? `سیلز انوائس #${s.invoiceNumber}`
+          : `Sales Invoice #${s.invoiceNumber}`,
         debit: Number(s.totalAmount || 0), // Sales increase receivable (DEBIT)
         credit: 0,
       }));
@@ -348,7 +350,9 @@ function AccountingContent() {
         date: new Date(p.date),
         refNumber: p.referenceNumber || `RCPT-${p.id.slice(0, 6)}`,
         type: "RECEIPT",
-        description: `Receipt from Customer (وصولی) via ${p.paymentMethod || "CASH"}`,
+        description: language === "ur"
+          ? `وصولی گاہک بذریعہ ${p.paymentMethod || "CASH"}`
+          : `Receipt from Customer via ${p.paymentMethod || "CASH"}`,
         debit: 0,
         credit: Number(p.amount || 0), // Receipts decrease receivable (CREDIT)
       }));
@@ -574,18 +578,18 @@ function AccountingContent() {
 
     const entitySubtitle =
       ledgerType === "VENDOR"
-        ? `Vendor / Supplier Statement (وینڈر کھاتہ) | Phone: ${(entity as any).phone || "N/A"}`
+        ? (language === "ur" ? `وینڈر کھاتہ | فون: ${(entity as any).phone || "N/A"}` : `Vendor / Supplier Statement | Phone: ${(entity as any).phone || "N/A"}`)
         : ledgerType === "CUSTOMER"
-        ? `Customer Statement (گاہک کھاتہ) | Phone: ${(entity as any).phone || "N/A"}`
+        ? (language === "ur" ? `گاہک کھاتہ | فون: ${(entity as any).phone || "N/A"}` : `Customer Statement | Phone: ${(entity as any).phone || "N/A"}`)
         : `Chart of Accounts General Ledger: ${(entity as any).type}`;
 
     const dateRangeLabel =
       dateFilter === "ALL"
-        ? "All Transactions (ابتدائے ریکارڈ سے تا حال)"
+        ? (language === "ur" ? "ابتدائے ریکارڈ سے تا حال" : "All Transactions (All Time)")
         : dateFilter === "TODAY"
         ? `Today (${new Date().toLocaleDateString()})`
         : dateFilter === "THIS_WEEK"
-        ? "This Week (موجودہ ہفتہ)"
+        ? (language === "ur" ? "موجودہ ہفتہ" : "This Week")
         : dateFilter === "THIS_MONTH"
         ? `This Month (${new Date().toLocaleString("default", { month: "long", year: "numeric" })})`
         : `Custom Period: ${startDate || "Start"} to ${endDate || "Today"}`;
@@ -639,7 +643,7 @@ function AccountingContent() {
             <div>
               <div class="company-name">${companyName}</div>
               <div style="font-size: 11px; color: #475569;">Official Accounting General & Subsidiary Ledger</div>
-              <div class="doc-tag">STATEMENT OF ACCOUNT / کھاتہ اسٹیٹمنٹ</div>
+              <div class="doc-tag">${language === "ur" ? "کھاتہ اسٹیٹمنٹ" : "STATEMENT OF ACCOUNT"}</div>
             </div>
             <div style="text-align: right;">
               <div style="font-size: 11px; color: #64748b;">Printed On: ${new Date().toLocaleString()}</div>
@@ -670,7 +674,7 @@ function AccountingContent() {
                 <th style="width: 30px; text-align: center;">#</th>
                 <th style="width: 75px; text-align: left;">Date</th>
                 <th style="width: 100px; text-align: left;">Ref # / Vouch</th>
-                <th style="text-align: left;">Particulars / Narration (تفصیل)</th>
+                <th style="text-align: left;">${language === "ur" ? "تفصیل" : "Particulars / Narration"}</th>
                 <th style="width: 90px; text-align: right;">Debit (Rs)</th>
                 <th style="width: 90px; text-align: right;">Credit (Rs)</th>
                 <th style="width: 110px; text-align: right;">Balance (Rs)</th>
@@ -682,7 +686,7 @@ function AccountingContent() {
                 <td style="padding: 8px 6px; text-align: center;">—</td>
                 <td style="padding: 8px 6px;">${startDate || "—"}</td>
                 <td style="padding: 8px 6px; color: #475569;">OPENING</td>
-                <td style="padding: 8px 6px;">Opening Balance Brought Forward (ابتدائی بقایا)</td>
+                <td style="padding: 8px 6px;">${language === "ur" ? "ابتدائی بقایا" : "Opening Balance Brought Forward"}</td>
                 <td style="padding: 8px 6px; text-align: right;">${openingBalanceType === "DR" ? `Rs ${openingBalance.toLocaleString()}` : "—"}</td>
                 <td style="padding: 8px 6px; text-align: right;">${openingBalanceType === "CR" ? `Rs ${openingBalance.toLocaleString()}` : "—"}</td>
                 <td style="padding: 8px 6px; text-align: right;">Rs ${openingBalance.toLocaleString()} <span style="font-size: 9px;">${openingBalanceType}</span></td>
@@ -695,7 +699,7 @@ function AccountingContent() {
                 <td style="padding: 9px 6px; text-align: center;">—</td>
                 <td style="padding: 9px 6px;">${endDate || "Today"}</td>
                 <td style="padding: 9px 6px; color: #0f172a;">CLOSING</td>
-                <td style="padding: 9px 6px;">Closing Balance Carried Down (اختتامی بقایا)</td>
+                <td style="padding: 9px 6px;">${language === "ur" ? "اختتامی بقایا" : "Closing Balance Carried Down"}</td>
                 <td style="padding: 9px 6px; text-align: right;">Rs ${periodDebit.toLocaleString()}</td>
                 <td style="padding: 9px 6px; text-align: right;">Rs ${periodCredit.toLocaleString()}</td>
                 <td style="padding: 9px 6px; text-align: right; color: #1e3a8a;">Rs ${closingBalance.toLocaleString()} <span style="font-size: 9px;">${closingBalanceType}</span></td>
@@ -705,27 +709,27 @@ function AccountingContent() {
 
           <div class="summary-box">
             <div class="summary-row">
-              <span style="color: #64748b;">Opening Balance (ابتدائی بقایا):</span>
+              <span style="color: #64748b;">${language === "ur" ? "ابتدائی بقایا:" : "Opening Balance:"}</span>
               <span style="font-weight: 700;">Rs ${openingBalance.toLocaleString()} ${openingBalanceType}</span>
             </div>
             <div class="summary-row">
-              <span style="color: #64748b;">Total Period Debits (کل ڈیبٹ):</span>
+              <span style="color: #64748b;">${language === "ur" ? "کل ڈیبٹ:" : "Total Period Debits:"}</span>
               <span style="font-weight: 700; color: #15803d;">Rs ${periodDebit.toLocaleString()}</span>
             </div>
             <div class="summary-row">
-              <span style="color: #64748b;">Total Period Credits (کل کریڈٹ):</span>
+              <span style="color: #64748b;">${language === "ur" ? "کل کریڈٹ:" : "Total Period Credits:"}</span>
               <span style="font-weight: 700; color: #b91c1c;">Rs ${periodCredit.toLocaleString()}</span>
             </div>
             <div class="total-row">
-              <span>Closing Balance (اختتامی بقایا):</span>
+              <span>${language === "ur" ? "اختتامی بقایا:" : "Closing Balance:"}</span>
               <span>Rs ${closingBalance.toLocaleString()} ${closingBalanceType}</span>
             </div>
           </div>
 
           <div class="sign-grid">
-            <div class="sign-block">Prepared By (اکاؤنٹنٹ)</div>
-            <div class="sign-block">Audited & Verified (پڑتال کنندہ)</div>
-            <div class="sign-block">Customer / Party Acceptance (دستخط پارٹی)</div>
+            <div class="sign-block">${language === "ur" ? "اکاؤنٹنٹ دستخط" : "Prepared By"}</div>
+            <div class="sign-block">${language === "ur" ? "پڑتال کنندہ" : "Audited & Verified"}</div>
+            <div class="sign-block">${language === "ur" ? "دستخط پارٹی" : "Customer / Party Acceptance"}</div>
           </div>
         </body>
       </html>
@@ -1413,8 +1417,8 @@ function AccountingContent() {
                 className="rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                 title="Sort journal entries"
               >
-                <option value="DATE_DESC">{t("Sort: Newest First (تاریخ: نیا پہلے)", "تاریخ: نیا پہلے")}</option>
-                <option value="DATE_ASC">{t("Sort: Oldest First (تاریخ: پرانا پہلے)", "تاریخ: پرانا پہلے")}</option>
+                <option value="DATE_DESC">{t("Sort: Newest First", "تاریخ: نیا پہلے")}</option>
+                <option value="DATE_ASC">{t("Sort: Oldest First", "تاریخ: پرانا پہلے")}</option>
                 <option value="ENTRY_DESC">{t("Sort: Entry # (High to Low)", "اندراج نمبر: زیادہ سے کم")}</option>
                 <option value="ENTRY_ASC">{t("Sort: Entry # (Low to High)", "اندراج نمبر: کم سے زیادہ")}</option>
               </select>

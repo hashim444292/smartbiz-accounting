@@ -31,6 +31,7 @@ import {
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/context/AuthContext";
+import { useLanguage } from "@/context/LanguageContext";
 import { BrandPageLoader, TableSkeleton } from "@/components/ui/loader";
 
 const AVAILABLE_MODULES = [
@@ -47,6 +48,7 @@ const AVAILABLE_MODULES = [
 export default function CompaniesManagementPage() {
   const router = useRouter();
   const { user, activeCompany, switchCompany, inspectCompany } = useAuth();
+  const { language, t } = useLanguage();
   const [companies, setCompanies] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [billingStats, setBillingStats] = useState<any>(null);
@@ -849,15 +851,15 @@ export default function CompaniesManagementPage() {
                             )}
                             {comp.packageType === "FBR_INVOICING_ONLY" ? (
                               <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                ⚡ FBR Invoicing Only (خالص FBR انوائسنگ)
+                                ⚡ {t("FBR Invoicing Only", "خالص FBR انوائسنگ")}
                               </span>
                             ) : comp.packageType === "ACCOUNTING_ONLY" || (comp.enabledModules && !comp.enabledModules.includes("compliance") && !comp.enabledModules.includes("pos")) ? (
                               <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200">
-                                📘 Accounting Only (صرف اکاؤنٹنگ)
+                                📘 {t("Accounting Only", "صرف اکاؤنٹنگ")}
                               </span>
                             ) : (
                               <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-200">
-                                🚀 Full Suite: Accounting + POS + DI
+                                🚀 {t("Full Suite: Accounting + POS + DI", "مکمل سافٹ ویئر: اکاؤنٹنگ + POS + FBR")}
                               </span>
                             )}
                             <button
@@ -868,9 +870,9 @@ export default function CompaniesManagementPage() {
                                   ? "bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100"
                                   : "bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200"
                               }`}
-                              title="Click to toggle Multi-Branch authorization for this company"
+                              title={t("Click to toggle Multi-Branch authorization for this company", "اس کمپنی کے لیے ملٹی برانچ کی اجازت تبدیل کریں")}
                             >
-                              <span>🏢 {comp.canCreateBranches ? "Multi-Branch: Enabled (ملٹی برانچ)" : "Single Branch (سنگل برانچ)"}</span>
+                              <span>🏢 {comp.canCreateBranches ? t("Multi-Branch: Enabled", "ملٹی برانچ: فعال") : t("Single Branch", "سنگل برانچ")}</span>
                             </button>
                           </div>
                         </td>
@@ -1298,7 +1300,7 @@ export default function CompaniesManagementPage() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-900">
                     <CreditCard className="h-4 w-4 text-emerald-600" />
-                    <span>SaaS Monthly Subscription & Billing Lifecycle (ماہانہ فیس و بلنگ تاریخ)</span>
+                    <span>{t("SaaS Monthly Subscription & Billing Lifecycle", "ماہانہ فیس و بلنگ تاریخ")}</span>
                   </div>
                   <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-white border border-emerald-300 text-emerald-800">
                     SaaS Billing Control
@@ -1328,7 +1330,7 @@ export default function CompaniesManagementPage() {
                   {/* Billing Start Date */}
                   <div>
                     <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
-                      Billing Start Date (بلنگ شروع) *
+                      {t("Billing Start Date *", "بلنگ شروع *")}
                     </label>
                     <input
                       type="date"
@@ -1347,14 +1349,14 @@ export default function CompaniesManagementPage() {
                       className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:border-emerald-500 focus:outline-none font-medium"
                     />
                     <p className="text-[9px] text-slate-500 mt-0.5">
-                      Mid-month aane par yahan se start date select karein.
+                      {t("Select initial start date if onboarding mid-month.", "مہینے کے درمیان شروع ہونے پر یہاں تاریخ منتخب کریں۔")}
                     </p>
                   </div>
 
                   {/* Next Renewal Due Date */}
                   <div>
                     <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
-                      Next Renewal Due (اگلی تجدید) *
+                      {t("Next Renewal Due *", "اگلی تجدید *")}
                     </label>
                     <input
                       type="date"
@@ -1364,7 +1366,7 @@ export default function CompaniesManagementPage() {
                       className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:border-emerald-500 focus:outline-none font-medium"
                     />
                     <p className="text-[9px] text-slate-500 mt-0.5">
-                      Next month is date par payment due hogi.
+                      {t("Renewal subscription payment due date.", "اگلے مہینے اس تاریخ کو ادائیگی واجب الادا ہوگی۔")}
                     </p>
                   </div>
                 </div>
@@ -1372,7 +1374,7 @@ export default function CompaniesManagementPage() {
                 {/* Payment Status on Registration */}
                 <div className="pt-2 border-t border-emerald-100">
                   <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1.5">
-                    Initial Payment Status (رجسٹریشن کے وقت فیس موصول ہوئی؟) *
+                    {t("Initial Payment Status *", "رجسٹریشن کے وقت فیس موصول ہوئی؟ *")}
                   </label>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <label
@@ -1391,9 +1393,9 @@ export default function CompaniesManagementPage() {
                         className="text-amber-600 focus:ring-amber-500"
                       />
                       <div className="text-xs">
-                        <span className="block font-bold">Unpaid / Pending (ادا نہیں ہوا)</span>
+                        <span className="block font-bold">{t("Unpaid / Pending", "ادا نہیں ہوا")}</span>
                         <span className="text-[10px] text-slate-500 block font-normal">
-                          Client kal ya baad mein payment karega (direct Paid nahi hoga).
+                          {t("Client will pay later (marked pending).", "کلائنٹ بعد میں فیس ادا کرے گا۔")}
                         </span>
                       </div>
                     </label>
@@ -1414,9 +1416,9 @@ export default function CompaniesManagementPage() {
                         className="text-emerald-600 focus:ring-emerald-500"
                       />
                       <div className="text-xs">
-                        <span className="block font-bold">Paid on Registration (ادا ہو گیا)</span>
+                        <span className="block font-bold">{t("Paid on Registration", "ادا ہو گیا")}</span>
                         <span className="text-[10px] text-slate-500 block font-normal">
-                          Client ne registration ke waqt hi fees ada kar di hai.
+                          {t("Subscription fee paid immediately at registration.", "کلائنٹ نے رجسٹریشن کے وقت ہی فیس ادا کر دی ہے۔")}
                         </span>
                       </div>
                     </label>
@@ -1429,14 +1431,19 @@ export default function CompaniesManagementPage() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 text-xs font-bold text-purple-950 dark:text-purple-200">
                     <Shield className="h-4 w-4 text-purple-600" />
-                    <span className="uppercase tracking-wider">Software Package & Edition (سافٹ ویئر پیکیج منتخب کریں) *</span>
+                    <span className="uppercase tracking-wider">
+                      {t("Software Package & Edition *", "سافٹ ویئر پیکیج منتخب کریں *")}
+                    </span>
                   </div>
                   <span className="text-[10px] font-bold text-purple-700 bg-purple-100 dark:bg-purple-900/60 dark:text-purple-300 px-2.5 py-0.5 rounded-full">
                     3 Plans Available
                   </span>
                 </div>
                 <p className="text-[11px] text-slate-600 dark:text-slate-400">
-                  منتخب کریں کہ کلائنٹ صرف اکاؤنٹنگ لے رہا ہے، خالص FBR انوائسنگ لے رہا ہے، یا مکمل آل ان ون سافٹ ویئر:
+                  {t(
+                    "Choose whether client needs Accounting Only, FBR Invoicing Only, or the Complete All-in-One Suite:",
+                    "منتخب کریں کہ کلائنٹ صرف اکاؤنٹنگ لے رہا ہے، خالص FBR انوائسنگ لے رہا ہے، یا مکمل آل ان ون سافٹ ویئر:"
+                  )}
                 </p>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -1470,25 +1477,28 @@ export default function CompaniesManagementPage() {
                         />
                       </div>
                       <h4 className="text-xs font-black text-slate-900 dark:text-white flex items-center gap-1.5">
-                        <span>📘 صرف اکاؤنٹنگ سافٹ ویئر</span>
+                        <span>📘 {t("Accounting Only Software", "صرف اکاؤنٹنگ سافٹ ویئر")}</span>
                       </h4>
                       <p className="text-[11px] text-slate-500 mt-1">
-                        خالص اکاؤنٹنگ، ادھار کھاتہ، خریداری، روزمرہ اخراجات، اسٹاک، نفع نقصان اور بیلنس شیٹ۔
+                        {t(
+                          "Core double-entry accounting, customer/supplier ledgers, purchase bills, expenses, stock, and financial reports.",
+                          "خالص اکاؤنٹنگ، ادھار کھاتہ، خریداری، روزمرہ اخراجات، اسٹاک، نفع نقصان اور بیلنس شیٹ۔"
+                        )}
                       </p>
                     </div>
 
                     <div className="mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800 space-y-1 text-[10px]">
                       <div className="text-emerald-600 font-semibold flex items-center gap-1">
-                        ✓ ڈبل انٹری جنرل لیجر و کھاتہ
+                        {t("✓ Double-entry ledger & accounts", "✓ ڈبل انٹری جنرل لیجر و کھاتہ")}
                       </div>
                       <div className="text-emerald-600 font-semibold flex items-center gap-1">
-                        ✓ خریداری، اخراجات، کسٹمر/سپلائر
+                        {t("✓ Purchases, expenses, customer/supplier", "✓ خریداری، اخراجات، کسٹمر/سپلائر")}
                       </div>
                       <div className="text-rose-500 font-medium flex items-center gap-1">
-                        ✗ POS ریٹیل کاؤنٹر شامل نہیں
+                        {t("✗ POS retail counter excluded", "✗ POS ریٹیل کاؤنٹر شامل نہیں")}
                       </div>
                       <div className="text-rose-500 font-medium flex items-center gap-1">
-                        ✗ FBR ڈیجیٹل انوائسنگ شامل نہیں
+                        {t("✗ FBR digital invoicing excluded", "✗ FBR ڈیجیٹل انوائسنگ شامل نہیں")}
                       </div>
                     </div>
                   </div>
@@ -1523,28 +1533,31 @@ export default function CompaniesManagementPage() {
                         />
                       </div>
                       <h4 className="text-xs font-black text-slate-900 dark:text-white flex items-center gap-1.5">
-                        <span>⚡ خالص FBR انوائسنگ و بلنگ</span>
+                        <span>⚡ {t("FBR Invoicing & Billing Only", "خالص FBR انوائسنگ و بلنگ")}</span>
                       </h4>
                       <p className="text-[11px] text-slate-500 mt-1">
-                        صرف سیلز انوائس بنائیں یا ایکسل/CSV سے بلک اپلوڈ کریں اور لائیو FBR ہٹ کریں۔ کوئی کھاتہ یا اسٹاک کا جھنجھٹ نہیں۔
+                        {t(
+                          "Create sales invoices or bulk upload via Excel/CSV and transmit live to FBR without bookkeeping hassle.",
+                          "صرف سیلز انوائس بنائیں یا ایکسل/CSV سے بلک اپلوڈ کریں اور لائیو FBR ہٹ کریں۔ کوئی کھاتہ یا اسٹاک کا جھنجھٹ نہیں۔"
+                        )}
                       </p>
                     </div>
 
                     <div className="mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800 space-y-1 text-[10px]">
                       <div className="text-emerald-600 font-semibold flex items-center gap-1">
-                        ✓ سیلز انوائس و فاسٹ POS کاؤنٹر
+                        {t("✓ Sales invoices & fast POS counter", "✓ سیلز انوائس و فاسٹ POS کاؤنٹر")}
                       </div>
                       <div className="text-emerald-600 font-semibold flex items-center gap-1">
-                        ✓ ایکسل / CSV بلک انوائس اپلوڈ
+                        {t("✓ Excel / CSV bulk invoice upload", "✓ ایکسل / CSV بلک انوائس اپلوڈ")}
                       </div>
                       <div className="text-emerald-600 font-semibold flex items-center gap-1">
-                        ✓ FBR لائیو ہٹ، QR کوڈ و تصدیق
+                        {t("✓ Live FBR submission & QR code", "✓ FBR لائیو ہٹ، QR کوڈ و تصدیق")}
                       </div>
                       <div className="text-rose-500 font-medium flex items-center gap-1">
-                        ✗ اسٹاک و انونٹری مینجمنٹ بند
+                        {t("✗ Inventory & stock management disabled", "✗ اسٹاک و انونٹری مینجمنٹ بند")}
                       </div>
                       <div className="text-rose-500 font-medium flex items-center gap-1">
-                        ✗ کھاتہ، اخراجات و جنرل لیجر بند
+                        {t("✗ Ledgers, expenses & journal entries disabled", "✗ کھاتہ، اخراجات و جنرل لیجر بند")}
                       </div>
                     </div>
                   </div>
@@ -1589,25 +1602,28 @@ export default function CompaniesManagementPage() {
                         />
                       </div>
                       <h4 className="text-xs font-black text-slate-900 dark:text-white flex items-center gap-1.5">
-                        <span>🚀 مکمل سافٹ ویئر (All-in-One)</span>
+                        <span>🚀 {t("Complete Software (All-in-One)", "مکمل سافٹ ویئر (All-in-One)")}</span>
                       </h4>
                       <p className="text-[11px] text-slate-500 mt-1">
-                        تمام سہولیات شامل: ریٹیل POS، FBR لائیو ڈیجیٹل انوائسنگ، ایکسل اپلوڈ + مکمل ڈبل انٹری اکاؤنٹنگ و اسٹاک۔
+                        {t(
+                          "Everything included: retail POS, FBR live digital invoicing, bulk import, plus full double-entry accounting and stock.",
+                          "تمام سہولیات شامل: ریٹیل POS، FBR لائیو ڈیجیٹل انوائسنگ، ایکسل اپلوڈ + مکمل ڈبل انٹری اکاؤنٹنگ و اسٹاک۔"
+                        )}
                       </p>
                     </div>
 
                     <div className="mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800 space-y-1 text-[10px]">
                       <div className="text-emerald-600 font-semibold flex items-center gap-1">
-                        ✓ تمام اکاؤنٹنگ، کھاتہ و جنرل لیجر
+                        {t("✓ All accounting, ledgers & double-entry", "✓ تمام اکاؤنٹنگ، کھاتہ و جنرل لیجر")}
                       </div>
                       <div className="text-emerald-600 font-semibold flex items-center gap-1">
-                        ✓ فاسٹ ریٹیل POS کاؤنٹر و بارکوڈ
+                        {t("✓ Fast retail POS counter & barcode", "✓ فاسٹ ریٹیل POS کاؤنٹر و بارکوڈ")}
                       </div>
                       <div className="text-purple-600 font-bold flex items-center gap-1">
-                        ✓ FBR POS و ڈیجیٹل انوائسنگ (QR کوڈ)
+                        {t("✓ FBR POS & digital invoicing (QR code)", "✓ FBR POS و ڈیجیٹل انوائسنگ (QR کوڈ)")}
                       </div>
                       <div className="text-emerald-600 font-semibold flex items-center gap-1">
-                        ✓ مال اسکینر، ملٹی برانچ و تمام رپورٹس
+                        {t("✓ AI invoice reader, multi-branch & reports", "✓ مال اسکینر، ملٹی برانچ و تمام رپورٹس")}
                       </div>
                     </div>
                   </div>
@@ -1619,7 +1635,7 @@ export default function CompaniesManagementPage() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 text-xs font-bold text-indigo-950">
                     <Building2 className="h-4 w-4 text-indigo-600" />
-                    <span>Multi-Branch Authorization (ملٹی برانچ مینجمنٹ کی اجازت)</span>
+                    <span>{t("Multi-Branch Authorization", "ملٹی برانچ مینجمنٹ کی اجازت")}</span>
                   </div>
                   <label className="relative inline-flex items-center cursor-pointer">
                     <input
@@ -1994,7 +2010,7 @@ export default function CompaniesManagementPage() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-900">
                     <CreditCard className="h-4 w-4 text-emerald-600" />
-                    <span>SaaS Subscription & Monthly Billing (ماہانہ فیس و بلنگ تاریخ)</span>
+                    <span>{t("SaaS Subscription & Monthly Billing", "ماہانہ فیس و بلنگ تاریخ")}</span>
                   </div>
                 </div>
 
@@ -2018,7 +2034,7 @@ export default function CompaniesManagementPage() {
 
                   <div>
                     <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
-                      Billing Start Date (بلنگ شروع)
+                      {t("Billing Start Date", "بلنگ شروع")}
                     </label>
                     <input
                       type="date"
@@ -2030,7 +2046,7 @@ export default function CompaniesManagementPage() {
 
                   <div>
                     <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
-                      Next Renewal Due (اگلی تجدید)
+                      {t("Next Renewal Due", "اگلی تجدید")}
                     </label>
                     <input
                       type="date"
@@ -2044,7 +2060,7 @@ export default function CompaniesManagementPage() {
                 {/* Current Payment Status */}
                 <div className="pt-2 border-t border-emerald-100">
                   <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1.5">
-                    Current Payment Status (فیس کی ادائیگی کی موجودہ صورتحال) *
+                    {t("Current Payment Status *", "فیس کی ادائیگی کی موجودہ صورتحال *")}
                   </label>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <label
@@ -2063,9 +2079,9 @@ export default function CompaniesManagementPage() {
                         className="text-amber-600 focus:ring-amber-500"
                       />
                       <div className="text-xs">
-                        <span className="block font-bold">Unpaid / Pending (ادا نہیں ہوا)</span>
+                        <span className="block font-bold">{t("Unpaid / Pending", "ادا نہیں ہوا")}</span>
                         <span className="text-[10px] text-slate-500 block font-normal">
-                          Client ki taraf se payment baqi hai.
+                          {t("Subscription payment is pending from client.", "کلائنٹ کی طرف سے فیس باقی ہے۔")}
                         </span>
                       </div>
                     </label>
@@ -2086,9 +2102,9 @@ export default function CompaniesManagementPage() {
                         className="text-emerald-600 focus:ring-emerald-500"
                       />
                       <div className="text-xs">
-                        <span className="block font-bold">Paid & Active (ادا ہو گیا)</span>
+                        <span className="block font-bold">{t("Paid & Active", "ادا ہو گیا")}</span>
                         <span className="text-[10px] text-slate-500 block font-normal">
-                          Is maah ki fess ada ho chuki hai.
+                          {t("Current month subscription fee paid & account active.", "اس ماہ کی فیس ادا ہو چکی ہے اور اکاؤنٹ فعال ہے۔")}
                         </span>
                       </div>
                     </label>
@@ -2101,14 +2117,19 @@ export default function CompaniesManagementPage() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 text-xs font-bold text-purple-950 dark:text-purple-200">
                     <Shield className="h-4 w-4 text-purple-600" />
-                    <span className="uppercase tracking-wider">Software Package & Edition (سافٹ ویئر پیکیج) *</span>
+                    <span className="uppercase tracking-wider">
+                      {t("Software Package & Edition *", "سافٹ ویئر پیکیج *")}
+                    </span>
                   </div>
                   <span className="text-[10px] font-bold text-purple-700 bg-purple-100 dark:bg-purple-900/60 dark:text-purple-300 px-2.5 py-0.5 rounded-full">
                     3 Plans Available
                   </span>
                 </div>
                 <p className="text-[11px] text-slate-600 dark:text-slate-400">
-                  اس کمپنی کا پیکیج منتخب یا تبدیل کریں:
+                  {t(
+                    "Select or update the software package assigned to this company:",
+                    "اس کمپنی کا پیکیج منتخب یا تبدیل کریں:"
+                  )}
                 </p>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -2142,25 +2163,28 @@ export default function CompaniesManagementPage() {
                         />
                       </div>
                       <h4 className="text-xs font-black text-slate-900 dark:text-white flex items-center gap-1.5">
-                        <span>📘 صرف اکاؤنٹنگ سافٹ ویئر</span>
+                        <span>📘 {t("Accounting Only Software", "صرف اکاؤنٹنگ سافٹ ویئر")}</span>
                       </h4>
                       <p className="text-[11px] text-slate-500 mt-1">
-                        خالص اکاؤنٹنگ، ادھار کھاتہ، خریداری، روزمرہ اخراجات، اسٹاک، نفع نقصان اور بیلنس شیٹ۔
+                        {t(
+                          "Core double-entry accounting, customer/supplier ledgers, purchase bills, expenses, stock, and financial reports.",
+                          "خالص اکاؤنٹنگ، ادھار کھاتہ، خریداری، روزمرہ اخراجات، اسٹاک، نفع نقصان اور بیلنس شیٹ۔"
+                        )}
                       </p>
                     </div>
 
                     <div className="mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800 space-y-1 text-[10px]">
                       <div className="text-emerald-600 font-semibold flex items-center gap-1">
-                        ✓ ڈبل انٹری جنرل لیجر و کھاتہ
+                        {t("✓ Double-entry ledger & accounts", "✓ ڈبل انٹری جنرل لیجر و کھاتہ")}
                       </div>
                       <div className="text-emerald-600 font-semibold flex items-center gap-1">
-                        ✓ خریداری، اخراجات، کسٹمر/سپلائر لیجر
+                        {t("✓ Purchases, expenses, customer/supplier", "✓ خریداری، اخراجات، کسٹمر/سپلائر لیجر")}
                       </div>
                       <div className="text-rose-500 font-medium flex items-center gap-1">
-                        ✗ POS ریٹیل کاؤنٹر شامل نہیں
+                        {t("✗ POS retail counter excluded", "✗ POS ریٹیل کاؤنٹر شامل نہیں")}
                       </div>
                       <div className="text-rose-500 font-medium flex items-center gap-1">
-                        ✗ FBR ڈیجیٹل انوائسنگ شامل نہیں
+                        {t("✗ FBR digital invoicing excluded", "✗ FBR ڈیجیٹل انوائسنگ شامل نہیں")}
                       </div>
                     </div>
                   </div>
@@ -2195,28 +2219,31 @@ export default function CompaniesManagementPage() {
                         />
                       </div>
                       <h4 className="text-xs font-black text-slate-900 dark:text-white flex items-center gap-1.5">
-                        <span>⚡ خالص FBR انوائسنگ و بلنگ</span>
+                        <span>⚡ {t("FBR Invoicing & Billing Only", "خالص FBR انوائسنگ و بلنگ")}</span>
                       </h4>
                       <p className="text-[11px] text-slate-500 mt-1">
-                        صرف سیلز انوائس بنائیں یا ایکسل/CSV سے بلک اپلوڈ کریں اور لائیو FBR ہٹ کریں۔ کوئی کھاتہ یا اسٹاک کا جھنجھٹ نہیں۔
+                        {t(
+                          "Create sales invoices or bulk upload via Excel/CSV and transmit live to FBR without bookkeeping hassle.",
+                          "صرف سیلز انوائس بنائیں یا ایکسل/CSV سے بلک اپلوڈ کریں اور لائیو FBR ہٹ کریں۔ کوئی کھاتہ یا اسٹاک کا جھنجھٹ نہیں۔"
+                        )}
                       </p>
                     </div>
 
                     <div className="mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800 space-y-1 text-[10px]">
                       <div className="text-emerald-600 font-semibold flex items-center gap-1">
-                        ✓ سیلز انوائس و فاسٹ POS کاؤنٹر
+                        {t("✓ Sales invoices & fast POS counter", "✓ سیلز انوائس و فاسٹ POS کاؤنٹر")}
                       </div>
                       <div className="text-emerald-600 font-semibold flex items-center gap-1">
-                        ✓ ایکسل / CSV بلک انوائس اپلوڈ
+                        {t("✓ Excel / CSV bulk invoice upload", "✓ ایکسل / CSV بلک انوائس اپلوڈ")}
                       </div>
                       <div className="text-emerald-600 font-semibold flex items-center gap-1">
-                        ✓ FBR لائیو ہٹ، QR کوڈ و تصدیق
+                        {t("✓ Live FBR submission & QR code", "✓ FBR لائیو ہٹ، QR کوڈ و تصدیق")}
                       </div>
                       <div className="text-rose-500 font-medium flex items-center gap-1">
-                        ✗ اسٹاک و انونٹری مینجمنٹ بند
+                        {t("✗ Inventory & stock management disabled", "✗ اسٹاک و انونٹری مینجمنٹ بند")}
                       </div>
                       <div className="text-rose-500 font-medium flex items-center gap-1">
-                        ✗ کھاتہ، اخراجات و جنرل لیجر بند
+                        {t("✗ Ledgers, expenses & journal entries disabled", "✗ کھاتہ، اخراجات و جنرل لیجر بند")}
                       </div>
                     </div>
                   </div>
@@ -2261,25 +2288,28 @@ export default function CompaniesManagementPage() {
                         />
                       </div>
                       <h4 className="text-xs font-black text-slate-900 dark:text-white flex items-center gap-1.5">
-                        <span>🚀 مکمل سافٹ ویئر (All-in-One)</span>
+                        <span>🚀 {t("Complete Software (All-in-One)", "مکمل سافٹ ویئر (All-in-One)")}</span>
                       </h4>
                       <p className="text-[11px] text-slate-500 mt-1">
-                        تمام سہولیات شامل: ریٹیل POS، FBR لائیو ڈیجیٹل انوائسنگ، ایکسل اپلوڈ + مکمل ڈبل انٹری اکاؤنٹنگ و اسٹاک۔
+                        {t(
+                          "Everything included: retail POS, FBR live digital invoicing, bulk import, plus full double-entry accounting and stock.",
+                          "تمام سہولیات شامل: ریٹیل POS، FBR لائیو ڈیجیٹل انوائسنگ، ایکسل اپلوڈ + مکمل ڈبل انٹری اکاؤنٹنگ و اسٹاک۔"
+                        )}
                       </p>
                     </div>
 
                     <div className="mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800 space-y-1 text-[10px]">
                       <div className="text-emerald-600 font-semibold flex items-center gap-1">
-                        ✓ تمام اکاؤنٹنگ، کھاتہ و جنرل لیجر
+                        {t("✓ All accounting, ledgers & double-entry", "✓ تمام اکاؤنٹنگ، کھاتہ و جنرل لیجر")}
                       </div>
                       <div className="text-emerald-600 font-semibold flex items-center gap-1">
-                        ✓ فاسٹ ریٹیل POS کاؤنٹر و بارکوڈ
+                        {t("✓ Fast retail POS counter & barcode", "✓ فاسٹ ریٹیل POS کاؤنٹر و بارکوڈ")}
                       </div>
                       <div className="text-purple-600 font-bold flex items-center gap-1">
-                        ✓ FBR POS و ڈیجیٹل انوائسنگ (QR کوڈ)
+                        {t("✓ FBR POS & digital invoicing (QR code)", "✓ FBR POS و ڈیجیٹل انوائسنگ (QR کوڈ)")}
                       </div>
                       <div className="text-emerald-600 font-semibold flex items-center gap-1">
-                        ✓ مال اسکینر، ملٹی برانچ و تمام رپورٹس
+                        {t("✓ AI invoice reader, multi-branch & reports", "✓ مال اسکینر، ملٹی برانچ و تمام رپورٹس")}
                       </div>
                     </div>
                   </div>
@@ -2291,7 +2321,7 @@ export default function CompaniesManagementPage() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 text-xs font-bold text-indigo-950">
                     <Building2 className="h-4 w-4 text-indigo-600" />
-                    <span>Multi-Branch Authorization (ملٹی برانچ مینجمنٹ کی اجازت)</span>
+                    <span>{t("Multi-Branch Authorization", "ملٹی برانچ مینجمنٹ کی اجازت")}</span>
                   </div>
                   <label className="relative inline-flex items-center cursor-pointer">
                     <input

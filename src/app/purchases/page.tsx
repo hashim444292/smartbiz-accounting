@@ -129,7 +129,7 @@ export default function PurchasesPage() {
             <div>
               <div class="company-name">${companyName}</div>
               <div style="font-size: 12px; color: #475569; margin-top: 2px;">📍 Branch / Outlet: ${branchName}</div>
-              <div class="doc-tag">INWARD GOODS RECEIVING NOTE & PURCHASE BILL (خریداری و وصولی بل)</div>
+              <div class="doc-tag">${language === "ur" ? "خریداری و وصولی بل" : "INWARD GOODS RECEIVING NOTE & PURCHASE BILL"}</div>
             </div>
             <div style="text-align: right;">
               <div style="font-size: 17px; font-weight: 800; color: #0f172a;">${p.purchaseNumber}</div>
@@ -144,13 +144,13 @@ export default function PurchasesPage() {
 
           <div class="info-grid">
             <div>
-              <div style="color: #64748b; font-size: 11px; font-weight: 700; text-transform: uppercase;">Supplier Details (سپلائر)</div>
+              <div style="color: #64748b; font-size: 11px; font-weight: 700; text-transform: uppercase;">${language === "ur" ? "سپلائر تفصیلات" : "Supplier Details"}</div>
               <div style="font-size: 14px; font-weight: 800; color: #0f172a; margin-top: 2px;">${p.supplierName}</div>
               ${p.supplier?.phone ? `<div style="color: #475569; margin-top: 2px;">📞 Phone: ${p.supplier.phone}</div>` : ""}
               ${p.supplier?.address ? `<div style="color: #475569; margin-top: 2px;">🏢 Address: ${p.supplier.address}</div>` : ""}
             </div>
             <div style="text-align: right;">
-              <div style="color: #64748b; font-size: 11px; font-weight: 700; text-transform: uppercase;">Record Details (ریکارڈ اندراج)</div>
+              <div style="color: #64748b; font-size: 11px; font-weight: 700; text-transform: uppercase;">${language === "ur" ? "ریکارڈ اندراج" : "Record Details"}</div>
               <div style="margin-top: 2px;"><strong>Entered By:</strong> ${p.createdByName || "System Admin"}</div>
               <div style="margin-top: 2px;"><strong>Payment Method:</strong> ${p.paymentMethod || "CASH"}</div>
               ${p.notes ? `<div style="margin-top: 2px; color: #475569; font-style: italic;"><strong>Notes:</strong> ${p.notes}</div>` : ""}
@@ -162,9 +162,9 @@ export default function PurchasesPage() {
               <tr>
                 <th style="width: 35px; text-align: center;">#</th>
                 <th style="text-align: left;">Item Description & Catalog SKU</th>
-                <th style="width: 100px; text-align: center;">Qty Received (تعداد)</th>
-                <th style="width: 120px; text-align: right;">Unit Cost (لاگت)</th>
-                <th style="width: 130px; text-align: right;">Line Total (کل رقم)</th>
+                <th style="width: 100px; text-align: center;">${language === "ur" ? "تعداد" : "Qty Received"}</th>
+                <th style="width: 120px; text-align: right;">${language === "ur" ? "لاگت" : "Unit Cost"}</th>
+                <th style="width: 130px; text-align: right;">${language === "ur" ? "کل رقم" : "Line Total"}</th>
                 <th style="width: 80px; text-align: center;">Stock Tally</th>
               </tr>
             </thead>
@@ -189,15 +189,15 @@ export default function PurchasesPage() {
               <span style="font-weight: 600;">+ Rs ${Number(p.taxAmount).toLocaleString()}</span>
             </div>` : ""}
             <div class="total-row">
-              <span>Total Bill (کل خریداری بل):</span>
+              <span>${language === "ur" ? "کل خریداری بل:" : "Total Bill:"}</span>
               <span>Rs ${Number(p.totalAmount || 0).toLocaleString()}</span>
             </div>
             <div class="summary-row" style="color: #15803d; font-weight: 700;">
-              <span>Amount Paid (ادا شدہ رقم):</span>
+              <span>${language === "ur" ? "ادا شدہ رقم:" : "Amount Paid:"}</span>
               <span>Rs ${Number(p.paidAmount || 0).toLocaleString()}</span>
             </div>
             <div class="summary-row" style="color: #b91c1c; font-weight: 700;">
-              <span>Remaining Payable (بقیہ واجب الادا):</span>
+              <span>${language === "ur" ? "بقیہ واجب الادا:" : "Remaining Payable:"}</span>
               <span>Rs ${Number(p.remainingAmount || 0).toLocaleString()}</span>
             </div>
           </div>
@@ -205,15 +205,15 @@ export default function PurchasesPage() {
           <div class="sign-grid">
             <div class="sign-block">
               Physical Stock Tallied & Received By<br />
-              <span style="font-size: 10px; font-weight: normal; color: #64748b;">(گودام / دکان انچارج دستخط)</span>
+              <span style="font-size: 10px; font-weight: normal; color: #64748b;">${language === "ur" ? "(گودام / دکان انچارج دستخط)" : "(Store Incharge Signature)"}</span>
             </div>
             <div class="sign-block">
               Accounting & Purchase Entry Verified<br />
-              <span style="font-size: 10px; font-weight: normal; color: #64748b;">(اکاؤنٹس مہر و دستخط)</span>
+              <span style="font-size: 10px; font-weight: normal; color: #64748b;">${language === "ur" ? "(اکاؤنٹس مہر و دستخط)" : "(Accounts Signature)"}</span>
             </div>
             <div class="sign-block">
               Authorized Signatory<br />
-              <span style="font-size: 10px; font-weight: normal; color: #64748b;">(مالک / مینیجر دستخط)</span>
+              <span style="font-size: 10px; font-weight: normal; color: #64748b;">${language === "ur" ? "(مالک / مینیجر دستخط)" : "(Authorized Signatory)"}</span>
             </div>
           </div>
 
@@ -270,7 +270,7 @@ export default function PurchasesPage() {
     e.preventDefault();
     if (!editingPurchase) return;
     if (!editReason.trim()) {
-      alert("Please provide an edit reason (ترمیم کی وجہ درج کرنا لازمی ہے).");
+      alert(t("Please provide an edit reason.", "ترمیم کی وجہ درج کرنا لازمی ہے۔"));
       return;
     }
     setEditSaving(true);
@@ -767,7 +767,7 @@ export default function PurchasesPage() {
                         <button
                           onClick={() => setViewingPurchase(p)}
                           className="flex items-center gap-1 rounded-lg bg-blue-50 px-2 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-100 dark:bg-blue-950/60 dark:text-blue-300 dark:hover:bg-blue-900/60 transition-colors"
-                          title="Inspect Bill Slip & Tally Inventory (بل دیکھیں اور اسٹاک ٹیلی کریں)"
+                          title={t("Inspect Bill Slip & Tally Inventory", "بل دیکھیں اور اسٹاک ٹیلی کریں")}
                         >
                           <Eye className="h-3.5 w-3.5" />
                           <span>View Slip</span>
@@ -820,7 +820,7 @@ export default function PurchasesPage() {
                   className="gap-1.5 shadow-sm"
                 >
                   <Printer className="h-3.5 w-3.5" />
-                  <span>Print Bill Slip (پرنٹ کریں)</span>
+                  <span>{t("Print Bill Slip", "پرنٹ کریں")}</span>
                 </Button>
                 <Button
                   variant="secondary"
@@ -841,7 +841,7 @@ export default function PurchasesPage() {
             {/* Bill & Supplier Meta Card */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 rounded-xl border border-slate-200 p-4 dark:border-slate-800 dark:bg-slate-900">
               <div>
-                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Supplier / Vendor (سپلائر):</span>
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">{t("Supplier / Vendor", "سپلائر")}:</span>
                 <p className="text-base font-bold text-slate-900 dark:text-white mt-0.5">
                   {viewingPurchase.supplierName}
                 </p>
@@ -875,7 +875,7 @@ export default function PurchasesPage() {
               <div className="flex items-center justify-between mb-2">
                 <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
                   <Package className="h-4 w-4 text-indigo-500" />
-                  <span>Itemized Inward Stock Received (اسٹاک وصولی تفصیلات)</span>
+                  <span>{t("Itemized Inward Stock Received", "اسٹاک وصولی تفصیلات")}</span>
                 </h4>
                 <span className="text-[11px] text-slate-400">
                   {viewingPurchase.items?.length || 0} Line Items
@@ -887,10 +887,10 @@ export default function PurchasesPage() {
                     <tr>
                       <th className="px-3 py-2.5 text-center w-10">#</th>
                       <th className="px-3 py-2.5">Product Description & SKU</th>
-                      <th className="px-3 py-2.5 text-center">Qty Inwarded (تعداد)</th>
-                      <th className="px-3 py-2.5 text-right">Unit Cost (لاگت)</th>
-                      <th className="px-3 py-2.5 text-right">Line Total (کل رقم)</th>
-                      <th className="px-3 py-2.5 text-center">Stock Tally (تصدیق)</th>
+                      <th className="px-3 py-2.5 text-center">{t("Qty Inwarded", "تعداد")}</th>
+                      <th className="px-3 py-2.5 text-right">{t("Unit Cost", "لاگت")}</th>
+                      <th className="px-3 py-2.5 text-right">{t("Line Total", "کل رقم")}</th>
+                      <th className="px-3 py-2.5 text-center">{t("Stock Tally", "تصدیق")}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800 bg-white dark:bg-slate-900">
@@ -935,19 +935,19 @@ export default function PurchasesPage() {
             <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-800/40">
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="rounded-lg bg-white p-3 border border-slate-200/80 dark:bg-slate-900 dark:border-slate-800">
-                  <p className="text-[11px] font-bold uppercase text-slate-400">Total Purchase Bill (کل خریداری)</p>
+                  <p className="text-[11px] font-bold uppercase text-slate-400">{t("Total Purchase Bill", "کل خریداری")}</p>
                   <p className="mt-1 text-xl font-black text-slate-900 dark:text-white tabular-nums">
                     {formatMoney(viewingPurchase.totalAmount)}
                   </p>
                 </div>
                 <div className="rounded-lg bg-emerald-50 p-3 border border-emerald-200/80 dark:bg-emerald-950/30 dark:border-emerald-900/50">
-                  <p className="text-[11px] font-bold uppercase text-emerald-700 dark:text-emerald-300">Amount Paid (ادا شدہ رقم)</p>
+                  <p className="text-[11px] font-bold uppercase text-emerald-700 dark:text-emerald-300">{t("Amount Paid", "ادا شدہ رقم")}</p>
                   <p className="mt-1 text-xl font-black text-emerald-900 dark:text-emerald-100 tabular-nums">
                     {formatMoney(viewingPurchase.paidAmount)}
                   </p>
                 </div>
                 <div className="rounded-lg bg-rose-50 p-3 border border-rose-200/80 dark:bg-rose-950/30 dark:border-rose-900/50">
-                  <p className="text-[11px] font-bold uppercase text-rose-700 dark:text-rose-300">Remaining Balance (واجب الادا)</p>
+                  <p className="text-[11px] font-bold uppercase text-rose-700 dark:text-rose-300">{t("Remaining Balance", "واجب الادا")}</p>
                   <p className="mt-1 text-xl font-black text-rose-900 dark:text-rose-100 tabular-nums">
                     {formatMoney(viewingPurchase.remainingAmount)}
                   </p>
@@ -978,11 +978,11 @@ export default function PurchasesPage() {
 
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="secondary" onClick={() => setViewingPurchase(null)}>
-                Close (بند کریں)
+                {t("Close", "بند کریں")}
               </Button>
               <Button variant="primary" onClick={() => printPurchaseSlip(viewingPurchase)} className="gap-1.5 shadow-sm">
                 <Printer className="h-3.5 w-3.5" />
-                <span>Print Slip (انوائس سلپ پرنٹ کریں)</span>
+                <span>{t("Print Slip", "انوائس سلپ پرنٹ کریں")}</span>
               </Button>
             </div>
           </div>
@@ -1000,7 +1000,7 @@ export default function PurchasesPage() {
             {/* Creator Attribution Info Card */}
             <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3 text-xs dark:border-slate-800 dark:bg-slate-800/50">
               <div className="flex items-center justify-between">
-                <span className="text-slate-500">Original Creator (بنایا گیا بذریعہ):</span>
+                <span className="text-slate-500">{t("Original Creator", "بنایا گیا بذریعہ")}:</span>
                 <span className="font-semibold text-slate-900 dark:text-white">
                   {editingPurchase.createdByName || "System Admin"}
                 </span>
@@ -1037,9 +1037,9 @@ export default function PurchasesPage() {
                   onChange={(e) => setEditPaymentStatus(e.target.value as any)}
                   className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
                 >
-                  <option value="PAID">PAID (مکمل ادا)</option>
-                  <option value="PARTIAL">PARTIAL (جزوی ادا)</option>
-                  <option value="UNPAID">UNPAID (ادھار / واجب الادا)</option>
+                  <option value="PAID">{t("PAID", "مکمل ادا")}</option>
+                  <option value="PARTIAL">{t("PARTIAL", "جزوی ادا")}</option>
+                  <option value="UNPAID">{t("UNPAID", "ادھار / واجب الادا")}</option>
                 </select>
               </div>
 
@@ -1071,7 +1071,7 @@ export default function PurchasesPage() {
             {/* Required Audit Reason */}
             <div className="rounded-xl border border-amber-300 bg-amber-50/70 p-3 dark:border-amber-800 dark:bg-amber-950/40">
               <label className="block text-xs font-bold text-amber-900 dark:text-amber-200 mb-1">
-                Reason for Editing (ترمیم کی وجہ درج کرنا لازمی ہے) *
+                {t("Reason for Editing", "ترمیم کی وجہ")} *
               </label>
               <p className="text-[11px] text-amber-700 dark:text-amber-400 mb-1.5">
                 This modification will be permanently logged in the software Audit Trail along with your name.
@@ -1099,7 +1099,7 @@ export default function PurchasesPage() {
                 variant="primary"
                 isLoading={editSaving}
               >
-                Save Changes (ترمیم محفوظ کریں)
+                {t("Save Changes", "ترمیم محفوظ کریں")}
               </Button>
             </div>
           </form>

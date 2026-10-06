@@ -8,8 +8,10 @@ import { Badge } from "@/components/ui/badge";
 import { Building2, Users, Shield, History, Check, Percent, Layers, AlertCircle, Save } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { BrandPageLoader } from "@/components/ui/loader";
+import { useLanguage } from "@/context/LanguageContext";
 
 export default function SettingsPage() {
+  const { t } = useLanguage();
   const { user, activeCompany, isLoading, refreshSession } = useAuth();
   const isSuperAdmin = user?.role === "SUPER_ADMIN" || user?.role === "ADMIN";
   const canManageFbr = user?.role === "SUPER_ADMIN" || user?.role === "ADMIN" || (user?.role as string) === "OWNER_ADMIN";
@@ -511,7 +513,7 @@ export default function SettingsPage() {
           {/* Integration Mode / Engine */}
           <div className="rounded-xl border border-indigo-200 bg-white p-4 space-y-2">
             <label className="block text-xs font-bold text-slate-800 uppercase tracking-wide">
-              FBR Integration Engine / Mode (طریقہ کار)
+              {t("FBR Integration Engine / Mode", "طریقہ کار / FBR انٹیگریشن انجن")}
             </label>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <button

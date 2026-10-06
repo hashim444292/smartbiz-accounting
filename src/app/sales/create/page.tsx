@@ -35,6 +35,7 @@ import {
   Globe,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { useLanguage } from "@/context/LanguageContext";
 import { smartFetch, invalidateCache } from "@/lib/clientCache";
 
 interface ProductOption {
@@ -90,6 +91,7 @@ type PaymentMode = "FULL" | "PARTIAL" | "CREDIT";
 
 export default function CreateSalePage() {
   const router = useRouter();
+  const { t, language } = useLanguage();
   const { user, activeCompany, branches, selectedBranch, activeBranchId, isBranchLocked } = useAuth();
   const isAccountingOnly = activeCompany?.packageType === "ACCOUNTING_ONLY" || (activeCompany?.enabledModules && !activeCompany.enabledModules.includes("compliance"));
   const effectiveBranch = isBranchLocked ? user?.branchId : (selectedBranch?.id || activeBranchId || null);
@@ -678,25 +680,25 @@ export default function CreateSalePage() {
 
     // 1. Invoice Date
     if (!date) {
-      errors["date"] = "انوائس کی تاریخ منتخب کریں (Invoice date is required)";
+      errors["date"] = t("Invoice date is required", "انوائس کی تاریخ منتخب کریں");
     }
 
     // 2. Line Items
     if (!items || items.length === 0) {
-      errors["items"] = "بل بنانے کے لیے کم از کم ایک آئٹم شامل کریں (Please add at least one line item)";
+      errors["items"] = t("Please add at least one line item to generate the invoice.", "بل بنانے کے لیے کم از کم ایک آئٹم شامل کریں۔");
     } else {
       items.forEach((it, idx) => {
         if (!it.productName.trim()) {
-          errors[`item_${idx}_product`] = `آئٹم #${idx + 1} کا نام درج کریں (Item name is required)`;
+          errors[`item_${idx}_product`] = t(`Item #${idx + 1} name is required`, `آئٹم #${idx + 1} کا نام درج کریں`);
         }
         if (Number(it.quantity) <= 0 || isNaN(Number(it.quantity))) {
-          errors[`item_${idx}_quantity`] = `آئٹم #${idx + 1} کی مقدار 0 سے زیادہ ہونی چاہیے (Quantity must be > 0)`;
+          errors[`item_${idx}_quantity`] = t(`Item #${idx + 1} quantity must be greater than 0`, `آئٹم #${idx + 1} کی مقدار 0 سے زیادہ ہونی چاہیے`);
         }
         if (Number(it.unitPrice) < 0 || isNaN(Number(it.unitPrice))) {
-          errors[`item_${idx}_price`] = `آئٹم #${idx + 1} کی قیمت منفی نہیں ہو سکتی (Unit price cannot be negative)`;
+          errors[`item_${idx}_price`] = t(`Item #${idx + 1} price cannot be negative`, `آئٹم #${idx + 1} کی قیمت منفی نہیں ہو سکتی`);
         }
         if (Number(it.discountPercent) < 0 || Number(it.discountPercent) > 100) {
-          errors[`item_${idx}_disc`] = `ڈسکاؤنٹ 0 سے 100% کے درمیان ہونا چاہیے (Discount 0-100%)`;
+          errors[`item_${idx}_disc`] = t("Discount must be between 0% and 100%", "ڈسکاؤنٹ 0 سے 100% کے درمیان ہونا چاہیے");
         }
       });
     }
@@ -707,40 +709,40 @@ export default function CreateSalePage() {
 
     if (!customerId && remaining > 0) {
       if (!walkInName.trim()) {
-        errors["walkInName"] = "ادھار / باقی رقم کے لیے خریدار کا نام درج کرنا لازمی ہے (Customer name required for credit balance)";
+        errors["walkInName"] = t("Customer name is required for credit balance", "ادھار / باقی رقم کے لیے خریدار کا نام درج کرنا لازمی ہے");
       }
       if (!walkInPhone.trim()) {
-        errors["walkInPhone"] = "باقی رقم فالو اپ کے لیے خریدار کا فون نمبر درج کریں (Phone number required for credit follow-up)";
+        errors["walkInPhone"] = t("Customer phone number is required for credit follow-up", "باقی رقم فالو اپ کے لیے خریدار کا فون نمبر درج کریں");
       }
     }
 
     if (buyerTaxStatus === "REGISTERED" && customerId) {
       const cust = customers.find((c) => c.id === customerId);
       if (cust && !cust.ntn && !(cust as any).cnic) {
-        errors["customer"] = "رجسٹرڈ خریدار کے لیے کسٹمر کا NTN یا CNIC ہونا لازمی ہے (NTN or CNIC required for Registered Taxpayer)";
+        errors["customer"] = t("NTN or CNIC is required for Registered Taxpayer", "رجسٹرڈ خریدار کے لیے کسٹمر کا NTN یا CNIC ہونا لازمی ہے");
       }
     }
 
     // 4. Payment validations
     if (actualPaid < 0) {
-      errors["paidAmount"] = "ادا کردہ رقم منفی نہیں ہو سکتی (Paid amount cannot be negative)";
+      errors["paidAmount"] = t("Paid amount cannot be negative", "ادا کردہ رقم منفی نہیں ہو سکتی");
     }
     if (actualPaid > totalPayable) {
-      errors["paidAmount"] = "ادا کردہ رقم کل بل سے زیادہ نہیں ہو سکتی (Paid amount cannot exceed total bill)";
+      errors["paidAmount"] = t("Paid amount cannot exceed total bill", "ادا کردہ رقم کل بل سے زیادہ نہیں ہو سکتی");
     }
     if (paymentMode === "PARTIAL" && actualPaid <= 0) {
-      errors["paidAmount"] = "جزوی ادائیگی کے لیے ادا شدہ رقم درج کریں (Please specify paid amount for partial payment)";
+      errors["paidAmount"] = t("Please specify paid amount for partial payment", "جزوی ادائیگی کے لیے ادا شدہ رقم درج کریں");
     }
     if (Number(overallDiscount) < 0) {
-      errors["overallDiscount"] = "ڈسکاؤنٹ رقم منفی نہیں ہو سکتی (Discount cannot be negative)";
+      errors["overallDiscount"] = t("Discount cannot be negative", "ڈسکاؤنٹ رقم منفی نہیں ہو سکتی");
     }
     if (Number(overallDiscount) > grossSubtotal) {
-      errors["overallDiscount"] = "اضافی ڈسکاؤنٹ کل رقم سے زیادہ نہیں ہو سکتا (Discount cannot exceed subtotal)";
+      errors["overallDiscount"] = t("Discount cannot exceed subtotal", "اضافی ڈسکاؤنٹ کل رقم سے زیادہ نہیں ہو سکتا");
     }
 
     // 5. Due date validation
     if (remaining > 0 && dueDate && date && dueDate < date) {
-      errors["dueDate"] = "رقم وصولی کی تاریخ بل کی تاریخ کے بعد ہونی چاہیے (Due date cannot be earlier than invoice date)";
+      errors["dueDate"] = t("Due date cannot be earlier than invoice date", "رقم وصولی کی تاریخ بل کی تاریخ کے بعد ہونی چاہیے");
     }
 
     setFieldErrors(errors);
@@ -1049,7 +1051,7 @@ export default function CreateSalePage() {
             </Link>
             <div>
               <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-2xl">
-                {isAccountingOnly ? "نئی سیلز انوائس (New Sale)" : "سیلز انوائس (Sales Tax Invoice)"}
+                {isAccountingOnly ? t("New Sales Invoice", "نئی سیلز انوائس") : t("Sales Tax Invoice", "سیلز ٹیکس انوائس")}
               </h1>
               <p className="text-xs text-slate-500 dark:text-slate-400">
                 {activeCompany?.name || "SmartBiz Accounting"}
@@ -1061,7 +1063,7 @@ export default function CreateSalePage() {
           {/* Compact Branch Switcher if user has multiple branches */}
           {branches.length > 1 && !isBranchLocked && (
             <div className="flex items-center gap-2">
-              <span className="text-xs font-medium text-slate-500">برانچ:</span>
+              <span className="text-xs font-medium text-slate-500">{t("Branch:", "برانچ:")}</span>
               <select
                 value={saleBranchId}
                 onChange={(e) => setSaleBranchId(e.target.value)}
@@ -1092,7 +1094,7 @@ export default function CreateSalePage() {
               {/* Column 1: INVOICE NUMBER */}
               <div className="space-y-1.5">
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-                  انوائس نمبر (Invoice #)
+                  {t("Invoice Number", "انوائس نمبر")}
                 </label>
                 <div className="relative">
                   <input
@@ -1110,7 +1112,7 @@ export default function CreateSalePage() {
                 <div className="flex items-center justify-between text-xs font-bold text-slate-700 dark:text-slate-300">
                   <span className="flex items-center gap-1.5">
                     <Calendar className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
-                    <span>تاریخ (Invoice Date)</span>
+                    <span>{t("Invoice Date", "تاریخ")}</span>
                   </span>
                   {date !== new Date().toISOString().split("T")[0] && (
                     <button
@@ -1118,7 +1120,7 @@ export default function CreateSalePage() {
                       onClick={() => setDate(new Date().toISOString().split("T")[0])}
                       className="text-[11px] font-semibold text-blue-600 hover:underline dark:text-blue-400"
                     >
-                      آج (Today)
+                      {t("Today", "آج")}
                     </button>
                   )}
                 </div>
@@ -1144,7 +1146,7 @@ export default function CreateSalePage() {
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between text-xs font-bold text-slate-700 dark:text-slate-300">
                   <span>
-                    گاہک / کسٹمر (Customer) <span className="text-rose-500">*</span>
+                    {t("Customer", "گاہک / کسٹمر")} <span className="text-rose-500">*</span>
                   </span>
                   <button
                     type="button"
@@ -1154,7 +1156,7 @@ export default function CreateSalePage() {
                     }}
                     className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-700 hover:underline dark:text-blue-400"
                   >
-                    <Plus className="h-3 w-3" /> نیا کسٹمر (+ Add)
+                    <Plus className="h-3 w-3" /> {t("+ Add Customer", "نیا کسٹمر")}
                   </button>
                 </div>
 
@@ -1199,7 +1201,7 @@ export default function CreateSalePage() {
                         : "border-slate-200 focus:border-blue-500 focus:ring-blue-500 dark:border-slate-800"
                     }`}
                   >
-                    <option value="">Walk in (عام گاہک) — Exempt</option>
+                    <option value="">{t("Walk-in Customer (Exempt)", "عام گاہک (Walk-in) — چھوٹ")}</option>
                     {[...customers]
                       .sort((a, b) => Number(b.currentBalance || 0) - Number(a.currentBalance || 0))
                       .map((c) => (
@@ -1210,7 +1212,7 @@ export default function CreateSalePage() {
                         </option>
                       ))}
                     <option value="__ADD_NEW__" className="font-bold text-blue-600">
-                      ➕ + نیا کسٹمر بنائیں (+ Add Customer)
+                      ➕ {t("+ Add New Customer", "+ نیا کسٹمر بنائیں")}
                     </option>
                   </select>
                 </div>
@@ -1318,16 +1320,16 @@ export default function CreateSalePage() {
               {/* Column 3: BUYER TAX STATUS */}
               <div className="space-y-1.5">
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-                  ٹیکس کیٹیگری (Tax Category)
+                  {t("Tax Category", "ٹیکس کیٹیگری")}
                 </label>
                 <select
                   value={buyerTaxStatus}
                   onChange={(e) => handleBuyerTaxStatusChange(e.target.value as BuyerTaxStatus)}
                   className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 focus:border-blue-500 focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200"
                 >
-                  <option value="EXEMPT">عام کسٹمر / Exempt (0% Tax)</option>
-                  <option value="REGISTERED">رجسٹرڈ ٹیکس دہندہ (18% Sales Tax)</option>
-                  <option value="UNREGISTERED">غیر رجسٹرڈ بزنس (18% + 3% Further Tax)</option>
+                  <option value="EXEMPT">{t("Exempt / Regular Consumer (0% Tax)", "عام کسٹمر / چھوٹ (0% Tax)")}</option>
+                  <option value="REGISTERED">{t("Registered Taxpayer (18% Sales Tax)", "رجسٹرڈ ٹیکس دہندہ (18% Sales Tax)")}</option>
+                  <option value="UNREGISTERED">{t("Unregistered Business (18% + 3% Further Tax)", "غیر رجسٹرڈ بزنس (18% + 3% Further Tax)")}</option>
                 </select>
               </div>
             </div>
@@ -1338,7 +1340,7 @@ export default function CreateSalePage() {
                 <div className="flex items-center gap-2">
                   <ShieldCheck className={`h-4 w-4 ${postToFbr ? "text-emerald-600" : "text-slate-400"}`} />
                   <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                    FBR میں رپورٹنگ:
+                    {t("FBR Reporting:", "FBR میں رپورٹنگ:")}
                   </span>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
@@ -1352,7 +1354,7 @@ export default function CreateSalePage() {
                     }`}
                   >
                     <CheckCircle2 className="h-3.5 w-3.5" />
-                    <span>✓ FBR Invoice (بھیجیں)</span>
+                    <span>{t("✓ FBR Invoice (Transmit)", "✓ FBR انوائس (بھیجیں)")}</span>
                   </button>
                   <button
                     type="button"
@@ -1363,7 +1365,7 @@ export default function CreateSalePage() {
                         : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 hover:text-slate-900"
                     }`}
                   >
-                    <span>صرف لوکل بل (Local Sale)</span>
+                    <span>{t("Local Invoice Only", "صرف لوکل بل (Local Sale)")}</span>
                   </button>
 
                   {postToFbr && (
@@ -1419,7 +1421,7 @@ export default function CreateSalePage() {
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-4 dark:border-slate-800">
               <div className="flex items-center gap-3">
                 <h2 className="text-sm font-bold uppercase tracking-wider text-slate-800 dark:text-white">
-                  اشیاء کی تفصیل (Items List)
+                  {t("Items List", "اشیاء کی تفصیل")}
                 </h2>
                 <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
                   {items.length} {items.length === 1 ? "Item" : "Items"}
@@ -1433,7 +1435,7 @@ export default function CreateSalePage() {
                 size="sm"
                 className="bg-blue-600 text-xs font-semibold hover:bg-blue-700 shadow-sm"
               >
-                <Plus className="h-3.5 w-3.5 mr-1" /> آئٹم شامل کریں (+ Add Item)
+                <Plus className="h-3.5 w-3.5 mr-1" /> {t("+ Add Item", "+ آئٹم شامل کریں")}
               </Button>
             </div>
 
@@ -1451,14 +1453,14 @@ export default function CreateSalePage() {
                 <thead className="bg-slate-50/80 border-b border-slate-200 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:bg-slate-800/40 dark:border-slate-800 dark:text-slate-400">
                   <tr>
                     <th className="py-3 pl-4 pr-2 w-10 text-center">#</th>
-                    <th className="py-3 px-3 min-w-[260px]">آئٹم کا نام (Product / Item)</th>
-                    <th className="py-3 px-2 w-20 text-center">یونٹ (UOM)</th>
-                    <th className="py-3 px-2 w-20 text-center">تعداد (Qty)</th>
-                    <th className="py-3 px-2 w-32 text-right">قیمت (Price)</th>
-                    <th className="py-3 px-2 w-20 text-center">ڈسکاؤنٹ %</th>
-                    <th className="py-3 px-2 w-16 text-center">ٹیکس %</th>
-                    <th className="py-3 px-3 w-28 text-right">ٹیکس ایبل</th>
-                    <th className="py-3 px-3 w-32 text-right">کل رقم (Total)</th>
+                    <th className="py-3 px-3 min-w-[260px]">{t("Product / Item", "آئٹم کا نام")}</th>
+                    <th className="py-3 px-2 w-20 text-center">{t("UOM", "یونٹ")}</th>
+                    <th className="py-3 px-2 w-20 text-center">{t("Qty", "تعداد")}</th>
+                    <th className="py-3 px-2 w-32 text-right">{t("Price", "قیمت")}</th>
+                    <th className="py-3 px-2 w-20 text-center">{t("Discount %", "ڈسکاؤنٹ %")}</th>
+                    <th className="py-3 px-2 w-16 text-center">{t("Tax %", "ٹیکس %")}</th>
+                    <th className="py-3 px-3 w-28 text-right">{t("Taxable", "ٹیکس ایبل")}</th>
+                    <th className="py-3 px-3 w-32 text-right">{t("Total", "کل رقم")}</th>
                     <th className="py-3 pl-2 pr-4 w-10 text-center"></th>
                   </tr>
                 </thead>
@@ -1476,7 +1478,7 @@ export default function CreateSalePage() {
                           type="text"
                           value={it.productName}
                           onChange={(e) => handleItemFieldChange(idx, "productName", e.target.value)}
-                          placeholder="آئٹم کا نام لکھیں یا لسٹ سے چنیں"
+                          placeholder={t("Type item name or pick from catalog...", "آئٹم کا نام لکھیں یا لسٹ سے چنیں...")}
                           className={`w-full rounded-lg border px-2.5 py-1.5 text-xs font-semibold text-slate-900 focus:outline-none dark:bg-slate-900 dark:text-white ${
                             fieldErrors[`item_${idx}_product`]
                               ? "border-rose-400 focus:border-rose-600 bg-rose-50/20"
@@ -1496,20 +1498,20 @@ export default function CreateSalePage() {
                             onChange={(e) => handleProductSelect(idx, e.target.value)}
                             className="w-full rounded-md border border-slate-200 bg-slate-50/80 px-2 py-1 text-[11px] text-slate-600 focus:border-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 truncate"
                           >
-                            <option value="">کیٹلاگ سے منتخب کریں...</option>
+                            <option value="">{t("Select from catalog...", "کیٹلاگ سے منتخب کریں...")}</option>
                             {products.map((p) => (
                               <option key={p.id} value={p.id}>
                                 {p.name} {p.sku ? `(${p.sku})` : ""} — Rs. {p.sellingPrice?.toLocaleString()} ({p.currentStock ?? 0} {p.uom || p.unit || "pcs"})
                               </option>
                             ))}
                             <option value="__ADD_NEW__" className="font-bold text-blue-600">
-                              ➕ + نیا پروڈکٹ بنائیں (+ Add Product)
+                              ➕ {t("+ Create New Product", "+ نیا پروڈکٹ بنائیں")}
                             </option>
                           </select>
 
                           <button
                             type="button"
-                            title="Add New Product to Catalog"
+                            title={t("Add New Product to Catalog", "کیٹلاگ میں نیا پروڈکٹ شامل کریں")}
                             onClick={() => {
                               setActiveItemIndexForProduct(idx);
                               setNewProductForm({
@@ -1533,7 +1535,7 @@ export default function CreateSalePage() {
 
                         {it.availableStock > 0 && (
                           <div className="text-[10px] text-slate-400 flex items-center gap-2">
-                            <span>اسٹاک: <strong className="text-slate-600 dark:text-slate-300">{it.availableStock} {it.uom}</strong></span>
+                            <span>{t("Stock:", "اسٹاک:")} <strong className="text-slate-600 dark:text-slate-300">{it.availableStock} {it.uom}</strong></span>
                             {it.sku && <span>SKU: {it.sku}</span>}
                           </div>
                         )}
@@ -1688,8 +1690,8 @@ export default function CreateSalePage() {
                   >
                     <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
                     <div>
-                      <div className="font-bold text-xs">مکمل کیش / بینک</div>
-                      <span className="text-[10px] text-slate-400">100% Full Payment</span>
+                      <div className="font-bold text-xs">{t("Full Payment", "مکمل کیش / بینک")}</div>
+                      <span className="text-[10px] text-slate-400">{t("100% Paid (Cash/Bank)", "مکمل ادا شدہ")}</span>
                     </div>
                   </button>
 
@@ -1704,8 +1706,8 @@ export default function CreateSalePage() {
                   >
                     <Wallet className="h-4 w-4 text-amber-600 shrink-0" />
                     <div>
-                      <div className="font-bold text-xs">کچھ رقم وصول (ایڈوانس)</div>
-                      <span className="text-[10px] text-slate-400">Partial Deposit</span>
+                      <div className="font-bold text-xs">{t("Partial Payment", "کچھ رقم وصول (ایڈوانس)")}</div>
+                      <span className="text-[10px] text-slate-400">{t("Advance / Partial Deposit", "جزوی ایڈوانس")}</span>
                     </div>
                   </button>
 
@@ -1720,8 +1722,8 @@ export default function CreateSalePage() {
                   >
                     <CreditCard className="h-4 w-4 text-rose-600 shrink-0" />
                     <div>
-                      <div className="font-bold text-xs">مکمل ادھار (Credit)</div>
-                      <span className="text-[10px] text-slate-400">100% Receivable</span>
+                      <div className="font-bold text-xs">{t("Full Credit (Udhaar)", "مکمل ادھار")}</div>
+                      <span className="text-[10px] text-slate-400">{t("100% Receivable", "100% ادھار رقم")}</span>
                     </div>
                   </button>
                 </div>
@@ -1779,7 +1781,7 @@ export default function CreateSalePage() {
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-2">
                       <div className="flex items-center gap-1.5 font-bold text-indigo-950 dark:text-indigo-200">
                         <Calendar className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
-                        <span>Payment Promise Date (رقم وصولی کی وعدہ تاریخ / Due Date):</span>
+                        <span>{t("Payment Promise Date (Due Date):", "رقم وصولی کی وعدہ تاریخ:")}</span>
                       </div>
                       <span className="text-[11px] font-bold text-rose-600 dark:text-rose-400">
                         Receivable: Rs {remainingReceivable.toLocaleString()}
@@ -1843,7 +1845,7 @@ export default function CreateSalePage() {
                       </div>
                     </div>
                     <p className="mt-2 text-[10px] text-indigo-700/80 dark:text-indigo-400">
-                      💡 اس تاریخ پر ڈیش بورڈ اور نوٹیفکیشن الرٹ میں گاہک کا نام اور وصولی کی یاد دہانی پاپ ہوگی۔
+                      💡 {t("On this date, a customer receivable reminder will appear on the dashboard.", "اس تاریخ پر ڈیش بورڈ اور نوٹیفکیشن الرٹ میں گاہک کا نام اور وصولی کی یاد دہانی پاپ ہوگی۔")}
                     </p>
                   </div>
                 )}
@@ -1913,13 +1915,13 @@ export default function CreateSalePage() {
                 {/* Payment Terms & Remarks */}
                 <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
                   <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">
-                    Payment Terms / Remarks (ریمارکس)
+                    {t("Payment Terms / Remarks", "ادائیگی کی شرائط / ریمارکس")}
                   </label>
                   <input
                     type="text"
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
-                    placeholder={remainingReceivable > 0 ? "مثلاً: 15 دن میں بقایا رقم ادا کریں گے" : "اختیاری ریمارکس / نوٹس..."}
+                    placeholder={remainingReceivable > 0 ? (language === "ur" ? "مثلاً: 15 دن میں بقایا رقم ادا کریں گے" : "e.g. Will pay remaining balance in 15 days") : (language === "ur" ? "اختیاری ریمارکس / نوٹس..." : "Optional remarks / notes...")}
                     className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-800 focus:border-blue-500 focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200"
                   />
                 </div>
@@ -1931,7 +1933,7 @@ export default function CreateSalePage() {
               <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 space-y-4">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800">
                   <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200">
-                    بل کی تفصیل (Payment Summary)
+                    {t("Payment Summary", "بل کی تفصیل")}
                   </h3>
                 </div>
 
@@ -2191,7 +2193,7 @@ export default function CreateSalePage() {
                   <div className="rounded-xl border border-rose-300 bg-rose-50 p-3.5 text-xs text-rose-800 dark:border-rose-900 dark:bg-rose-950/50 dark:text-rose-200 space-y-1.5 shadow-xs">
                     <div className="flex items-center gap-2 font-bold text-rose-700 dark:text-rose-300">
                       <AlertCircle className="h-4 w-4 shrink-0 text-rose-600 dark:text-rose-400" />
-                      <span>براہ کرم ان غلطیوں کو درست کریں (Please correct the following errors):</span>
+                      <span>{t("Please correct the following errors:", "براہ کرم درج ذیل غلطیوں کو درست کریں:")}</span>
                     </div>
                     <ul className="list-disc list-inside space-y-0.5 text-[11px] pl-1 text-rose-700 dark:text-rose-300">
                       {error && <li>{error}</li>}
@@ -2215,8 +2217,8 @@ export default function CreateSalePage() {
                   >
                     <CheckCircle2 className="h-4 w-4 mr-2" />
                     {submitting
-                      ? (isProcessingSplit ? `بل بن رہے ہیں (${totalPieces} Invoices)...` : "بل محفوظ ہو رہا ہے...")
-                      : "بل محفوظ کریں (Save Invoice)"}
+                      ? (isProcessingSplit ? t(`Generating ${totalPieces} Invoices...`, `بل بن رہے ہیں (${totalPieces} Invoices)...`) : t("Saving Invoice...", "بل محفوظ ہو رہا ہے..."))
+                      : t("Save Invoice", "بل محفوظ کریں")}
                   </Button>
                 </div>
               </div>
@@ -2518,8 +2520,8 @@ export default function CreateSalePage() {
       <Modal
         isOpen={isSplitDecisionModalOpen}
         onClose={() => setIsSplitDecisionModalOpen(false)}
-        title="انوائس جنریشن کا طریقہ منتخب کریں"
-        description="Select Invoicing Generation Mode for Multi-Piece Sale"
+        title={t("Select Invoicing Mode for Multi-Piece Sale", "انوائس جنریشن کا طریقہ منتخب کریں")}
+        description={t("Choose whether to create a single invoice or separate invoices per piece", "ایک مشترکہ بل یا ہر پیس کا الگ بل منتخب کریں")}
         maxWidth="lg"
       >
         <div className="space-y-4">
@@ -2527,10 +2529,16 @@ export default function CreateSalePage() {
             <Package className="h-5 w-5 text-indigo-600 mt-0.5 shrink-0" />
             <div className="space-y-1">
               <p className="font-bold text-sm">
-                کل تعداد: {totalPieces} پیسز | کل رقم: PKR {totalPayable.toLocaleString("en-PK", { minimumFractionDigits: 2 })}
+                {language === "ur"
+                  ? `کل تعداد: ${totalPieces} پیسز | کل رقم: PKR ${totalPayable.toLocaleString("en-PK", { minimumFractionDigits: 2 })}`
+                  : `Total Items: ${totalPieces} Pieces | Total Amount: PKR ${totalPayable.toLocaleString("en-PK", { minimumFractionDigits: 2 })}`}
               </p>
               <p className="text-[11px] text-indigo-800/90 dark:text-indigo-300 leading-relaxed">
-                آپ کے بل میں کل <strong>{totalPieces} پیسز</strong> شامل ہیں۔ کیا آپ ان تمام کا ایک ہی مشترکہ بل بنانا چاہتے ہیں یا ہر پیس کا الگ الگ انوائس جنریٹ کرنا چاہتے ہیں؟
+                {language === "ur" ? (
+                  <>آپ کے بل میں کل <strong>{totalPieces} پیسز</strong> شامل ہیں۔ کیا آپ ان تمام کا ایک ہی مشترکہ بل بنانا چاہتے ہیں یا ہر پیس کا الگ الگ انوائس جنریٹ کرنا چاہتے ہیں؟</>
+                ) : (
+                  <>Your sale contains <strong>{totalPieces} pieces</strong>. Would you like to create 1 single consolidated bill or generate separate invoices for each piece?</>
+                )}
               </p>
             </div>
           </div>
@@ -2544,17 +2552,19 @@ export default function CreateSalePage() {
             >
               <div className="flex items-center gap-2 font-bold text-sm text-blue-950 dark:text-blue-200">
                 <FileText className="h-5 w-5 text-blue-600 shrink-0" />
-                <span>ایک ہی بل بنائیں</span>
+                <span>{t("Single Consolidated Invoice", "ایک ہی بل بنائیں")}</span>
               </div>
               <span className="text-[11px] font-bold text-blue-700 dark:text-blue-300 mt-0.5">
-                (1 Consolidated Invoice)
+                {t("(1 Combined Invoice)", "(1 مشترکہ بل)")}
               </span>
               <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-2 leading-relaxed">
-                تمام {totalPieces} پیسز کا صرف <strong>1 مشترکہ بل</strong> بنے گا۔
+                {language === "ur"
+                  ? <>تمام {totalPieces} پیسز کا صرف <strong>1 مشترکہ بل</strong> بنے گا۔</>
+                  : <>Only <strong>1 combined invoice</strong> will be created for all {totalPieces} items.</>}
               </p>
               {!isAccountingOnly && postToFbr && fbrInvoiceType === "TIER1_POS" && (
                 <div className="mt-3 inline-flex items-center gap-1 rounded-lg bg-emerald-100/80 px-2.5 py-1 text-[11px] font-bold text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
-                  💳 FBR POS فیس: صرف PKR 1.00 (1 بل)
+                  {t("💳 FBR POS Fee: PKR 1.00 (1 Bill)", "💳 FBR POS فیس: صرف PKR 1.00 (1 بل)")}
                 </div>
               )}
             </button>
@@ -2567,17 +2577,19 @@ export default function CreateSalePage() {
             >
               <div className="flex items-center gap-2 font-bold text-sm text-indigo-950 dark:text-indigo-200">
                 <Layers className="h-5 w-5 text-indigo-600 shrink-0" />
-                <span>ہر پیس کا الگ بل بنائیں</span>
+                <span>{t("Separate Invoice Per Piece", "ہر پیس کا الگ بل بنائیں")}</span>
               </div>
               <span className="text-[11px] font-bold text-indigo-700 dark:text-indigo-300 mt-0.5">
-                ({totalPieces} Separate Invoices)
+                {t(`(${totalPieces} Separate Invoices)`, `(${totalPieces} الگ الگ انوائسز)`)}
               </span>
               <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-2 leading-relaxed">
-                ہر پیس کا الگ بل بنے گا (کل <strong>{totalPieces} انوائسز</strong> بنیں گی {!isAccountingOnly && postToFbr ? "اور FBR میں الگ الگ شوٹ ہوں گی" : "اور کھاتے میں درج ہوں گی"})۔
+                {language === "ur"
+                  ? <>ہر پیس کا الگ بل بنے گا (کل <strong>{totalPieces} انوائسز</strong> بنیں گی {!isAccountingOnly && postToFbr ? "اور FBR میں الگ الگ شوٹ ہوں گی" : "اور کھاتے میں درج ہوں گی"})۔</>
+                  : <>Each item will generate its own invoice (total <strong>{totalPieces} invoices</strong>{!isAccountingOnly && postToFbr ? " sent individually to FBR" : " logged in ledger"}).</>}
               </p>
               {!isAccountingOnly && postToFbr && fbrInvoiceType === "TIER1_POS" && (
                 <div className="mt-3 inline-flex items-center gap-1 rounded-lg bg-indigo-100/80 px-2.5 py-1 text-[11px] font-bold text-indigo-800 dark:bg-indigo-950/60 dark:text-indigo-300">
-                  💳 FBR POS فیس: PKR 1.00 فی انوائس (کل PKR {totalPieces}.00)
+                  {t(`💳 FBR POS Fee: PKR 1.00 per invoice (Total PKR ${totalPieces}.00)`, `💳 FBR POS فیس: PKR 1.00 فی انوائس (کل PKR ${totalPieces}.00)`)}
                 </div>
               )}
             </button>
@@ -2590,7 +2602,7 @@ export default function CreateSalePage() {
               size="sm"
               onClick={() => setIsSplitDecisionModalOpen(false)}
             >
-              منسوخ کریں (Cancel)
+              {t("Cancel", "منسوخ کریں")}
             </Button>
           </div>
         </div>
@@ -2601,8 +2613,8 @@ export default function CreateSalePage() {
         <Modal
           isOpen={true}
           onClose={() => setBatchSavedResult(null)}
-          title={`${batchSavedResult.totalCount} انوائسز کامیابی کے ساتھ بن گئیں!`}
-          description={`${batchSavedResult.totalCount} Separate Invoices Generated Successfully`}
+          title={t(`${batchSavedResult.totalCount} Invoices Created Successfully!`, `${batchSavedResult.totalCount} انوائسز کامیابی کے ساتھ بن گئیں!`)}
+          description={t(`${batchSavedResult.totalCount} Separate Invoices Generated Successfully`, `${batchSavedResult.totalCount} الگ الگ انوائسز تیار ہو گئیں`)}
           maxWidth="2xl"
         >
           <div className="space-y-5">
@@ -2614,15 +2626,15 @@ export default function CreateSalePage() {
                 </div>
                 <div>
                   <h4 className="font-bold text-sm">
-                    {batchSavedResult.totalCount} الگ الگ انوائسز تیار ہو گئیں
+                    {t(`${batchSavedResult.totalCount} Separate Invoices Ready`, `${batchSavedResult.totalCount} الگ الگ انوائسز تیار ہو گئیں`)}
                   </h4>
                   <p className="text-xs text-indigo-700 dark:text-indigo-300 font-mono mt-0.5">
-                    بل رینج: <strong>{batchSavedResult.firstInvoiceNumber}</strong> سے <strong>{batchSavedResult.lastInvoiceNumber}</strong>
+                    {t("Invoice Range:", "بل رینج:")} <strong>{batchSavedResult.firstInvoiceNumber}</strong> {t("to", "سے")} <strong>{batchSavedResult.lastInvoiceNumber}</strong>
                   </p>
                 </div>
               </div>
               <div className="text-right">
-                <span className="text-[10px] uppercase font-bold text-slate-500 block">گاہک / کسٹمر:</span>
+                <span className="text-[10px] uppercase font-bold text-slate-500 block">{t("Customer:", "گاہک / کسٹمر:")}</span>
                 <span className="font-bold text-xs text-indigo-950 dark:text-indigo-200">
                   {batchSavedResult.customerName}
                 </span>
@@ -2632,25 +2644,25 @@ export default function CreateSalePage() {
             {/* Summary Cards */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
               <div className="p-3 rounded-xl bg-white border border-slate-200 shadow-2xs dark:bg-slate-900 dark:border-slate-800">
-                <span className="text-[10px] text-slate-400 font-bold uppercase">کل انوائسز (Invoices)</span>
+                <span className="text-[10px] text-slate-400 font-bold uppercase">{t("Total Invoices", "کل انوائسز")}</span>
                 <p className="text-base font-bold font-mono text-indigo-600 dark:text-indigo-400 mt-0.5">
-                  {batchSavedResult.totalCount} بل
+                  {batchSavedResult.totalCount} {t("Invoices", "بل")}
                 </p>
               </div>
               <div className="p-3 rounded-xl bg-white border border-slate-200 shadow-2xs dark:bg-slate-900 dark:border-slate-800">
-                <span className="text-[10px] text-slate-400 font-bold uppercase">کل رقم (Total Amount)</span>
+                <span className="text-[10px] text-slate-400 font-bold uppercase">{t("Total Amount", "کل رقم")}</span>
                 <p className="text-sm font-bold font-mono text-slate-900 dark:text-white mt-0.5">
                   PKR {batchSavedResult.totalAmount?.toLocaleString("en-PK", { minimumFractionDigits: 2 })}
                 </p>
               </div>
               <div className="p-3 rounded-xl bg-white border border-slate-200 shadow-2xs dark:bg-slate-900 dark:border-slate-800">
-                <span className="text-[10px] text-slate-400 font-bold uppercase">وصول شدہ (Paid)</span>
+                <span className="text-[10px] text-slate-400 font-bold uppercase">{t("Paid", "وصول شدہ")}</span>
                 <p className="text-sm font-bold font-mono text-emerald-600 mt-0.5">
                   PKR {batchSavedResult.actualPaid?.toLocaleString("en-PK", { minimumFractionDigits: 2 })}
                 </p>
               </div>
               <div className="p-3 rounded-xl bg-white border border-slate-200 shadow-2xs dark:bg-slate-900 dark:border-slate-800">
-                <span className="text-[10px] text-slate-400 font-bold uppercase">بقایا (Receivable)</span>
+                <span className="text-[10px] text-slate-400 font-bold uppercase">{t("Receivable", "بقایا رقم")}</span>
                 <p className="text-sm font-bold font-mono text-rose-600 mt-0.5">
                   PKR {batchSavedResult.remainingReceivable?.toLocaleString("en-PK", { minimumFractionDigits: 2 })}
                 </p>
@@ -2662,17 +2674,19 @@ export default function CreateSalePage() {
               <div className="rounded-xl border border-indigo-200 bg-indigo-50/70 p-3.5 text-xs text-indigo-950 dark:bg-indigo-950/30 dark:border-indigo-900 dark:text-indigo-200 space-y-1.5">
                 <div className="font-bold flex items-center gap-1.5 text-indigo-800 dark:text-indigo-300">
                   <Zap className="h-4 w-4" />
-                  <span>FBR انوائسنگ کیو (Ready to Shoot):</span>
+                  <span>{t("FBR Invoicing Queue (Ready to Transmit):", "FBR انوائسنگ کیو:")}</span>
                 </div>
                 <p className="leading-relaxed">
-                  یہ تمام <strong>{batchSavedResult.totalCount} انوائسز</strong> FBR انوائسنگ کیو میں شامل ہو چکی ہیں۔ آپ FBR ٹیب میں جا کر تمام بلوں کو ایک ہی کلک میں FBR پر شوٹ (Batch Transmit) کر سکتے ہیں یا الگ الگ بھیج سکتے ہیں۔
+                  {language === "ur"
+                    ? <>یہ تمام <strong>{batchSavedResult.totalCount} انوائسز</strong> FBR انوائسنگ کیو میں شامل ہو چکی ہیں۔ آپ FBR ٹیب میں جا کر تمام بلوں کو ایک ہی کلک میں FBR پر شوٹ (Batch Transmit) کر سکتے ہیں یا الگ الگ بھیج سکتے ہیں۔</>
+                    : <>All <strong>{batchSavedResult.totalCount} invoices</strong> are queued in your FBR Invoicing tab. You can transmit all of them in a single batch click or send individually.</>}
                 </p>
               </div>
             ) : (
               <div className="rounded-xl border border-emerald-200 bg-emerald-50/80 p-3 text-xs text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300">
-                <span className="font-bold">لوکل کھاتہ (Local Sales Ledger): </span>
+                <span className="font-bold">{t("Local Sales Ledger:", "لوکل کھاتہ:")} </span>
                 <span>
-                  یہ تمام {batchSavedResult.totalCount} بل کامیابی سے آپ کے سیلز رجسٹر اور اسٹاک میں اپ ڈیٹ ہو چکے ہیں۔
+                  {t(`All ${batchSavedResult.totalCount} invoices were successfully recorded in your sales register and inventory stock.`, `یہ تمام ${batchSavedResult.totalCount} بل کامیابی سے آپ کے سیلز رجسٹر اور اسٹاک میں اپ ڈیٹ ہو چکے ہیں۔`)}
                 </span>
               </div>
             )}
@@ -2684,7 +2698,7 @@ export default function CreateSalePage() {
                 variant="secondary"
                 onClick={() => router.push("/sales")}
               >
-                View Sales List ({batchSavedResult.totalCount} Invoices)
+                {t(`View Sales List (${batchSavedResult.totalCount} Invoices)`, `سیلز لسٹ دیکھیں (${batchSavedResult.totalCount} انوائسز)`)}
               </Button>
 
               <div className="flex items-center gap-2">
@@ -2693,7 +2707,7 @@ export default function CreateSalePage() {
                   variant="secondary"
                   onClick={() => setBatchSavedResult(null)}
                 >
-                  + Create New Invoice
+                  {t("+ Create New Invoice", "+ نیا بل بنائیں")}
                 </Button>
 
                 {!isAccountingOnly && batchSavedResult.postToFbr && (
@@ -2703,7 +2717,7 @@ export default function CreateSalePage() {
                     className="bg-indigo-600 hover:bg-indigo-700 shadow-sm"
                     onClick={() => router.push("/compliance/fbr")}
                   >
-                    <Zap className="h-4 w-4 mr-1.5" /> FBR کیو کھولیں اور شوٹ کریں
+                    <Zap className="h-4 w-4 mr-1.5" /> {t("Open FBR Queue & Shoot", "FBR کیو کھولیں اور شوٹ کریں")}
                   </Button>
                 )}
               </div>
@@ -2812,9 +2826,9 @@ export default function CreateSalePage() {
               </div>
             ) : (
               <div className="rounded-xl border border-emerald-200 bg-emerald-50/80 p-3 text-xs text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300">
-                <span className="font-bold">لوکل سیل کھاتہ (Local Sale / Internal Ledger): </span>
+                <span className="font-bold">{t("Local Sale (Internal Ledger):", "لوکل سیل کھاتہ:")} </span>
                 <span>
-                  یہ بل کامیابی کے ساتھ آپ کے سیلز رجسٹر اور کسٹمر کھاتے میں درج ہو چکا ہے۔ یہ بل FBR لسٹ میں شامل نہیں کیا گیا ہے۔
+                  {t("This invoice was successfully posted to your sales register and customer ledger. It was not added to the FBR transmission queue.", "یہ بل کامیابی کے ساتھ آپ کے سیلز رجسٹر اور کسٹمر کھاتے میں درج ہو چکا ہے۔ یہ بل FBR لسٹ میں شامل نہیں کیا گیا ہے۔")}
                 </span>
               </div>
             )}

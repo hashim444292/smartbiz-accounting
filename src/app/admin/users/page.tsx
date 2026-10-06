@@ -36,23 +36,24 @@ import {
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { useAuth } from "@/context/AuthContext";
+import { useLanguage } from "@/context/LanguageContext";
 import { BrandPageLoader, TableSkeleton } from "@/components/ui/loader";
 
 const USER_FEATURE_MODULES = [
-  { id: "sales", label: "Sales & Invoicing", urdu: "سیلز اور انوائس بلز", desc: "کسٹمر بلنگ اور انوائسز", icon: Receipt },
-  { id: "pos", label: "POS Counter (بل کاؤنٹر)", urdu: "پی او ایس ریٹیل بلنگ", desc: "فاسٹ ریٹیل کاؤنٹر اور بارکوڈ اسکین", icon: ShoppingCart },
-  { id: "purchases", label: "Purchases & Bills", urdu: "خریداری اور سپلائر بلز", desc: "سپلائر بلنگ اور پرچیز واؤچرز", icon: ShoppingBag },
-  { id: "payments", label: "Cash & Payments", urdu: "پیسے وصولی و ادائیگی", desc: "کسٹمر کیش وصولی اور سپلائر ادائیگیاں", icon: Wallet },
-  { id: "expenses", label: "Daily Expenses", urdu: "دکان کے روزمرہ خرچے", desc: "چائے، بجلی، کرایہ، متفرق اخراجات", icon: Coins },
-  { id: "inventory", label: "Inventory & Stock", urdu: "اسٹاک اور گودام مینجمنٹ", desc: "اسٹاک کاؤنٹ اور ویئرہاؤس موومنٹ", icon: Boxes },
-  { id: "customers", label: "Customers (Khata)", urdu: "گاہکوں کا ادھار کھاتہ", desc: "گاہکوں کا لیجر، ادھار اور بیلنس", icon: Users },
-  { id: "suppliers", label: "Suppliers (Khata)", urdu: "سپلائرز کا ادھار کھاتہ", desc: "سپلائرز کا کھاتہ اور واجب الادا رقوم", icon: Truck },
-  { id: "products", label: "Products & Rates", urdu: "سامان و ریٹ لسٹ", desc: "آئٹم لسٹ، قیمتیں اور بارکوڈز", icon: Package },
-  { id: "reports", label: "Closing & Reports", urdu: "کھاتہ بندش و منافع رپورٹ", desc: "روزمرہ رجسٹر، نفع نقصان اور بیلنس شیٹ", icon: BarChart3 },
-  { id: "compliance", label: "FBR POS Digital", urdu: "FBR ڈیجیٹل انوائسنگ", desc: "ایف بی آر لائیو انوائسنگ و کیو آر کوڈ", icon: ShieldCheck },
-  { id: "accounting", label: "General Ledger", urdu: "ڈبل انٹری جنرل لیجر", desc: "چارٹ آف اکاؤنٹس، جرنل واؤچرز، لیجر", icon: BookOpen },
-  { id: "aiEntry", label: "AI Invoice Reader", urdu: "AI بل اسکینر", desc: "کیمرہ یا فائل سے خودکار بل اسکیننگ", icon: Sparkles },
-  { id: "branches", label: "Sub-Branches", urdu: "آؤٹ لیٹس و برانچز", desc: "متعدد دکانیں اور برانچز کا انتظام", icon: Store },
+  { id: "sales", label: "Sales & Invoicing", urdu: "سیلز اور انوائس بلز", desc: "Customer invoices and sales records", descUrdu: "کسٹمر بلنگ اور انوائسز", icon: Receipt },
+  { id: "pos", label: "POS Counter", urdu: "پی او ایس ریٹیل بلنگ", desc: "Fast retail cash counter and barcode scanner", descUrdu: "فاسٹ ریٹیل کاؤنٹر اور بارکوڈ اسکین", icon: ShoppingCart },
+  { id: "purchases", label: "Purchases & Bills", urdu: "خریداری اور سپلائر بلز", desc: "Supplier bills and purchase vouchers", descUrdu: "سپلائر بلنگ اور پرچیز واؤچرز", icon: ShoppingBag },
+  { id: "payments", label: "Cash & Payments", urdu: "پیسے وصولی و ادائیگی", desc: "Customer collections and vendor disbursements", descUrdu: "کسٹمر کیش وصولی اور سپلائر ادائیگیاں", icon: Wallet },
+  { id: "expenses", label: "Daily Expenses", urdu: "دکان کے روزمرہ خرچے", desc: "Petty expenses, rent, utilities, and tea", descUrdu: "چائے، بجلی، کرایہ، متفرق اخراجات", icon: Coins },
+  { id: "inventory", label: "Inventory & Stock", urdu: "اسٹاک اور گودام مینجمنٹ", desc: "Stock quantities and warehouse movements", descUrdu: "اسٹاک کاؤنٹ اور ویئرہاؤس موومنٹ", icon: Boxes },
+  { id: "customers", label: "Customers (Receivables)", urdu: "گاہکوں کا ادھار کھاتہ", desc: "Customer ledgers, credit follow-ups, and balances", descUrdu: "گاہکوں کا لیجر، ادھار اور بیلنس", icon: Users },
+  { id: "suppliers", label: "Suppliers (Payables)", urdu: "سپلائرز کا ادھار کھاتہ", desc: "Supplier ledgers and payable liabilities", descUrdu: "سپلائرز کا کھاتہ اور واجب الادا رقوم", icon: Truck },
+  { id: "products", label: "Products & Rates", urdu: "سامان و ریٹ لسٹ", desc: "Product catalog, prices, and barcodes", descUrdu: "آئٹم لسٹ، قیمتیں اور بارکوڈز", icon: Package },
+  { id: "reports", label: "Closing & Reports", urdu: "کھاتہ بندش و منافع رپورٹ", desc: "Daily registers, profit & loss, and balance sheet", descUrdu: "روزمرہ رجسٹر، نفع نقصان اور بیلنس شیٹ", icon: BarChart3 },
+  { id: "compliance", label: "FBR POS Digital", urdu: "FBR ڈیجیٹل انوائسنگ", desc: "FBR live invoicing and QR code printing", descUrdu: "ایف بی آر لائیو انوائسنگ و کیو آر کوڈ", icon: ShieldCheck },
+  { id: "accounting", label: "General Ledger", urdu: "ڈبل انٹری جنرل لیجر", desc: "Chart of accounts, journal vouchers, and ledgers", descUrdu: "چارٹ آف اکاؤنٹس، جرنل واؤچرز، لیجر", icon: BookOpen },
+  { id: "aiEntry", label: "AI Invoice Reader", urdu: "AI بل اسکینر", desc: "Automated slip and invoice scanning", descUrdu: "کیمرہ یا فائل سے خودکار بل اسکیننگ", icon: Sparkles },
+  { id: "branches", label: "Sub-Branches", urdu: "آؤٹ لیٹس و برانچز", desc: "Multi-branch and retail outlet management", descUrdu: "متعدد دکانیں اور برانچز کا انتظام", icon: Store },
 ];
 
 const ROLE_PRESETS = [
@@ -131,6 +132,7 @@ const ROLE_PRESETS = [
 export default function UsersManagementPage() {
   const router = useRouter();
   const { user: currentLoggedUser, switchUser } = useAuth();
+  const { language, t } = useLanguage();
   const [users, setUsers] = useState<any[]>([]);
   const [companies, setCompanies] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -521,7 +523,7 @@ export default function UsersManagementPage() {
         color: "bg-amber-100 text-amber-900 dark:bg-amber-950/60 dark:text-amber-200 border-amber-300 shadow-xs",
         icon: Crown,
         badgeText: "👑 SUPER ADMIN",
-        desc: "پلیٹ فارم کا مکمل اور ناقابلِ تنسیخ مالک (ہاشم خان)",
+        desc: language === "ur" ? "پلیٹ فارم کا مکمل اور ناقابلِ تنسیخ مالک (ہاشم خان)" : "Master Owner and Super Admin of the entire platform",
       };
     }
     if (platformRole === "WEBAPP_ADMIN") {
@@ -531,7 +533,7 @@ export default function UsersManagementPage() {
         color: "bg-indigo-100 text-indigo-800 dark:bg-indigo-950/60 dark:text-indigo-300 border-indigo-300",
         icon: ShieldCheck,
         badgeText: "🛡️ WEBAPP ADMIN",
-        desc: "کمپنی مینجمنٹ، بلنگ تجدید، سبسکرپشن اور تکنیکی رسائی",
+        desc: language === "ur" ? "کمپنی مینجمنٹ، بلنگ تجدید، سبسکرپشن اور تکنیکی رسائی" : "Company management, subscription billing, and administrative access",
       };
     }
     if (platformRole === "WEBAPP_EDITOR") {
@@ -541,7 +543,7 @@ export default function UsersManagementPage() {
         color: "bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300 border-blue-300",
         icon: Edit2,
         badgeText: "✏️ WEBAPP EDITOR",
-        desc: "کلائنٹ ریکارڈز دیکھنا و ایڈٹ کرنا، کمپنیاں ڈیلیٹ کرنے کی اجازت نہیں",
+        desc: language === "ur" ? "کلائنٹ ریکارڈز دیکھنا و ایڈٹ کرنا، کمپنیاں ڈیلیٹ کرنے کی اجازت نہیں" : "View and edit client records for customer support without deletion rights",
       };
     }
     if (platformRole === "WEBAPP_VIEWER") {
@@ -551,7 +553,7 @@ export default function UsersManagementPage() {
         color: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-300",
         icon: Eye,
         badgeText: "👁️ WEBAPP VIEWER",
-        desc: "پورٹل اور کلائنٹ ڈیٹا صرف دیکھ سکتا ہے، کسی تبدیلی کی اجازت نہیں",
+        desc: language === "ur" ? "پورٹل اور کلائنٹ ڈیٹا صرف دیکھ سکتا ہے، کسی تبدیلی کی اجازت نہیں" : "Read-only access to companies, audit reports, and billing",
       };
     }
     return {
@@ -560,7 +562,7 @@ export default function UsersManagementPage() {
       color: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border-slate-200",
       icon: Users,
       badgeText: "🏪 SHOP USER",
-      desc: "دکان کے لیے تفویض کردہ اختیارات",
+      desc: language === "ur" ? "دکان کے لیے تفویض کردہ اختیارات" : "Role and permissions assigned for retail shop and accounting",
     };
   };
 
@@ -671,7 +673,7 @@ export default function UsersManagementPage() {
             className="inline-flex items-center justify-center gap-2 rounded-xl bg-purple-600 px-4 py-2.5 text-xs font-bold text-white shadow-md hover:bg-purple-700 transition"
           >
             <Plus className="h-4 w-4" />
-            <span>+ Add Shop User (دکان یوزر بنائیں)</span>
+            <span>{t("+ Add Shop User", "+ دکان یوزر بنائیں")}</span>
           </button>
         ) : (
           <button
@@ -688,7 +690,7 @@ export default function UsersManagementPage() {
             className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-xs font-bold text-white shadow-md hover:bg-indigo-700 transition"
           >
             <Plus className="h-4 w-4" />
-            <span>+ Add WebApp User (ویب ایپ صارف بنائیں)</span>
+            <span>{t("+ Add WebApp User", "+ ویب ایپ صارف بنائیں")}</span>
           </button>
         )}
       </div>
@@ -708,7 +710,7 @@ export default function UsersManagementPage() {
           }`}
         >
           <Store className="h-4 w-4" />
-          <span>🏪 Shop & Client Users (دکانوں و کمپنیوں کے یوزرز)</span>
+          <span>🏪 {t("Shop & Client Users", "دکانوں و کمپنیوں کے یوزرز")}</span>
           <span className="ml-1.5 px-2 py-0.5 rounded-full text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-extrabold">
             {shopUsers.length}
           </span>
@@ -727,7 +729,7 @@ export default function UsersManagementPage() {
           }`}
         >
           <Shield className="h-4 w-4" />
-          <span>⚡ WebApp Platform Team (ویب ایپ ایڈمن و ٹیم)</span>
+          <span>⚡ {t("WebApp Platform Team", "ویب ایپ ایڈمن و ٹیم")}</span>
           <span className="ml-1.5 px-2 py-0.5 rounded-full text-[10px] bg-indigo-100 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 font-extrabold">
             {webappUsers.length}
           </span>
@@ -784,7 +786,7 @@ export default function UsersManagementPage() {
                   <tr className="border-b border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-900 text-slate-500">
                     <th className="py-3.5 px-4 font-bold uppercase tracking-wider">User Profile</th>
                     <th className="py-3.5 px-4 font-bold uppercase tracking-wider">Shop Role</th>
-                    <th className="py-3.5 px-4 font-bold uppercase tracking-wider">Allowed Modules (اختیارات)</th>
+                    <th className="py-3.5 px-4 font-bold uppercase tracking-wider">{t("Allowed Modules", "اختیارات")}</th>
                     <th className="py-3.5 px-4 font-bold uppercase tracking-wider">Assigned Companies</th>
                     <th className="py-3.5 px-4 font-bold uppercase tracking-wider">Joined</th>
                     <th className="py-3.5 px-4 font-bold uppercase tracking-wider text-right">Actions</th>
@@ -961,7 +963,7 @@ export default function UsersManagementPage() {
           <div className="p-4 rounded-2xl bg-gradient-to-r from-indigo-50/80 via-purple-50/60 to-slate-50 dark:from-indigo-950/40 dark:via-purple-950/20 dark:to-slate-900 border border-indigo-200/80 dark:border-indigo-800/80 space-y-3">
             <div className="flex items-center gap-2 text-indigo-900 dark:text-indigo-200 font-bold text-xs">
               <Shield className="h-4 w-4 text-indigo-600" />
-              <span>SaaS Platform Access Tiers (ویب ایپ انٹرنل ایڈمنسٹریشن کی سطحیں)</span>
+              <span>{t("SaaS Platform Access Tiers", "ویب ایپ انٹرنل ایڈمنسٹریشن کی سطحیں")}</span>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-4 gap-3 text-xs">
@@ -972,7 +974,10 @@ export default function UsersManagementPage() {
                   <span>👑 Super Admin</span>
                 </div>
                 <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
-                  <strong>صرف ہاشم خان (Master Owner):</strong> پورے سافٹ ویئر، سرور، ڈیٹا بیس اور تمام کمپنیوں کے غیر مشروط مالک۔ یہ اکاؤنٹ کسی دوسرے کو نہیں دیا جا سکتا۔
+                  {t(
+                    "Master Owner: Unconditional control over the entire platform, databases, and all companies.",
+                    "صرف ہاشم خان (Master Owner): پورے سافٹ ویئر، سرور، ڈیٹا بیس اور تمام کمپنیوں کے غیر مشروط مالک۔ یہ اکاؤنٹ کسی دوسرے کو نہیں دیا جا سکتا۔"
+                  )}
                 </p>
               </div>
 
@@ -983,7 +988,10 @@ export default function UsersManagementPage() {
                   <span>🛡️ WebApp Admin</span>
                 </div>
                 <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
-                  <strong>فل ایڈمنسٹریٹر:</strong> تمام کلائنٹس، کمپنیاں، بلنگ پیکجز اور سیٹنگز تبدیل کرنے کے مکمل اختیارات۔ کلائنٹ کے اکاؤنٹ میں لاگ ان ہو کر مسئلہ حل کر سکتا ہے۔
+                  {t(
+                    "Full Administrator: Manage client companies, subscription plans, billing, and system configuration.",
+                    "فل ایڈمنسٹریٹر: تمام کلائنٹس، کمپنیاں، بلنگ پیکجز اور سیٹنگز تبدیل کرنے کے مکمل اختیارات۔ کلائنٹ کے اکاؤنٹ میں لاگ ان ہو کر مسئلہ حل کر سکتا ہے۔"
+                  )}
                 </p>
               </div>
 
@@ -994,7 +1002,10 @@ export default function UsersManagementPage() {
                   <span>✏️ WebApp Editor</span>
                 </div>
                 <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
-                  <strong>ایڈیٹر و سپورٹ:</strong> کلائنٹ کمپنیوں کا ڈیٹا دیکھنا، واؤچرز درست کرنا اور سپورٹ دینا۔ کمپنیاں ڈیلیٹ کرنے یا ایڈمن اکاؤنٹس بنانے کی اجازت نہیں۔
+                  {t(
+                    "Editor & Support: View and assist client records and ledger entries without company deletion rights.",
+                    "ایڈیٹر و سپورٹ: کلائنٹ کمپنیوں کا ڈیٹا دیکھنا، واؤچرز درست کرنا اور سپورٹ دینا۔ کمپنیاں ڈیلیٹ کرنے یا ایڈمن اکاؤنٹس بنانے کی اجازت نہیں۔"
+                  )}
                 </p>
               </div>
 
@@ -1005,7 +1016,10 @@ export default function UsersManagementPage() {
                   <span>👁️ WebApp Viewer</span>
                 </div>
                 <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
-                  <strong>صرف معائنہ (Read-Only):</strong> تمام کمپنیوں، سیلز، پرچیزز اور رپورٹس کو صرف دیکھنے کا اختیار۔ کسی بھی قسم کا ڈیٹا بدلنے یا ڈیلیٹ کرنے کی ممانعت۔
+                  {t(
+                    "Read-Only Inspector: View company rosters, billing summaries, and audit reports without editing privileges.",
+                    "صرف معائنہ (Read-Only): تمام کمپنیوں، سیلز، پرچیزز اور رپورٹس کو صرف دیکھنے کا اختیار۔ کسی بھی قسم کا ڈیٹا بدلنے یا ڈیلیٹ کرنے کی ممانعت۔"
+                  )}
                 </p>
               </div>
             </div>
@@ -1035,7 +1049,7 @@ export default function UsersManagementPage() {
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-900 text-slate-500">
                     <th className="py-3.5 px-4 font-bold uppercase tracking-wider">Member</th>
-                    <th className="py-3.5 px-4 font-bold uppercase tracking-wider">Platform Role (اختیارات)</th>
+                    <th className="py-3.5 px-4 font-bold uppercase tracking-wider">{t("Platform Role", "اختیارات")}</th>
                     <th className="py-3.5 px-4 font-bold uppercase tracking-wider">Scope & Permission</th>
                     <th className="py-3.5 px-4 font-bold uppercase tracking-wider">Registered</th>
                     <th className="py-3.5 px-4 font-bold uppercase tracking-wider text-right">Actions</th>
@@ -1083,7 +1097,9 @@ export default function UsersManagementPage() {
                               <RoleIcon className="h-3.5 w-3.5 shrink-0" />
                               <span>{roleInfo.label}</span>
                             </span>
-                            <span className="text-[10px] text-slate-400 font-urdu">{roleInfo.urdu}</span>
+                            {language === "ur" && (
+                              <span className="text-[10px] text-slate-400 font-urdu">{roleInfo.urdu}</span>
+                            )}
                           </div>
                         </td>
 
@@ -1091,7 +1107,7 @@ export default function UsersManagementPage() {
                           <div className="flex flex-col gap-0.5 max-w-xs">
                             <span className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-700 dark:text-slate-300">
                               <Laptop className="h-3.5 w-3.5 text-indigo-500" />
-                              <span>Global Platform Access (تمام پورٹل)</span>
+                              <span>{t("Global Platform Access", "تمام پورٹل")}</span>
                             </span>
                             <span className="text-[10px] text-slate-500">{roleInfo.desc}</span>
                           </div>
@@ -1184,10 +1200,13 @@ export default function UsersManagementPage() {
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-                    Add New Shop User (دکان ملازم کا اکاؤنٹ بنائیں)
+                    {t("Add New Shop User", "دکان ملازم کا اکاؤنٹ بنائیں")}
                   </h3>
                   <p className="text-[11px] text-slate-500">
-                    Assign client company, shop role, and select allowed feature modules.
+                    {t(
+                      "Assign client company, shop role, and select allowed feature modules.",
+                      "کمپنی، دکان رول اور فیچر ماڈیولز تفویض کریں۔"
+                    )}
                   </p>
                 </div>
               </div>
@@ -1211,7 +1230,7 @@ export default function UsersManagementPage() {
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase mb-1">
-                    Full Name *
+                    {t("Full Name *", "پورا نام *")}
                   </label>
                   <input
                     type="text"
@@ -1225,7 +1244,7 @@ export default function UsersManagementPage() {
 
                 <div>
                   <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase mb-1">
-                    Email Address *
+                    {t("Email Address *", "ای میل ایڈریس *")}
                   </label>
                   <input
                     type="email"
@@ -1239,7 +1258,7 @@ export default function UsersManagementPage() {
 
                 <div>
                   <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase mb-1">
-                    Initial Password *
+                    {t("Initial Password *", "ابتدائی پاس ورڈ *")}
                   </label>
                   <input
                     type="password"
@@ -1257,10 +1276,13 @@ export default function UsersManagementPage() {
                 <div className="flex items-center justify-between mb-1">
                   <div>
                     <label className="text-[11px] font-bold text-slate-900 dark:text-slate-100 uppercase block">
-                      Assign Company Access (کمپنی منتخب کریں) *
+                      {t("Assign Company Access *", "کمپنی منتخب کریں *")}
                     </label>
                     <p className="text-[10px] text-slate-500">
-                      کمپنی منتخب کرنے پر اس کے پیکیج (Accounting Only یا Full Suite) کے مطابق اختیارات نظر آئیں گے۔
+                      {t(
+                        "Selecting a company reveals modules based on its package (Accounting Only or Full Suite).",
+                        "کمپنی منتخب کرنے پر اس کے پیکیج (Accounting Only یا Full Suite) کے مطابق اختیارات نظر آئیں گے۔"
+                      )}
                     </p>
                   </div>
                   <div className="flex items-center gap-1.5 text-[10px]">
@@ -1336,9 +1358,14 @@ export default function UsersManagementPage() {
                 <div className="p-3 rounded-2xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 text-blue-900 dark:text-blue-200 text-xs flex items-start gap-2.5">
                   <AlertCircle className="h-4 w-4 shrink-0 text-blue-600 mt-0.5" />
                   <div>
-                    <span className="font-bold block">کمپنی کا پیکیج: صرف اکاؤنٹنگ (Accounting Only)</span>
+                    <span className="font-bold block">
+                      {t("Company Package: Accounting Only", "کمپنی کا پیکیج: صرف اکاؤنٹنگ (Accounting Only)")}
+                    </span>
                     <span className="text-[11px] text-blue-700 dark:text-blue-300">
-                      اس کمپنی کے پاس صرف اکاؤنٹنگ اور کھاتہ کا پیکیج ہے۔ لہٰذا نیچے سے POS ریٹیل کاؤنٹر اور FBR ڈیجیٹل انوائسنگ (DI) کے اختیارات خودکار ہٹا دیے گئے ہیں۔
+                      {t(
+                        "This company is restricted to Accounting Only. POS Retail Counter and FBR Digital Invoicing (DI) options have been automatically disabled.",
+                        "اس کمپنی کے پاس صرف اکاؤنٹنگ اور کھاتہ کا پیکیج ہے۔ لہٰذا نیچے سے POS ریٹیل کاؤنٹر اور FBR ڈیجیٹل انوائسنگ (DI) کے اختیارات خودکار ہٹا دیے گئے ہیں۔"
+                      )}
                     </span>
                   </div>
                 </div>
@@ -1346,7 +1373,13 @@ export default function UsersManagementPage() {
                 <div className="p-2.5 rounded-2xl bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800 text-purple-900 dark:text-purple-200 text-xs flex items-center gap-2">
                   <ShieldCheck className="h-4 w-4 shrink-0 text-purple-600" />
                   <span className="text-[11px]">
-                    <strong>کمپنی کا پیکیج Full Enterprise Suite ہے:</strong> POS کاؤنٹر، FBR ڈیجیٹل انوائسنگ مع تمام اکاؤنٹنگ اختیارات تفویض کیے جا سکتے ہیں۔
+                    <strong>
+                      {t("Company Package is Full Enterprise Suite:", "کمپنی کا پیکیج Full Enterprise Suite ہے:")}
+                    </strong>{" "}
+                    {t(
+                      "POS counter, FBR Digital Invoicing, and all accounting modules can be assigned.",
+                      "POS کاؤنٹر، FBR ڈیجیٹل انوائسنگ مع تمام اکاؤنٹنگ اختیارات تفویض کیے جا سکتے ہیں۔"
+                    )}
                   </span>
                 </div>
               )}
@@ -1356,10 +1389,13 @@ export default function UsersManagementPage() {
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5">
                   <div>
                     <label className="block text-[11px] font-bold text-slate-900 dark:text-slate-100 uppercase">
-                      Module & Tab Access Rights (اختیارات و ٹیب رسائی) *
+                      {t("Module & Tab Access Rights *", "اختیارات و ٹیب رسائی *")}
                     </label>
                     <p className="text-[10px] text-slate-500">
-                      پورٹل کے وہ تمام ٹیبز چیک کریں جن کی رسائی اس صارف کو دینی ہے:
+                      {t(
+                        "Check all portal tabs and features this user is permitted to access:",
+                        "پورٹل کے وہ تمام ٹیبز چیک کریں جن کی رسائی اس صارف کو دینی ہے:"
+                      )}
                     </p>
                   </div>
                   <div className="flex items-center gap-1.5 text-[11px]">
@@ -1373,14 +1409,14 @@ export default function UsersManagementPage() {
                       }
                       className="px-2 py-0.5 rounded-md bg-purple-50 hover:bg-purple-100 text-purple-700 font-bold border border-purple-200 transition text-[10px]"
                     >
-                      Select All (تمام)
+                      {t("Select All", "تمام")}
                     </button>
                     <button
                       type="button"
                       onClick={() => setFormData({ ...formData, allowedModules: [] })}
                       className="px-2 py-0.5 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-600 font-medium transition text-[10px]"
                     >
-                      Clear (خالی)
+                      {t("Clear", "خالی")}
                     </button>
                   </div>
                 </div>
@@ -1388,7 +1424,7 @@ export default function UsersManagementPage() {
                 {/* Quick Role Presets */}
                 <div className="bg-slate-50 dark:bg-slate-800/60 p-2.5 rounded-2xl border border-slate-200/80 dark:border-slate-700/80">
                   <div className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1.5 flex items-center gap-1">
-                    <span>⚡ Quick Role Presets (فوری کردار منتخب کریں):</span>
+                    <span>⚡ {t("Quick Role Presets:", "فوری کردار منتخب کریں:")}</span>
                   </div>
                   <div className="flex flex-wrap gap-1.5">
                     {availableRolePresets.map((preset) => {
@@ -1407,8 +1443,7 @@ export default function UsersManagementPage() {
                               : "bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-purple-300 hover:bg-purple-50/50"
                           }`}
                         >
-                          <span>{preset.name}</span>
-                          <span className="text-[9px] opacity-80 font-normal">({preset.urdu})</span>
+                          <span>{language === "ur" ? preset.urdu : preset.name}</span>
                         </button>
                       );
                     })}
@@ -1440,14 +1475,16 @@ export default function UsersManagementPage() {
                           <div className="flex items-center justify-between gap-1">
                             <span className="font-bold text-[11px] truncate flex items-center gap-1.5">
                               <ModIcon className="h-3 w-3 text-purple-600 shrink-0" />
-                              <span>{mod.label}</span>
+                              <span>{language === "ur" ? mod.urdu : mod.label}</span>
                             </span>
-                            <span className="text-[9px] font-semibold text-slate-400 shrink-0 font-urdu">
-                              {mod.urdu}
-                            </span>
+                            {language === "ur" && (
+                              <span className="text-[9px] font-semibold text-slate-400 shrink-0 font-urdu">
+                                {mod.urdu}
+                              </span>
+                            )}
                           </div>
                           <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
-                            {mod.desc}
+                            {language === "ur" ? mod.descUrdu : mod.desc}
                           </p>
                         </div>
                       </div>
@@ -1504,10 +1541,13 @@ export default function UsersManagementPage() {
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-                    Add WebApp Platform User (نیا پلیٹ فارم صارف بنائیں)
+                    {t("Add WebApp Platform User", "نیا پلیٹ فارم صارف بنائیں")}
                   </h3>
                   <p className="text-[11px] text-slate-500">
-                    Create internal SaaS administrative, support, or read-only operator accounts.
+                    {t(
+                      "Create internal SaaS administrative, support, or read-only operator accounts.",
+                      "اندرونی SaaS ایڈمنسٹریشن، کسٹمر سپورٹ یا ویور اکاؤنٹس بنائیں۔"
+                    )}
                   </p>
                 </div>
               </div>
@@ -1531,7 +1571,7 @@ export default function UsersManagementPage() {
               <div className="space-y-3">
                 <div>
                   <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase mb-1">
-                    Full Name *
+                    {t("Full Name *", "پورا نام *")}
                   </label>
                   <input
                     type="text"
@@ -1546,7 +1586,7 @@ export default function UsersManagementPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase mb-1">
-                      Email Address *
+                      {t("Email Address *", "ای میل ایڈریس *")}
                     </label>
                     <input
                       type="email"
@@ -1560,7 +1600,7 @@ export default function UsersManagementPage() {
 
                   <div>
                     <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase mb-1">
-                      Initial Password *
+                      {t("Initial Password *", "ابتدائی پاس ورڈ *")}
                     </label>
                     <input
                       type="password"
@@ -1577,7 +1617,7 @@ export default function UsersManagementPage() {
               {/* Platform Access Role Selection */}
               <div className="border-t border-slate-100 dark:border-slate-800 pt-3 space-y-2">
                 <label className="block text-[11px] font-bold text-slate-900 dark:text-slate-100 uppercase">
-                  Select WebApp Access Level (پلیٹ فارم رول منتخب کریں) *
+                  {t("Select WebApp Access Level *", "پلیٹ فارم رول منتخب کریں *")}
                 </label>
 
                 <div className="space-y-2">
@@ -1601,14 +1641,17 @@ export default function UsersManagementPage() {
                       <div className="flex items-center justify-between">
                         <span className="font-bold text-xs text-indigo-900 dark:text-indigo-200 flex items-center gap-1.5">
                           <ShieldCheck className="h-4 w-4 text-indigo-600" />
-                          <span>🛡️ WebApp Admin (سافٹ ویئر ایڈمن - Full Access)</span>
+                          <span>{t("🛡️ WebApp Admin (Full Access)", "🛡️ WebApp Admin (سافٹ ویئر ایڈمن - Full Access)")}</span>
                         </span>
                         <span className="text-[10px] font-bold text-indigo-600 bg-indigo-100 dark:bg-indigo-900/60 px-2 py-0.5 rounded-full">
                           Full Control
                         </span>
                       </div>
                       <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-1 leading-relaxed">
-                        نئی کلائنٹ دکانیں رجسٹر کرنا، سبسکرپشن فیس اور بلنگ کی تجدید، یوزرز کے اکاؤنٹس میں لاگ ان ہونا اور سسٹم لاگز دیکھنا۔
+                        {t(
+                          "Register client shops, manage subscriptions and billing renewals, login as client users, and inspect system audit logs.",
+                          "نئی کلائنٹ دکانیں رجسٹر کرنا، سبسکرپشن فیس اور بلنگ کی تجدید، یوزرز کے اکاؤنٹس میں لاگ ان ہونا اور سسٹم لاگز دیکھنا۔"
+                        )}
                       </p>
                     </div>
                   </label>
@@ -1633,14 +1676,17 @@ export default function UsersManagementPage() {
                       <div className="flex items-center justify-between">
                         <span className="font-bold text-xs text-blue-900 dark:text-blue-200 flex items-center gap-1.5">
                           <Edit2 className="h-4 w-4 text-blue-600" />
-                          <span>✏️ WebApp Editor (ویب ایپ ایڈیٹر - Support & Ops)</span>
+                          <span>{t("✏️ WebApp Editor (Support & Ops)", "✏️ WebApp Editor (ویب ایپ ایڈیٹر - Support & Ops)")}</span>
                         </span>
                         <span className="text-[10px] font-bold text-blue-600 bg-blue-100 dark:bg-blue-900/60 px-2 py-0.5 rounded-full">
                           Editor Access
                         </span>
                       </div>
                       <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-1 leading-relaxed">
-                        کلائنٹ کمپنیوں کے ریکارڈز دیکھنا، کھاتہ درست کرنے میں مدد کرنا اور کلائنٹ ایڈمن ترامیم کرنا۔ کمپنیاں یا ڈیٹا ڈیلیٹ کرنے کی ممانعت۔
+                        {t(
+                          "View and edit client company records to assist with bookkeeping and administrative support. Cannot delete companies or users.",
+                          "کلائنٹ کمپنیوں کے ریکارڈز دیکھنا، کھاتہ درست کرنے میں مدد کرنا اور کلائنٹ ایڈمن ترامیم کرنا۔ کمپنیاں یا ڈیٹا ڈیلیٹ کرنے کی ممانعت۔"
+                        )}
                       </p>
                     </div>
                   </label>
@@ -1665,14 +1711,17 @@ export default function UsersManagementPage() {
                       <div className="flex items-center justify-between">
                         <span className="font-bold text-xs text-emerald-900 dark:text-emerald-200 flex items-center gap-1.5">
                           <Eye className="h-4 w-4 text-emerald-600" />
-                          <span>👁️ WebApp Viewer (ویب ایپ ویور - Read-Only)</span>
+                          <span>{t("👁️ WebApp Viewer (Read-Only)", "👁️ WebApp Viewer (ویب ایپ ویور - Read-Only)")}</span>
                         </span>
                         <span className="text-[10px] font-bold text-emerald-600 bg-emerald-100 dark:bg-emerald-900/60 px-2 py-0.5 rounded-full">
                           Read-Only
                         </span>
                       </div>
                       <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-1 leading-relaxed">
-                        پورٹل کے تمام پورشنز، کمپنیوں کی تعداد، سیلز و پرچیزز کے خلاصے اور آڈٹ رپورٹس صرف دیکھ سکتا ہے۔ کسی قسم کی تبدیلی یا ڈیلیٹ بند ہے۔
+                        {t(
+                          "Read-only access across portal sections, company counts, sales & purchase summaries, and audit logs. Modifying or deleting data is prohibited.",
+                          "پورٹل کے تمام پورشنز، کمپنیوں کی تعداد، سیلز و پرچیزز کے خلاصے اور آڈٹ رپورٹس صرف دیکھ سکتا ہے۔ کسی قسم کی تبدیلی یا ڈیلیٹ بند ہے۔"
+                        )}
                       </p>
                     </div>
                   </label>
@@ -1683,9 +1732,14 @@ export default function UsersManagementPage() {
               <div className="p-3 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-200 text-xs flex items-start gap-2.5">
                 <Crown className="h-4 w-4 shrink-0 text-amber-600 mt-0.5" />
                 <div>
-                  <span className="font-bold block">سپر ایڈمن (Super Admin) کا درجہ مخصوص ہے:</span>
+                  <span className="font-bold block">
+                    {t("Super Admin Tier is Reserved:", "سپر ایڈمن (Super Admin) کا درجہ مخصوص ہے:")}
+                  </span>
                   <span className="text-[11px] text-amber-800 dark:text-amber-300 leading-relaxed">
-                    سپر ایڈمن کا درجہ ہمیشہ اور صرف ہاشم خان صاحب کا ہے۔ سیکیورٹی پروٹوکول کے تحت کوئی دوسرا صارف سپر ایڈمن نہیں بن سکتا۔
+                    {t(
+                      "The Super Admin tier is permanently reserved for Hashim Khan. For security reasons, no other user can be assigned the Super Admin role.",
+                      "سپر ایڈمن کا درجہ ہمیشہ اور صرف ہاشم خان صاحب کا ہے۔ سیکیورٹی پروٹوکول کے تحت کوئی دوسرا صارف سپر ایڈمن نہیں بن سکتا۔"
+                    )}
                   </span>
                 </div>
               </div>
@@ -1792,7 +1846,7 @@ export default function UsersManagementPage() {
               selectedUser.role === "SUPER_ADMIN" ? (
                 <div className="border-t border-slate-100 dark:border-slate-800 pt-3 space-y-2">
                   <label className="block text-[11px] font-bold text-slate-900 dark:text-slate-100 uppercase">
-                    Platform Role (ویب ایپ انٹرنل رول)
+                    {t("Platform Role", "ویب ایپ انٹرنل رول")}
                   </label>
 
                   {selectedUser.role === "SUPER_ADMIN" || selectedUser.platformRole === "SUPER_ADMIN" ? (
@@ -1822,10 +1876,13 @@ export default function UsersManagementPage() {
                     <div className="flex items-center justify-between mb-1">
                       <div>
                         <label className="text-[11px] font-bold text-slate-900 dark:text-slate-100 uppercase block">
-                          Assigned Companies (کمپنی رسائی)
+                          {t("Assigned Companies", "کمپنی رسائی")}
                         </label>
                         <p className="text-[10px] text-slate-500">
-                          کمپنی منتخب کرنے پر اس کے پیکیج کے مطابق اختیارات نظر آئیں گے۔
+                          {t(
+                            "Selecting a company displays modules based on its package.",
+                            "کمپنی منتخب کرنے پر اس کے پیکیج کے مطابق اختیارات نظر آئیں گے۔"
+                          )}
                         </p>
                       </div>
                       <div className="flex items-center gap-1.5 text-[10px]">
@@ -1901,10 +1958,13 @@ export default function UsersManagementPage() {
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5">
                       <div>
                         <label className="block text-[11px] font-bold text-slate-900 dark:text-slate-100 uppercase">
-                          Module & Tab Access Rights (اختیارات و ٹیب رسائی) *
+                          {t("Module & Tab Access Rights *", "اختیارات و ٹیب رسائی *")}
                         </label>
                         <p className="text-[10px] text-slate-500">
-                          پورٹل کے وہ تمام ٹیبز چیک کریں جن کی رسائی اس صارف کو دینی ہے:
+                          {t(
+                            "Check all portal tabs and features this user is permitted to access:",
+                            "پورٹل کے وہ تمام ٹیبز چیک کریں جن کی رسائی اس صارف کو دینی ہے:"
+                          )}
                         </p>
                       </div>
                       <div className="flex items-center gap-1.5 text-[11px]">
@@ -1918,14 +1978,14 @@ export default function UsersManagementPage() {
                           }
                           className="px-2 py-0.5 rounded-md bg-purple-50 hover:bg-purple-100 text-purple-700 font-bold border border-purple-200 transition text-[10px]"
                         >
-                          Select All (تمام)
+                          {t("Select All", "تمام")}
                         </button>
                         <button
                           type="button"
                           onClick={() => setFormData({ ...formData, allowedModules: [] })}
                           className="px-2 py-0.5 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-600 font-medium transition text-[10px]"
                         >
-                          Clear (خالی)
+                          {t("Clear", "خالی")}
                         </button>
                       </div>
                     </div>
@@ -1933,7 +1993,7 @@ export default function UsersManagementPage() {
                     {/* Quick Role Presets */}
                     <div className="bg-slate-50 dark:bg-slate-800/60 p-2.5 rounded-2xl border border-slate-200/80 dark:border-slate-700/80">
                       <div className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1.5 flex items-center gap-1">
-                        <span>⚡ Quick Role Presets (فوری کردار منتخب کریں):</span>
+                        <span>⚡ {t("Quick Role Presets:", "فوری کردار منتخب کریں:")}</span>
                       </div>
                       <div className="flex flex-wrap gap-1.5">
                         {availableRolePresets.map((preset) => {
@@ -1952,8 +2012,7 @@ export default function UsersManagementPage() {
                                   : "bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-purple-300 hover:bg-purple-50/50"
                               }`}
                             >
-                              <span>{preset.name}</span>
-                              <span className="text-[9px] opacity-80 font-normal">({preset.urdu})</span>
+                              <span>{language === "ur" ? preset.urdu : preset.name}</span>
                             </button>
                           );
                         })}
@@ -1985,14 +2044,16 @@ export default function UsersManagementPage() {
                               <div className="flex items-center justify-between gap-1">
                                 <span className="font-bold text-[11px] truncate flex items-center gap-1.5">
                                   <ModIcon className="h-3 w-3 text-purple-600 shrink-0" />
-                                  <span>{mod.label}</span>
+                                  <span>{language === "ur" ? mod.urdu : mod.label}</span>
                                 </span>
-                                <span className="text-[9px] font-semibold text-slate-400 shrink-0 font-urdu">
-                                  {mod.urdu}
-                                </span>
+                                {language === "ur" && (
+                                  <span className="text-[9px] font-semibold text-slate-400 shrink-0 font-urdu">
+                                    {mod.urdu}
+                                  </span>
+                                )}
                               </div>
                               <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
-                                {mod.desc}
+                                {language === "ur" ? mod.descUrdu : mod.desc}
                               </p>
                             </div>
                           </div>

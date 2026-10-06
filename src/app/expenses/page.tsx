@@ -9,10 +9,12 @@ import { Badge } from "@/components/ui/badge";
 import { Plus, Search, Receipt, Tag, Download, Pencil, Trash2, Building2 } from "lucide-react";
 import { TableRowsSkeleton } from "@/components/ui/loader";
 import { useAuth } from "@/context/AuthContext";
+import { useLanguage } from "@/context/LanguageContext";
 import { smartFetch, invalidateCache } from "@/lib/clientCache";
 
 export default function ExpensesPage() {
   const { user, activeCompany, branches, selectedBranch, activeBranchId, isBranchLocked } = useAuth();
+  const { language, t } = useLanguage();
 
   const [expenses, setExpenses] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
@@ -155,7 +157,7 @@ export default function ExpensesPage() {
     e.preventDefault();
     if (!editingExpense) return;
     if (!editReason.trim()) {
-      alert("Please provide an edit reason (ترمیم کی وجہ درج کرنا لازمی ہے).");
+      alert(language === "ur" ? "ترمیم کی وجہ درج کرنا لازمی ہے۔" : "Please provide a reason for editing.");
       return;
     }
     setEditSaving(true);
@@ -302,7 +304,7 @@ export default function ExpensesPage() {
                 <th className="px-4 py-3">Date</th>
                 <th className="px-4 py-3">Category</th>
                 <th className="px-4 py-3">Description</th>
-                <th className="px-4 py-3">Created By (بنایا گیا)</th>
+                <th className="px-4 py-3">{t("Created By", "بنایا گیا")}</th>
                 <th className="px-4 py-3">Paid To</th>
                 <th className="px-4 py-3">Paid From</th>
                 <th className="px-4 py-3 text-right">Amount</th>
@@ -395,7 +397,7 @@ export default function ExpensesPage() {
           {/* User attribution & Branch Lock Display */}
           <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3 text-xs dark:border-slate-800 dark:bg-slate-800/50">
             <div className="flex items-center justify-between">
-              <span className="text-slate-500">Recorded By (خرچ درج کنندہ):</span>
+              <span className="text-slate-500">{t("Recorded By:", "خرچ درج کنندہ:")}</span>
               <span className="font-semibold text-slate-900 dark:text-white">
                 {user?.name || "Staff User"} ({user?.role || "STAFF"})
               </span>
@@ -476,7 +478,7 @@ export default function ExpensesPage() {
             {/* Creator Attribution Info Card */}
             <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3 text-xs dark:border-slate-800 dark:bg-slate-800/50">
               <div className="flex items-center justify-between">
-                <span className="text-slate-500">Original Creator (بنایا گیا بذریعہ):</span>
+                <span className="text-slate-500">{t("Original Creator:", "بنایا گیا بذریعہ:")}</span>
                 <span className="font-semibold text-slate-900 dark:text-white">
                   {editingExpense.createdByName || "System Admin"}
                 </span>
@@ -537,7 +539,7 @@ export default function ExpensesPage() {
             {/* Required Audit Reason */}
             <div className="rounded-xl border border-amber-300 bg-amber-50/70 p-3 dark:border-amber-800 dark:bg-amber-950/40">
               <label className="block text-xs font-bold text-amber-900 dark:text-amber-200 mb-1">
-                Reason for Editing (ترمیم کی وجہ درج کرنا لازمی ہے) *
+                {t("Reason for Editing *", "ترمیم کی وجہ درج کرنا لازمی ہے *")}
               </label>
               <p className="text-[11px] text-amber-700 dark:text-amber-400 mb-1.5">
                 This modification will be permanently logged in the software Audit Trail along with your name.
@@ -565,7 +567,7 @@ export default function ExpensesPage() {
                 variant="primary"
                 isLoading={editSaving}
               >
-                Save Changes (ترمیم محفوظ کریں)
+                {t("Save Changes", "ترمیم محفوظ کریں")}
               </Button>
             </div>
           </form>

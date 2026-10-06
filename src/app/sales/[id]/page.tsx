@@ -9,8 +9,10 @@ import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Printer, RotateCcw } from "lucide-react";
 import { BrandPageLoader } from "@/components/ui/loader";
 import { FbrQrCode } from "@/components/ui/FbrQrCode";
+import { useLanguage } from "@/context/LanguageContext";
 
 export default function SaleDetailPage() {
+  const { t } = useLanguage();
   const params = useParams();
   const router = useRouter();
   const [sale, setSale] = useState<any>(null);
@@ -107,7 +109,7 @@ export default function SaleDetailPage() {
             <div className="space-y-1">
               <div className="flex items-center gap-2">
                 <span className="font-bold text-sm text-amber-950 dark:text-amber-100">
-                  Edited Invoice Notice (ترمیم شدہ انوائس)
+                  {t("Edited Invoice Notice", "ترمیم شدہ انوائس")}
                 </span>
                 <span className="rounded-md bg-amber-200/80 px-2 py-0.5 text-[10px] font-bold text-amber-900 dark:bg-amber-900/80 dark:text-amber-200">
                   Edited {sale.editCount || 1} time{sale.editCount > 1 ? "s" : ""}

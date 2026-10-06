@@ -187,8 +187,12 @@ export default function SalesPage() {
   const handleDeleteSale = async (sale: SaleRecord) => {
     const isTransmitted = sale.fbrStatus === "SUCCESS";
     const confirmPrompt = isTransmitted
-      ? `انوائس #${sale.invoiceNumber} FBR سے منسلک ہے!\nکیا آپ واقعی اس انوائس کو مکمل ڈیلیٹ کرنا چاہتے ہیں؟\nاس سے گاہک کا لیجر اور انوینٹری اسٹاک خودکار طور پر بحال (reverse) ہو جائے گا۔`
-      : `کیا آپ واقعی انوائس #${sale.invoiceNumber} کو مکمل ڈیلیٹ کرنا چاہتے ہیں؟\nاس سے انوینٹری اور کھاتہ خودکار ریورس ہو جائے گا۔`;
+      ? (language === "ur"
+          ? `انوائس #${sale.invoiceNumber} FBR سے منسلک ہے!\nکیا آپ واقعی اس انوائس کو مکمل ڈیلیٹ کرنا چاہتے ہیں؟\nاس سے گاہک کا لیجر اور انوینٹری اسٹاک خودکار طور پر بحال (reverse) ہو جائے گا۔`
+          : `Invoice #${sale.invoiceNumber} is linked with FBR!\nAre you sure you want to permanently delete this invoice?\nThis will automatically reverse customer ledger and inventory stock.`)
+      : (language === "ur"
+          ? `کیا آپ واقعی انوائس #${sale.invoiceNumber} کو مکمل ڈیلیٹ کرنا چاہتے ہیں؟\nاس سے انوینٹری اور کھاتہ خودکار ریورس ہو جائے گا۔`
+          : `Are you sure you want to delete invoice #${sale.invoiceNumber}?\nThis will automatically reverse inventory and ledger entries.`);
 
     if (!confirm(confirmPrompt)) return;
 
@@ -199,7 +203,7 @@ export default function SalesPage() {
       });
       const json = await res.json();
       if (json.success) {
-        alert(`انوائس #${sale.invoiceNumber} کامیابی سے ڈیلیٹ کر دی گئی ہے۔`);
+        alert(language === "ur" ? `انوائس #${sale.invoiceNumber} کامیابی سے ڈیلیٹ کر دی گئی ہے۔` : `Invoice #${sale.invoiceNumber} deleted successfully.`);
         invalidateCache("/api/sales");
         invalidateCache("/api/products");
         invalidateCache("/api/dashboard");
@@ -208,10 +212,10 @@ export default function SalesPage() {
         }
         fetchSales();
       } else {
-        alert(json.error || "انوائس ڈیلیٹ کرنے میں ناکامی ہوئی۔");
+        alert(json.error || (language === "ur" ? "انوائس ڈیلیٹ کرنے میں ناکامی ہوئی۔" : "Failed to delete invoice."));
       }
     } catch (err: any) {
-      alert(`خرابی: ${err.message}`);
+      alert(`${language === "ur" ? "خرابی" : "Error"}: ${err.message}`);
     } finally {
       setDeletingSaleId(null);
     }
@@ -235,7 +239,9 @@ export default function SalesPage() {
 
   const handleBulkDeleteSales = async () => {
     if (selectedSaleIds.length === 0) return;
-    const confirmPrompt = `کیا آپ واقعی منتخب کردہ ${selectedSaleIds.length} انوائسز کو مکمل ڈیلیٹ کرنا چاہتے ہیں؟\n\n- گاہک کا لیجر (Accounts Receivable) اور انوینٹری اسٹاک خودکار طور پر بحال (reverse) ہو جائے گا۔\n- اس عمل کو واپس نہیں لایا جا سکتا۔`;
+    const confirmPrompt = language === "ur"
+      ? `کیا آپ واقعی منتخب کردہ ${selectedSaleIds.length} انوائسز کو مکمل ڈیلیٹ کرنا چاہتے ہیں؟\n\n- گاہک کا لیجر (Accounts Receivable) اور انوینٹری اسٹاک خودکار طور پر بحال (reverse) ہو جائے گا۔\n- اس عمل کو واپس نہیں لایا جا سکتا۔`
+      : `Are you sure you want to permanently delete ${selectedSaleIds.length} selected invoices?\n\n- Customer ledger and inventory will be automatically reversed.\n- This action cannot be undone.`;
     if (!confirm(confirmPrompt)) return;
 
     setIsBulkDeleting(true);
@@ -247,17 +253,17 @@ export default function SalesPage() {
       });
       const json = await res.json();
       if (json.success) {
-        alert(`کامیابی سے ${json.deletedCount} انوائسز ڈیلیٹ کر دی گئیں۔`);
+        alert(language === "ur" ? `کامیابی سے ${json.deletedCount} انوائسز ڈیلیٹ کر دی گئیں۔` : `Successfully deleted ${json.deletedCount} invoices.`);
         setSelectedSaleIds([]);
         invalidateCache("/api/sales");
         invalidateCache("/api/products");
         invalidateCache("/api/dashboard");
         fetchSales();
       } else {
-        alert(json.error || "بلک ڈیلیٹ میں خرابی پیش آئی۔");
+        alert(json.error || (language === "ur" ? "بلک ڈیلیٹ میں خرابی پیش آئی۔" : "Bulk delete failed."));
       }
     } catch (err: any) {
-      alert(`خرابی: ${err.message}`);
+      alert(`${language === "ur" ? "خرابی" : "Error"}: ${err.message}`);
     } finally {
       setIsBulkDeleting(false);
     }
@@ -276,12 +282,12 @@ export default function SalesPage() {
     if (bulkEditReason.trim()) updates.editReason = bulkEditReason.trim();
 
     if (Object.keys(updates).length === 0) {
-      alert("برائے مہربانی کم از کم ایک فیلڈ منتخب کریں جس میں ترمیم کرنی ہے۔");
+      alert(language === "ur" ? "برائے مہربانی کم از کم ایک فیلڈ منتخب کریں جس میں ترمیم کرنی ہے۔" : "Please select at least one field to edit.");
       return;
     }
 
     if (!bulkEditReason.trim()) {
-      alert("ترمیم کی وجہ درج کرنا لازمی ہے۔");
+      alert(language === "ur" ? "ترمیم کی وجہ درج کرنا لازمی ہے۔" : "Reason for editing is required.");
       return;
     }
 
@@ -294,7 +300,7 @@ export default function SalesPage() {
       });
       const json = await res.json();
       if (json.success) {
-        alert(`کامیابی سے ${json.updatedCount} انوائسز میں ترمیم کر دی گئی۔`);
+        alert(language === "ur" ? `کامیابی سے ${json.updatedCount} انوائسز میں ترمیم کر دی گئی۔` : `Successfully updated ${json.updatedCount} invoices.`);
         setShowBulkEditModal(false);
         setSelectedSaleIds([]);
         setBulkEditDate("");
@@ -307,10 +313,10 @@ export default function SalesPage() {
         invalidateCache("/api/dashboard");
         fetchSales();
       } else {
-        alert(json.error || "بلک ایڈیٹ میں ناکامی ہوئی۔");
+        alert(json.error || (language === "ur" ? "بلک ایڈیٹ میں ناکامی ہوئی۔" : "Bulk edit failed."));
       }
     } catch (err: any) {
-      alert(`خرابی: ${err.message}`);
+      alert(`${language === "ur" ? "خرابی" : "Error"}: ${err.message}`);
     } finally {
       setIsBulkSaving(false);
     }
@@ -336,7 +342,7 @@ export default function SalesPage() {
     e.preventDefault();
     if (!editingSale) return;
     if (!editReason.trim()) {
-      alert("Please provide an edit reason (ترمیم کی وجہ درج کرنا لازمی ہے).");
+      alert(language === "ur" ? "ترمیم کی وجہ درج کرنا لازمی ہے۔" : "Please provide a reason for editing.");
       return;
     }
     setEditSaving(true);
@@ -587,10 +593,10 @@ export default function SalesPage() {
           <button
             onClick={() => window.print()}
             className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 shadow-2xs transition"
-            title="Print Sales Report for filtered period (سیلز رپورٹ پرنٹ کریں)"
+            title={t("Print Sales Report for filtered period", "فلٹر شدہ مدت کی سیلز رپورٹ پرنٹ کریں")}
           >
             <Printer className="h-3.5 w-3.5 text-slate-600" />
-            <span>Print Sales Report</span>
+            <span>{t("Print Sales Report", "سیلز رپورٹ پرنٹ کریں")}</span>
           </button>
 
           <Link href="/sales/create">
@@ -772,7 +778,7 @@ export default function SalesPage() {
                 }}
                 className="rounded-xl border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-700 font-medium focus:outline-none focus:ring-1 focus:ring-indigo-500"
               >
-                <option value="ALL">All Customers (تمام)</option>
+                <option value="ALL">{t("All Customers", "تمام گاہک")}</option>
                 {customerList.map((c: any) => (
                   <option key={c} value={c}>
                     {c}
@@ -782,7 +788,7 @@ export default function SalesPage() {
             </div>
 
             <div className="flex items-center gap-1.5">
-              <span className="text-xs font-semibold text-slate-500 whitespace-nowrap">Date:</span>
+              <span className="text-xs font-semibold text-slate-500 whitespace-nowrap">{t("Date:", "تاریخ:")}</span>
               <select
                 value={dateFilter}
                 onChange={(e) => {
@@ -791,18 +797,18 @@ export default function SalesPage() {
                 }}
                 className="rounded-xl border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-700 font-medium focus:outline-none focus:ring-1 focus:ring-indigo-500"
               >
-                <option value="ALL">All Dates (تمام)</option>
-                <option value="TODAY">Today (آج)</option>
-                <option value="YESTERDAY">Yesterday (گزشتہ کل)</option>
-                <option value="THIS_WEEK">This Week (اس ہفتے)</option>
-                <option value="THIS_MONTH">This Month (اس ماہ)</option>
-                <option value="LAST_30_DAYS">Last 30 Days (30 دن)</option>
-                <option value="CUSTOM">Custom Date Range (کسٹم)</option>
+                <option value="ALL">{t("All Dates", "تمام تاریخیں")}</option>
+                <option value="TODAY">{t("Today", "آج")}</option>
+                <option value="YESTERDAY">{t("Yesterday", "گزشتہ کل")}</option>
+                <option value="THIS_WEEK">{t("This Week", "اس ہفتے")}</option>
+                <option value="THIS_MONTH">{t("This Month", "اس ماہ")}</option>
+                <option value="LAST_30_DAYS">{t("Last 30 Days", "گزشتہ 30 دن")}</option>
+                <option value="CUSTOM">{t("Custom Date Range", "کسٹم تاریخ")}</option>
               </select>
             </div>
 
             <div className="flex items-center gap-1.5">
-              <span className="text-xs font-semibold text-slate-500 whitespace-nowrap">Payment Status:</span>
+              <span className="text-xs font-semibold text-slate-500 whitespace-nowrap">{t("Payment Status:", "ادائیگی صورتحال:")}</span>
               <select
                 value={statusFilter}
                 onChange={(e) => {
@@ -811,10 +817,10 @@ export default function SalesPage() {
                 }}
                 className="rounded-xl border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-700 font-medium focus:outline-none focus:ring-1 focus:ring-indigo-500"
               >
-                <option value="ALL">All Statuses</option>
-                <option value="PAID">Paid</option>
-                <option value="PARTIAL">Partial</option>
-                <option value="UNPAID">Unpaid (Credit)</option>
+                <option value="ALL">{t("All Statuses", "تمام صورتحال")}</option>
+                <option value="PAID">{t("Paid", "ادا شدہ")}</option>
+                <option value="PARTIAL">{t("Partial", "جزوی ادا")}</option>
+                <option value="UNPAID">{t("Unpaid (Credit)", "ادھار / غیر ادا شدہ")}</option>
               </select>
             </div>
           </div>
@@ -824,7 +830,7 @@ export default function SalesPage() {
         {dateFilter === "CUSTOM" && (
           <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-slate-100">
             <div className="flex items-center gap-1.5">
-              <span className="text-xs font-semibold text-slate-500">تاریخ سے (From Date):</span>
+              <span className="text-xs font-semibold text-slate-500">{t("From Date:", "تاریخ سے:")}</span>
               <input
                 type="date"
                 value={startDate}
@@ -836,7 +842,7 @@ export default function SalesPage() {
               />
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="text-xs font-semibold text-slate-500">تاریخ تک (To Date):</span>
+              <span className="text-xs font-semibold text-slate-500">{t("To Date:", "تاریخ تک:")}</span>
               <input
                 type="date"
                 value={endDate}
@@ -897,7 +903,7 @@ export default function SalesPage() {
               {selectedSaleIds.length}
             </span>
             <span className="text-xs font-bold text-indigo-950 dark:text-indigo-100">
-              Invoices Selected (منتخب انوائسز)
+              {t("Invoices Selected", "منتخب شدہ انوائسز")}
             </span>
           </div>
 
@@ -910,7 +916,7 @@ export default function SalesPage() {
               className="bg-white border-indigo-300 text-indigo-700 hover:bg-indigo-50 dark:bg-slate-900 dark:text-indigo-300 dark:border-indigo-700 text-xs shadow-2xs"
             >
               <Edit className="h-3.5 w-3.5 mr-1.5" />
-              Bulk Edit ({selectedSaleIds.length})
+              {t("Bulk Edit", "بلک ترمیم")} ({selectedSaleIds.length})
             </Button>
 
             <Button
@@ -922,7 +928,7 @@ export default function SalesPage() {
               className="bg-white border-rose-300 text-rose-700 hover:bg-rose-50 dark:bg-slate-900 dark:text-rose-400 dark:border-rose-800 text-xs shadow-2xs"
             >
               <Trash2 className="h-3.5 w-3.5 mr-1.5 text-rose-600" />
-              Delete Selected ({selectedSaleIds.length})
+              {t("Delete Selected", "منتخب ڈیلیٹ")} ({selectedSaleIds.length})
             </Button>
 
             <button
@@ -957,11 +963,11 @@ export default function SalesPage() {
                     )}
                   </button>
                 </th>
-                <th className="px-4 py-3">Invoice #</th>
-                <th className="px-4 py-3">Date</th>
-                <th className="px-4 py-3">Customer</th>
-                <th className="px-4 py-3">Products Sold (اشیاء)</th>
-                <th className="px-4 py-3">Created By (بنایا گیا)</th>
+                <th className="px-4 py-3">{t("Invoice #", "انوائس نمبر")}</th>
+                <th className="px-4 py-3">{t("Date", "تاریخ")}</th>
+                <th className="px-4 py-3">{t("Customer", "گاہک")}</th>
+                <th className="px-4 py-3">{t("Products Sold", "اشیاء")}</th>
+                <th className="px-4 py-3">{t("Created By", "بنایا گیا")}</th>
                 <th className="px-4 py-3 text-right">Total Amount</th>
                 <th className="px-4 py-3 text-right">Paid</th>
                 <th className="px-4 py-3 text-right">Balance</th>
@@ -1136,7 +1142,7 @@ export default function SalesPage() {
                           href={`/sales/${sale.id}?print=true`}
                           target="_blank"
                           className="rounded-lg p-1.5 text-emerald-600 hover:bg-emerald-50 hover:text-emerald-800 dark:hover:bg-emerald-950/40"
-                          title="Print Invoice / Receipt (انوائس پرنٹ کریں)"
+                          title={t("Print Invoice / Receipt", "انوائس پرنٹ کریں")}
                         >
                           <Printer className="h-3.5 w-3.5" />
                         </Link>
@@ -1145,7 +1151,7 @@ export default function SalesPage() {
                             onClick={() => handleReverse(sale.id, sale.invoiceNumber)}
                             disabled={reversingId === sale.id}
                             className="rounded-lg p-1.5 text-rose-500 hover:bg-rose-50 hover:text-rose-700 dark:hover:bg-rose-950/40"
-                            title="Return / Reverse Sale"
+                            title={t("Return / Reverse Sale", "سیل واپسی / ریورس")}
                           >
                             <RotateCcw className="h-3.5 w-3.5" />
                           </button>
@@ -1154,7 +1160,7 @@ export default function SalesPage() {
                           onClick={() => handleDeleteSale(sale)}
                           disabled={deletingSaleId === sale.id}
                           className="rounded-lg p-1.5 text-rose-600 hover:bg-rose-100/70 hover:text-rose-800 dark:hover:bg-rose-950/50"
-                          title="Delete Invoice (مکمل ڈیلیٹ کریں)"
+                          title={t("Delete Invoice", "انوائس ڈیلیٹ کریں")}
                         >
                           <Trash2 className={`h-3.5 w-3.5 ${deletingSaleId === sale.id ? "animate-spin" : ""}`} />
                         </button>
@@ -1362,7 +1368,7 @@ export default function SalesPage() {
             {/* Creator Attribution Info Card */}
             <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3 text-xs dark:border-slate-800 dark:bg-slate-800/50">
               <div className="flex items-center justify-between">
-                <span className="text-slate-500">Original Creator (بنایا گیا بذریعہ):</span>
+                <span className="text-slate-500">{t("Original Creator", "بنایا گیا بذریعہ")}:</span>
                 <span className="font-semibold text-slate-900 dark:text-white">
                   {editingSale.createdByName || "System Admin"}
                 </span>
@@ -1381,7 +1387,7 @@ export default function SalesPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Invoice Date (انوائس کی تاریخ) *
+                  {t("Invoice Date", "انوائس کی تاریخ")} *
                 </label>
                 <input
                   type="date"
@@ -1394,7 +1400,7 @@ export default function SalesPage() {
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Payment Due Date (ادھار واجب الادا تاریخ)
+                  {t("Payment Due Date", "ادھار واجب الادا تاریخ")}
                 </label>
                 <input
                   type="date"
@@ -1408,7 +1414,7 @@ export default function SalesPage() {
             {/* 2. Customer Name */}
             <div>
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                Customer Name (گاہک کا نام) *
+                {t("Customer Name", "گاہک کا نام")} *
               </label>
               <Input
                 value={editCustomerName}
@@ -1453,18 +1459,18 @@ export default function SalesPage() {
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Payment Method
+                  {t("Payment Method", "طریقہ ادائیگی")}
                 </label>
                 <select
                   value={editPaymentMethod}
                   onChange={(e) => setEditPaymentMethod(e.target.value)}
                   className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 dark:bg-slate-900 dark:border-slate-700 dark:text-white"
                 >
-                  <option value="CASH">CASH (نقد)</option>
-                  <option value="BANK_TRANSFER">Bank Transfer (بینک)</option>
-                  <option value="ONLINE">Online / Card (آن لائن)</option>
-                  <option value="CHEQUE">Cheque (چیک)</option>
-                  <option value="CREDIT">Credit / Udhaar (ادھار)</option>
+                  <option value="CASH">{t("CASH", "نقد")}</option>
+                  <option value="BANK_TRANSFER">{t("Bank Transfer", "بینک")}</option>
+                  <option value="ONLINE">{t("Online / Card", "آن لائن")}</option>
+                  <option value="CHEQUE">{t("Cheque", "چیک")}</option>
+                  <option value="CREDIT">{t("Credit / Udhaar", "ادھار")}</option>
                 </select>
               </div>
             </div>
@@ -1492,22 +1498,22 @@ export default function SalesPage() {
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Payment Status
+                  {t("Payment Status", "ادائیگی کی صورتحال")}
                 </label>
                 <select
                   value={editPaymentStatus}
                   onChange={(e) => setEditPaymentStatus(e.target.value as any)}
                   className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 dark:bg-slate-900 dark:border-slate-700 dark:text-white"
                 >
-                  <option value="PAID">PAID (مکمل ادا)</option>
-                  <option value="PARTIAL">PARTIAL (جزوی ادا)</option>
-                  <option value="UNPAID">UNPAID (ادھار)</option>
+                  <option value="PAID">{t("PAID", "مکمل ادا")}</option>
+                  <option value="PARTIAL">{t("PARTIAL", "جزوی ادا")}</option>
+                  <option value="UNPAID">{t("UNPAID", "ادھار")}</option>
                 </select>
               </div>
 
               <div>
                 <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">
-                  Remaining Receivable (بقایا)
+                  {t("Remaining Receivable", "بقایا رقم")}
                 </label>
                 <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-mono font-bold text-rose-600 dark:border-slate-800 dark:bg-slate-800/60">
                   Rs {Math.max(0, editTotalAmount - editPaidAmount).toLocaleString()}
@@ -1518,7 +1524,7 @@ export default function SalesPage() {
             {/* 5. FBR Compliance Info */}
             <div className="rounded-xl border border-blue-200 bg-blue-50/50 p-3 space-y-2 dark:border-blue-900/50 dark:bg-blue-950/20">
               <span className="block text-[11px] font-bold text-blue-900 dark:text-blue-200 uppercase tracking-wider">
-                FBR Statutory & POS Info (ایف بی آر تفصیلات)
+                {t("FBR Statutory & POS Info", "FBR تفصیلات")}
               </span>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
@@ -1530,9 +1536,9 @@ export default function SalesPage() {
                     onChange={(e) => setEditFbrStatus(e.target.value)}
                     className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:bg-slate-900 dark:border-slate-700 dark:text-white"
                   >
-                    <option value="PENDING">PENDING (منتظر)</option>
-                    <option value="SUCCESS">SUCCESS (کامیاب)</option>
-                    <option value="FAILED">FAILED (ناکام)</option>
+                    <option value="PENDING">{t("PENDING", "منتظر")}</option>
+                    <option value="SUCCESS">{t("SUCCESS", "کامیاب")}</option>
+                    <option value="FAILED">{t("FAILED", "ناکام")}</option>
                   </select>
                 </div>
 
@@ -1565,15 +1571,15 @@ export default function SalesPage() {
             {/* 7. Required Audit Reason */}
             <div className="rounded-xl border border-amber-300 bg-amber-50/70 p-3 dark:border-amber-800 dark:bg-amber-950/40">
               <label className="block text-xs font-bold text-amber-900 dark:text-amber-200 mb-1">
-                Reason for Editing (ترمیم کی وجہ درج کرنا لازمی ہے) *
+                {t("Reason for Editing", "ترمیم کی وجہ درج کرنا لازمی ہے")} *
               </label>
               <p className="text-[11px] text-amber-700 dark:text-amber-400 mb-1.5">
-                This modification will be permanently logged in the software Audit Trail along with your name.
+                {t("This modification will be permanently logged in the software Audit Trail along with your name.", "یہ تبدیلی سافٹ ویئر آڈٹ ٹریل میں آپ کے نام اور تاریخ کے ساتھ محفوظ ہو جائے گی۔")}
               </p>
               <textarea
                 value={editReason}
                 onChange={(e) => setEditReason(e.target.value)}
-                placeholder="e.g. Corrected invoice date / customer name typo / adjusted payment..."
+                placeholder={t("e.g. Corrected invoice date / customer typo / adjusted payment...", "مثال: تاریخ درست کی گئی، غلط نام یا ادائیگی ایڈجسٹ کی گئی...")}
                 rows={2}
                 required
                 className="w-full rounded-lg border border-amber-300 bg-white p-2 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500 dark:bg-slate-900 dark:text-white dark:border-amber-700"
@@ -1589,7 +1595,7 @@ export default function SalesPage() {
                 disabled={deletingSaleId === editingSale.id}
               >
                 <Trash2 className="h-3.5 w-3.5 mr-1" />
-                Delete Invoice (انوائس ڈیلیٹ کریں)
+                {t("Delete Invoice", "انوائس ڈیلیٹ کریں")}
               </Button>
 
               <div className="flex items-center gap-2">
@@ -1598,14 +1604,14 @@ export default function SalesPage() {
                   variant="secondary"
                   onClick={() => setEditingSale(null)}
                 >
-                  Cancel
+                  {t("Cancel", "منسوخ")}
                 </Button>
                 <Button
                   type="submit"
                   variant="primary"
                   isLoading={editSaving}
                 >
-                  Save Changes (ترمیم محفوظ کریں)
+                  {t("Save Changes", "ترمیم محفوظ کریں")}
                 </Button>
               </div>
             </div>
@@ -1624,17 +1630,21 @@ export default function SalesPage() {
           <form onSubmit={handleBulkEditSales} className="space-y-4">
             <div className="rounded-xl border border-indigo-200 bg-indigo-50/70 p-3 text-xs text-indigo-900 dark:border-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-200">
               <p className="font-semibold mb-1">
-                آپ بیک وقت {selectedSaleIds.length} انوائسز میں تبدیلیاں کر رہے ہیں۔
+                {language === "ur"
+                  ? `آپ بیک وقت ${selectedSaleIds.length} انوائسز میں تبدیلیاں کر رہے ہیں۔`
+                  : `You are bulk updating ${selectedSaleIds.length} invoices simultaneously.`}
               </p>
               <p className="text-[11px] text-indigo-700 dark:text-indigo-300">
-                جس فیلڈ کو آپ خالی چھوڑیں گے اس میں کوئی تبدیلی نہیں ہوگی۔ صرف مطلوبہ فیلڈز کو پر کریں۔
+                {language === "ur"
+                  ? "جس فیلڈ کو آپ خالی چھوڑیں گے اس میں کوئی تبدیلی نہیں ہوگی۔ صرف مطلوبہ فیلڈز کو پر کریں۔"
+                  : "Fields left blank will remain unchanged. Only fill the fields you want to update."}
               </p>
             </div>
 
             {/* 1. Date */}
             <div>
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                New Invoice Date (نئی تاریخ - اختیاری)
+                {t("New Invoice Date (Optional)", "نئی انوائس تاریخ (اختیاری)")}
               </label>
               <input
                 type="date"
@@ -1647,12 +1657,12 @@ export default function SalesPage() {
             {/* 2. Customer Name */}
             <div>
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                New Customer Name (گاہک کا نام - اختیاری)
+                {t("New Customer Name (Optional)", "نیا گاہک کا نام (اختیاری)")}
               </label>
               <Input
                 value={bulkEditCustomerName}
                 onChange={(e) => setBulkEditCustomerName(e.target.value)}
-                placeholder="Leave blank to keep existing customer names"
+                placeholder={t("Leave blank to keep existing customer names", "پرانے گاہک کا نام برقرار رکھنے کے لیے خالی چھوڑیں")}
               />
             </div>
 
@@ -1660,35 +1670,35 @@ export default function SalesPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Payment Method (طریقہ ادائیگی)
+                  {t("Payment Method", "طریقہ ادائیگی")}
                 </label>
                 <select
                   value={bulkEditPaymentMethod}
                   onChange={(e) => setBulkEditPaymentMethod(e.target.value)}
                   className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 dark:bg-slate-900 dark:border-slate-700 dark:text-white"
                 >
-                  <option value="">(تبدیل نہ کریں - Keep Existing)</option>
-                  <option value="CASH">CASH (نقد)</option>
-                  <option value="BANK">BANK (بینک)</option>
-                  <option value="ONLINE">ONLINE (آن لائن)</option>
-                  <option value="CHEQUE">CHEQUE (چیک)</option>
-                  <option value="CREDIT">CREDIT (ادھار)</option>
+                  <option value="">{t("(Keep Existing)", "(تبدیل نہ کریں - وہی رکھیں)")}</option>
+                  <option value="CASH">{t("CASH", "نقد")}</option>
+                  <option value="BANK">{t("BANK", "بینک")}</option>
+                  <option value="ONLINE">{t("ONLINE", "آن لائن")}</option>
+                  <option value="CHEQUE">{t("CHEQUE", "چیک")}</option>
+                  <option value="CREDIT">{t("CREDIT", "ادھار")}</option>
                 </select>
               </div>
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Payment Status (ادائیگی کی صورتحال)
+                  {t("Payment Status", "ادائیگی کی صورتحال")}
                 </label>
                 <select
                   value={bulkEditPaymentStatus}
                   onChange={(e) => setBulkEditPaymentStatus(e.target.value)}
                   className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 dark:bg-slate-900 dark:border-slate-700 dark:text-white"
                 >
-                  <option value="">(تبدیل نہ کریں - Keep Existing)</option>
-                  <option value="PAID">PAID (مکمل ادا شدہ)</option>
-                  <option value="PARTIAL">PARTIAL (جزوی ادائیگی)</option>
-                  <option value="UNPAID">UNPAID (غیر ادا شدہ / ادھار)</option>
+                  <option value="">{t("(Keep Existing)", "(تبدیل نہ کریں - وہی رکھیں)")}</option>
+                  <option value="PAID">{t("PAID", "مکمل ادا شدہ")}</option>
+                  <option value="PARTIAL">{t("PARTIAL", "جزوی ادائیگی")}</option>
+                  <option value="UNPAID">{t("UNPAID", "غیر ادا شدہ / ادھار")}</option>
                 </select>
               </div>
             </div>
@@ -1696,24 +1706,24 @@ export default function SalesPage() {
             {/* 4. Notes */}
             <div>
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                Invoice Notes (ریمارکس - اختیاری)
+                {t("Invoice Notes (Optional)", "ریمارکس (اختیاری)")}
               </label>
               <Input
                 value={bulkEditNotes}
                 onChange={(e) => setBulkEditNotes(e.target.value)}
-                placeholder="Leave blank to keep existing notes"
+                placeholder={t("Leave blank to keep existing notes", "پرانے ریمارکس برقرار رکھنے کے لیے خالی چھوڑیں")}
               />
             </div>
 
             {/* 5. Audit Reason (Required) */}
             <div className="rounded-xl border border-amber-300 bg-amber-50/70 p-3 dark:border-amber-800 dark:bg-amber-950/40">
               <label className="block text-xs font-bold text-amber-900 dark:text-amber-200 mb-1">
-                Reason for Bulk Edit (بلک ترمیم کی وجہ درج کریں) *
+                {t("Reason for Bulk Edit", "بلک ترمیم کی وجہ درج کریں")} *
               </label>
               <textarea
                 value={bulkEditReason}
                 onChange={(e) => setBulkEditReason(e.target.value)}
-                placeholder="مثال: تاریخ درست کی گئی، غلط کسٹمر اپڈیٹ کیا گیا، وغیرہ..."
+                placeholder={t("e.g. Corrected invoice date, customer updated, etc...", "مثال: تاریخ درست کی گئی، غلط کسٹمر اپڈیٹ کیا گیا، وغیرہ...")}
                 rows={2}
                 required
                 className="w-full rounded-lg border border-amber-300 bg-white p-2 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500 dark:bg-slate-900 dark:text-white dark:border-amber-700"
@@ -1726,14 +1736,14 @@ export default function SalesPage() {
                 variant="secondary"
                 onClick={() => setShowBulkEditModal(false)}
               >
-                Cancel
+                {t("Cancel", "منسوخ")}
               </Button>
               <Button
                 type="submit"
                 variant="primary"
                 isLoading={isBulkSaving}
               >
-                Apply to {selectedSaleIds.length} Invoices
+                {t(`Apply to ${selectedSaleIds.length} Invoices`, `${selectedSaleIds.length} انوائسز پر لاگو کریں`)}
               </Button>
             </div>
           </form>

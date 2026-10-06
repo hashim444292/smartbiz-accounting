@@ -688,7 +688,7 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
                                     : "bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-200"
                                 }`}
                               >
-                                {rem.type === "RECEIVABLE" ? "گاہک سے وصولی" : "سپلائر کو ادائیگی"}
+                                {rem.type === "RECEIVABLE" ? t("Customer Receivable", "گاہک سے وصولی") : t("Supplier Payable", "سپلائر کو ادائیگی")}
                               </span>
                               <span
                                 className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
@@ -822,7 +822,7 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
             <button
               onClick={() => setLangMenuOpen(!langMenuOpen)}
               className="flex h-9 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 hover:text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white transition shadow-2xs"
-              title="Change Language (زبان تبدیل کریں)"
+              title={t("Change Language", "زبان تبدیل کریں")}
             >
               <Languages className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0" />
               <span className="hidden sm:inline font-bold text-[11px]">{language === "en" ? "English" : "اردو"}</span>

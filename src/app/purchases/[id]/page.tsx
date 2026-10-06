@@ -9,10 +9,12 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, Printer, Package, CheckCircle2, Building2, Receipt } from "lucide-react";
 import { BrandPageLoader } from "@/components/ui/loader";
 import { useAuth } from "@/context/AuthContext";
+import { useLanguage } from "@/context/LanguageContext";
 
 export default function PurchaseDetailPage() {
   const params = useParams();
   const { activeCompany } = useAuth();
+  const { t, language } = useLanguage();
   const [purchase, setPurchase] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
@@ -78,7 +80,7 @@ export default function PurchaseDetailPage() {
         <div className="flex items-center gap-2">
           <Button variant="primary" size="sm" onClick={() => window.print()} className="gap-1.5 shadow-sm">
             <Printer className="h-3.5 w-3.5" />
-            <span>Print Bill Slip (پرنٹ واؤچر)</span>
+            <span>{t("Print Bill Slip", "پرنٹ واؤچر")}</span>
           </Button>
         </div>
       </div>
@@ -91,7 +93,7 @@ export default function PurchaseDetailPage() {
             <div className="space-y-1">
               <div className="flex items-center gap-2">
                 <span className="font-bold text-sm text-amber-950 dark:text-amber-100">
-                  Edited Purchase Bill Notice (ترمیم شدہ خریداری انوائس)
+                  {t("Edited Purchase Bill Notice", "ترمیم شدہ خریداری انوائس")}
                 </span>
                 <span className="rounded-md bg-amber-200/80 px-2 py-0.5 text-[10px] font-bold text-amber-900 dark:bg-amber-900/80 dark:text-amber-200">
                   Edited {purchase.editCount || 1} time{purchase.editCount > 1 ? "s" : ""}
@@ -126,7 +128,9 @@ export default function PurchaseDetailPage() {
             <p className="text-[11px] text-slate-500 mt-1">
               INWARD GOODS RECEIVING NOTE & PURCHASE BILL
             </p>
-            <p className="text-[11px] font-urdu text-slate-400">سامان کی خریداری اور انوینٹری وصولی رسید</p>
+            {language === "ur" && (
+              <p className="text-[11px] font-urdu text-slate-400">سامان کی خریداری اور انوینٹری وصولی رسید</p>
+            )}
           </div>
           <div className="text-right">
             <div className="flex items-center justify-end gap-1.5 flex-wrap">
@@ -165,7 +169,7 @@ export default function PurchaseDetailPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-6 border-b border-slate-100 dark:border-slate-800">
           <div>
             <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-              Supplier / Vendor (سپلائر):
+              {t("Supplier / Vendor", "سپلائر")}:
             </p>
             <p className="text-base font-bold text-slate-900 dark:text-white mt-1">
               {purchase.supplierName}
@@ -199,7 +203,7 @@ export default function PurchaseDetailPage() {
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
               <Package className="h-4 w-4 text-indigo-500" />
-              <span>Inward Stock Items (اسٹاک آئٹمز اور تعداد)</span>
+              <span>{t("Inward Stock Items", "اسٹاک آئٹمز اور تعداد")}</span>
             </h3>
             <span className="text-xs text-slate-400">
               {purchase.items?.length || 0} line items
@@ -273,15 +277,15 @@ export default function PurchaseDetailPage() {
             </div>
           )}
           <div className="flex justify-between border-t border-slate-200 pt-2 text-sm font-bold text-slate-900 dark:border-slate-800 dark:text-white">
-            <span>Total Bill (کل خریداری بل):</span>
+            <span>{t("Total Bill", "کل خریداری بل")}:</span>
             <span className="tabular-nums">{formatMoney(purchase.totalAmount)}</span>
           </div>
           <div className="flex justify-between text-emerald-600 font-semibold">
-            <span>Amount Paid (ادا شدہ):</span>
+            <span>{t("Amount Paid", "ادا شدہ")}:</span>
             <span className="tabular-nums">{formatMoney(purchase.paidAmount)}</span>
           </div>
           <div className="flex justify-between text-rose-600 font-bold border-t border-slate-100 pt-1 dark:border-slate-800">
-            <span>Remaining Payable (بقیہ واجب الادا):</span>
+            <span>{t("Remaining Payable", "بقیہ واجب الادا")}:</span>
             <span className="tabular-nums">{formatMoney(purchase.remainingAmount)}</span>
           </div>
         </div>
@@ -292,17 +296,23 @@ export default function PurchaseDetailPage() {
             <p className="font-semibold text-slate-700 dark:text-slate-300">
               Stock Received & Tallied By
             </p>
-            <p className="text-[10px] text-slate-400">(گودام / دکان انچارج دستخط)</p>
+            {language === "ur" && (
+              <p className="text-[10px] text-slate-400">(گودام / دکان انچارج دستخط)</p>
+            )}
           </div>
           <div className="border-t border-slate-300 pt-2 text-center dark:border-slate-700">
             <p className="font-semibold text-slate-700 dark:text-slate-300">
               Accounts Verification
             </p>
-            <p className="text-[10px] text-slate-400">(اکاؤنٹس مہر و دستخط)</p>
+            {language === "ur" && (
+              <p className="text-[10px] text-slate-400">(اکاؤنٹس مہر و دستخط)</p>
+            )}
           </div>
           <div className="border-t border-slate-300 pt-2 text-center dark:border-slate-700">
             <p className="font-semibold text-slate-700 dark:text-slate-300">Authorized Manager</p>
-            <p className="text-[10px] text-slate-400">(مجاز اتھارٹی)</p>
+            {language === "ur" && (
+              <p className="text-[10px] text-slate-400">(مجاز اتھارٹی)</p>
+            )}
           </div>
         </div>
       </div>

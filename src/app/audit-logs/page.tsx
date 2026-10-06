@@ -24,6 +24,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { useLanguage } from "@/context/LanguageContext";
 
 interface AuditLogEntry {
   id: string;
@@ -43,6 +44,7 @@ interface AuditLogEntry {
 
 export default function AuditLogsPage() {
   const { user, companies } = useAuth();
+  const { t } = useLanguage();
   const [logs, setLogs] = useState<AuditLogEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -113,7 +115,7 @@ export default function AuditLogsPage() {
               <History className="h-4 w-4" />
             </div>
             <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">
-              System Activity & Audit Trail (آڈٹ لاگ)
+              {t("System Activity & Audit Trail", "سسٹم آڈٹ لاگ")}
             </h2>
           </div>
           <p className="text-xs text-slate-500 mt-1">
@@ -179,7 +181,7 @@ export default function AuditLogsPage() {
                 onChange={(e) => setCompanyFilter(e.target.value)}
                 className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-700 font-medium dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500 max-w-[190px] truncate"
               >
-                <option value="ALL">All Companies (تمام کلائنٹس)</option>
+                <option value="ALL">{t("All Companies", "تمام کلائنٹس")}</option>
                 {companies.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name}
@@ -196,12 +198,12 @@ export default function AuditLogsPage() {
               onChange={(e) => setEntityFilter(e.target.value)}
               className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-700 font-medium dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
             >
-              <option value="ALL">All Modules (تمام)</option>
-              <option value="Business">Company & SaaS (کمپنی ترامیم)</option>
-              <option value="Sale">Sale Invoices (سیل انوائس)</option>
-              <option value="Purchase">Purchases (خریداری)</option>
-              <option value="Expense">Daily Expenses (اخراجات)</option>
-              <option value="Branch">Branches (شاخیں)</option>
+              <option value="ALL">{t("All Modules", "تمام ماڈیولز")}</option>
+              <option value="Business">{t("Company & SaaS", "کمپنی ترامیم")}</option>
+              <option value="Sale">{t("Sale Invoices", "سیل انوائسز")}</option>
+              <option value="Purchase">{t("Purchases", "خریداری بلز")}</option>
+              <option value="Expense">{t("Daily Expenses", "روزمرہ اخراجات")}</option>
+              <option value="Branch">{t("Branches", "شاخیں / برانچز")}</option>
             </select>
           </div>
 
@@ -212,12 +214,12 @@ export default function AuditLogsPage() {
               onChange={(e) => setActionFilter(e.target.value)}
               className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-700 font-medium dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
             >
-              <option value="ALL">All Actions</option>
-              <option value="UPDATE_COMPANY">Edit Company (کمپنی ترامیم)</option>
-              <option value="RECORD_SUBSCRIPTION_PAYMENT">Subscription Payment (ماہانہ فیس)</option>
-              <option value="CREATE_COMPANY">Register Company (نئی کمپنی)</option>
+              <option value="ALL">{t("All Actions", "تمام ایکشنز")}</option>
+              <option value="UPDATE_COMPANY">{t("Edit Company", "کمپنی ترامیم")}</option>
+              <option value="RECORD_SUBSCRIPTION_PAYMENT">{t("Subscription Payment", "ماہانہ فیس")}</option>
+              <option value="CREATE_COMPANY">{t("Register Company", "نئی کمپنی رجسٹریشن")}</option>
               <option value="CREATE_SALE">Create Sale</option>
-              <option value="UPDATE_SALE">Edit Sale (ترمیم)</option>
+              <option value="UPDATE_SALE">{t("Edit Sale", "سیل ترمیم")}</option>
               <option value="REVERSE_SALE">Reverse Sale</option>
               <option value="CREATE_PURCHASE">Create Purchase</option>
               <option value="UPDATE_PURCHASE">Edit Purchase</option>
@@ -235,12 +237,12 @@ export default function AuditLogsPage() {
           <table className="w-full text-left text-xs text-slate-600 dark:text-slate-300">
             <thead className="border-b border-slate-200 bg-slate-50/75 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-400">
               <tr>
-                <th className="px-4 py-3">Timestamp</th>
-                <th className="px-4 py-3">User (کس نے کیا)</th>
-                <th className="px-4 py-3">Action</th>
-                <th className="px-4 py-3">Entity</th>
-                <th className="px-4 py-3">Details / Audit Notes</th>
-                <th className="px-4 py-3 text-right">Changes</th>
+                <th className="px-4 py-3">{t("Timestamp", "وقت")}</th>
+                <th className="px-4 py-3">{t("User", "کس نے کیا")}</th>
+                <th className="px-4 py-3">{t("Action", "ایکشن")}</th>
+                <th className="px-4 py-3">{t("Entity", "کھاتہ")}</th>
+                <th className="px-4 py-3">{t("Details / Audit Notes", "تفصیل")}</th>
+                <th className="px-4 py-3 text-right">{t("Changes", "تبدیلیاں")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">

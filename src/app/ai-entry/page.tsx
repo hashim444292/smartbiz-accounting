@@ -36,10 +36,12 @@ import {
   Languages,
   Save,
 } from "lucide-react";
+import { useLanguage } from "@/context/LanguageContext";
 import { BrandPageLoader } from "@/components/ui/loader";
 import { generateSampleSlip } from "@/lib/sampleImageGenerator";
 
 export default function AIDataEntryPage() {
+  const { language, t } = useLanguage();
   const [activeTab, setActiveTab] = useState<"IMAGE" | "VOICE" | "TEXT">("IMAGE");
 
   // Input states
@@ -94,7 +96,7 @@ export default function AIDataEntryPage() {
         if (items[i].type.startsWith("image/")) {
           const file = items[i].getAsFile();
           if (file) {
-            setImageSourceName("Pasted from Clipboard (اسکرین شاٹ)");
+            setImageSourceName(t("Pasted from Clipboard", "اسکرین شاٹ / کلپ بورڈ"));
             handleImageFile(file);
             break;
           }
@@ -183,7 +185,7 @@ export default function AIDataEntryPage() {
 
   const handleImageFile = async (file: File) => {
     if (!file.type.startsWith("image/")) {
-      alert("براہ کرم درست تصویر والی فائل (PNG, JPG, JPEG, WebP) منتخب کریں۔");
+      alert(t("Please select a valid image file (PNG, JPG, JPEG, WebP).", "براہ کرم درست تصویر والی فائل (PNG, JPG, JPEG, WebP) منتخب کریں۔"));
       return;
     }
     setImageSourceName(file.name || "Uploaded Image");
@@ -310,10 +312,10 @@ export default function AIDataEntryPage() {
   const handleLoadSample = (type: "DIARY" | "BILL" | "EXPENSE" | "PURCHASE") => {
     setSelectedSampleType(type);
     const names = {
-      DIARY: "Sample: Daily Diary Slip (روزنامچہ ڈائری)",
-      BILL: "Sample: Printed Cash Memo (سیلز کیش میمو)",
-      EXPENSE: "Sample: Petty Expense Voucher (اخراجات واؤچر)",
-      PURCHASE: "Sample: Wholesale Vendor Bill (سپلائر انوائس)",
+      DIARY: t("Sample: Daily Diary Slip", "روزنامچہ ڈائری"),
+      BILL: t("Sample: Printed Cash Memo", "سیلز کیش میمو"),
+      EXPENSE: t("Sample: Petty Expense Voucher", "اخراجات واؤچر"),
+      PURCHASE: t("Sample: Wholesale Vendor Bill", "سپلائر انوائس"),
     };
     setImageSourceName(names[type]);
     const dataUrl = generateSampleSlip(type);
@@ -388,7 +390,7 @@ export default function AIDataEntryPage() {
   };
 
   const handleClearAllEntries = () => {
-    if (confirm("کیا آپ واقعی تمام اندراجات خارج کرنا چاہتے ہیں؟ (Clear all extracted entries?)")) {
+    if (confirm(t("Are you sure you want to clear all extracted entries?", "کیا آپ واقعی تمام اندراجات خارج کرنا چاہتے ہیں؟"))) {
       setExtractionResult(null);
       setPostedMap({});
     }
@@ -572,7 +574,7 @@ Remaining Payable: Rs. 545,000`,
             className="flex items-center gap-1.5 shadow-sm font-bold bg-blue-600 hover:bg-blue-700 text-white"
           >
             <Upload className="h-3.5 w-3.5" />
-            <span>Upload Image (تصویر اپلوڈ کریں)</span>
+            <span>{t("Upload Image", "تصویر اپلوڈ کریں")}</span>
           </Button>
 
           <Button
@@ -582,7 +584,7 @@ Remaining Payable: Rs. 545,000`,
             className="flex items-center gap-1.5"
           >
             <BookOpen className="h-3.5 w-3.5 text-blue-600" />
-            <span>Format Guidelines (رہنمائی)</span>
+            <span>{t("Format Guidelines", "رہنمائی")}</span>
           </Button>
 
           <Button
@@ -624,7 +626,7 @@ Remaining Payable: Rs. 545,000`,
               className="inline-flex items-center gap-1.5 rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-700 hover:bg-blue-100 border border-blue-200 dark:bg-blue-950 dark:border-blue-900 dark:text-blue-300 shadow-sm transition"
             >
               <Upload className="h-3.5 w-3.5" />
-              <span>Upload Custom Slip / اپنی پرچی اپلوڈ کریں</span>
+              <span>{t("Upload Custom Slip", "اپنی پرچی اپلوڈ کریں")}</span>
             </button>
           </div>
         </div>
@@ -639,10 +641,10 @@ Remaining Payable: Rs. 545,000`,
             <div>
               <div className="flex items-center justify-between mb-1">
                 <span className="text-xs font-bold text-blue-900 dark:text-blue-100 flex items-center gap-1.5">
-                  <Upload className="h-4 w-4 text-blue-600" /> Upload Your Slip
+                  <Upload className="h-4 w-4 text-blue-600" /> {t("Upload Your Slip", "اپنی پرچی اپلوڈ کریں")}
                 </span>
                 <span className="text-[10px] font-bold text-blue-700 dark:text-blue-300 bg-blue-200/70 dark:bg-blue-900/80 px-1.5 py-0.5 rounded">
-                  اپنی پرچی
+                  {language === "ur" ? "اپنی پرچی" : "Custom"}
                 </span>
               </div>
               <p className="text-[11px] text-slate-700 dark:text-slate-300 leading-relaxed mb-3">
@@ -685,10 +687,10 @@ Remaining Payable: Rs. 545,000`,
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-xs font-bold text-slate-900 dark:text-white">
-                    {sample.name}
+                    {language === "ur" ? sample.urdu : sample.name}
                   </span>
                   <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400">
-                    {sample.urdu}
+                    {sample.badge}
                   </span>
                 </div>
                 <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed mb-3">
@@ -733,7 +735,7 @@ Remaining Payable: Rs. 545,000`,
           }`}
         >
           <Camera className="h-4 w-4" />
-          <span>Picture & OCR Scanner (تصویر اپلوڈ اور اسکین)</span>
+          <span>{t("Picture & OCR Scanner", "تصویر اپلوڈ اور اسکین")}</span>
         </button>
 
         <button
@@ -745,7 +747,7 @@ Remaining Payable: Rs. 545,000`,
           }`}
         >
           <FileText className="h-4 w-4" />
-          <span>Daily Diary Text (روزنامچہ نوٹس)</span>
+          <span>{t("Daily Diary Text", "روزنامچہ نوٹس")}</span>
         </button>
 
         <button
@@ -757,7 +759,7 @@ Remaining Payable: Rs. 545,000`,
           }`}
         >
           <Mic className="h-4 w-4" />
-          <span>Voice Accounting (بول کر اندراج)</span>
+          <span>{t("Voice Accounting", "بول کر اندراج")}</span>
         </button>
       </div>
 
@@ -814,7 +816,7 @@ Remaining Payable: Rs. 545,000`,
                     onClick={triggerFileInput}
                     className="text-xs font-bold text-blue-600 hover:text-blue-700 dark:text-blue-400 flex items-center gap-1 shrink-0"
                   >
-                    <Upload className="h-3.5 w-3.5" /> دوسری تصویر اپلوڈ کریں
+                    <Upload className="h-3.5 w-3.5" /> {t("Upload Another Image", "دوسری تصویر اپلوڈ کریں")}
                   </button>
                 </div>
 
@@ -843,7 +845,7 @@ Remaining Payable: Rs. 545,000`,
                   <div className="flex flex-wrap items-center gap-2">
                     <Button variant="outline" size="sm" onClick={triggerFileInput}>
                       <Upload className="h-3.5 w-3.5 mr-1 text-blue-600" />
-                      Upload Other Image (دوسری تصویر)
+                      {t("Upload Other Image", "دوسری تصویر")}
                     </Button>
                     <Button variant="outline" size="sm" onClick={startCamera}>
                       <Camera className="h-3.5 w-3.5 mr-1" /> Use Camera
@@ -885,11 +887,16 @@ Remaining Payable: Rs. 545,000`,
                   <Upload className="h-8 w-8 animate-pulse" />
                 </div>
                 <p className="text-base font-bold text-slate-800 dark:text-slate-200">
-                  Click Anywhere to Upload or Drag & Drop Image Here
+                  {t(
+                    "Click Anywhere to Upload or Drag & Drop Image Here",
+                    "اپنی پرچی، بل، رسید یا ڈائری کی تصویر یہاں اپلوڈ کریں"
+                  )}
                 </p>
-                <p className="text-xs text-slate-600 dark:text-slate-300 mt-1 mb-2 font-medium">
-                  اپنی پرچی، بل، رسید یا ڈائری کی تصویر یہاں اپلوڈ کریں
-                </p>
+                {language === "ur" && (
+                  <p className="text-xs text-slate-600 dark:text-slate-300 mt-1 mb-2 font-medium">
+                    اپنی پرچی، بل، رسید یا ڈائری کی تصویر یہاں اپلوڈ کریں
+                  </p>
+                )}
                 <p className="text-[11px] text-slate-400 mb-6 max-w-md">
                   Supports mobile camera photos, WhatsApp receipts, handwritten diary pages, and bills (PNG, JPG, JPEG, WebP). Or press <kbd className="rounded bg-slate-200 px-1.5 py-0.5 font-mono text-[10px] dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-bold">Ctrl + V</kbd> anywhere to paste screenshot.
                 </p>
@@ -905,7 +912,7 @@ Remaining Payable: Rs. 545,000`,
                     className="shadow-sm font-bold bg-blue-600 hover:bg-blue-700 text-white"
                   >
                     <Upload className="h-4 w-4 mr-1.5" />
-                    Browse & Upload Image File (فائل منتخب کریں)
+                    {t("Browse & Upload Image File", "فائل منتخب کریں")}
                   </Button>
 
                   <Button
@@ -917,7 +924,7 @@ Remaining Payable: Rs. 545,000`,
                     }}
                   >
                     <Camera className="h-4 w-4 mr-1.5 text-slate-600 dark:text-slate-300" />
-                    Use Web Camera (کیمرہ کھولیں)
+                    {t("Use Web Camera", "کیمرہ کھولیں")}
                   </Button>
                 </div>
               </div>
@@ -977,7 +984,7 @@ Remaining Payable: Rs. 545,000`,
                 }}
                 className="text-xs font-bold text-blue-700 border-blue-300 hover:bg-blue-100 dark:text-blue-300 dark:border-blue-800 shrink-0"
               >
-                <Upload className="h-3 w-3 mr-1" /> Upload Diary Image (تصویر اپلوڈ کریں)
+                <Upload className="h-3 w-3 mr-1" /> {t("Upload Diary Image", "تصویر اپلوڈ کریں")}
               </Button>
             </div>
 
@@ -1011,7 +1018,7 @@ Expense tea - 500"
         <Card>
           <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between pb-2 gap-2">
             <div>
-              <CardTitle>Voice Accounting Assistant (آواز کے ذریعے اندراج)</CardTitle>
+              <CardTitle>{t("Voice Accounting Assistant", "آواز کے ذریعے اندراج")}</CardTitle>
               <p className="text-xs text-slate-500 mt-0.5">
                 Speak transactions in Urdu, Roman Urdu, or English. Smart NLP extracts party, amount, and payment status.
               </p>
@@ -1031,7 +1038,7 @@ Expense tea - 500"
                     : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
                 }`}
               >
-                اردو آواز (Urdu)
+                {t("Urdu Voice", "اردو آواز")}
               </button>
               <button
                 type="button"
@@ -1045,7 +1052,7 @@ Expense tea - 500"
                     : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
                 }`}
               >
-                Roman / English (رومن اردو)
+                {t("Roman Urdu / English", "رومن اردو / انگریزی")}
               </button>
             </div>
           </CardHeader>
@@ -1065,10 +1072,13 @@ Expense tea - 500"
                 {isRecording ? (
                   <span className="text-rose-600 flex items-center gap-1.5 justify-center">
                     <span className="h-2 w-2 rounded-full bg-rose-600 animate-ping" />
-                    Recording... Speak clearly ({voiceLanguage === "ur-PK" ? "اردو" : "Roman Urdu / English"})
+                    {t(
+                      `Recording... Speak clearly (${voiceLanguage === "ur-PK" ? "Urdu" : "Roman Urdu / English"})`,
+                      `ریکارڈنگ جاری ہے... واضح بولیں (${voiceLanguage === "ur-PK" ? "اردو" : "رومن اردو / انگریزی"})`
+                    )}
                   </span>
                 ) : (
-                  "Click Microphone to Speak (مائیکروفون پر کلک کریں اور بولیں)"
+                  t("Click Microphone to Speak", "مائیکروفون پر کلک کریں اور بولیں")
                 )}
               </p>
               <p className="text-[11px] text-slate-400 mt-0.5">
@@ -1081,7 +1091,7 @@ Expense tea - 500"
               <div className="flex items-center justify-between">
                 <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
                   <FileText className="h-3.5 w-3.5 text-blue-600" />
-                  <span>Spoken Transcript (بولا گیا کلام - آپ یہاں تحریر درست بھی کر سکتے ہیں):</span>
+                  <span>{t("Spoken Transcript (editable):", "بولا گیا کلام - آپ یہاں تحریر درست بھی کر سکتے ہیں:")}</span>
                 </label>
                 {voiceTranscript && (
                   <button
@@ -1089,7 +1099,7 @@ Expense tea - 500"
                     onClick={clearVoiceRecording}
                     className="text-[11px] font-bold text-rose-600 hover:text-rose-700 flex items-center gap-1"
                   >
-                    <Trash2 className="h-3 w-3" /> Clear & Re-record (آواز دوبارہ ریکارڈ کریں)
+                    <Trash2 className="h-3 w-3" /> {t("Clear & Re-record", "آواز دوبارہ ریکارڈ کریں")}
                   </button>
                 )}
               </div>
@@ -1114,7 +1124,7 @@ Expense tea - 500"
             <div className="max-w-2xl mx-auto pt-1">
               <div className="flex items-center justify-between mb-1.5">
                 <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
-                  💡 Quick Voice Templates (آزمانے کے لیے کلک کریں):
+                  💡 {t("Quick Voice Templates (click to try):", "فوری نمونے (آزمانے کے لیے کلک کریں):")}
                 </span>
               </div>
               <div className="flex flex-wrap gap-1.5 justify-center sm:justify-start">
@@ -1129,17 +1139,19 @@ Expense tea - 500"
                 >
                   Sale: Ali Traders 25 hazar (10k cash)
                 </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const text = "علی ٹریڈرز کو ۲۵ ہزار کی سیل ہوئی ۱۰ ہزار نقد ملا";
-                    setVoiceTranscript(text);
-                    setTextInput(text);
-                  }}
-                  className="rounded-lg bg-blue-50 px-2.5 py-1 text-[11px] font-medium text-blue-700 hover:bg-blue-100 dark:bg-blue-950/40 dark:text-blue-300 border border-blue-200 dark:border-blue-900"
-                >
-                  اردو سیل: ۲۵ ہزار سیل (۱۰ ہزار نقد)
-                </button>
+                {language === "ur" && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const text = "علی ٹریڈرز کو ۲۵ ہزار کی سیل ہوئی ۱۰ ہزار نقد ملا";
+                      setVoiceTranscript(text);
+                      setTextInput(text);
+                    }}
+                    className="rounded-lg bg-blue-50 px-2.5 py-1 text-[11px] font-medium text-blue-700 hover:bg-blue-100 dark:bg-blue-950/40 dark:text-blue-300 border border-blue-200 dark:border-blue-900"
+                  >
+                    اردو سیل: ۲۵ ہزار سیل (۱۰ ہزار نقد)
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => {
@@ -1180,11 +1192,11 @@ Expense tea - 500"
               <div className="pt-2 flex flex-wrap justify-center gap-3">
                 <Button variant="outline" size="md" onClick={clearVoiceRecording}>
                   <Trash2 className="h-4 w-4 mr-1 text-rose-600" />
-                  Discard Voice (آواز ختم کریں)
+                  {t("Discard Voice", "آواز ختم کریں")}
                 </Button>
                 <Button variant="primary" size="md" onClick={() => handleExtract()} isLoading={extracting} className="shadow-md">
                   <Sparkles className="h-4 w-4 mr-1.5" />
-                  Extract Transactions from Speech (اندراج حاصل کریں)
+                  {t("Extract Transactions from Speech", "اندراج حاصل کریں")}
                 </Button>
               </div>
             )}
@@ -1215,7 +1227,7 @@ Expense tea - 500"
                 <Check className="h-3.5 w-3.5" />
               </div>
               <span className="text-xs font-bold text-slate-900 dark:text-white">
-                Extracted Document Text (تصویر سے پڑھا گیا ٹیکسٹ)
+                {t("Extracted Document Text", "تصویر سے پڑھا گیا ٹیکسٹ")}
               </span>
               <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-400">
                 Engine: {engineUsed}
@@ -1287,11 +1299,11 @@ Expense tea - 500"
                 className="text-xs text-rose-600 border-rose-200 hover:bg-rose-50 dark:border-rose-900 dark:hover:bg-rose-950/30 font-bold"
               >
                 <Trash2 className="h-3.5 w-3.5 mr-1" />
-                Clear All (تمام خارج کریں)
+                {t("Clear All", "تمام خارج کریں")}
               </Button>
               <Button variant="primary" size="sm" onClick={handlePostAllValid}>
                 <CheckCircle2 className="h-4 w-4 mr-1.5" />
-                Approve & Post All Valid
+                {t("Approve & Post All Valid", "تمام درست اندراجات منظور و پوسٹ کریں")}
               </Button>
             </div>
           </div>
@@ -1341,7 +1353,7 @@ Expense tea - 500"
                     <div className="flex items-center gap-2 flex-wrap">
                       {isPosted ? (
                         <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/60 px-3 py-1.5 rounded-lg border border-emerald-200 dark:border-emerald-900">
-                          <Check className="h-4 w-4" /> Posted to Ledger (پوسٹ ہو گیا)
+                          <Check className="h-4 w-4" /> {t("Posted to Ledger", "پوسٹ ہو گیا")}
                         </span>
                       ) : (
                         <>
@@ -1352,14 +1364,14 @@ Expense tea - 500"
                             className="text-xs text-blue-700 border-blue-200 hover:bg-blue-50 dark:text-blue-300 dark:border-blue-900 font-semibold"
                           >
                             <Edit3 className="h-3.5 w-3.5 mr-1" />
-                            Edit (ترمیم کریں)
+                            {t("Edit", "ترمیم کریں")}
                           </Button>
 
                           <button
                             type="button"
                             onClick={() => handleDeleteEntry(t.id)}
                             className="rounded-lg border border-rose-200 p-1.5 text-rose-600 hover:bg-rose-50 dark:border-rose-900 dark:text-rose-400 dark:hover:bg-rose-950/40 transition"
-                            title="Delete Entry (یہ اندراج حذف کریں)"
+                            title={t("Delete Entry", "یہ اندراج حذف کریں")}
                           >
                             <Trash2 className="h-4 w-4" />
                           </button>
@@ -1452,7 +1464,7 @@ Expense tea - 500"
         </div>
       )}
 
-      {/* MODAL: FORMAT GUIDELINES (رہنمائی برائے تصویر اور لکھائی) */}
+      {/* MODAL: FORMAT GUIDELINES */}
       {isGuideModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-in fade-in">
           <div className="max-w-2xl w-full rounded-2xl bg-white p-6 shadow-2xl dark:bg-slate-900 border border-slate-200 dark:border-slate-800 max-h-[90vh] overflow-y-auto">
@@ -1463,10 +1475,13 @@ Expense tea - 500"
                 </div>
                 <div>
                   <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                    Format & Photography Guidelines (رہنمائی برائے تصویر اور پرچی)
+                    {t("Format & Photography Guidelines", "رہنمائی برائے تصویر اور پرچی")}
                   </h3>
                   <p className="text-xs text-slate-500">
-                    How to write and photograph your diary pages for 100% accurate extraction.
+                    {t(
+                      "How to write and photograph your diary pages for 100% accurate extraction.",
+                      "100% درست نتائج کے لیے ڈائری لکھنے اور تصویر کھینچنے کا طریقہ۔"
+                    )}
                   </p>
                 </div>
               </div>
@@ -1483,17 +1498,30 @@ Expense tea - 500"
               {/* Photo Tips */}
               <div className="rounded-xl border border-blue-200 bg-blue-50/50 p-3.5 dark:border-blue-900 dark:bg-blue-950/20">
                 <h4 className="font-bold text-blue-900 dark:text-blue-200 text-sm mb-2 flex items-center gap-1.5">
-                  <Camera className="h-4 w-4" /> 1. تصویر لینے کے اہم اصول (Photography Rules)
+                  <Camera className="h-4 w-4" />{" "}
+                  {t("1. Photography Rules", "1. تصویر لینے کے اہم اصول")}
                 </h4>
                 <ul className="space-y-1.5 list-disc list-inside leading-relaxed text-slate-700 dark:text-slate-300">
                   <li>
-                    <strong>سیدھا اینگل (Flat Angle):</strong> کیمرہ پرچی یا ڈائری کے بالکل اوپر سیدھا رکھیں تاکہ تحریر ترچھی نہ ہو۔
+                    <strong>{t("Flat Angle:", "سیدھا اینگل:")}</strong>{" "}
+                    {t(
+                      "Keep the camera directly above the slip or diary page to avoid distortion.",
+                      "کیمرہ پرچی یا ڈائری کے بالکل اوپر سیدھا رکھیں تاکہ تحریر ترچھی نہ ہو۔"
+                    )}
                   </li>
                   <li>
-                    <strong>اچھی روشنی (Proper Lighting):</strong> سایہ (shadow) یا چمک (glare) نہ آئے، کاغذ کے دونوں کنارے تصویر میں نظر آئیں۔
+                    <strong>{t("Proper Lighting:", "اچھی روشنی:")}</strong>{" "}
+                    {t(
+                      "Ensure no shadow or glare falls on the page; keep edges visible in the frame.",
+                      "سایہ یا چمک نہ آئے، کاغذ کے دونوں کنارے تصویر میں نظر آئیں۔"
+                    )}
                   </li>
                   <li>
-                    <strong>صاف لکھائی (Clear Writing):</strong> ہندسے (Numbers) صاف لکھیں جیسے 25,000 یا 10,000 تاکہ OCR الجھن کا شکار نہ ہو۔
+                    <strong>{t("Clear Writing:", "صاف لکھائی:")}</strong>{" "}
+                    {t(
+                      "Write clean numbers like 25,000 or 10,000 so the AI OCR avoids confusion.",
+                      "ہندسے صاف لکھیں جیسے 25,000 یا 10,000 تاکہ OCR الجھن کا شکار نہ ہو۔"
+                    )}
                   </li>
                 </ul>
               </div>
@@ -1501,10 +1529,16 @@ Expense tea - 500"
               {/* Writing Structure */}
               <div className="rounded-xl border border-slate-200 bg-slate-50 p-3.5 dark:border-slate-800 dark:bg-slate-800/40">
                 <h4 className="font-bold text-slate-900 dark:text-white text-sm mb-2 flex items-center gap-1.5">
-                  <FileText className="h-4 w-4 text-blue-600" /> 2. ڈائری میں اندراج کا بہترین فارمیٹ (Writing Structure)
+                  <FileText className="h-4 w-4 text-blue-600" />{" "}
+                  {t("2. Writing Structure & Recommended Format", "2. ڈائری میں اندراج کا بہترین فارمیٹ")}
                 </h4>
                 <div className="space-y-2">
-                  <p>ہر ٹرانزیکشن کو الگ لائن پر لکھیں، مثلاً:</p>
+                  <p>
+                    {t(
+                      "Write each transaction on its own line, for example:",
+                      "ہر ٹرانزیکشن کو الگ لائن پر لکھیں، مثلاً:"
+                    )}
+                  </p>
                   <div className="rounded-lg bg-white p-3 font-mono text-[11px] border border-slate-200 dark:bg-slate-900 dark:border-slate-700 space-y-1">
                     <p className="text-blue-600">Ali Traders ko 25,000 ki sale, 10,000 cash mila</p>
                     <p className="text-emerald-600">Ahmed se 15,000 purchase udhaar</p>
@@ -1517,20 +1551,32 @@ Expense tea - 500"
               {/* Supported Formats */}
               <div className="rounded-xl border border-slate-200 bg-slate-50 p-3.5 dark:border-slate-800 dark:bg-slate-800/40">
                 <h4 className="font-bold text-slate-900 dark:text-white text-sm mb-2">
-                  3. سپورٹ شدہ دستاویزات (Supported Slip Types)
+                  {t("3. Supported Slip & Document Types", "3. سپورٹ شدہ دستاویزات")}
                 </h4>
                 <div className="grid grid-cols-2 gap-2 text-[11px]">
                   <div className="p-2 rounded-lg bg-white border border-slate-200 dark:bg-slate-900 dark:border-slate-700">
-                    <strong className="text-blue-600 block">📒 روزنامچہ ڈائری:</strong> ہاتھ سے لکھی ہوئی دکان کی روزانہ ڈائری
+                    <strong className="text-blue-600 block">
+                      {t("📒 Daily Diary:", "📒 روزنامچہ ڈائری:")}
+                    </strong>{" "}
+                    {t("Handwritten daily retail notebook pages", "ہاتھ سے لکھی ہوئی دکان کی روزانہ ڈائری")}
                   </div>
                   <div className="p-2 rounded-lg bg-white border border-slate-200 dark:bg-slate-900 dark:border-slate-700">
-                    <strong className="text-emerald-600 block">🧾 سیلز کیش میمو:</strong> کسٹمر کو دی جانے والی انوائس یا پرچی
+                    <strong className="text-emerald-600 block">
+                      {t("🧾 Cash Memo:", "🧾 سیلز کیش میمو:")}
+                    </strong>{" "}
+                    {t("Invoices or slips handed to customers", "کسٹمر کو دی جانے والی انوائس یا پرچی")}
                   </div>
                   <div className="p-2 rounded-lg bg-white border border-slate-200 dark:bg-slate-900 dark:border-slate-700">
-                    <strong className="text-amber-600 block">📑 اخراجات واؤچر:</strong> بجلی، چائے، پیٹرول، اور کرایہ کی پرچیاں
+                    <strong className="text-amber-600 block">
+                      {t("📑 Expense Vouchers:", "📑 اخراجات واؤچر:")}
+                    </strong>{" "}
+                    {t("Slips for electricity, tea, fuel, and rent", "بجلی، چائے، پیٹرول، اور کرایہ کی پرچیاں")}
                   </div>
                   <div className="p-2 rounded-lg bg-white border border-slate-200 dark:bg-slate-900 dark:border-slate-700">
-                    <strong className="text-purple-600 block">📦 سپلائر بل:</strong> ہول سیل ڈسٹری بیوٹر کی مال خریداری رسید
+                    <strong className="text-purple-600 block">
+                      {t("📦 Supplier Invoices:", "📦 سپلائر بل:")}
+                    </strong>{" "}
+                    {t("Goods receiving slips from wholesale distributors", "ہول سیل ڈسٹری بیوٹر کی مال خریداری رسید")}
                   </div>
                 </div>
               </div>
@@ -1538,7 +1584,7 @@ Expense tea - 500"
 
             <div className="mt-6 flex justify-end">
               <Button variant="primary" size="sm" onClick={() => setIsGuideModalOpen(false)}>
-                سمجھ آگیا (Got It)
+                {t("Got It", "سمجھ آگیا")}
               </Button>
             </div>
           </div>
@@ -1635,7 +1681,7 @@ Expense tea - 500"
         </div>
       )}
 
-      {/* MODAL: EDIT TRANSACTION (اندراج میں تبدیلی / ترمیم کریں) */}
+      {/* MODAL: EDIT TRANSACTION */}
       {editingTransaction && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-in fade-in">
           <div className="max-w-lg w-full rounded-2xl bg-white p-6 shadow-2xl dark:bg-slate-900 border border-slate-200 dark:border-slate-800 max-h-[90vh] overflow-y-auto">
@@ -1646,10 +1692,13 @@ Expense tea - 500"
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-                    Edit Extracted Transaction (اندراج میں تبدیلی کریں)
+                    {t("Edit Extracted Transaction", "اندراج میں تبدیلی کریں")}
                   </h3>
                   <p className="text-[11px] text-slate-500">
-                    Fix party name, amounts, transaction type, or payment status before posting.
+                    {t(
+                      "Fix party name, amounts, transaction type, or payment status before posting.",
+                      "کھاتے میں درج کرنے سے پہلے پارٹی کا نام، رقم، ٹرانزیکشن کی قسم یا طریقہ درست کریں۔"
+                    )}
                   </p>
                 </div>
               </div>
@@ -1672,31 +1721,31 @@ Expense tea - 500"
               {/* Type */}
               <div>
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  Transaction Type (قسم کا انتخاب کریں):
+                  {t("Transaction Type:", "قسم کا انتخاب کریں:")}
                 </label>
                 <select
                   value={editingTransaction.type}
                   onChange={(e) => setEditingTransaction({ ...editingTransaction, type: e.target.value })}
                   className="w-full rounded-xl border border-slate-300 bg-white p-2.5 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-950 dark:text-white font-medium"
                 >
-                  <option value="SALE">SALE (گاہک کو سیل / فروخت)</option>
-                  <option value="PURCHASE">PURCHASE (سپلائر سے خریداری)</option>
-                  <option value="EXPENSE">EXPENSE (دکان کے اخراجات)</option>
-                  <option value="PAYMENT_RECEIVED">PAYMENT_RECEIVED (گاہک سے پرانا ادھار وصولی)</option>
-                  <option value="PAYMENT_MADE">PAYMENT_MADE (سپلائر کو ادائیگی)</option>
+                  <option value="SALE">{t("SALE (Customer Invoice)", "سیل (گاہک کو فروخت)")}</option>
+                  <option value="PURCHASE">{t("PURCHASE (Supplier Bill)", "خریداری (سپلائر سے مال لینا)")}</option>
+                  <option value="EXPENSE">{t("EXPENSE (Shop Expense)", "اخراجات (دکان کے اخراجات)")}</option>
+                  <option value="PAYMENT_RECEIVED">{t("PAYMENT RECEIVED (Customer Recovery)", "وصولی (گاہک سے رقم وصولی)")}</option>
+                  <option value="PAYMENT_MADE">{t("PAYMENT MADE (Supplier Payment)", "ادائیگی (سپلائر کو رقم ادائیگی)")}</option>
                 </select>
               </div>
 
               {/* Party Name */}
               <div>
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  Party / Customer / Vendor Name (پارٹی یا گاہک کا نام):
+                  {t("Party / Customer / Vendor Name:", "پارٹی یا گاہک کا نام:")}
                 </label>
                 <input
                   type="text"
                   value={editingTransaction.partyName || ""}
                   onChange={(e) => setEditingTransaction({ ...editingTransaction, partyName: e.target.value })}
-                  placeholder="e.g. Ali Traders, Ahmed Telecom"
+                  placeholder={t("e.g. Ali Traders, Ahmed Telecom", "مثلاً: علی ٹریڈرز، احمد ٹیلی کام")}
                   className="w-full rounded-xl border border-slate-300 bg-white p-2.5 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
                   required
                 />
@@ -1706,7 +1755,7 @@ Expense tea - 500"
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    Total Amount Rs. (کل رقم):
+                    {t("Total Amount Rs.:", "کل رقم (روپے):")}
                   </label>
                   <input
                     type="number"
@@ -1728,7 +1777,7 @@ Expense tea - 500"
 
                 <div>
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    Paid / Received Rs. (نقد رقم):
+                    {t("Paid / Received Rs.:", "نقد وصول / ادا شدہ:")}
                   </label>
                   <input
                     type="number"
@@ -1752,7 +1801,7 @@ Expense tea - 500"
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    Remaining Balance Rs. (بقایا ادھار):
+                    {t("Remaining Balance Rs.:", "بقایا ادھار:")}
                   </label>
                   <div className="w-full rounded-xl border border-slate-200 bg-slate-100 p-2.5 text-xs font-bold text-rose-600 dark:border-slate-700 dark:bg-slate-800 tabular-nums">
                     {formatMoney(
@@ -1767,17 +1816,17 @@ Expense tea - 500"
 
                 <div>
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    Payment Method (طریقہ ادائیگی):
+                    {t("Payment Method:", "طریقہ ادائیگی:")}
                   </label>
                   <select
                     value={editingTransaction.paymentMethod || "CASH"}
                     onChange={(e) => setEditingTransaction({ ...editingTransaction, paymentMethod: e.target.value })}
                     className="w-full rounded-xl border border-slate-300 bg-white p-2.5 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
                   >
-                    <option value="CASH">CASH (نقد کیش)</option>
-                    <option value="BANK">BANK / ONLINE (بینک ٹرانسفر)</option>
-                    <option value="CREDIT">CREDIT (مکمل ادھار)</option>
-                    <option value="PARTIAL">PARTIAL (جزوی ادائیگی)</option>
+                    <option value="CASH">{t("CASH (Cash in Hand)", "نقد کیش")}</option>
+                    <option value="BANK">{t("BANK / ONLINE (Bank Transfer)", "بینک ٹرانسفر")}</option>
+                    <option value="CREDIT">{t("CREDIT (Full Credit)", "مکمل ادھار")}</option>
+                    <option value="PARTIAL">{t("PARTIAL (Partial Paid)", "جزوی ادائیگی")}</option>
                   </select>
                 </div>
               </div>
@@ -1785,7 +1834,7 @@ Expense tea - 500"
               {/* Notes */}
               <div>
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  Notes / Voice Transcript (تفصیل / نوٹس):
+                  {t("Notes / Voice Transcript:", "تفصیل / نوٹس:")}
                 </label>
                 <textarea
                   rows={2}
@@ -1804,14 +1853,14 @@ Expense tea - 500"
                   }}
                   className="text-xs text-rose-600 hover:underline font-bold flex items-center gap-1"
                 >
-                  <Trash2 className="h-3.5 w-3.5" /> Delete Entry (حذف کریں)
+                  <Trash2 className="h-3.5 w-3.5" /> {t("Delete Entry", "حذف کریں")}
                 </button>
                 <div className="flex gap-2">
                   <Button variant="outline" size="sm" type="button" onClick={() => setEditingTransaction(null)}>
-                    Cancel (منسوخ)
+                    {t("Cancel", "منسوخ")}
                   </Button>
                   <Button variant="primary" size="sm" type="submit">
-                    <Check className="h-3.5 w-3.5 mr-1" /> Save Changes (محفوظ کریں)
+                    <Check className="h-3.5 w-3.5 mr-1" /> {t("Save Changes", "محفوظ کریں")}
                   </Button>
                 </div>
               </div>

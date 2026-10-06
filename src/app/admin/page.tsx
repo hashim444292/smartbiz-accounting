@@ -22,10 +22,12 @@ import {
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/context/AuthContext";
+import { useLanguage } from "@/context/LanguageContext";
 import { BrandPageLoader, CardSkeleton } from "@/components/ui/loader";
 
 export default function AdminDashboardPage() {
   const { user, activeCompany, switchCompany } = useAuth();
+  const { t } = useLanguage();
   const [companies, setCompanies] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
   const [billingStats, setBillingStats] = useState<any>(null);
@@ -438,14 +440,17 @@ export default function AdminDashboardPage() {
               </CardHeader>
               <CardContent className="p-4 space-y-2.5 text-xs text-slate-600 dark:text-slate-300">
                 <p className="leading-relaxed">
-                  آپ کے پاس کلائنٹ کمپنیوں، سبسکرپشن بلنگ اور سیٹنگز کے انتظامی اختیارات ہیں۔ آپ کی کی گئی ہر ترمیم آڈٹ لاگ میں محفوظ کی جاتی ہے۔
+                  {t(
+                    "You have administrative rights over client companies, subscription billing, and platform settings. Every modification is securely tracked in the audit trail.",
+                    "آپ کے پاس کلائنٹ کمپنیوں، سبسکرپشن بلنگ اور سیٹنگز کے انتظامی اختیارات ہیں۔ آپ کی کی گئی ہر ترمیم آڈٹ لاگ میں محفوظ کی جاتی ہے۔"
+                  )}
                 </p>
                 <Link
                   href="/audit-logs"
                   className="inline-flex items-center gap-1.5 font-bold text-indigo-600 hover:text-indigo-700 text-xs mt-1"
                 >
                   <History className="h-3.5 w-3.5" />
-                  <span>تمام آڈٹ لاگز ملاحظہ کریں &rarr;</span>
+                  <span>{t("View All System Audit Logs →", "تمام آڈٹ لاگز ملاحظہ کریں →")}</span>
                 </Link>
               </CardContent>
             </Card>

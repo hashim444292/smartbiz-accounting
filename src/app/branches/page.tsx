@@ -33,12 +33,14 @@ import {
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useAuth, Branch } from "@/context/AuthContext";
+import { useLanguage } from "@/context/LanguageContext";
 import { BrandPageLoader } from "@/components/ui/loader";
 import { smartFetch, invalidateCache } from "@/lib/clientCache";
 
 export default function BranchesManagementPage() {
   const router = useRouter();
   const { user, activeCompany, switchBranch, activeBranchId, refreshSession } = useAuth();
+  const { language, t } = useLanguage();
   const isSuperAdmin = user?.role === "SUPER_ADMIN";
 
   const [branches, setBranches] = useState<any[]>([]);
@@ -396,7 +398,7 @@ export default function BranchesManagementPage() {
           </Link>
           <div>
             <h1 className="text-xl font-black text-slate-900">
-              Sub-Branches Management (ذیلی برانچز کا انتظام)
+              {t("Sub-Branches Management", "ذیلی برانچز کا انتظام")}
             </h1>
             <p className="text-xs text-slate-500">
               Company: {activeCompany?.name || "Your Company"}
@@ -410,14 +412,16 @@ export default function BranchesManagementPage() {
           </div>
           <div className="max-w-md mx-auto space-y-2">
             <h2 className="text-lg font-black text-amber-900">
-              Multi-Branch Feature Locked (ملٹی برانچ فیچر غیر فعال ہے)
+              {t("Multi-Branch Feature Locked", "ملٹی برانچ فیچر غیر فعال ہے")}
             </h2>
             <p className="text-xs text-amber-800 leading-relaxed">
               Your company account currently does not have authorization to create sub-branches. Sub-branch management is an enterprise multi-location feature authorized by the Super Admin.
             </p>
-            <p className="text-xs font-urdu text-amber-900 font-semibold pt-1">
-              اس فیچر کو فعال کروانے کے لیے برائے مہربانی پلیٹ فارم سپر ایڈمن سے رابطہ فرمائیں۔
-            </p>
+            {language === "ur" && (
+              <p className="text-xs font-urdu text-amber-900 font-semibold pt-1">
+                اس فیچر کو فعال کروانے کے لیے برائے مہربانی پلیٹ فارم سپر ایڈمن سے رابطہ فرمائیں۔
+              </p>
+            )}
           </div>
 
           <div className="pt-4 flex items-center justify-center gap-3">
@@ -455,7 +459,7 @@ export default function BranchesManagementPage() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-black text-slate-900">
-                {isSuperAdmin ? "Sub-Branches Management (ذیلی برانچز)" : "Branches & Staff Management (برانچز و ملازمین)"}
+                {isSuperAdmin ? t("Sub-Branches Management", "ذیلی برانچز کا انتظام") : t("Branches & Staff Management", "برانچز و ملازمین کا انتظام")}
               </h1>
               <Badge className="bg-indigo-100 text-indigo-800 border-indigo-200">
                 {isSuperAdmin ? "Super Admin Mode" : "Owner Staff Portal"}
@@ -475,7 +479,7 @@ export default function BranchesManagementPage() {
             className="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700 transition shadow-xs flex items-center gap-1.5"
           >
             <UserPlus className="h-4 w-4" />
-            <span>+ Add Branch User / Manager (نیا ملازم / مینیجر بنائیں)</span>
+            <span>{t("+ Add Branch User / Manager", "+ نیا ملازم / مینیجر بنائیں")}</span>
           </button>
           {isSuperAdmin && (
             <button
@@ -487,7 +491,7 @@ export default function BranchesManagementPage() {
               className="px-4 py-2 rounded-xl bg-slate-900 text-white text-xs font-bold hover:bg-slate-800 transition shadow-xs flex items-center gap-1.5"
             >
               <Plus className="h-4 w-4" />
-              <span>Add New Branch (نئی برانچ بنائیں)</span>
+              <span>{t("Add New Branch", "نئی برانچ بنائیں")}</span>
             </button>
           )}
         </div>
@@ -605,12 +609,18 @@ export default function BranchesManagementPage() {
         <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center space-y-3">
           <Store className="h-10 w-10 text-slate-300 mx-auto" />
           <h3 className="text-sm font-bold text-slate-800">
-            {isSuperAdmin ? "No Sub-Branches Found" : "کوئی ذیلی برانچ موجود نہیں (No Branches Provisioned)"}
+            {isSuperAdmin ? t("No Sub-Branches Found", "کوئی ذیلی برانچ موجود نہیں") : t("No Branches Provisioned", "کوئی ذیلی برانچ موجود نہیں")}
           </h3>
           <p className="text-xs text-slate-500 max-w-sm mx-auto">
             {isSuperAdmin
-              ? "Get started by adding your first branch or outlet for this company to enable branch-wise isolation and reporting."
-              : "اس کمپنی کے لیے فی الحال کوئی الگ برانچ مختص نہیں ہے۔ برانچز پلیٹ فارم ایڈمن کے ذریعے شامل کی جاتی ہیں۔ اگر آپ کو نئی برانچ چاہیے تو پلیٹ فارم سپورٹ سے رابطہ کریں۔"}
+              ? t(
+                  "Get started by adding your first branch or outlet for this company to enable branch-wise isolation and reporting.",
+                  "اس کمپنی کے لیے پہلی برانچ شامل کر کے برانچ وار رپورٹنگ شروع کریں۔"
+                )
+              : t(
+                  "No separate branch has been provisioned for this company yet. Branches are created by the Platform Admin. Contact support if you need additional branches.",
+                  "اس کمپنی کے لیے فی الحال کوئی الگ برانچ مختص نہیں ہے۔ برانچز پلیٹ فارم ایڈمن کے ذریعے شامل کی جاتی ہیں۔ اگر آپ کو نئی برانچ چاہیے تو پلیٹ فارم سپورٹ سے رابطہ کریں۔"
+                )}
           </p>
           {isSuperAdmin ? (
             <button
@@ -809,7 +819,7 @@ export default function BranchesManagementPage() {
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="font-bold text-slate-900 text-sm">
-                  Branch Managers & Staff Team (برانچ مینیجرز اور ملازمین)
+                  {t("Branch Managers & Staff Team", "برانچ مینیجرز اور ملازمین")}
                 </h3>
                 <Badge variant="outline" className="text-[10px] bg-white font-bold">
                   {users.length} Users
@@ -953,7 +963,7 @@ export default function BranchesManagementPage() {
             <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4 bg-slate-50/50">
               <div className="flex items-center gap-2">
                 <Store className="h-5 w-5 text-indigo-600" />
-                <h3 className="text-sm font-bold text-slate-900">Add New Sub-Branch (نئی برانچ بنائیں)</h3>
+                <h3 className="text-sm font-bold text-slate-900">{t("Add New Sub-Branch", "نئی برانچ بنائیں")}</h3>
               </div>
               <button
                 onClick={() => setAddModalOpen(false)}
@@ -1099,7 +1109,7 @@ export default function BranchesManagementPage() {
             <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4 bg-slate-50/50">
               <div className="flex items-center gap-2">
                 <Edit2 className="h-5 w-5 text-indigo-600" />
-                <h3 className="text-sm font-bold text-slate-900">Edit Branch (برانچ میں ترمیم)</h3>
+                <h3 className="text-sm font-bold text-slate-900">{t("Edit Branch", "برانچ میں ترمیم")}</h3>
               </div>
               <button
                 onClick={() => setEditModalOpen(false)}
@@ -1327,7 +1337,7 @@ export default function BranchesManagementPage() {
                 <UserPlus className="h-5 w-5 text-indigo-600" />
                 <div>
                   <h3 className="text-sm font-bold text-slate-900">
-                    Add Branch User / Manager (نیا ملازم / مینیجر بنائیں)
+                    {t("Add Branch User / Manager", "نیا ملازم / مینیجر بنائیں")}
                   </h3>
                   <p className="text-[11px] text-slate-500">
                     Create a new user account with branch-specific or company-wide access.
@@ -1352,7 +1362,7 @@ export default function BranchesManagementPage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 <div className="space-y-1 sm:col-span-2">
-                  <label className="text-xs font-bold text-slate-700">Full Name (پورا نام) *</label>
+                  <label className="text-xs font-bold text-slate-700">{t("Full Name *", "پورا نام *")}</label>
                   <input
                     type="text"
                     required
@@ -1364,7 +1374,7 @@ export default function BranchesManagementPage() {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-700">Email Address (ای میل) *</label>
+                  <label className="text-xs font-bold text-slate-700">{t("Email Address *", "ای میل *")}</label>
                   <input
                     type="email"
                     required
@@ -1376,7 +1386,7 @@ export default function BranchesManagementPage() {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-700">Password (پاس ورڈ) *</label>
+                  <label className="text-xs font-bold text-slate-700">{t("Password *", "پاس ورڈ *")}</label>
                   <input
                     type="password"
                     required
@@ -1389,7 +1399,7 @@ export default function BranchesManagementPage() {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-700">Phone Number (فون نمبر)</label>
+                  <label className="text-xs font-bold text-slate-700">{t("Phone Number", "فون نمبر")}</label>
                   <input
                     type="text"
                     value={userFormData.phone}
@@ -1400,22 +1410,22 @@ export default function BranchesManagementPage() {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-700">System Role (عہدہ) *</label>
+                  <label className="text-xs font-bold text-slate-700">{t("System Role *", "عہدہ *")}</label>
                   <select
                     value={userFormData.role}
                     onChange={(e) => setUserFormData({ ...userFormData, role: e.target.value })}
                     className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-900 focus:outline-none focus:border-indigo-500 bg-white"
                   >
                     <option value="STAFF">Staff Member</option>
-                    <option value="CASHIER">Cashier (کیشیئر)</option>
-                    <option value="ACCOUNTANT">Accountant (اکاؤنٹنٹ)</option>
-                    <option value="MANAGER">Manager (مینیجر)</option>
+                    <option value="CASHIER">{t("Cashier", "کیشیئر")}</option>
+                    <option value="ACCOUNTANT">{t("Accountant", "اکاؤنٹنٹ")}</option>
+                    <option value="MANAGER">{t("Manager", "مینیجر")}</option>
                     <option value="OWNER_ADMIN">Co-Owner / Admin</option>
                   </select>
                 </div>
 
                 <div className="space-y-1 sm:col-span-2">
-                  <label className="text-xs font-bold text-slate-700">Assigned Branch (مخصوص برانچ)</label>
+                  <label className="text-xs font-bold text-slate-700">{t("Assigned Branch", "مخصوص برانچ")}</label>
                   <select
                     value={userFormData.branchId}
                     onChange={(e) => setUserFormData({ ...userFormData, branchId: e.target.value })}
@@ -1446,7 +1456,7 @@ export default function BranchesManagementPage() {
                     <div>
                       <span className="text-xs font-bold text-amber-900 flex items-center gap-1">
                         <Star className="h-3.5 w-3.5 fill-amber-500 text-amber-500" />
-                        <span>Designate as Branch Lead / Manager (برانچ کا سربراہ بنائیں)</span>
+                        <span>{t("Designate as Branch Lead / Manager", "برانچ کا سربراہ بنائیں")}</span>
                       </span>
                       <p className="text-[11px] text-amber-800 mt-0.5">
                         Automatically sets this user as the primary contact manager for the assigned branch.
@@ -1514,7 +1524,7 @@ export default function BranchesManagementPage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 <div className="space-y-1 sm:col-span-2">
-                  <label className="text-xs font-bold text-slate-700">Full Name (پورا نام) *</label>
+                  <label className="text-xs font-bold text-slate-700">{t("Full Name *", "پورا نام *")}</label>
                   <input
                     type="text"
                     required
@@ -1525,7 +1535,7 @@ export default function BranchesManagementPage() {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-700">Email Address (ای میل) *</label>
+                  <label className="text-xs font-bold text-slate-700">{t("Email Address *", "ای میل *")}</label>
                   <input
                     type="email"
                     required
@@ -1536,19 +1546,19 @@ export default function BranchesManagementPage() {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-700">New Password (پاس ورڈ)</label>
+                  <label className="text-xs font-bold text-slate-700">{t("New Password", "پاس ورڈ")}</label>
                   <input
                     type="password"
                     minLength={6}
                     value={userFormData.password}
                     onChange={(e) => setUserFormData({ ...userFormData, password: e.target.value })}
-                    placeholder="Leave blank to keep unchanged"
+                    placeholder={t("Leave blank to keep unchanged", "تبدیل نہ کرنے کے لیے خالی چھوڑیں")}
                     className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs text-slate-900 focus:outline-none focus:border-indigo-500"
                   />
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-700">Phone Number (فون نمبر)</label>
+                  <label className="text-xs font-bold text-slate-700">{t("Phone Number", "فون نمبر")}</label>
                   <input
                     type="text"
                     value={userFormData.phone}
@@ -1559,22 +1569,22 @@ export default function BranchesManagementPage() {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-700">System Role (عہدہ) *</label>
+                  <label className="text-xs font-bold text-slate-700">{t("System Role *", "عہدہ *")}</label>
                   <select
                     value={userFormData.role}
                     onChange={(e) => setUserFormData({ ...userFormData, role: e.target.value })}
                     className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-900 focus:outline-none focus:border-indigo-500 bg-white"
                   >
                     <option value="STAFF">Staff Member</option>
-                    <option value="CASHIER">Cashier (کیشیئر)</option>
-                    <option value="ACCOUNTANT">Accountant (اکاؤنٹنٹ)</option>
-                    <option value="MANAGER">Manager (مینیجر)</option>
+                    <option value="CASHIER">{t("Cashier", "کیشیئر")}</option>
+                    <option value="ACCOUNTANT">{t("Accountant", "اکاؤنٹنٹ")}</option>
+                    <option value="MANAGER">{t("Manager", "مینیجر")}</option>
                     <option value="OWNER_ADMIN">Co-Owner / Admin</option>
                   </select>
                 </div>
 
                 <div className="space-y-1 sm:col-span-2">
-                  <label className="text-xs font-bold text-slate-700">Assigned Branch (مخصوص برانچ)</label>
+                  <label className="text-xs font-bold text-slate-700">{t("Assigned Branch", "مخصوص برانچ")}</label>
                   <select
                     value={userFormData.branchId}
                     onChange={(e) => setUserFormData({ ...userFormData, branchId: e.target.value })}
@@ -1602,7 +1612,7 @@ export default function BranchesManagementPage() {
                     <div>
                       <span className="text-xs font-bold text-amber-900 flex items-center gap-1">
                         <Star className="h-3.5 w-3.5 fill-amber-500 text-amber-500" />
-                        <span>Designate as Branch Lead / Manager (برانچ کا سربراہ بنائیں)</span>
+                        <span>{t("Designate as Branch Lead / Manager", "برانچ کا سربراہ بنائیں")}</span>
                       </span>
                       <p className="text-[11px] text-amber-800 mt-0.5">
                         Designate this user as the branch's primary contact manager.

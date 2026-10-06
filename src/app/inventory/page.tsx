@@ -8,11 +8,13 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Search, AlertTriangle, ArrowUpDown, Download, Package, Plus } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { useLanguage } from "@/context/LanguageContext";
 import { TableRowsSkeleton } from "@/components/ui/loader";
 import { smartFetch, invalidateCache } from "@/lib/clientCache";
 
 export default function InventoryPage() {
   const { user, activeCompany, branches, selectedBranch, activeBranchId, isBranchLocked } = useAuth();
+  const { t } = useLanguage();
 
   const [products, setProducts] = useState<any[]>([]);
   const [transactions, setTransactions] = useState<any[]>([]);
@@ -256,7 +258,7 @@ export default function InventoryPage() {
                   <th className="px-4 py-3">Product Name</th>
                   <th className="px-4 py-3 text-center">Movement Type</th>
                   <th className="px-4 py-3 text-center">Quantity</th>
-                  <th className="px-4 py-3">Branch (برانچ)</th>
+                  <th className="px-4 py-3">{t("Branch", "برانچ")}</th>
                   <th className="px-4 py-3">Adjusted / Handled By</th>
                   <th className="px-4 py-3">Reason & Audit Memo</th>
                 </tr>
@@ -423,7 +425,7 @@ export default function InventoryPage() {
                               variant="outline"
                               size="sm"
                               className="text-xs font-semibold hover:bg-indigo-50 hover:text-indigo-700 transition"
-                              title="Inward / Buy stock via verified Purchase Bill (پرچیز بل کے ذریعے اسٹاک خریدیں)"
+                              title={t("Inward / Buy stock via verified Purchase Bill", "پرچیز بل کے ذریعے اسٹاک خریدیں")}
                             >
                               <Plus className="h-3.5 w-3.5 mr-1 text-indigo-600" />
                               Purchase Bill

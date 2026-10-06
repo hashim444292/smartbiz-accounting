@@ -6,8 +6,10 @@ import { formatMoney } from "@/lib/decimal";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Printer } from "lucide-react";
 import { BrandPageLoader } from "@/components/ui/loader";
+import { useLanguage } from "@/context/LanguageContext";
 
 export default function BalanceSheetPage() {
+  const { t } = useLanguage();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
@@ -116,7 +118,7 @@ export default function BalanceSheetPage() {
                 <span className="tabular-nums font-semibold text-rose-600">{formatMoney(payables)}</span>
               </div>
               <div className="flex justify-between">
-                <span>Tax & Sales Tax Accrued (واجب الادا ٹیکس)</span>
+                <span>{t("Tax & Sales Tax Accrued", "واجب الادا ٹیکس اور سیلز ٹیکس")}</span>
                 <span className="tabular-nums font-semibold">{formatMoney(accruedTaxes)}</span>
               </div>
               <div className="flex justify-between border-t border-slate-100 pt-1 font-bold">

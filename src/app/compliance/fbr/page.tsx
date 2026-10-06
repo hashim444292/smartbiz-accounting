@@ -37,12 +37,14 @@ import {
 } from "lucide-react";
 import { TableRowsSkeleton } from "@/components/ui/loader";
 import { useAuth } from "@/context/AuthContext";
+import { useLanguage } from "@/context/LanguageContext";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { FbrQrCode } from "@/components/ui/FbrQrCode";
 
 export default function FbrCompliancePage() {
   const { activeCompany, user } = useAuth();
+  const { language, t } = useLanguage();
   const isSuperAdmin = user?.role === "SUPER_ADMIN";
 
   const [loading, setLoading] = useState(true);
@@ -94,8 +96,12 @@ export default function FbrCompliancePage() {
   const handleReverseInvoice = async (inv: any) => {
     const isStamped = inv.fbrStatus === "SUCCESS";
     const confirmText = isStamped
-      ? `انوائس #${inv.invoiceNumber} پہلے سے FBR پر منظور شدہ ہے۔\n\nاسے ریورس کرنے پر اکاؤنٹنگ میں باقاعدہ Sales Return / Credit Note درج ہوگا، گودام کا اسٹاک بحال ہوگا اور گاہک کا کھاتہ درست ہو جائے گا۔\n\nکیا آپ یہ Credit Note / Reversal جاری کرنا چاہتے ہیں؟`
-      : `کیا آپ انوائس #${inv.invoiceNumber} کو منسوخ / ریورس کرنا چاہتے ہیں؟ اس سے کھاتے اور اسٹاک درست ہو جائیں گے اور یہ بل کینسل ہو جائے گا۔`;
+      ? (language === "ur"
+          ? `انوائس #${inv.invoiceNumber} پہلے سے FBR پر منظور شدہ ہے۔\n\nاسے ریورس کرنے پر اکاؤنٹنگ میں باقاعدہ Sales Return / Credit Note درج ہوگا، گودام کا اسٹاک بحال ہوگا اور گاہک کا کھاتہ درست ہو جائے گا۔\n\nکیا آپ یہ Credit Note / Reversal جاری کرنا چاہتے ہیں؟`
+          : `Invoice #${inv.invoiceNumber} is already validated with FBR.\n\nReversing this will record an official Credit Note / Sales Return in accounting, restore inventory stock, and balance customer ledger.\n\nDo you want to issue this Credit Note / Reversal?`)
+      : (language === "ur"
+          ? `کیا آپ انوائس #${inv.invoiceNumber} کو منسوخ / ریورس کرنا چاہتے ہیں؟ اس سے کھاتے اور اسٹاک درست ہو جائیں گے اور یہ بل کینسل ہو جائے گا۔`
+          : `Are you sure you want to cancel / reverse invoice #${inv.invoiceNumber}? This will restore ledger and inventory.`);
 
     if (!window.confirm(confirmText)) return;
 
@@ -114,19 +120,21 @@ export default function FbrCompliancePage() {
       if (json.success) {
         setActionMessage({
           type: "success",
-          text: `انوائس #${inv.invoiceNumber} کامیابی سے ریورس ہو گئی۔ (Credit Note / Reversal Recorded)`,
+          text: language === "ur"
+            ? `انوائس #${inv.invoiceNumber} کامیابی سے ریورس ہو گئی۔ (Credit Note / Reversal Recorded)`
+            : `Invoice #${inv.invoiceNumber} reversed successfully. (Credit Note Recorded)`,
         });
         loadCompliance();
       } else {
         setActionMessage({
           type: "error",
-          text: json.error || "ریورس کرنے میں ناکامی ہوئی۔",
+          text: json.error || (language === "ur" ? "ریورس کرنے میں ناکامی ہوئی۔" : "Failed to reverse invoice."),
         });
       }
     } catch (err: any) {
       setActionMessage({
         type: "error",
-        text: err.message || "نیٹ ورک کی خرابی۔",
+        text: err.message || (language === "ur" ? "نیٹ ورک کی خرابی۔" : "Network error."),
       });
     } finally {
       setReversingId(null);
@@ -139,8 +147,12 @@ export default function FbrCompliancePage() {
   const handleDeleteInvoice = async (inv: any) => {
     const isStamped = inv.fbrStatus === "SUCCESS";
     const confirmMsg = isStamped
-      ? `انوائس #${inv.invoiceNumber} پہلے سے FBR پر منظور شدہ ہے۔ کیا آپ اسے واقعی اس سسٹم سے ڈیلیٹ کرنا چاہتے ہیں؟`
-      : `کیا آپ انوائس #${inv.invoiceNumber} کو مستقل ڈیلیٹ کرنا چاہتے ہیں؟ اس سے کھاتے اور اسٹاک واپس درست ہو جائیں گے۔`;
+      ? (language === "ur"
+          ? `انوائس #${inv.invoiceNumber} پہلے سے FBR پر منظور شدہ ہے۔ کیا آپ اسے واقعی اس سسٹم سے ڈیلیٹ کرنا چاہتے ہیں؟`
+          : `Invoice #${inv.invoiceNumber} is approved by FBR. Are you sure you want to delete it from this system?`)
+      : (language === "ur"
+          ? `کیا آپ انوائس #${inv.invoiceNumber} کو مستقل ڈیلیٹ کرنا چاہتے ہیں؟ اس سے کھاتے اور اسٹاک واپس درست ہو جائیں گے۔`
+          : `Are you sure you want to permanently delete invoice #${inv.invoiceNumber}? This will restore ledger and inventory.`);
 
     if (!window.confirm(confirmMsg)) return;
 
@@ -151,20 +163,22 @@ export default function FbrCompliancePage() {
       if (json.success) {
         setActionMessage({
           type: "success",
-          text: `انوائس #${inv.invoiceNumber} کامیابی سے ڈیلیٹ ہو گئی۔`,
+          text: language === "ur"
+            ? `انوائس #${inv.invoiceNumber} کامیابی سے ڈیلیٹ ہو گئی۔`
+            : `Invoice #${inv.invoiceNumber} deleted successfully.`,
         });
         setSelectedIds((prev) => prev.filter((id) => id !== inv.id));
         loadCompliance();
       } else {
         setActionMessage({
           type: "error",
-          text: json.error || "انوائس ڈیلیٹ کرنے میں ناکامی ہوئی۔",
+          text: json.error || (language === "ur" ? "انوائس ڈیلیٹ کرنے میں ناکامی ہوئی۔" : "Failed to delete invoice."),
         });
       }
     } catch (err: any) {
       setActionMessage({
         type: "error",
-        text: err.message || "نیٹ ورک کی خرابی۔",
+        text: err.message || (language === "ur" ? "نیٹ ورک کی خرابی۔" : "Network error."),
       });
     } finally {
       setDeletingId(null);
@@ -173,7 +187,10 @@ export default function FbrCompliancePage() {
 
   const handleBatchDelete = async () => {
     if (selectedIds.length === 0) return;
-    if (!window.confirm(`کیا آپ منتخب کردہ تمام ${selectedIds.length} انوائسز کو مستقل ڈیلیٹ کرنا چاہتے ہیں؟`)) {
+    const confirmPrompt = language === "ur"
+      ? `کیا آپ منتخب کردہ تمام ${selectedIds.length} انوائسز کو مستقل ڈیلیٹ کرنا چاہتے ہیں؟`
+      : `Are you sure you want to permanently delete all ${selectedIds.length} selected invoices?`;
+    if (!window.confirm(confirmPrompt)) {
       return;
     }
 
@@ -188,20 +205,22 @@ export default function FbrCompliancePage() {
       if (json.success) {
         setActionMessage({
           type: "success",
-          text: `کامیابی سے ${json.deletedCount} انوائسز ڈیلیٹ کر دی گئیں۔`,
+          text: language === "ur"
+            ? `کامیابی سے ${json.deletedCount} انوائسز ڈیلیٹ کر دی گئیں۔`
+            : `Successfully deleted ${json.deletedCount} invoices.`,
         });
         setSelectedIds([]);
         loadCompliance();
       } else {
         setActionMessage({
           type: "error",
-          text: json.error || "بلک ڈیلیٹ میں ناکامی ہوئی۔",
+          text: json.error || (language === "ur" ? "بلک ڈیلیٹ میں ناکامی ہوئی۔" : "Bulk delete failed."),
         });
       }
     } catch (err: any) {
       setActionMessage({
         type: "error",
-        text: err.message || "نیٹ ورک کی خرابی۔",
+        text: err.message || (language === "ur" ? "نیٹ ورک کی خرابی۔" : "Network error."),
       });
     } finally {
       setIsBatchDeleting(false);
@@ -433,18 +452,20 @@ export default function FbrCompliancePage() {
       return;
     }
 
-    if (
-      !confirm(
-        `Transmit ${idsToHit.length} fully paid invoice(s) to FBR?\n\n- ہر انوائس 2 سیکنڈ کے وقفے سے محفوظ طریقے سے ہٹ ہوگی (FBR Rate-Limiting Protection).\n- Statutory Rs. 1/- POS fee per invoice will be charged.\n- Partial & Credit invoices (${awaitingPaymentCount}) are safely held back.`
-      )
-    ) {
+    const confirmPrompt = language === "ur"
+      ? `FBR پر ${idsToHit.length} انوائسز ارسال کریں؟\n\n- ہر انوائس 2 سیکنڈ کے وقفے سے محفوظ طریقے سے ہٹ ہوگی (FBR Rate-Limiting Protection).\n- قانونی Rs. 1/- POS فیس لاگو ہوگی۔\n- غیر ادا شدہ و ادھار انوائسز (${awaitingPaymentCount}) محفوظ طریقے سے روک لی گئی ہیں۔`
+      : `Transmit ${idsToHit.length} fully paid invoice(s) to FBR?\n\n- Each invoice will transmit safely with a 2-second rate-limiting delay.\n- Statutory Rs. 1/- POS fee per invoice will be charged.\n- Partial & Credit invoices (${awaitingPaymentCount}) are safely held back.`;
+
+    if (!confirm(confirmPrompt)) {
       return;
     }
 
     setIsBatchHitting(true);
     setActionMessage({
       type: "info",
-      text: `FBR پر ${idsToHit.length} انوائسز کی ترسیل جاری ہے... (ہر انوائس کے درمیان 2 سیکنڈ کا وقفہ ہے، برائے مہربانی انتظار فرمائیں)`,
+      text: language === "ur"
+        ? `FBR پر ${idsToHit.length} انوائسز کی ترسیل جاری ہے... (ہر انوائس کے درمیان 2 سیکنڈ کا وقفہ ہے، برائے مہربانی انتظار فرمائیں)`
+        : `Transmitting ${idsToHit.length} invoices to FBR... (2-second delay between hits, please wait)`,
     });
 
     try {
@@ -461,7 +482,9 @@ export default function FbrCompliancePage() {
 
       setActionMessage({
         type: "success",
-        text: data.message || `کامیابی سے ${idsToHit.length} انوائسز 2 سیکنڈ کے وقفے کے ساتھ FBR پر منتقل ہو گئیں۔`,
+        text: data.message || (language === "ur"
+          ? `کامیابی سے ${idsToHit.length} انوائسز 2 سیکنڈ کے وقفے کے ساتھ FBR پر منتقل ہو گئیں۔`
+          : `Successfully transmitted ${idsToHit.length} invoices to FBR with 2-second delay.`),
       });
       setSelectedIds([]);
       await loadCompliance();
@@ -1649,7 +1672,7 @@ export default function FbrCompliancePage() {
             {/* Mode / Integration Engine */}
             <div className="rounded-xl border border-indigo-200 bg-white p-3 space-y-2">
               <label className="block text-[11px] font-bold text-slate-800 uppercase tracking-wide">
-                FBR Integration Mode / Engine (طریقہ کار)
+                {t("FBR Integration Mode / Engine", "FBR طریقہ کار / انٹیگریشن انجن")}
               </label>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 <button

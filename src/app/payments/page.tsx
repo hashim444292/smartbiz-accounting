@@ -9,10 +9,12 @@ import { Badge } from "@/components/ui/badge";
 import { ArrowDownLeft, ArrowUpRight, ArrowLeftRight, Search, ShieldCheck, Building2, UserCheck, TrendingUp, TrendingDown, Wallet } from "lucide-react";
 import { TableRowsSkeleton } from "@/components/ui/loader";
 import { useAuth } from "@/context/AuthContext";
+import { useLanguage } from "@/context/LanguageContext";
 import { smartFetch, invalidateCache } from "@/lib/clientCache";
 
 export default function PaymentsPage() {
   const { user, activeCompany, branches, selectedBranch, activeBranchId, isBranchLocked } = useAuth();
+  const { t } = useLanguage();
 
   const [payments, setPayments] = useState<any[]>([]);
   const [customers, setCustomers] = useState<any[]>([]);
@@ -386,21 +388,27 @@ export default function PaymentsPage() {
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Active Outlet View (موجودہ برانچ):</span>
+              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">{t("Active Outlet View:", "موجودہ برانچ:")}</span>
               {isBranchLocked ? (
                 <span className="inline-flex items-center gap-1.5 rounded-lg bg-amber-50 border border-amber-200 px-2.5 py-0.5 text-xs font-bold text-amber-900 dark:bg-amber-950/60 dark:border-amber-800 dark:text-amber-200">
-                  🏢 {user?.branchName || branches.find((b) => b.id === user?.branchId)?.name || "Assigned Branch"} (مخصوص کھاتہ / Locked)
+                  🏢 {user?.branchName || branches.find((b) => b.id === user?.branchId)?.name || "Assigned Branch"} {t("(Locked Branch)", "(مخصوص کھاتہ / Locked)")}
                 </span>
               ) : (
                 <span className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 text-xs font-bold text-emerald-900 dark:bg-emerald-950/60 dark:border-emerald-800 dark:text-emerald-200">
-                  🏢 {selectedBranch ? `${selectedBranch.name} (${selectedBranch.code})` : "🌐 Consolidated (All Outlets / تمام برانچز کا مجموعہ)"}
+                  🏢 {selectedBranch ? `${selectedBranch.name} (${selectedBranch.code})` : t("🌐 Consolidated (All Outlets)", "🌐 تمام برانچز کا مجموعہ")}
                 </span>
               )}
             </div>
             <p className="text-[11px] text-slate-400 mt-0.5">
               {isBranchLocked
-                ? "آپ کے اکاؤنٹ کو سختی سے آپ کی مخصوص برانچ تک محدود کیا گیا ہے۔ دوسرے آؤٹ لیٹس کا ڈیٹا اور کیش ڈراور مکمل پوشیدہ ہے۔"
-                : "بطور Owner آپ اوپر ہیڈر سے کسی بھی وقت برانچ تبدیل کر سکتے ہیں یا تمام آؤٹ لیٹس کا اکٹھا کھاتہ دیکھ سکتے ہیں۔"}
+                ? t(
+                    "Your account is strictly restricted to your assigned branch. Other outlets' data and cash drawers are hidden.",
+                    "آپ کے اکاؤنٹ کو سختی سے آپ کی مخصوص برانچ تک محدود کیا گیا ہے۔ دوسرے آؤٹ لیٹس کا ڈیٹا اور کیش ڈراور مکمل پوشیدہ ہے۔"
+                  )
+                : t(
+                    "As an administrator, you can switch branches from the header or view consolidated company accounts.",
+                    "بطور Owner آپ اوپر ہیڈر سے کسی بھی وقت برانچ تبدیل کر سکتے ہیں یا تمام آؤٹ لیٹس کا اکٹھا کھاتہ دیکھ سکتے ہیں۔"
+                  )}
             </p>
           </div>
         </div>
@@ -452,8 +460,8 @@ export default function PaymentsPage() {
                 <th className="px-4 py-3">Type</th>
                 <th className="px-4 py-3">Party / Account</th>
                 <th className="px-4 py-3">Payment Account</th>
-                <th className="px-4 py-3">Branch (برانچ)</th>
-                <th className="px-4 py-3">Handled By (کس نے کیا)</th>
+                <th className="px-4 py-3">{t("Branch", "برانچ")}</th>
+                <th className="px-4 py-3">{t("Handled By", "کس نے کیا")}</th>
                 <th className="px-4 py-3">Ref / Memo</th>
                 <th className="px-4 py-3 text-right">Amount</th>
               </tr>
@@ -547,7 +555,7 @@ export default function PaymentsPage() {
           {isBranchLocked ? (
             <div className="flex items-center justify-between rounded-xl border border-amber-200/90 bg-amber-50/80 p-2.5 text-xs text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200">
               <span className="font-semibold text-amber-900 dark:text-amber-300">
-                Receiving Outlet (مخصوص برانچ):
+                {t("Receiving Outlet:", "مخصوص برانچ:")}
               </span>
               <span className="font-bold flex items-center gap-1.5">
                 🏢 {user?.branchName || branches.find((b) => b.id === user?.branchId)?.name || "Your Outlet"}
@@ -559,7 +567,7 @@ export default function PaymentsPage() {
           ) : branches.length > 1 ? (
             <div>
               <Select
-                label="Receiving Branch (برانچ جہاں کیش جمع ہوا)"
+                label={t("Receiving Branch", "برانچ جہاں کیش جمع ہوا")}
                 value={paymentBranchId}
                 onChange={(e) => setPaymentBranchId(e.target.value)}
               >
@@ -570,7 +578,7 @@ export default function PaymentsPage() {
                 ))}
               </Select>
               <p className="text-[10px] text-slate-500 mt-1 italic">
-                💡 منتخب برانچ کے کیش ڈراور اور اکاؤنٹس خودکار طور پر نیچے فلٹر ہو جائیں گے۔
+                💡 {t("Cash drawers and accounts for the selected branch will automatically filter below.", "منتخب برانچ کے کیش ڈراور اور اکاؤنٹس خودکار طور پر نیچے فلٹر ہو جائیں گے۔")}
               </p>
             </div>
           ) : null}
@@ -700,7 +708,7 @@ export default function PaymentsPage() {
           {isBranchLocked ? (
             <div className="flex items-center justify-between rounded-xl border border-amber-200/90 bg-amber-50/80 p-2.5 text-xs text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200">
               <span className="font-semibold text-amber-900 dark:text-amber-300">
-                Disbursing Outlet (مخصوص برانچ):
+                {t("Disbursing Outlet:", "مخصوص برانچ:")}
               </span>
               <span className="font-bold flex items-center gap-1.5">
                 🏢 {user?.branchName || branches.find((b) => b.id === user?.branchId)?.name || "Your Outlet"}
@@ -712,7 +720,7 @@ export default function PaymentsPage() {
           ) : branches.length > 1 ? (
             <div>
               <Select
-                label="Disbursing Branch (برانچ جہاں سے کیش دیا گیا)"
+                label={t("Disbursing Branch", "برانچ جہاں سے کیش دیا گیا")}
                 value={paymentBranchId}
                 onChange={(e) => setPaymentBranchId(e.target.value)}
               >
@@ -723,7 +731,7 @@ export default function PaymentsPage() {
                 ))}
               </Select>
               <p className="text-[10px] text-slate-500 mt-1 italic">
-                💡 منتخب برانچ کے کیش ڈراور اور اکاؤنٹس خودکار طور پر نیچے فلٹر ہو جائیں گے۔
+                💡 {t("Cash drawers and accounts for the selected branch will automatically filter below.", "منتخب برانچ کے کیش ڈراور اور اکاؤنٹس خودکار طور پر نیچے فلٹر ہو جائیں گے۔")}
               </p>
             </div>
           ) : null}
@@ -853,7 +861,7 @@ export default function PaymentsPage() {
           {isBranchLocked ? (
             <div className="flex items-center justify-between rounded-xl border border-amber-200/90 bg-amber-50/80 p-2.5 text-xs text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200">
               <span className="font-semibold text-amber-900 dark:text-amber-300">
-                Operating Outlet (مخصوص برانچ):
+                {t("Operating Outlet:", "مخصوص برانچ:")}
               </span>
               <span className="font-bold flex items-center gap-1.5">
                 🏢 {user?.branchName || branches.find((b) => b.id === user?.branchId)?.name || "Your Outlet"}
@@ -864,7 +872,7 @@ export default function PaymentsPage() {
             </div>
           ) : branches.length > 1 ? (
             <Select
-              label="Operating Branch (برانچ)"
+              label={t("Operating Branch", "برانچ")}
               value={paymentBranchId}
               onChange={(e) => setPaymentBranchId(e.target.value)}
             >

@@ -28,6 +28,7 @@ import {
   Calendar,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { useLanguage } from "@/context/LanguageContext";
 import { BrandPageLoader } from "@/components/ui/loader";
 import { smartFetch, invalidateCache } from "@/lib/clientCache";
 
@@ -47,6 +48,7 @@ interface PurchaseItem {
 export default function CreatePurchasePage() {
   const router = useRouter();
   const { user, activeCompany, branches, selectedBranch, activeBranchId, isBranchLocked } = useAuth();
+  const { t, language } = useLanguage();
   const effectiveBranch = isBranchLocked ? user?.branchId : (selectedBranch?.id || activeBranchId || null);
   const [purchaseBranchId, setPurchaseBranchId] = useState<string>("");
 
@@ -542,7 +544,7 @@ export default function CreatePurchasePage() {
                 {user?.role?.replace("_", " ") || "STAFF"}
               </span>
             </div>
-            <span className="text-[11px] text-slate-500 dark:text-slate-400">Receiving Officer (خریداری و وصولی کنندہ)</span>
+            <span className="text-[11px] text-slate-500 dark:text-slate-400">{t("Receiving Officer", "خریداری و وصولی کنندہ")}</span>
           </div>
         </div>
 
@@ -744,7 +746,7 @@ export default function CreatePurchasePage() {
                     className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-3.5 py-2 text-xs font-bold text-white shadow-sm hover:bg-indigo-700 transition"
                   >
                     <Plus className="h-4 w-4" />
-                    <span>Register New Product First (پہلے پراڈکٹ ایڈ کریں)</span>
+                    <span>{t("Register New Product First", "پہلے پراڈکٹ ایڈ کریں")}</span>
                   </Link>
                 ) : (
                   <button
@@ -1049,7 +1051,7 @@ export default function CreatePurchasePage() {
                   <div className="flex items-center justify-between gap-2 mb-2">
                     <span className="font-bold text-indigo-950 dark:text-indigo-200 flex items-center gap-1.5">
                       <Calendar className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
-                      Payment Promise Date (ادائیگی کی وعدہ تاریخ / Due Date):
+                      {t("Payment Due Date", "ادائیگی کی وعدہ تاریخ")}:
                     </span>
                     <span className="text-[11px] font-bold text-rose-600">
                       Payable: {formatMoney(totalAmount - paidAmount)}
@@ -1090,7 +1092,7 @@ export default function CreatePurchasePage() {
                     </div>
                   </div>
                   <p className="mt-1.5 text-[10px] text-indigo-700/80 dark:text-indigo-400">
-                    💡 اس تاریخ پر ڈیش بورڈ اور سسٹم الرٹ میں ریمائنڈر ملے گا کہ سپلائر کو بقایا رقم ادا کرنی ہے۔
+                    💡 {t("A dashboard reminder and alert will be triggered on this date to settle supplier payables.", "اس تاریخ پر ڈیش بورڈ اور سسٹم الرٹ میں ریمائنڈر ملے گا کہ سپلائر کو بقایا رقم ادا کرنی ہے۔")}
                   </p>
                 </div>
               )}
@@ -1164,7 +1166,7 @@ export default function CreatePurchasePage() {
       <Modal
         isOpen={showAddSupplierModal}
         onClose={() => setShowAddSupplierModal(false)}
-        title="Quick Add Supplier (نیا سپلائر درج کریں)"
+        title={t("Quick Add Supplier", "نیا سپلائر درج کریں")}
         description="Add a new vendor or supplier to your system without leaving this purchase bill."
         maxWidth="md"
       >
@@ -1221,7 +1223,7 @@ export default function CreatePurchasePage() {
       <Modal
         isOpen={showAddProductModal}
         onClose={() => setShowAddProductModal(false)}
-        title="Quick Add Product (نیا آئٹم درج کریں)"
+        title={t("Quick Add Product", "نیا پروڈکٹ درج کریں")}
         description="Add a new catalog product directly into your inventory and insert it into this purchase bill."
         maxWidth="lg"
       >
