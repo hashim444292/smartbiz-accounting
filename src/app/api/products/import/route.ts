@@ -11,8 +11,8 @@ export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
   try {
-    const businessId = await getActiveBusinessId(req);
     const body = await req.json();
+    const businessId = body.businessId || (await getActiveBusinessId(req));
     const { action = "validate" } = body;
 
     if (action === "detect") {
@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === "validate") {
-      const rawRows = body.rows || [];
+      const rawRows = body.rawRows || body.rows || [];
       const columnMapping = body.columnMapping || {};
       const duplicateStrategy = body.duplicateStrategy || "UPDATE";
 
@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === "commit") {
-      const validRows = body.validRows || [];
+      const validRows = body.validRows || body.rows || [];
       const duplicateStrategy = body.duplicateStrategy || "UPDATE";
 
       const importResult = await importValidatedRows({

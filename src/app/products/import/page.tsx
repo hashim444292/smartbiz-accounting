@@ -62,7 +62,8 @@ export default function BulkProductImportPage() {
 
   // Simple CSV Parser for browser
   const parseCsvText = (text: string) => {
-    const lines = text
+    const cleanText = text.replace(/^\uFEFF/, "");
+    const lines = cleanText
       .split(/\r\n|\n/)
       .map((l) => l.trim())
       .filter((l) => l.length > 0);
@@ -71,7 +72,16 @@ export default function BulkProductImportPage() {
       throw new Error("CSV file must contain a header row and at least one data row.");
     }
 
-    // Parse header with quote handling
+    // Auto-detect delimiter: comma, tab, semicolon
+    const firstLine = lines[0];
+    let delimiter = ",";
+    if (firstLine.includes("\t") && firstLine.split("\t").length > firstLine.split(",").length) {
+      delimiter = "\t";
+    } else if (firstLine.includes(";") && firstLine.split(";").length > firstLine.split(",").length) {
+      delimiter = ";";
+    }
+
+    // Parse header and line with quote handling
     const parseLine = (line: string) => {
       const result = [];
       let current = "";
@@ -81,7 +91,7 @@ export default function BulkProductImportPage() {
         const char = line[i];
         if (char === '"') {
           inQuotes = !inQuotes;
-        } else if (char === "," && !inQuotes) {
+        } else if (char === delimiter && !inQuotes) {
           result.push(current.trim());
           current = "";
         } else {
@@ -166,8 +176,10 @@ export default function BulkProductImportPage() {
         body: JSON.stringify({
           action: "validate",
           rawRows,
+          rows: rawRows,
           columnMapping,
           duplicateStrategy,
+          businessId: activeCompany?.id,
         }),
       });
 
@@ -204,7 +216,9 @@ export default function BulkProductImportPage() {
         body: JSON.stringify({
           action: "commit",
           validRows: validationResult.rows,
+          rows: validationResult.rows,
           duplicateStrategy,
+          businessId: activeCompany?.id,
         }),
       });
 
