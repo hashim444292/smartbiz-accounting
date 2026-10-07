@@ -729,7 +729,7 @@ export async function testFbrToken(
 // ── TRANSMIT SALE INVOICE TO FBR ────────────────────────────────────────────
 export async function transmitSaleToFbr(
   invoiceId: string,
-  options: { allowIncomplete?: boolean; overrideToken?: string } = {}
+  options: { allowIncomplete?: boolean; overrideToken?: string; forceRehit?: boolean } = {}
 ) {
   // 1. Fetch sale with items & business
   let sale: any = null;
@@ -756,6 +756,16 @@ export async function transmitSaleToFbr(
 
   if (!sale) {
     throw new Error(`Sale #${invoiceId} not found in database.`);
+  }
+
+  // Idempotency Safeguard: Never re-transmit an invoice that is already verified & SUCCESS on FBR
+  if (sale.fbrStatus === "SUCCESS" && !options.forceRehit) {
+    return {
+      success: true,
+      sale,
+      fbrResponse: { message: "Already stamped" },
+      message: `Invoice #${sale.invoiceNumber} is already recorded and verified on FBR (${sale.fbrInvoiceNumber || ""}). Duplicate transmission blocked.`,
+    };
   }
 
   // Check payment completeness safeguard
