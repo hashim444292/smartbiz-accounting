@@ -450,7 +450,8 @@ export function buildFbrPayload(
 export function buildFbrPosPayload(
   sale: any,
   business: any,
-  config?: Partial<FbrConfig>
+  config?: Partial<FbrConfig>,
+  options: { invoiceType?: number; refUsin?: string } = {}
 ): FbrPosInvoicePayload {
   const posId = Number(config?.posId || 200871);
   const customer = sale.customer || null;
@@ -458,6 +459,10 @@ export function buildFbrPosPayload(
   const buyerCnic = customer?.cnic || "";
   const buyerNtn = customer?.ntn || "";
   const buyerPhone = customer?.phone || "";
+
+  const invoiceType = options.invoiceType || 1;
+  const refUsin = options.refUsin || "";
+  const usin = invoiceType === 2 ? `CN-${sale.invoiceNumber}` : sale.invoiceNumber;
 
   const paymentMode =
     sale.paymentMethod === "BANK" ? 2 :
@@ -485,7 +490,7 @@ export function buildFbrPosPayload(
       TaxRate: taxRateVal,
       Discount: round2(discount).toNumber(),
       FurtherTax: 0,
-      InvoiceType: 1,
+      InvoiceType: invoiceType,
       PCTCode: formatHsCode(item.hsCode || item.product?.hsCode || business?.defaultHsCode).replace(/\./g, ""),
     };
   });
@@ -497,8 +502,8 @@ export function buildFbrPosPayload(
   return {
     InvoiceNumber: "",
     POSID: isNaN(posId) || posId <= 0 ? 200871 : posId,
-    USIN: sale.invoiceNumber,
-    DateTime: new Date(sale.date || Date.now()).toISOString().replace("T", " ").slice(0, 19),
+    USIN: usin,
+    DateTime: new Date(invoiceType === 2 ? Date.now() : (sale.date || Date.now())).toISOString().replace("T", " ").slice(0, 19),
     BuyerNTN: buyerNtn,
     BuyerCNIC: buyerCnic,
     BuyerName: buyerName,
@@ -510,8 +515,8 @@ export function buildFbrPosPayload(
     Discount: Number(sale.discountAmount || 0),
     FurtherTax: Number(sale.furtherTax || 0),
     PaymentMode: paymentMode,
-    RefUSIN: "",
-    InvoiceType: 1,
+    RefUSIN: refUsin,
+    InvoiceType: invoiceType,
     Items: items.length > 0 ? items : [
       {
         ItemCode: "P-GEN-1",
@@ -523,7 +528,7 @@ export function buildFbrPosPayload(
         TaxRate: 18,
         Discount: 0,
         FurtherTax: 0,
-        InvoiceType: 1,
+        InvoiceType: invoiceType,
         PCTCode: "85171300",
       },
     ],
@@ -993,6 +998,136 @@ export async function transmitSaleToFbr(
       fallback: true,
     };
   }
+}
+
+// ── TRANSMIT FBR CREDIT NOTE / SALES RETURN (InvoiceType: 2) ────────────────
+export async function transmitFbrCreditNote(
+  invoiceId: string,
+  reason = "Sales Return / Duplicate Correction"
+) {
+  let sale: any = null;
+  let business: any = null;
+
+  try {
+    sale = await prisma.sale.findUnique({
+      where: { id: invoiceId },
+      include: {
+        items: { include: { product: true } },
+        customer: true,
+        business: true,
+      },
+    });
+    if (sale) business = sale.business;
+  } catch {
+    sale = fallbackStore.sales.find((s) => s.id === invoiceId);
+    business = fallbackStore.companies.find((c) => c.id === sale?.businessId);
+  }
+
+  if (!sale) throw new Error(`Sale #${invoiceId} not found in database.`);
+
+  const config = await getFbrConfig(sale.businessId);
+  let isPos = config.integrationType === "TIER1_POS";
+  if (config.integrationType === "BOTH") {
+    const hasTaxId = Boolean(sale.customer?.ntn || sale.customer?.cnic);
+    isPos = !hasTaxId;
+  }
+
+  let token = (config.token || "").trim();
+  if (isPos) {
+    if (!token || token.startsWith("121f8deb")) {
+      token = (config.posToken || "7c8ba514-1b87-37a6-bda7-162c95c4d826").trim();
+    }
+  } else {
+    if (!token || token.startsWith("7c8ba514")) {
+      token = (config.diToken || "121f8deb-bb81-3e13-b49d-87f3b6792fe2").trim();
+    }
+  }
+
+  const environment = config.environment || "production";
+  const postUrl = isPos
+    ? FBR_POS_ENDPOINTS[environment].postInvoice
+    : FBR_ENDPOINTS[environment].postInvoice;
+
+  const payload = isPos
+    ? buildFbrPosPayload(sale, business, config, {
+        invoiceType: 2,
+        refUsin: sale.fbrInvoiceNumber || sale.invoiceNumber,
+      })
+    : buildFbrPayload(sale, business, config);
+
+  if (!isPos) {
+    (payload as any).invoiceType = "Credit Note";
+    (payload as any).invoiceRefNo = sale.invoiceNumber;
+  }
+
+  let liveFbrResponse: any = null;
+  let transmissionStatus: "SUCCESS" | "FAILED" = "SUCCESS";
+  let cnInvoiceNumber = `CN-${sale.invoiceNumber}`;
+  let transmissionMessage = "";
+
+  if (token && token !== "N/A") {
+    try {
+      const res = await fetch(postUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const resText = await res.text();
+      try {
+        liveFbrResponse = JSON.parse(resText);
+      } catch {
+        liveFbrResponse = { raw: resText };
+      }
+
+      if (res.ok) {
+        if (liveFbrResponse.InvoiceNumber && liveFbrResponse.InvoiceNumber !== "Not Available") {
+          cnInvoiceNumber = liveFbrResponse.InvoiceNumber;
+        }
+        transmissionStatus = "SUCCESS";
+        transmissionMessage = `Live FBR Credit Note confirmed: #${cnInvoiceNumber} (InvoiceType 2 acknowledged).`;
+      } else {
+        transmissionStatus = "FAILED";
+        transmissionMessage =
+          liveFbrResponse?.Response ||
+          liveFbrResponse?.message ||
+          resText ||
+          `FBR Gateway rejected Credit Note with HTTP ${res.status}`;
+      }
+    } catch (netErr: any) {
+      transmissionStatus = "FAILED";
+      transmissionMessage = `Network error transmitting Credit Note: ${netErr.message}`;
+    }
+  } else {
+    transmissionStatus = "SUCCESS";
+    transmissionMessage = `Sandbox Simulated Credit Note #${cnInvoiceNumber}.`;
+  }
+
+  await createSafeAuditLog(prisma, {
+    businessId: sale.businessId,
+    action: "FBR_CREDIT_NOTE",
+    entity: "Sale",
+    entityId: sale.id,
+    details: JSON.stringify({
+      invoiceNumber: sale.invoiceNumber,
+      cnInvoiceNumber,
+      reason,
+      status: transmissionStatus,
+      fbrResponse: liveFbrResponse,
+    }),
+  });
+
+  return {
+    success: transmissionStatus === "SUCCESS",
+    sale,
+    cnInvoiceNumber,
+    message: transmissionMessage,
+    fbrResponse: liveFbrResponse,
+    payload,
+  };
 }
 
 // ── GET FBR COMPLIANCE OVERVIEW ─────────────────────────────────────────────

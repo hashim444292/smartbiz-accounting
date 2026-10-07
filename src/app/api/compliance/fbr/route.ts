@@ -4,6 +4,7 @@ import {
   getFbrComplianceOverview,
   createFbrPosInvoice,
   transmitSaleToFbr,
+  transmitFbrCreditNote,
   testFbrToken,
   saveFbrConfig,
   getFbrConfig,
@@ -211,6 +212,46 @@ export async function POST(req: NextRequest) {
         skippedPartialCount: skippedPartial.length,
         errors,
         message: msg,
+      });
+    }
+
+    // 6. Transmit Official Credit Note (Sales Return / Cancellation) to FBR
+    if (body.action === "credit_note") {
+      const { invoiceId, reason = "Sales Return / Duplicate Correction" } = body;
+      const result = await transmitFbrCreditNote(invoiceId, reason);
+      return NextResponse.json({
+        success: result.success,
+        data: result,
+        cnInvoiceNumber: result.cnInvoiceNumber,
+        message: result.message,
+      });
+    }
+
+    // 7. Batch Transmit Credit Notes to FBR (with 2-second rate-limit)
+    if (body.action === "credit_note_batch") {
+      const { invoiceIds = [], reason = "Duplicate Correction / Reversal" } = body;
+      const results = [];
+      const errors = [];
+
+      for (let i = 0; i < invoiceIds.length; i++) {
+        const id = invoiceIds[i];
+        if (i > 0) {
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+        }
+
+        try {
+          const res = await transmitFbrCreditNote(id, reason);
+          results.push(res);
+        } catch (e: any) {
+          errors.push({ id, error: e.message });
+        }
+      }
+
+      return NextResponse.json({
+        success: true,
+        data: results,
+        errors,
+        message: `${results.length} FBR Credit Note(s) transmitted successfully.`,
       });
     }
 

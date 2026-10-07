@@ -93,6 +93,111 @@ export default function FbrCompliancePage() {
   const [copiedPayload, setCopiedPayload] = useState(false);
   const [reversingId, setReversingId] = useState<string | null>(null);
 
+  // FBR Credit Note / Duplicate Reversal States
+  const [showCreditNoteModal, setShowCreditNoteModal] = useState(false);
+  const [creditNoteTab, setCreditNoteTab] = useState<"list" | "paste">("list");
+  const [creditNoteSearch, setCreditNoteSearch] = useState("");
+  const [creditNotePastedText, setCreditNotePastedText] = useState("");
+  const [selectedCreditNoteIds, setSelectedCreditNoteIds] = useState<string[]>([]);
+  const [transmittingCreditNoteId, setTransmittingCreditNoteId] = useState<string | null>(null);
+  const [isTransmittingCreditNotes, setIsTransmittingCreditNotes] = useState(false);
+
+  const handleTransmitCreditNote = async (inv: any) => {
+    const confirmPrompt = language === "ur"
+      ? `کیا آپ انوائس #${inv.invoiceNumber} (${inv.fbrInvoiceNumber || ""}) کے لیے FBR پر باقاعدہ Credit Note (InvoiceType 2 - واپسی) ارسال کرنا چاہتے ہیں؟\n\n- اس سے FBR پورٹل پر اس انوائس کی سیلز اور ٹیکس کی رقم مائنس / ریورس ہو جائے گی۔\n- یہ عمل FBR پورٹل پر ڈپلیکیٹ انوائسز کو کینسل کرنے کے لیے استعمال ہوتا ہے۔`
+      : `Transmit official FBR Credit Note (InvoiceType 2 - Return) for invoice #${inv.invoiceNumber} (${inv.fbrInvoiceNumber || ""}) to FBR?\n\n- This will reverse the sales and tax on the FBR portal.\n- Used to negate duplicate FBR entries.`;
+
+    if (!confirm(confirmPrompt)) return;
+
+    setTransmittingCreditNoteId(inv.id);
+    try {
+      const res = await fetch("/api/compliance/fbr", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "credit_note",
+          invoiceId: inv.id,
+          reason: "Duplicate transmission correction",
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert(
+          language === "ur"
+            ? `FBR Credit Note کامیابی سے FBR پر درج ہو گیا!\nCredit Note نمبر: ${data.cnInvoiceNumber || ""}`
+            : `FBR Credit Note transmitted successfully!\nCredit Note #: ${data.cnInvoiceNumber || ""}`
+        );
+        loadCompliance();
+      } else {
+        alert(data.error || data.message || "Failed to transmit Credit Note to FBR");
+      }
+    } catch (err: any) {
+      alert(`Error: ${err.message}`);
+    } finally {
+      setTransmittingCreditNoteId(null);
+    }
+  };
+
+  const handleBatchTransmitCreditNotes = async (targetInvoices: any[]) => {
+    if (targetInvoices.length === 0) return;
+    const confirmPrompt = language === "ur"
+      ? `کیا آپ واقعی ${targetInvoices.length} انوائسز کے لیے FBR پر باقاعدہ Credit Notes (InvoiceType 2) ارسال کرنا چاہتے ہیں؟\n\n- ہر Credit Note 2 سیکنڈ کے وقفے سے FBR گیٹ وے کو ارسال ہو گا۔\n- FBR پورٹل پر ان انوائسز کی ڈپلیکیٹ سیلز ریورس ہو جائے گی۔`
+      : `Transmit official FBR Credit Notes (InvoiceType 2) for ${targetInvoices.length} invoice(s)?\n\n- Each Credit Note will transmit with a 2-second rate-limiting delay.\n- Duplicate liability will be cancelled on FBR.`;
+
+    if (!confirm(confirmPrompt)) return;
+
+    setIsTransmittingCreditNotes(true);
+    let successCount = 0;
+    let failCount = 0;
+
+    for (let i = 0; i < targetInvoices.length; i++) {
+      const inv = targetInvoices[i];
+      const pct = Math.round(((i + 1) / targetInvoices.length) * 100);
+
+      setActionMessage({
+        type: "info",
+        text: language === "ur"
+          ? `FBR Credit Notes ترسیل جاری ہے: ${i + 1} / ${targetInvoices.length} (${pct}%)... کامیاب: ${successCount}`
+          : `Transmitting FBR Credit Notes: ${i + 1} of ${targetInvoices.length} (${pct}%)... Success: ${successCount}`,
+      });
+
+      if (i > 0) {
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+      }
+
+      try {
+        const res = await fetch("/api/compliance/fbr", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "credit_note",
+            invoiceId: inv.id,
+            reason: "Duplicate transmission correction",
+          }),
+        });
+        const data = await res.json().catch(() => null);
+        if (data?.success) {
+          successCount++;
+        } else {
+          failCount++;
+        }
+      } catch {
+        failCount++;
+      }
+    }
+
+    setActionMessage({
+      type: failCount === 0 ? "success" : "info",
+      text: language === "ur"
+        ? `FBR Credit Notes مکمل! کامیاب: ${successCount} انوائسز${failCount > 0 ? `، ناکام: ${failCount}` : ""}`
+        : `FBR Credit Notes completed! Transmitted: ${successCount}${failCount > 0 ? `, Failed: ${failCount}` : ""}`,
+    });
+    setIsTransmittingCreditNotes(false);
+    setSelectedCreditNoteIds([]);
+    setShowCreditNoteModal(false);
+    loadCompliance();
+  };
+
   const handleReverseInvoice = async (inv: any) => {
     const isStamped = inv.fbrStatus === "SUCCESS";
     const confirmText = isStamped
@@ -679,6 +784,16 @@ export default function FbrCompliancePage() {
             <span>Download All (CSV)</span>
           </button>
 
+          {/* FBR Credit Notes Button */}
+          <button
+            onClick={() => setShowCreditNoteModal(true)}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-900 hover:bg-amber-100 shadow-2xs transition"
+            title="Issue FBR Credit Notes to negate duplicate hits"
+          >
+            <RotateCcw className="h-3.5 w-3.5 text-amber-700" />
+            <span>{t("FBR Credit Notes (Reconcile)", "FBR کریڈٹ نوٹس")}</span>
+          </button>
+
           {/* Create Sale Invoice */}
           <Link
             href="/sales/create"
@@ -1257,14 +1372,26 @@ export default function FbrCompliancePage() {
                           </button>
 
                           {isSuccess ? (
-                            <button
-                              type="button"
-                              onClick={() => setSelectedReceiptInvoice(inv)}
-                              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-indigo-600 hover:bg-indigo-50 shadow-2xs"
-                            >
-                              <QrCode className="h-3.5 w-3.5" />
-                              <span>View QR</span>
-                            </button>
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => setSelectedReceiptInvoice(inv)}
+                                className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-indigo-600 hover:bg-indigo-50 shadow-2xs"
+                              >
+                                <QrCode className="h-3.5 w-3.5" />
+                                <span>View QR</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleTransmitCreditNote(inv)}
+                                disabled={transmittingCreditNoteId === inv.id}
+                                className="inline-flex items-center gap-1 rounded-lg border border-amber-300 bg-amber-50 px-2 py-1 text-[11px] font-bold text-amber-800 hover:bg-amber-100 shadow-2xs"
+                                title="Transmit FBR Credit Note (InvoiceType 2) to reverse/cancel on FBR"
+                              >
+                                <RotateCcw className={`h-3 w-3 ${transmittingCreditNoteId === inv.id ? "animate-spin text-amber-700" : ""}`} />
+                                <span>Credit Note</span>
+                              </button>
+                            </>
                           ) : isEligibleToHit ? (
                             <Button
                               type="button"
@@ -2039,6 +2166,282 @@ export default function FbrCompliancePage() {
             <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
               <Button type="button" variant="secondary" onClick={() => setPayloadModal(null)}>
                 Close
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* ── 4. FBR CREDIT NOTE & RECONCILIATION MODAL ── */}
+      {showCreditNoteModal && (
+        <Modal
+          isOpen={true}
+          onClose={() => !isTransmittingCreditNotes && setShowCreditNoteModal(false)}
+          title={language === "ur" ? "FBR کریڈٹ نوٹس اور ڈپلیکیٹ ایڈجسٹمنٹ" : "FBR Credit Notes & Duplicate Reconciliation"}
+          description={
+            language === "ur"
+              ? "FBR پورٹل پر اضافی / ڈپلیکیٹ انوائسز کے لیے سرکاری کریڈٹ نوٹس (InvoiceType 2) بھیجیں۔ مقامی کھاتے اور اسٹاک محفوظ رہے گا۔"
+              : "Transmit official FBR Credit Notes (InvoiceType 2) to reverse duplicate entries directly on FBR without affecting your local sales."
+          }
+          maxWidth="2xl"
+        >
+          <div className="space-y-4 text-xs">
+            {/* Explanatory Notice */}
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-amber-900 flex items-start gap-2.5">
+              <RotateCcw className="h-4 w-4 text-amber-700 shrink-0 mt-0.5" />
+              <div className="space-y-1 text-[11px] leading-relaxed">
+                <p className="font-bold">
+                  {language === "ur"
+                    ? "قواعد و ضوابط: FBR سیلز ریورسل (InvoiceType: 2)"
+                    : "Statutory Rule: FBR Sales Reversal via InvoiceType 2 (Credit Note)"}
+                </p>
+                <p>
+                  {language === "ur"
+                    ? "FBR POS سسٹم میں ایک بار جمع شدہ انوائس کو براہ راست ڈیلیٹ نہیں کیا جا سکتا، بلکہ FBR کے قانون کے مطابق InvoiceType 2 کریڈٹ نوٹ کے ذریعے رقم اور ٹیکس منفی کیا جاتا ہے۔"
+                    : "Under FBR POS regulations, submitted invoices cannot be deleted. FBR requires an InvoiceType 2 (Credit Note) with RefUSIN to deduct sales turnover and sales tax liability on the portal."}
+                </p>
+              </div>
+            </div>
+
+            {/* Mode Tabs */}
+            <div className="flex border-b border-slate-200 text-xs font-semibold">
+              <button
+                type="button"
+                onClick={() => setCreditNoteTab("list")}
+                className={`py-2 px-4 border-b-2 transition ${
+                  creditNoteTab === "list"
+                    ? "border-amber-600 text-amber-800 bg-amber-50/50"
+                    : "border-transparent text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                {language === "ur" ? "لسٹ سے انتخاب کریں" : "Select from FBR Stamped List"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setCreditNoteTab("paste")}
+                className={`py-2 px-4 border-b-2 transition ${
+                  creditNoteTab === "paste"
+                    ? "border-amber-600 text-amber-800 bg-amber-50/50"
+                    : "border-transparent text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                {language === "ur" ? "انوائس نمبر پیسٹ کریں (بلک)" : "Quick Paste Numbers (Bulk)"}
+              </button>
+            </div>
+
+            {creditNoteTab === "list" ? (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder={language === "ur" ? "انوائس نمبر یا کسٹمر سے تلاش کریں..." : "Search by invoice # or customer..."}
+                      value={creditNoteSearch}
+                      onChange={(e) => setCreditNoteSearch(e.target.value)}
+                      className="w-full rounded-lg border border-slate-200 pl-8 pr-3 py-1.5 text-xs text-slate-900 focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const stamped = (complianceData?.sales || []).filter((s: any) => s.fbrStatus === "SUCCESS");
+                        setSelectedCreditNoteIds(stamped.map((s: any) => s.id));
+                      }}
+                      className="px-2.5 py-1 text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100"
+                    >
+                      {language === "ur" ? "تمام منتخب کریں" : "Select All"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedCreditNoteIds([])}
+                      className="px-2.5 py-1 text-[11px] font-semibold text-slate-600 bg-slate-50 border border-slate-200 rounded-lg hover:bg-slate-100"
+                    >
+                      {language === "ur" ? "صاف کریں" : "Clear"}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Stamped List Table */}
+                <div className="max-h-60 overflow-y-auto border border-slate-200 rounded-xl divide-y divide-slate-100 bg-white">
+                  {(() => {
+                    const stamped = (complianceData?.sales || []).filter((s: any) => s.fbrStatus === "SUCCESS");
+                    const filtered = stamped.filter((s: any) => {
+                      if (!creditNoteSearch) return true;
+                      const q = creditNoteSearch.toLowerCase();
+                      return (
+                        s.invoiceNumber?.toLowerCase().includes(q) ||
+                        s.fbrInvoiceNumber?.toLowerCase().includes(q) ||
+                        s.customer?.name?.toLowerCase().includes(q)
+                      );
+                    });
+
+                    if (filtered.length === 0) {
+                      return (
+                        <div className="p-6 text-center text-slate-400">
+                          {language === "ur" ? "کوئی FBR منظور شدہ انوائس نہیں ملی۔" : "No matching FBR stamped invoices found."}
+                        </div>
+                      );
+                    }
+
+                    return filtered.map((inv: any) => {
+                      const isSelected = selectedCreditNoteIds.includes(inv.id);
+                      return (
+                        <div
+                          key={inv.id}
+                          onClick={() => {
+                            setSelectedCreditNoteIds((prev) =>
+                              isSelected ? prev.filter((id) => id !== inv.id) : [...prev, inv.id]
+                            );
+                          }}
+                          className={`flex items-center justify-between p-2.5 cursor-pointer text-xs transition ${
+                            isSelected ? "bg-amber-50/70" : "hover:bg-slate-50"
+                          }`}
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => {}} // handled by parent div onClick
+                              className="rounded border-slate-300 text-amber-600 focus:ring-amber-500 pointer-events-none"
+                            />
+                            <div className="min-w-0">
+                              <span className="font-bold text-slate-800">#{inv.invoiceNumber}</span>
+                              <span className="text-[10px] text-slate-400 ml-2">
+                                {inv.customer?.name || "Walk-in Customer"}
+                              </span>
+                              <span className="block text-[10px] font-mono text-emerald-700">
+                                FBR #{inv.fbrInvoiceNumber || "Stamped"}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <span className="font-bold text-slate-900 block">
+                              PKR {Number(inv.totalAmount || 0).toLocaleString()}
+                            </span>
+                            <span className="text-[10px] text-slate-400">
+                              Tax: PKR {Number(inv.taxAmount || 0).toLocaleString()}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    });
+                  })()}
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <label className="block text-slate-700 font-medium">
+                  {language === "ur"
+                    ? "انوائس نمبرز پیسٹ کریں (کوما یا نئی لائن کے ذریعے جدا کریں):"
+                    : "Paste Invoice Numbers or FBR Numbers (comma or newline separated):"}
+                </label>
+                <textarea
+                  rows={5}
+                  value={creditNotePastedText}
+                  onChange={(e) => setCreditNotePastedText(e.target.value)}
+                  placeholder="e.g.&#10;INV-2026-0001&#10;INV-2026-0002&#10;INV-2026-0003"
+                  className="w-full rounded-xl border border-slate-200 p-3 font-mono text-xs text-slate-900 focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
+                />
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const tokens = creditNotePastedText
+                        .split(/[\s,;\n\r\t]+/)
+                        .map((t) => t.trim().toLowerCase())
+                        .filter(Boolean);
+
+                      if (tokens.length === 0) {
+                        alert("Please paste at least one invoice number.");
+                        return;
+                      }
+
+                      const stamped = (complianceData?.sales || []).filter((s: any) => s.fbrStatus === "SUCCESS");
+                      const matched = stamped.filter((s: any) => {
+                        const inv = (s.invoiceNumber || "").toLowerCase();
+                        const fbr = (s.fbrInvoiceNumber || "").toLowerCase();
+                        return tokens.some((t) => inv === t || fbr === t || inv.endsWith(t));
+                      });
+
+                      const matchedIds = matched.map((s: any) => s.id);
+                      setSelectedCreditNoteIds(Array.from(new Set([...selectedCreditNoteIds, ...matchedIds])));
+                      alert(
+                        language === "ur"
+                          ? `${matchedIds.length} انوائسز مل گئیں اور منتخب کر لی گئیں۔`
+                          : `Successfully matched and selected ${matchedIds.length} invoice(s).`
+                      );
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 text-white rounded-lg font-bold text-xs hover:bg-amber-700 transition"
+                  >
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                    <span>{language === "ur" ? "انوائسز تلاش کریں اور منتخب کریں" : "Match & Select Invoices"}</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Selection Summary Banner */}
+            {(() => {
+              const stamped = (complianceData?.sales || []).filter((s: any) => s.fbrStatus === "SUCCESS");
+              const selectedSales = stamped.filter((s: any) => selectedCreditNoteIds.includes(s.id));
+              const totalAmount = selectedSales.reduce((acc: number, s: any) => acc + (Number(s.totalAmount) || 0), 0);
+              const totalTax = selectedSales.reduce((acc: number, s: any) => acc + (Number(s.taxAmount) || 0), 0);
+
+              return (
+                <div className="rounded-xl bg-slate-900 text-white p-3.5 flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-amber-400 block tracking-wider">
+                      {language === "ur" ? "منتخب شدہ ریورسل سمری" : "Credit Note Reversal Summary"}
+                    </span>
+                    <span className="text-sm font-extrabold text-white">
+                      {selectedSales.length} {language === "ur" ? "انوائسز منتخب" : "Invoice(s) Selected"}
+                    </span>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-xs font-bold text-emerald-300 block">
+                      PKR {totalAmount.toLocaleString()}
+                    </span>
+                    <span className="text-[10px] text-slate-400">
+                      Tax Reversal: PKR {totalTax.toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Modal Actions */}
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={isTransmittingCreditNotes}
+                onClick={() => setShowCreditNoteModal(false)}
+              >
+                {language === "ur" ? "بند کریں" : "Cancel"}
+              </Button>
+
+              <Button
+                type="button"
+                variant="primary"
+                isLoading={isTransmittingCreditNotes}
+                disabled={selectedCreditNoteIds.length === 0 || isTransmittingCreditNotes}
+                onClick={() => {
+                  const stamped = (complianceData?.sales || []).filter((s: any) => s.fbrStatus === "SUCCESS");
+                  const selectedSales = stamped.filter((s: any) => selectedCreditNoteIds.includes(s.id));
+                  handleBatchTransmitCreditNotes(selectedSales);
+                }}
+                className="bg-amber-600 hover:bg-amber-700 text-white font-bold"
+              >
+                <RotateCcw className="h-3.5 w-3.5 mr-1" />
+                {isTransmittingCreditNotes
+                  ? language === "ur"
+                    ? "ارسال ہو رہا ہے..."
+                    : "Transmitting..."
+                  : language === "ur"
+                  ? `${selectedCreditNoteIds.length} کریڈٹ نوٹس FBR کو بھیجیں`
+                  : `Transmit ${selectedCreditNoteIds.length} Credit Note(s) to FBR`}
               </Button>
             </div>
           </div>
