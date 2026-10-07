@@ -30,6 +30,7 @@ import {
   CheckSquare,
   Square,
   Edit,
+  ShieldCheck,
 } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { useAuth } from "@/context/AuthContext";
@@ -118,9 +119,12 @@ export default function SalesPage() {
   const [bulkEditCustomerName, setBulkEditCustomerName] = useState("");
   const [bulkEditPaymentMethod, setBulkEditPaymentMethod] = useState("");
   const [bulkEditPaymentStatus, setBulkEditPaymentStatus] = useState("");
+  const [bulkEditFbrStatus, setBulkEditFbrStatus] = useState("");
   const [bulkEditNotes, setBulkEditNotes] = useState("");
   const [bulkEditReason, setBulkEditReason] = useState("");
   const [isBulkSaving, setIsBulkSaving] = useState(false);
+  const [transmittingFbrId, setTransmittingFbrId] = useState<string | null>(null);
+  const [isBulkTransmittingFbr, setIsBulkTransmittingFbr] = useState(false);
 
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
@@ -278,6 +282,7 @@ export default function SalesPage() {
     if (bulkEditCustomerName.trim()) updates.customerName = bulkEditCustomerName.trim();
     if (bulkEditPaymentMethod) updates.paymentMethod = bulkEditPaymentMethod;
     if (bulkEditPaymentStatus) updates.paymentStatus = bulkEditPaymentStatus;
+    if (bulkEditFbrStatus) updates.fbrStatus = bulkEditFbrStatus;
     if (bulkEditNotes.trim()) updates.notes = bulkEditNotes.trim();
     if (bulkEditReason.trim()) updates.editReason = bulkEditReason.trim();
 
@@ -307,10 +312,12 @@ export default function SalesPage() {
         setBulkEditCustomerName("");
         setBulkEditPaymentMethod("");
         setBulkEditPaymentStatus("");
+        setBulkEditFbrStatus("");
         setBulkEditNotes("");
         setBulkEditReason("");
         invalidateCache("/api/sales");
         invalidateCache("/api/dashboard");
+        invalidateCache("/api/compliance/fbr");
         fetchSales();
       } else {
         alert(json.error || (language === "ur" ? "بلک ایڈیٹ میں ناکامی ہوئی۔" : "Bulk edit failed."));
@@ -319,6 +326,121 @@ export default function SalesPage() {
       alert(`${language === "ur" ? "خرابی" : "Error"}: ${err.message}`);
     } finally {
       setIsBulkSaving(false);
+    }
+  };
+
+  const handleTransmitSingleToFbr = async (sale: SaleRecord) => {
+    if (sale.paymentStatus !== "PAID") {
+      alert(
+        language === "ur"
+          ? `انوائس #${sale.invoiceNumber} ابھی مکمل ادا (PAID) نہیں ہے۔ FBR قواعد کے مطابق نامکمل ادا شدہ یا ادھار انوائس کو بھیجنے سے پہلے مکمل ادائیگی درج کریں۔`
+          : `Invoice #${sale.invoiceNumber} is not fully paid. FBR regulations require invoices to be fully paid before transmission.`
+      );
+      return;
+    }
+
+    const confirmMsg =
+      language === "ur"
+        ? `کیا آپ انوائس #${sale.invoiceNumber} کو FBR پر براہ راست منتقل / transmit کرنا چاہتے ہیں؟`
+        : `Do you want to transmit invoice #${sale.invoiceNumber} to FBR now?`;
+    if (!confirm(confirmMsg)) return;
+
+    setTransmittingFbrId(sale.id);
+    try {
+      const res = await fetch("/api/compliance/fbr", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "transmit", invoiceId: sale.id }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        alert(
+          language === "ur"
+            ? `انوائس #${sale.invoiceNumber} کامیابی سے FBR پر منتقل ہو گئی!\nFBR انوائس نمبر: ${json.data?.fbrInvoiceNumber || ""}`
+            : `Invoice #${sale.invoiceNumber} transmitted to FBR successfully!\nFBR Invoice #: ${json.data?.fbrInvoiceNumber || ""}`
+        );
+        invalidateCache("/api/sales");
+        invalidateCache("/api/dashboard");
+        invalidateCache("/api/compliance/fbr");
+        fetchSales();
+      } else {
+        alert(json.error || json.message || (language === "ur" ? "FBR پر ٹرانسمیشن میں ناکامی ہوئی۔" : "Failed to transmit invoice to FBR"));
+      }
+    } catch (err: any) {
+      alert(`${language === "ur" ? "خرابی" : "Error"}: ${err.message}`);
+    } finally {
+      setTransmittingFbrId(null);
+    }
+  };
+
+  const handleBulkTransmitToFbr = async () => {
+    if (selectedSaleIds.length === 0) return;
+
+    const selectedSales = sales.filter((s) => selectedSaleIds.includes(s.id));
+    const nonSuccessSales = selectedSales.filter((s) => s.fbrStatus !== "SUCCESS");
+
+    if (nonSuccessSales.length === 0) {
+      alert(
+        language === "ur"
+          ? "تمام منتخب کردہ انوائسز پہلے سے ہی FBR پر منتقل اور تصدیق شدہ (SUCCESS) ہیں۔"
+          : "All selected invoices have already been successfully transmitted to FBR."
+      );
+      return;
+    }
+
+    const unPaidSales = nonSuccessSales.filter((s) => s.paymentStatus !== "PAID");
+    const eligibleSales = nonSuccessSales.filter((s) => s.paymentStatus === "PAID");
+
+    if (eligibleSales.length === 0) {
+      alert(
+        language === "ur"
+          ? `منتخب کردہ ${nonSuccessSales.length} انوائسز میں سے کوئی بھی مکمل ادا شدہ (PAID) نہیں ہے۔ FBR پر صرف مکمل ادا شدہ انوائسز منتقل ہو سکتی ہیں۔`
+          : `None of the selected ${nonSuccessSales.length} invoices are fully paid. Only fully paid invoices can be transmitted to FBR.`
+      );
+      return;
+    }
+
+    const confirmMsg =
+      language === "ur"
+        ? `کیا آپ واقعی ${eligibleSales.length} مکمل ادا شدہ انوائسز کو FBR پر منتقل / transmit کرنا چاہتے ہیں؟${
+            unPaidSales.length > 0
+              ? `\n\n(نوٹ: ${unPaidSales.length} غیر ادا شدہ انوائسز کو محفوظ طریقے سے چھوڑ دیا جائے گا)`
+              : ""
+          }`
+        : `Transmit ${eligibleSales.length} fully paid invoice(s) to FBR?${
+            unPaidSales.length > 0
+              ? `\n\n(Note: ${unPaidSales.length} unpaid invoices will be safely skipped)`
+              : ""
+          }`;
+    if (!confirm(confirmMsg)) return;
+
+    setIsBulkTransmittingFbr(true);
+    try {
+      const targetIds = eligibleSales.map((s) => s.id);
+      const res = await fetch("/api/compliance/fbr", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "transmit_batch", invoiceIds: targetIds }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        alert(
+          language === "ur"
+            ? `FBR ٹرانسمیشن مکمل ہو گئی:\n${json.message || `${eligibleSales.length} انوائسز FBR پر منتقل ہو گئیں۔`}`
+            : `FBR Transmission complete:\n${json.message || `${eligibleSales.length} invoice(s) transmitted.`}`
+        );
+        setSelectedSaleIds([]);
+        invalidateCache("/api/sales");
+        invalidateCache("/api/dashboard");
+        invalidateCache("/api/compliance/fbr");
+        fetchSales();
+      } else {
+        alert(json.error || json.message || (language === "ur" ? "FBR بلک ٹرانسمیشن میں خرابی پیش آئی۔" : "Bulk FBR transmission encountered an error."));
+      }
+    } catch (err: any) {
+      alert(`${language === "ur" ? "خرابی" : "Error"}: ${err.message}`);
+    } finally {
+      setIsBulkTransmittingFbr(false);
     }
   };
 
@@ -908,6 +1030,19 @@ export default function SalesPage() {
           </div>
 
           <div className="flex items-center gap-2">
+            {!isAccountingOnly && (
+              <Button
+                type="button"
+                size="sm"
+                onClick={handleBulkTransmitToFbr}
+                isLoading={isBulkTransmittingFbr}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600 text-xs shadow-2xs font-semibold"
+              >
+                <ShieldCheck className="h-3.5 w-3.5 mr-1.5" />
+                {t("Push to FBR", "FBR پر بھیجیں")} ({selectedSaleIds.length})
+              </Button>
+            )}
+
             <Button
               type="button"
               variant="outline"
@@ -1146,6 +1281,16 @@ export default function SalesPage() {
                         >
                           <Printer className="h-3.5 w-3.5" />
                         </Link>
+                        {!isAccountingOnly && sale.fbrStatus !== "SUCCESS" && sale.status === "POSTED" && (
+                          <button
+                            onClick={() => handleTransmitSingleToFbr(sale)}
+                            disabled={transmittingFbrId === sale.id}
+                            className="rounded-lg p-1.5 text-blue-600 hover:bg-blue-50 hover:text-blue-800 dark:hover:bg-blue-950/40"
+                            title={t("Transmit / Push to FBR", "FBR پر منتقل کریں")}
+                          >
+                            <ShieldCheck className={`h-3.5 w-3.5 ${transmittingFbrId === sale.id ? "animate-spin text-blue-700" : ""}`} />
+                          </button>
+                        )}
                         {sale.status === "POSTED" && (
                           <button
                             onClick={() => handleReverse(sale.id, sale.invoiceNumber)}
@@ -1714,6 +1859,24 @@ export default function SalesPage() {
                 placeholder={t("Leave blank to keep existing notes", "پرانے ریمارکس برقرار رکھنے کے لیے خالی چھوڑیں")}
               />
             </div>
+
+            {/* 5. FBR Status (Optional) */}
+            {!isAccountingOnly && (
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  {t("FBR Status (Optional)", "FBR صورتحال (اختیاری)")}
+                </label>
+                <select
+                  value={bulkEditFbrStatus}
+                  onChange={(e) => setBulkEditFbrStatus(e.target.value)}
+                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 dark:bg-slate-900 dark:border-slate-700 dark:text-white"
+                >
+                  <option value="">{t("(Keep Existing)", "(تبدیل نہ کریں - وہی رکھیں)")}</option>
+                  <option value="PENDING">{t("PENDING (Move to FBR Queue)", "منتظر (FBR قطار میں منتقل کریں)")}</option>
+                  <option value="NOT_APPLICABLE">{t("NOT_APPLICABLE (Local Sale / Exempt)", "لاگو نہیں (مقامی سیل)")}</option>
+                </select>
+              </div>
+            )}
 
             {/* 5. Audit Reason (Required) */}
             <div className="rounded-xl border border-amber-300 bg-amber-50/70 p-3 dark:border-amber-800 dark:bg-amber-950/40">

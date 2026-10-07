@@ -1066,7 +1066,7 @@ export async function getFbrComplianceOverview(businessId: string) {
     failedFbr,
     complianceScore,
     complianceIssues,
-    recentInvoices: sales.slice(0, 200),
+    recentInvoices: sales,
     config,
   };
 }

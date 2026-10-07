@@ -363,6 +363,9 @@ export async function PUT(req: NextRequest) {
     if (updates.paymentStatus) {
       updateData.paymentStatus = updates.paymentStatus;
     }
+    if (updates.fbrStatus) {
+      updateData.fbrStatus = updates.fbrStatus;
+    }
     if (updates.notes !== undefined) {
       updateData.notes = updates.notes;
     }
@@ -383,6 +386,7 @@ export async function PUT(req: NextRequest) {
           if (updates.customerName) s.customerName = updates.customerName;
           if (updates.paymentMethod) s.paymentMethod = updates.paymentMethod;
           if (updates.paymentStatus) s.paymentStatus = updates.paymentStatus;
+          if (updates.fbrStatus) s.fbrStatus = updates.fbrStatus;
           if (updates.notes !== undefined) s.notes = updates.notes;
           s.isEdited = true;
           s.editCount = (s.editCount || 0) + 1;
