@@ -2246,7 +2246,7 @@ export default function FbrCompliancePage() {
                     <button
                       type="button"
                       onClick={() => {
-                        const stamped = (complianceData?.sales || []).filter((s: any) => s.fbrStatus === "SUCCESS");
+                        const stamped = (complianceData?.recentInvoices || []).filter((s: any) => s.fbrStatus === "SUCCESS");
                         setSelectedCreditNoteIds(stamped.map((s: any) => s.id));
                       }}
                       className="px-2.5 py-1 text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100"
@@ -2266,7 +2266,7 @@ export default function FbrCompliancePage() {
                 {/* Stamped List Table */}
                 <div className="max-h-60 overflow-y-auto border border-slate-200 rounded-xl divide-y divide-slate-100 bg-white">
                   {(() => {
-                    const stamped = (complianceData?.sales || []).filter((s: any) => s.fbrStatus === "SUCCESS");
+                    const stamped = (complianceData?.recentInvoices || []).filter((s: any) => s.fbrStatus === "SUCCESS");
                     const filtered = stamped.filter((s: any) => {
                       if (!creditNoteSearch) return true;
                       const q = creditNoteSearch.toLowerCase();
@@ -2348,8 +2348,8 @@ export default function FbrCompliancePage() {
                   <button
                     type="button"
                     onClick={() => {
-                      const tokens = creditNotePastedText
-                        .split(/[\s,;\n\r\t]+/)
+                      const rawLines = creditNotePastedText.split(/[\r\n,;]+/);
+                      const tokens = rawLines
                         .map((t) => t.trim().toLowerCase())
                         .filter(Boolean);
 
@@ -2358,11 +2358,11 @@ export default function FbrCompliancePage() {
                         return;
                       }
 
-                      const stamped = (complianceData?.sales || []).filter((s: any) => s.fbrStatus === "SUCCESS");
+                      const stamped = (complianceData?.recentInvoices || []).filter((s: any) => s.fbrStatus === "SUCCESS");
                       const matched = stamped.filter((s: any) => {
                         const inv = (s.invoiceNumber || "").toLowerCase();
                         const fbr = (s.fbrInvoiceNumber || "").toLowerCase();
-                        return tokens.some((t) => inv === t || fbr === t || inv.endsWith(t));
+                        return tokens.some((t) => inv === t || fbr === t || inv.endsWith(t) || t.endsWith(inv));
                       });
 
                       const matchedIds = matched.map((s: any) => s.id);
@@ -2384,7 +2384,7 @@ export default function FbrCompliancePage() {
 
             {/* Selection Summary Banner */}
             {(() => {
-              const stamped = (complianceData?.sales || []).filter((s: any) => s.fbrStatus === "SUCCESS");
+              const stamped = (complianceData?.recentInvoices || []).filter((s: any) => s.fbrStatus === "SUCCESS");
               const selectedSales = stamped.filter((s: any) => selectedCreditNoteIds.includes(s.id));
               const totalAmount = selectedSales.reduce((acc: number, s: any) => acc + (Number(s.totalAmount) || 0), 0);
               const totalTax = selectedSales.reduce((acc: number, s: any) => acc + (Number(s.taxAmount) || 0), 0);
@@ -2428,7 +2428,7 @@ export default function FbrCompliancePage() {
                 isLoading={isTransmittingCreditNotes}
                 disabled={selectedCreditNoteIds.length === 0 || isTransmittingCreditNotes}
                 onClick={() => {
-                  const stamped = (complianceData?.sales || []).filter((s: any) => s.fbrStatus === "SUCCESS");
+                  const stamped = (complianceData?.recentInvoices || []).filter((s: any) => s.fbrStatus === "SUCCESS");
                   const selectedSales = stamped.filter((s: any) => selectedCreditNoteIds.includes(s.id));
                   handleBatchTransmitCreditNotes(selectedSales);
                 }}
