@@ -415,28 +415,44 @@ export default function SalesPage() {
     if (!confirm(confirmMsg)) return;
 
     setIsBulkTransmittingFbr(true);
+    let successCount = 0;
+    let failCount = 0;
+
     try {
       const targetIds = eligibleSales.map((s) => s.id);
-      const res = await fetch("/api/compliance/fbr", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "transmit_batch", invoiceIds: targetIds }),
-      });
-      const json = await res.json();
-      if (json.success) {
-        alert(
-          language === "ur"
-            ? `FBR ٹرانسمیشن مکمل ہو گئی:\n${json.message || `${eligibleSales.length} انوائسز FBR پر منتقل ہو گئیں۔`}`
-            : `FBR Transmission complete:\n${json.message || `${eligibleSales.length} invoice(s) transmitted.`}`
-        );
-        setSelectedSaleIds([]);
-        invalidateCache("/api/sales");
-        invalidateCache("/api/dashboard");
-        invalidateCache("/api/compliance/fbr");
-        fetchSales();
-      } else {
-        alert(json.error || json.message || (language === "ur" ? "FBR بلک ٹرانسمیشن میں خرابی پیش آئی۔" : "Bulk FBR transmission encountered an error."));
+      for (let i = 0; i < targetIds.length; i++) {
+        const id = targetIds[i];
+        if (i > 0) {
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+        }
+
+        try {
+          const res = await fetch("/api/compliance/fbr", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "transmit", invoiceId: id }),
+          });
+          const json = await res.json().catch(() => null);
+          if (json?.success) {
+            successCount++;
+          } else {
+            failCount++;
+          }
+        } catch {
+          failCount++;
+        }
       }
+
+      alert(
+        language === "ur"
+          ? `FBR ٹرانسمیشن مکمل:\nکامیاب: ${successCount} انوائسز${failCount > 0 ? `\nناکام/روکی گئیں: ${failCount}` : ""}`
+          : `FBR Transmission complete:\nTransmitted: ${successCount}${failCount > 0 ? `\nFailed/Skipped: ${failCount}` : ""}`
+      );
+      setSelectedSaleIds([]);
+      invalidateCache("/api/sales");
+      invalidateCache("/api/dashboard");
+      invalidateCache("/api/compliance/fbr");
+      fetchSales();
     } catch (err: any) {
       alert(`${language === "ur" ? "خرابی" : "Error"}: ${err.message}`);
     } finally {

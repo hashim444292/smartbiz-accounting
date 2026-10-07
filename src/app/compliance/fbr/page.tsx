@@ -461,30 +461,47 @@ export default function FbrCompliancePage() {
     }
 
     setIsBatchHitting(true);
-    setActionMessage({
-      type: "info",
-      text: language === "ur"
-        ? `FBR پر ${idsToHit.length} انوائسز کی ترسیل جاری ہے... (ہر انوائس کے درمیان 2 سیکنڈ کا وقفہ ہے، برائے مہربانی انتظار فرمائیں)`
-        : `Transmitting ${idsToHit.length} invoices to FBR... (2-second delay between hits, please wait)`,
-    });
+    let successCount = 0;
+    let failCount = 0;
 
     try {
-      const res = await fetch("/api/compliance/fbr", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "transmit_batch", invoiceIds: idsToHit }),
-      });
-      const data = await res.json();
+      for (let i = 0; i < idsToHit.length; i++) {
+        const id = idsToHit[i];
+        const pct = Math.round(((i + 1) / idsToHit.length) * 100);
 
-      if (!data.success) {
-        throw new Error(data.error || "Batch transmission failed");
+        setActionMessage({
+          type: "info",
+          text: language === "ur"
+            ? `FBR ترسیل جاری ہے: ${i + 1} / ${idsToHit.length} (${pct}%)... کامیاب: ${successCount}`
+            : `Transmitting to FBR: ${i + 1} of ${idsToHit.length} (${pct}%)... Transmitted: ${successCount}`,
+        });
+
+        if (i > 0) {
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+        }
+
+        try {
+          const res = await fetch("/api/compliance/fbr", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "transmit", invoiceId: id }),
+          });
+          const data = await res.json().catch(() => null);
+          if (data?.success) {
+            successCount++;
+          } else {
+            failCount++;
+          }
+        } catch {
+          failCount++;
+        }
       }
 
       setActionMessage({
-        type: "success",
-        text: data.message || (language === "ur"
-          ? `کامیابی سے ${idsToHit.length} انوائسز 2 سیکنڈ کے وقفے کے ساتھ FBR پر منتقل ہو گئیں۔`
-          : `Successfully transmitted ${idsToHit.length} invoices to FBR with 2-second delay.`),
+        type: failCount === 0 ? "success" : "info",
+        text: language === "ur"
+          ? `FBR ترسیل مکمل! کامیاب: ${successCount} انوائسز${failCount > 0 ? `، ناکام/روکی گئیں: ${failCount}` : ""}`
+          : `FBR Transmission complete! Transmitted: ${successCount}${failCount > 0 ? `, Failed/Skipped: ${failCount}` : ""}`,
       });
       setSelectedIds([]);
       await loadCompliance();
