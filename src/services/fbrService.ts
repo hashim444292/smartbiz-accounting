@@ -451,7 +451,7 @@ export function buildFbrPosPayload(
   sale: any,
   business: any,
   config?: Partial<FbrConfig>,
-  options: { invoiceType?: number; refUsin?: string } = {}
+  options: { invoiceType?: number; refUsin?: string; dateTime?: string } = {}
 ): FbrPosInvoicePayload {
   const posId = Number(config?.posId || 200871);
   const customer = sale.customer || null;
@@ -503,7 +503,11 @@ export function buildFbrPosPayload(
     InvoiceNumber: "",
     POSID: isNaN(posId) || posId <= 0 ? 200871 : posId,
     USIN: usin,
-    DateTime: new Date(invoiceType === 2 ? Date.now() : (sale.date || Date.now())).toISOString().replace("T", " ").slice(0, 19),
+    DateTime: options.dateTime
+      ? options.dateTime
+      : sale.date
+      ? new Date(sale.date).toISOString().replace("T", " ").slice(0, 19)
+      : "2026-09-30 23:50:00",
     BuyerNTN: buyerNtn,
     BuyerCNIC: buyerCnic,
     BuyerName: buyerName,
@@ -1003,7 +1007,8 @@ export async function transmitSaleToFbr(
 // ── TRANSMIT FBR CREDIT NOTE / SALES RETURN (InvoiceType: 2) ────────────────
 export async function transmitFbrCreditNote(
   invoiceId: string,
-  reason = "Sales Return / Duplicate Correction"
+  reason = "Sales Return / Duplicate Correction",
+  options: { creditNoteDate?: string; refUsin?: string } = {}
 ) {
   let sale: any = null;
   let business: any = null;
@@ -1048,10 +1053,12 @@ export async function transmitFbrCreditNote(
     ? FBR_POS_ENDPOINTS[environment].postInvoice
     : FBR_ENDPOINTS[environment].postInvoice;
 
+  const cnDate = options.creditNoteDate || (sale.date ? new Date(sale.date).toISOString().replace("T", " ").slice(0, 19) : "2026-09-30 23:50:00");
   const payload = isPos
     ? buildFbrPosPayload(sale, business, config, {
         invoiceType: 2,
-        refUsin: sale.fbrInvoiceNumber || sale.invoiceNumber,
+        refUsin: options.refUsin || sale.fbrInvoiceNumber || sale.invoiceNumber,
+        dateTime: cnDate,
       })
     : buildFbrPayload(sale, business, config);
 

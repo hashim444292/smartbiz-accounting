@@ -217,8 +217,8 @@ export async function POST(req: NextRequest) {
 
     // 6. Transmit Official Credit Note (Sales Return / Cancellation) to FBR
     if (body.action === "credit_note") {
-      const { invoiceId, reason = "Sales Return / Duplicate Correction" } = body;
-      const result = await transmitFbrCreditNote(invoiceId, reason);
+      const { invoiceId, reason = "Sales Return / Duplicate Correction", creditNoteDate, refUsin } = body;
+      const result = await transmitFbrCreditNote(invoiceId, reason, { creditNoteDate, refUsin });
       return NextResponse.json({
         success: result.success,
         data: result,
@@ -229,7 +229,7 @@ export async function POST(req: NextRequest) {
 
     // 7. Batch Transmit Credit Notes to FBR (with 2-second rate-limit)
     if (body.action === "credit_note_batch") {
-      const { invoiceIds = [], reason = "Duplicate Correction / Reversal" } = body;
+      const { invoiceIds = [], reason = "Duplicate Correction / Reversal", creditNoteDate } = body;
       const results = [];
       const errors = [];
 
@@ -240,7 +240,7 @@ export async function POST(req: NextRequest) {
         }
 
         try {
-          const res = await transmitFbrCreditNote(id, reason);
+          const res = await transmitFbrCreditNote(id, reason, { creditNoteDate });
           results.push(res);
         } catch (e: any) {
           errors.push({ id, error: e.message });
