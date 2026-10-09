@@ -767,13 +767,14 @@ export async function transmitSaleToFbr(
     throw new Error(`Sale #${invoiceId} not found in database.`);
   }
 
-  // Idempotency Safeguard: Never re-transmit an invoice that is already verified & SUCCESS on FBR
-  if (sale.fbrStatus === "SUCCESS" && !options.forceRehit) {
+  // Idempotency Safeguard: Never re-transmit an invoice that is already verified & SUCCESS on FBR or already has an FBR fiscal number
+  const isAlreadyStamped = (sale.fbrStatus === "SUCCESS" || Boolean(sale.fbrInvoiceNumber)) && !options.forceRehit;
+  if (isAlreadyStamped) {
     return {
       success: true,
       sale,
       fbrResponse: { message: "Already stamped" },
-      message: `Invoice #${sale.invoiceNumber} is already recorded and verified on FBR (${sale.fbrInvoiceNumber || ""}). Duplicate transmission blocked.`,
+      message: `Invoice #${sale.invoiceNumber} is already recorded and verified on FBR (${sale.fbrInvoiceNumber || ""}). Duplicate transmission strictly blocked.`,
     };
   }
 

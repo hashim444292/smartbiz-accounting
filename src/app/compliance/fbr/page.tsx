@@ -495,12 +495,12 @@ export default function FbrCompliancePage() {
 
   // Counts
   const readyInvoices = allInvoices.filter(
-    (inv) => (!inv.fbrStatus || inv.fbrStatus === "PENDING") && inv.paymentStatus === "PAID"
+    (inv) => (!inv.fbrStatus || inv.fbrStatus === "PENDING") && !inv.fbrInvoiceNumber && inv.paymentStatus === "PAID"
   );
   const awaitingPaymentInvoices = allInvoices.filter(
-    (inv) => (!inv.fbrStatus || inv.fbrStatus === "PENDING") && inv.paymentStatus !== "PAID"
+    (inv) => (!inv.fbrStatus || inv.fbrStatus === "PENDING") && !inv.fbrInvoiceNumber && inv.paymentStatus !== "PAID"
   );
-  const successInvoices = allInvoices.filter((inv) => inv.fbrStatus === "SUCCESS");
+  const successInvoices = allInvoices.filter((inv) => inv.fbrStatus === "SUCCESS" || Boolean(inv.fbrInvoiceNumber));
 
   const readyCount = readyInvoices.length;
   const awaitingPaymentCount = awaitingPaymentInvoices.length;
@@ -509,6 +509,15 @@ export default function FbrCompliancePage() {
 
   // Single Invoice FBR Hit Handler
   const handleHitFbr = async (invoice: any) => {
+    if (invoice.fbrStatus === "SUCCESS" || Boolean(invoice.fbrInvoiceNumber)) {
+      alert(
+        language === "ur"
+          ? `انوائس #${invoice.invoiceNumber} پہلے سے FBR پر ریکارڈ ہو چکی ہے۔ ڈپلیکیٹ ترسیل روک دی گئی ہے۔`
+          : `Invoice #${invoice.invoiceNumber} is already stamped on FBR (${invoice.fbrInvoiceNumber || ""}). Duplicate transmission blocked.`
+      );
+      return;
+    }
+
     if (invoice.paymentStatus !== "PAID") {
       setLockedInvoiceModal(invoice);
       return;
@@ -1206,12 +1215,13 @@ export default function FbrCompliancePage() {
                 </tr>
               ) : (
                 filteredInvoices.map((inv) => {
-                  const isPending = !inv.fbrStatus || inv.fbrStatus === "PENDING";
-                  const isSuccess = inv.fbrStatus === "SUCCESS";
-                  const isFailed = inv.fbrStatus === "FAILED";
+                  const isAlreadyStamped = inv.fbrStatus === "SUCCESS" || Boolean(inv.fbrInvoiceNumber);
+                  const isPending = (!inv.fbrStatus || inv.fbrStatus === "PENDING") && !inv.fbrInvoiceNumber;
+                  const isSuccess = isAlreadyStamped;
+                  const isFailed = inv.fbrStatus === "FAILED" && !inv.fbrInvoiceNumber;
                   const isFullyPaid = inv.paymentStatus === "PAID";
                   const isPartial = inv.paymentStatus === "PARTIAL";
-                  const isEligibleToHit = isPending && isFullyPaid;
+                  const isEligibleToHit = isPending && isFullyPaid && !isAlreadyStamped;
                   const isSelectable = !isSuccess;
                   const isSelected = selectedIds.includes(inv.id);
                   const isHittingThis = hittingId === inv.id;
