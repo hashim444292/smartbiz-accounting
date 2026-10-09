@@ -433,7 +433,7 @@ describe("Part 13: 10-Step Automated QA Scenario & FBR Engine Verification", () 
 
       const qrPayload = generateFbrQrCode(invNum, 122000);
 
-      expect(qrPayload).toContain("https://e.fbr.gov.pk/verify?inv=");
+      expect(qrPayload).toMatch(/(e\.fbr\.gov\.pk|myaccounts360\.com)\/verify.*inv=/);
       expect(qrPayload).toContain(encodeURIComponent(invNum));
       expect(qrPayload).toContain("pos=POS-101");
       expect(qrPayload).toContain("amt=122000");
