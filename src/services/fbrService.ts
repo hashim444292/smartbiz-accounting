@@ -1058,6 +1058,13 @@ export async function transmitFbrCreditNote(
   if (!isPos) {
     (payload as any).invoiceType = "Credit Note";
     (payload as any).invoiceRefNo = sale.invoiceNumber;
+    const isReg = Boolean((sale.customer?.ntn || "").replace(/[^0-9]/g, "").length >= 7);
+    (payload as any).scenarioId = isReg ? "SN007" : "SN008";
+    if (Array.isArray((payload as any).items)) {
+      (payload as any).items.forEach((it: any) => {
+        it.saleType = isReg ? "Credit Note - Registered" : "Credit Note - Unregistered";
+      });
+    }
   }
 
   let liveFbrResponse: any = null;
