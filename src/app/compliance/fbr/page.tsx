@@ -104,8 +104,8 @@ export default function FbrCompliancePage() {
 
   const handleTransmitCreditNote = async (inv: any) => {
     const confirmPrompt = language === "ur"
-      ? `کیا آپ انوائس #${inv.invoiceNumber} (${inv.fbrInvoiceNumber || ""}) کے لیے FBR پر باقاعدہ Credit Note (InvoiceType 2 - واپسی) ارسال کرنا چاہتے ہیں؟\n\n- اس سے FBR پورٹل پر اس انوائس کی سیلز اور ٹیکس کی رقم مائنس / ریورس ہو جائے گی۔\n- یہ عمل FBR پورٹل پر ڈپلیکیٹ انوائسز کو کینسل کرنے کے لیے استعمال ہوتا ہے۔`
-      : `Transmit official FBR Credit Note (InvoiceType 2 - Return) for invoice #${inv.invoiceNumber} (${inv.fbrInvoiceNumber || ""}) to FBR?\n\n- This will reverse the sales and tax on the FBR portal.\n- Used to negate duplicate FBR entries.`;
+      ? `کیا آپ انوائس #${inv.invoiceNumber} (${inv.fbrInvoiceNumber || ""}) کے لیے FBR پر باقاعدہ Credit Note (InvoiceType 4 - واپسی) ارسال کرنا چاہتے ہیں؟\n\n- اس سے FBR پورٹل پر اس انوائس کی سیلز اور ٹیکس کی رقم مائنس / ریورس ہو جائے گی۔\n- یہ عمل FBR پورٹل پر ڈپلیکیٹ انوائسز کو کینسل کرنے کے لیے استعمال ہوتا ہے۔`
+      : `Transmit official FBR Credit Note (InvoiceType 4 - Return) for invoice #${inv.invoiceNumber} (${inv.fbrInvoiceNumber || ""}) to FBR?\n\n- This will reverse the sales and tax on the FBR portal.\n- Used to negate duplicate FBR entries.`;
 
     if (!confirm(confirmPrompt)) return;
 
@@ -141,8 +141,8 @@ export default function FbrCompliancePage() {
   const handleBatchTransmitCreditNotes = async (targetInvoices: any[]) => {
     if (targetInvoices.length === 0) return;
     const confirmPrompt = language === "ur"
-      ? `کیا آپ واقعی ${targetInvoices.length} انوائسز کے لیے FBR پر باقاعدہ Credit Notes (InvoiceType 2) ارسال کرنا چاہتے ہیں؟\n\n- ہر Credit Note 2 سیکنڈ کے وقفے سے FBR گیٹ وے کو ارسال ہو گا۔\n- FBR پورٹل پر ان انوائسز کی ڈپلیکیٹ سیلز ریورس ہو جائے گی۔`
-      : `Transmit official FBR Credit Notes (InvoiceType 2) for ${targetInvoices.length} invoice(s)?\n\n- Each Credit Note will transmit with a 2-second rate-limiting delay.\n- Duplicate liability will be cancelled on FBR.`;
+      ? `کیا آپ واقعی ${targetInvoices.length} انوائسز کے لیے FBR پر باقاعدہ Credit Notes (InvoiceType 4) ارسال کرنا چاہتے ہیں؟\n\n- ہر Credit Note 2 سیکنڈ کے وقفے سے FBR گیٹ وے کو ارسال ہو گا۔\n- FBR پورٹل پر ان انوائسز کی ڈپلیکیٹ سیلز ریورس ہو جائے گی۔`
+      : `Transmit official FBR Credit Notes (InvoiceType 4) for ${targetInvoices.length} invoice(s)?\n\n- Each Credit Note will transmit with a 2-second rate-limiting delay.\n- Duplicate liability will be cancelled on FBR.`;
 
     if (!confirm(confirmPrompt)) return;
 
@@ -1396,7 +1396,7 @@ export default function FbrCompliancePage() {
                                 onClick={() => handleTransmitCreditNote(inv)}
                                 disabled={transmittingCreditNoteId === inv.id}
                                 className="inline-flex items-center gap-1 rounded-lg border border-amber-300 bg-amber-50 px-2 py-1 text-[11px] font-bold text-amber-800 hover:bg-amber-100 shadow-2xs"
-                                title="Transmit FBR Credit Note (InvoiceType 2) to reverse/cancel on FBR"
+                                title="Transmit FBR Credit Note (InvoiceType 4) to reverse/cancel on FBR"
                               >
                                 <RotateCcw className={`h-3 w-3 ${transmittingCreditNoteId === inv.id ? "animate-spin text-amber-700" : ""}`} />
                                 <span>Credit Note</span>
@@ -1465,21 +1465,17 @@ export default function FbrCompliancePage() {
                             <span>Delete</span>
                           </button>
 
-                          {/* Reverse / Credit Note Button */}
-                          {inv.status !== "CANCELLED" && (
+                          {/* Local Reversal Button (Only for unverified / non-stamped invoices) */}
+                          {inv.status !== "CANCELLED" && inv.fbrStatus !== "SUCCESS" && (
                             <button
                               type="button"
                               onClick={() => handleReverseInvoice(inv)}
                               disabled={reversingId === inv.id}
                               className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] font-medium text-slate-600 hover:bg-slate-100 shadow-2xs transition"
-                              title={
-                                inv.fbrStatus === "SUCCESS"
-                                  ? "Issue Credit Note / Sale Return for FBR Stamped Invoice"
-                                  : "Cancel / Reverse Unverified Invoice"
-                              }
+                              title="Cancel / Reverse Unverified Invoice"
                             >
                               <RotateCcw className={`h-3 w-3 ${reversingId === inv.id ? "animate-spin text-slate-600" : ""}`} />
-                              <span>{inv.fbrStatus === "SUCCESS" ? "Credit Note" : "Reverse"}</span>
+                              <span>Reverse</span>
                             </button>
                           )}
                         </div>
@@ -2190,8 +2186,8 @@ export default function FbrCompliancePage() {
           title={language === "ur" ? "FBR کریڈٹ نوٹس اور ڈپلیکیٹ ایڈجسٹمنٹ" : "FBR Credit Notes & Duplicate Reconciliation"}
           description={
             language === "ur"
-              ? "FBR پورٹل پر اضافی / ڈپلیکیٹ انوائسز کے لیے سرکاری کریڈٹ نوٹس (InvoiceType 2) بھیجیں۔ مقامی کھاتے اور اسٹاک محفوظ رہے گا۔"
-              : "Transmit official FBR Credit Notes (InvoiceType 2) to reverse duplicate entries directly on FBR without affecting your local sales."
+              ? "FBR پورٹل پر اضافی / ڈپلیکیٹ انوائسز کے لیے سرکاری کریڈٹ نوٹس (InvoiceType 4) بھیجیں۔ مقامی کھاتے اور اسٹاک محفوظ رہے گا۔"
+              : "Transmit official FBR Credit Notes (InvoiceType 4) to reverse duplicate entries directly on FBR without affecting your local sales."
           }
           maxWidth="2xl"
         >
@@ -2202,13 +2198,13 @@ export default function FbrCompliancePage() {
               <div className="space-y-1 text-[11px] leading-relaxed">
                 <p className="font-bold">
                   {language === "ur"
-                    ? "قواعد و ضوابط: FBR سیلز ریورسل (InvoiceType: 2)"
-                    : "Statutory Rule: FBR Sales Reversal via InvoiceType 2 (Credit Note)"}
+                    ? "قواعد و ضوابط: FBR سیلز ریورسل (InvoiceType: 4)"
+                    : "Statutory Rule: FBR Sales Reversal via InvoiceType 4 (Credit Note)"}
                 </p>
                 <p>
                   {language === "ur"
-                    ? "FBR POS سسٹم میں ایک بار جمع شدہ انوائس کو براہ راست ڈیلیٹ نہیں کیا جا سکتا، بلکہ FBR کے قانون کے مطابق InvoiceType 2 کریڈٹ نوٹ کے ذریعے رقم اور ٹیکس منفی کیا جاتا ہے۔"
-                    : "Under FBR POS regulations, submitted invoices cannot be deleted. FBR requires an InvoiceType 2 (Credit Note) with RefUSIN to deduct sales turnover and sales tax liability on the portal."}
+                    ? "FBR POS سسٹم میں ایک بار جمع شدہ انوائس کو براہ راست ڈیلیٹ نہیں کیا جا سکتا، بلکہ FBR کے قانون کے مطابق InvoiceType 4 کریڈٹ نوٹ کے ذریعے رقم اور ٹیکس منفی کیا جاتا ہے۔"
+                    : "Under FBR POS regulations, submitted invoices cannot be deleted. FBR requires an InvoiceType 4 (Credit Note) with RefUSIN to deduct sales turnover and sales tax liability on the portal."}
                 </p>
               </div>
             </div>

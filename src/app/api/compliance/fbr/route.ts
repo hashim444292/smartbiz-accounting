@@ -217,6 +217,15 @@ export async function POST(req: NextRequest) {
 
     // 6. Transmit Official Credit Note (Sales Return / Cancellation) to FBR
     if (body.action === "credit_note") {
+      if (body.forceRehit) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Unauthorized override: client-supplied forceRehit is strictly prohibited by fiscal compliance rules. Manual override requires server-side administrative authorization.",
+          },
+          { status: 403 }
+        );
+      }
       const { invoiceId, reason = "Sales Return / Duplicate Correction", creditNoteDate, refUsin } = body;
       const result = await transmitFbrCreditNote(invoiceId, reason, { creditNoteDate, refUsin });
       return NextResponse.json({
@@ -229,6 +238,15 @@ export async function POST(req: NextRequest) {
 
     // 7. Batch Transmit Credit Notes to FBR (with 2-second rate-limit)
     if (body.action === "credit_note_batch") {
+      if (body.forceRehit) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Unauthorized override: client-supplied forceRehit is strictly prohibited by fiscal compliance rules. Manual override requires server-side administrative authorization.",
+          },
+          { status: 403 }
+        );
+      }
       const { invoiceIds = [], reason = "Duplicate Correction / Reversal", creditNoteDate } = body;
       const results = [];
       const errors = [];

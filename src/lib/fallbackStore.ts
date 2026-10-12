@@ -2111,8 +2111,10 @@ if (process.env.NODE_ENV !== "production") {
 export function storeAddCompany(data: any) {
   const compId = data.id || `biz-${Date.now()}`;
   const newCompany = {
+    ...data,
     id: compId,
     name: data.name,
+
     ownerName: data.ownerName || "Business Owner",
     phone: data.phone || "",
     email: data.email || "",

@@ -29,7 +29,10 @@ import {
   generateFbrQrCode,
   createFbrPosInvoice,
   getFbrComplianceOverview,
+  buildFbrPosPayload,
+  transmitFbrCreditNote,
 } from "../src/services/fbrService";
+
 import {
   fallbackStore,
   storeAddCompany,
@@ -542,4 +545,118 @@ describe("Part 13: 10-Step Automated QA Scenario & FBR Engine Verification", () 
       expect(checkProd?.categoryId).toBeNull();
     });
   });
+
+  describe("FBR Production Defect Fixes & Credit Note Statutory Verification", () => {
+    const TEST_BIZ_ID = "test-tayyaba-biz";
+
+    beforeEach(() => {
+      storeAddCompany({
+        id: TEST_BIZ_ID,
+        name: "Tayyaba Communication",
+        ntn: "4230110715207",
+        posId: "201327",
+        integrationType: "TIER1_POS",
+        environment: "sandbox",
+        defaultHsCode: "8517.13",
+      } as any);
+    });
+
+    it("buildFbrPosPayload generates statutory InvoiceType 4 and CN- prefixed USIN for Credit Notes", () => {
+      const mockSale = {
+        id: "sale-cn-test-1",
+        businessId: TEST_BIZ_ID,
+        invoiceNumber: "INV-2026-00001",
+        fbrInvoiceNumber: "201327FJ5V3432560",
+        totalAmount: 41501,
+        subtotal: 41500,
+        taxAmount: 0,
+        customerName: "Walk-in Retail Buyer",
+        items: [
+          {
+            sku: "SKU-TEST-1",
+            productName: "Mobile Phone",
+            quantity: 1,
+            unitPrice: 41500,
+            lineTotal: 41500,
+            taxAmount: 0,
+            taxRate: 0,
+            hsCode: "85171300",
+          },
+        ],
+      };
+
+      const payload = buildFbrPosPayload(
+        mockSale,
+        { defaultHsCode: "85171300" },
+        { posId: "201327", environment: "sandbox" },
+        { invoiceType: 4, refUsin: "201327FJ5V3432560" }
+      );
+
+      // Verify root-level statutory Credit Note enum (4 = Credit Note under FBR/PRAL POS spec)
+      expect(payload.InvoiceType).toBe(4);
+      // Verify USIN is prefixed with CN-
+      expect(payload.USIN).toBe("CN-INV-2026-00001");
+      // Verify RefUSIN links back to original invoice reference
+      expect(payload.RefUSIN).toBe("201327FJ5V3432560");
+      // Verify line items carry InvoiceType 4
+      expect(payload.Items[0].InvoiceType).toBe(4);
+      expect(payload.TotalSaleValue).toBe(41500);
+      expect(payload.POSID).toBe(201327);
+    });
+
+    it("transmitFbrCreditNote enforces strict idempotency and blocks duplicate transmissions", async () => {
+      const mockSaleId = "sale-idempotency-test-101";
+      const mockSale = {
+        id: mockSaleId,
+        businessId: TEST_BIZ_ID,
+        invoiceNumber: "INV-2026-00101",
+        fbrInvoiceNumber: "201327FJBU15306700",
+        fbrStatus: "SUCCESS",
+        totalAmount: 50000,
+        subtotal: 50000,
+        taxAmount: 0,
+        customerName: "Counter Buyer",
+        notes: JSON.stringify({
+          fbrCreditNote: {
+            cnInvoiceNumber: "201327FJDB99988877",
+            status: "SUCCESS",
+          },
+        }),
+      };
+      fallbackStore.sales.push(mockSale as any);
+
+      // Attempt transmission on an invoice that already has a confirmed Credit Note
+      const res = await transmitFbrCreditNote(mockSaleId, "Sales Return", { forceRehit: false });
+
+      expect(res.success).toBe(true);
+      expect(res.cnInvoiceNumber).toBe("201327FJDB99988877");
+      expect(res.message).toContain("already confirmed on FBR");
+      expect(res.message).toContain("Duplicate transmission blocked");
+    });
+
+    it("transmitFbrCreditNote acknowledges InvoiceType 4 in sandbox/test simulation", async () => {
+      const mockSaleId = "sale-fresh-cn-800";
+      const mockSale = {
+        id: mockSaleId,
+        businessId: TEST_BIZ_ID,
+        invoiceNumber: "INV-2026-00800",
+        fbrInvoiceNumber: "201327FJEV45192831",
+        fbrStatus: "SUCCESS",
+        totalAmount: 35282,
+        subtotal: 35281,
+        taxAmount: 0,
+        customerName: "Retail Buyer",
+        notes: "{}",
+      };
+      fallbackStore.sales.push(mockSale as any);
+
+      const res = await transmitFbrCreditNote(mockSaleId, "Customer return");
+
+      expect(res.success).toBe(true);
+      expect(res.cnInvoiceNumber).toBeDefined();
+      expect(res.payload.InvoiceType).toBe(4);
+      expect(res.payload.USIN).toBe("CN-INV-2026-00800");
+    });
+  });
 });
+

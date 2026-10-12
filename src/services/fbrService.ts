@@ -209,12 +209,13 @@ export async function getFbrConfig(businessId: string): Promise<FbrConfig> {
   const sellerBusinessName = getSetting("fbr_seller_name") || (business?.name && !business.name.includes("Enterprise") ? business.name : "Shakeel mobiles");
   const sellerProvince = getSetting("fbr_seller_province") || business?.province || "Sindh";
   const sellerAddress = getSetting("fbr_seller_address") || business?.address || "R-70 rehman villas, Karachi";
-  const token = getSetting("fbr_token") || process.env.FBR_SANDBOX_TOKEN || "";
-  const posToken = getSetting("fbr_pos_token") || (token.startsWith("7c8ba514") ? token : "7c8ba514-1b87-37a6-bda7-162c95c4d826");
-  const diToken = getSetting("fbr_di_token") || (token.startsWith("121f8deb") ? token : "121f8deb-bb81-3e13-b49d-87f3b6792fe2");
-  const integrationType = (getSetting("fbr_integration_type") || "DIGITAL_INVOICING") as "DIGITAL_INVOICING" | "TIER1_POS" | "BOTH";
-  const environment = (getSetting("fbr_env") || "sandbox") as "sandbox" | "production";
-  const posId = getSetting("fbr_pos_id") || "200871";
+  const token = getSetting("fbr_token") || (business as any)?.token || process.env.FBR_SANDBOX_TOKEN || "";
+  const posToken = getSetting("fbr_pos_token") || (business as any)?.posToken || (token.startsWith("7c8ba514") ? token : (token === "N/A" ? "N/A" : "7c8ba514-1b87-37a6-bda7-162c95c4d826"));
+  const diToken = getSetting("fbr_di_token") || (business as any)?.diToken || (token.startsWith("121f8deb") ? token : (token === "N/A" ? "N/A" : "121f8deb-bb81-3e13-b49d-87f3b6792fe2"));
+  const integrationType = (getSetting("fbr_integration_type") || (business as any)?.integrationType || "DIGITAL_INVOICING") as "DIGITAL_INVOICING" | "TIER1_POS" | "BOTH";
+  const environment = (getSetting("fbr_env") || (business as any)?.environment || "sandbox") as "sandbox" | "production";
+  const posId = getSetting("fbr_pos_id") || (business as any)?.posId || "200871";
+
   const scenarioId = getSetting("fbr_scenario_id") || "SN000";
   const autoSync = getSetting("fbr_auto_sync") === "true";
   const enabled = getSetting("fbr_enabled") === "true" || !!token;
@@ -460,9 +461,16 @@ export function buildFbrPosPayload(
   const buyerNtn = customer?.ntn || "";
   const buyerPhone = customer?.phone || "";
 
-  const invoiceType = options.invoiceType || 1;
+  // FBR/PRAL POS Specification:
+  // 1 = Purchase
+  // 2 = Sale
+  // 3 = Debit Note
+  // 4 = Credit Note
+  // Default to 2 (Sale) for standard sale invoices:
+  const invoiceType = options.invoiceType ?? 2;
   const refUsin = options.refUsin || "";
-  const usin = invoiceType === 2 ? `CN-${sale.invoiceNumber}` : sale.invoiceNumber;
+  const isCreditNote = invoiceType === 4;
+  const usin = isCreditNote ? (sale.invoiceNumber?.startsWith("CN-") ? sale.invoiceNumber : `CN-${sale.invoiceNumber}`) : sale.invoiceNumber;
 
   const paymentMode =
     sale.paymentMethod === "BANK" ? 2 :
@@ -481,7 +489,7 @@ export function buildFbrPosPayload(
     const totalLineValue = round2(lineSubtotal + taxAmountVal).toNumber();
 
     return {
-      ItemCode: item.product?.sku || item.productId || `P-${idx + 1}`,
+      ItemCode: item.product?.sku || item.sku || item.productId || `P-${idx + 1}`,
       ItemName: item.productName || item.product?.name || "Retail Merchandise",
       Quantity: qty,
       TotalAmount: totalLineValue,
@@ -594,7 +602,7 @@ export async function testFbrToken(
           Discount: 0,
           FurtherTax: 0,
           PaymentMode: 1,
-          InvoiceType: 1,
+          InvoiceType: 2, // 2 = Sale under FBR/PRAL POS spec
           Items: [
             {
               ItemCode: "P-1",
@@ -606,7 +614,7 @@ export async function testFbrToken(
               TaxRate: 18,
               Discount: 0,
               FurtherTax: 0,
-              InvoiceType: 1,
+              InvoiceType: 2, // 2 = Sale under FBR/PRAL POS spec
               PCTCode: "85171300",
             },
           ],
@@ -735,11 +743,30 @@ export async function testFbrToken(
   }
 }
 
+// ── IN-FLIGHT CONCURRENCY LOCKS ─────────────────────────────────────────────
+const inFlightTransmissions = new Map<string, Promise<any>>();
+const inFlightCreditNotes = new Map<string, Promise<any>>();
+
 // ── TRANSMIT SALE INVOICE TO FBR ────────────────────────────────────────────
 export async function transmitSaleToFbr(
   invoiceId: string,
   options: { allowIncomplete?: boolean; overrideToken?: string; forceRehit?: boolean } = {}
+): Promise<any> {
+  if (inFlightTransmissions.has(invoiceId)) {
+    return inFlightTransmissions.get(invoiceId)!;
+  }
+  const promise = executeTransmitSaleToFbr(invoiceId, options).finally(() => {
+    inFlightTransmissions.delete(invoiceId);
+  });
+  inFlightTransmissions.set(invoiceId, promise);
+  return promise;
+}
+
+async function executeTransmitSaleToFbr(
+  invoiceId: string,
+  options: { allowIncomplete?: boolean; overrideToken?: string; forceRehit?: boolean } = {}
 ) {
+
   // 1. Fetch sale with items & business
   let sale: any = null;
   let business: any = null;
@@ -767,9 +794,17 @@ export async function transmitSaleToFbr(
     throw new Error(`Sale #${invoiceId} not found in database.`);
   }
 
-  // Idempotency Safeguard: Never re-transmit an invoice that is already verified & SUCCESS on FBR or already has an FBR fiscal number
-  const isAlreadyStamped = (sale.fbrStatus === "SUCCESS" || Boolean(sale.fbrInvoiceNumber)) && !options.forceRehit;
+  // Idempotency Safeguard: Never re-transmit an invoice that is already verified & SUCCESS on FBR, has an FBR fiscal number, or is PENDING_RECONCILIATION
+  const isAlreadyStamped = (sale.fbrStatus === "SUCCESS" || sale.fbrStatus === "PENDING_RECONCILIATION" || Boolean(sale.fbrInvoiceNumber)) && !options.forceRehit;
   if (isAlreadyStamped) {
+    if (sale.fbrStatus === "PENDING_RECONCILIATION") {
+      return {
+        success: false,
+        sale,
+        fbrResponse: { status: "PENDING_RECONCILIATION" },
+        message: `Invoice #${sale.invoiceNumber} is marked PENDING_RECONCILIATION due to a previous unconfirmed network timeout. Automatic retry blocked to avoid duplicate fiscal stamping. Please reconcile on FBR portal.`,
+      };
+    }
     return {
       success: true,
       sale,
@@ -777,6 +812,7 @@ export async function transmitSaleToFbr(
       message: `Invoice #${sale.invoiceNumber} is already recorded and verified on FBR (${sale.fbrInvoiceNumber || ""}). Duplicate transmission strictly blocked.`,
     };
   }
+
 
   // Check payment completeness safeguard
   if (!options.allowIncomplete && sale.paymentStatus !== "PAID") {
@@ -835,7 +871,7 @@ export async function transmitSaleToFbr(
     : `FBR-DI-${new Date().getFullYear()}-${Math.floor(100000 + Math.random() * 900000)}`;
   let fbrQr = generateFbrQrCode(fbrInvNum, newTotal, config.posId);
   let liveFbrResponse: any = null;
-  let transmissionStatus: "SUCCESS" | "FAILED" = "SUCCESS";
+  let transmissionStatus: "SUCCESS" | "FAILED" | "PENDING_RECONCILIATION" = "SUCCESS";
   let transmissionMessage = "";
 
   // 4. If Bearer Token is available, make REAL HTTP POST to FBR Gateway
@@ -902,9 +938,10 @@ export async function transmitSaleToFbr(
           `FBR Gateway rejected submission with status HTTP ${res.status}`;
       }
     } catch (networkErr: any) {
-      transmissionStatus = "FAILED";
-      transmissionMessage = `FBR Gateway network error: ${networkErr.message}`;
+      transmissionStatus = "PENDING_RECONCILIATION";
+      transmissionMessage = `FBR Gateway network timeout/error: ${networkErr.message}. Gateway outcome is unconfirmed. Automatic retry blocked to prevent duplicate fiscal stamping. Please reconcile on FBR portal.`;
     }
+
   } else {
     // Sandbox simulation mode
     transmissionStatus = "SUCCESS";
@@ -1005,14 +1042,50 @@ export async function transmitSaleToFbr(
   }
 }
 
-// ── TRANSMIT FBR CREDIT NOTE / SALES RETURN (InvoiceType: 2) ────────────────
+// ── TRANSMIT FBR CREDIT NOTE / SALES RETURN (InvoiceType: 4) ────────────────
+export interface ServerAdminContext {
+  userId: string;
+  userRole: "ADMIN" | "SUPER_ADMIN";
+  userName?: string;
+  reason: string;
+}
+
+export interface TransmitFbrCreditNoteOptions {
+  creditNoteDate?: string;
+  refUsin?: string;
+  forceRehit?: boolean;
+  isMockTransport?: boolean;
+  adminContext?: ServerAdminContext;
+  adminAuthorized?: boolean;
+  adminOverrideReason?: string;
+  simulateLeasePersistenceFailure?: boolean;
+  simulateFinalPersistenceFailure?: boolean;
+}
+
+// ── TRANSMIT FBR CREDIT NOTE / SALES RETURN (InvoiceType: 4) ────────────────
 export async function transmitFbrCreditNote(
   invoiceId: string,
   reason = "Sales Return / Duplicate Correction",
-  options: { creditNoteDate?: string; refUsin?: string } = {}
+  options: TransmitFbrCreditNoteOptions = {}
+): Promise<any> {
+  if (inFlightCreditNotes.has(invoiceId)) {
+    return inFlightCreditNotes.get(invoiceId)!;
+  }
+  const promise = executeTransmitFbrCreditNote(invoiceId, reason, options).finally(() => {
+    inFlightCreditNotes.delete(invoiceId);
+  });
+  inFlightCreditNotes.set(invoiceId, promise);
+  return promise;
+}
+
+export async function executeTransmitFbrCreditNote(
+  invoiceId: string,
+  reason = "Sales Return / Duplicate Correction",
+  options: TransmitFbrCreditNoteOptions = {}
 ) {
   let sale: any = null;
   let business: any = null;
+  let isPrismaAvailable = false;
 
   try {
     sale = await prisma.sale.findUnique({
@@ -1023,13 +1096,112 @@ export async function transmitFbrCreditNote(
         business: true,
       },
     });
-    if (sale) business = sale.business;
+    if (sale) {
+      business = sale.business;
+      isPrismaAvailable = true;
+    }
   } catch {
     sale = fallbackStore.sales.find((s) => s.id === invoiceId);
     business = fallbackStore.companies.find((c) => c.id === sale?.businessId);
+    isPrismaAvailable = false;
   }
 
   if (!sale) throw new Error(`Sale #${invoiceId} not found in database.`);
+
+  // Server-side administrative override control:
+  // Requires explicit server-side administrative context (admin user ID, role ADMIN/SUPER_ADMIN, reason >= 10 chars),
+  // forceRehit flag, and server-side environment variable FBR_ADMIN_OVERRIDE_ENABLED === "true".
+  // Pure client-supplied boolean flags (adminAuthorized: true) or strings are strictly ignored.
+  const isAuthorizedAdminOverride = Boolean(
+    options.forceRehit === true &&
+    options.adminContext &&
+    (options.adminContext.userRole === "ADMIN" || options.adminContext.userRole === "SUPER_ADMIN") &&
+    typeof options.adminContext.userId === "string" &&
+    options.adminContext.userId.trim().length > 0 &&
+    typeof options.adminContext.reason === "string" &&
+    options.adminContext.reason.trim().length >= 10 &&
+    process.env.FBR_ADMIN_OVERRIDE_ENABLED === "true"
+  );
+
+  // Credit Note Idempotency Safeguard: Block duplicate credit note transmissions for the same invoice
+  let parsedNotes: any = {};
+  try { parsedNotes = JSON.parse(sale.notes || "{}"); } catch { parsedNotes = {}; }
+
+  if (parsedNotes.fbrCreditNote?.status === "PENDING_RECONCILIATION" && !isAuthorizedAdminOverride) {
+    return {
+      success: false,
+      sale,
+      message: `Credit Note transmission for Invoice #${sale.invoiceNumber} is in PENDING_RECONCILIATION state. A previous attempt timed out or had an unconfirmed gateway outcome. Automatic retry blocked to prevent duplicate fiscal stamping. Manual verification required.`,
+    };
+  }
+  const existingCnNo = (sale as any).fbrCreditNoteInvoiceNumber || (sale as any).fbrCreditNoteNumber || parsedNotes.fbrCreditNote?.cnInvoiceNumber;
+  if (existingCnNo && !isAuthorizedAdminOverride) {
+    return {
+      success: true,
+      sale,
+      cnInvoiceNumber: existingCnNo,
+      fbrResponse: { message: "Credit Note already stamped on FBR" },
+      message: `Credit Note for Invoice #${sale.invoiceNumber} is already confirmed on FBR (${existingCnNo}). Duplicate transmission blocked.`,
+    };
+  }
+
+  // Safeguard against re-submitting historical September 2026 batch records (INV-2026-00001 through 00441)
+  const isHistoricalSepBatch = /^INV-2026-00(0[0-9]{2}|1[0-9]{2}|2[0-9]{2}|3[0-9]{2}|4[0-3][0-9]|44[01])$/.test(sale.invoiceNumber || "");
+  if (isHistoricalSepBatch && !isAuthorizedAdminOverride) {
+    return {
+      success: true,
+      sale,
+      fbrResponse: { message: "Historical batch submission on record" },
+      message: `Invoice #${sale.invoiceNumber} is recorded in the 10-Oct September Credit Note batch. Automated re-transmission is blocked pending PRAL formal reconciliation.`,
+    };
+  }
+
+  // Atomic database lease check: Block concurrent executions across processes/restarts
+  const now = Date.now();
+  const leaseExpiresAtMs = parsedNotes.fbrCreditNote?.leaseExpiresAt
+    ? new Date(parsedNotes.fbrCreditNote.leaseExpiresAt).getTime()
+    : 0;
+
+  if (parsedNotes.fbrCreditNote?.status === "IN_FLIGHT" && !isAuthorizedAdminOverride) {
+    if (now < leaseExpiresAtMs) {
+      return {
+        success: false,
+        sale,
+        message: `Credit Note transmission for Invoice #${sale.invoiceNumber} is currently IN_FLIGHT on another worker. Lease active until ${parsedNotes.fbrCreditNote.leaseExpiresAt}. Concurrent duplicate transmission blocked.`,
+      };
+    } else {
+      // Expired IN_FLIGHT lease: Fail-closed on unknown outcome!
+      // Must not automatically resend or permit blind lease re-acquisition.
+      const expiredNotes = {
+        ...parsedNotes,
+        fbrCreditNote: {
+          ...parsedNotes.fbrCreditNote,
+          status: "PENDING_RECONCILIATION",
+          reason: "Lease expired with unconfirmed gateway outcome",
+          transitionedAt: new Date(now).toISOString(),
+        },
+      };
+      const expiredNotesJson = JSON.stringify(expiredNotes);
+      if (isPrismaAvailable) {
+        try {
+          await prisma.sale.update({
+            where: { id: sale.id },
+            data: { notes: expiredNotesJson },
+          });
+        } catch {}
+      } else {
+        const storeSale = fallbackStore.sales.find((s) => s.id === sale.id);
+        if (storeSale) storeSale.notes = expiredNotesJson;
+      }
+      sale.notes = expiredNotesJson;
+
+      return {
+        success: false,
+        sale,
+        message: `Credit Note transmission for Invoice #${sale.invoiceNumber} has an expired IN_FLIGHT lease with unconfirmed gateway outcome. Automatic resend is strictly blocked to prevent duplicate fiscal stamping. Record transitioned to PENDING_RECONCILIATION. Manual verification required.`,
+      };
+    }
+  }
 
   const config = await getFbrConfig(sale.businessId);
   let isPos = config.integrationType === "TIER1_POS";
@@ -1039,7 +1211,9 @@ export async function transmitFbrCreditNote(
   }
 
   let token = (config.token || "").trim();
-  if (isPos) {
+  if (token === "N/A" || config.posToken === "N/A") {
+    token = "N/A";
+  } else if (isPos) {
     if (!token || token.startsWith("121f8deb")) {
       token = (config.posToken || "7c8ba514-1b87-37a6-bda7-162c95c4d826").trim();
     }
@@ -1054,11 +1228,25 @@ export async function transmitFbrCreditNote(
     ? FBR_POS_ENDPOINTS[environment].postInvoice
     : FBR_ENDPOINTS[environment].postInvoice;
 
+  // Credit Note RefUSIN Enforcement under SRO 1006(I)/2021:
+  // Must reference explicit options.refUsin or verified original FBR-issued reference (sale.fbrInvoiceNumber).
+  // Silent fallback to local invoice number (sale.invoiceNumber) is strictly prohibited.
+  const candidateRefUsin = (options.refUsin || sale.fbrInvoiceNumber || "").trim();
+  const localInvNum = (sale.invoiceNumber || "").trim();
+
+  if (!candidateRefUsin || candidateRefUsin === localInvNum) {
+    return {
+      success: false,
+      sale,
+      message: `Cannot transmit Credit Note: Original invoice #${sale.invoiceNumber} has not been stamped with a valid FBR reference number (fbrInvoiceNumber is missing). Credit Notes under SRO 1006(I)/2021 require RefUSIN to reference the original FBR-issued invoice number. Silent fallback to local invoice number is prohibited.`,
+    };
+  }
+
   const cnDate = options.creditNoteDate || (sale.date ? new Date(sale.date).toISOString().replace("T", " ").slice(0, 19) : "2026-09-30 23:50:00");
   const payload = isPos
     ? buildFbrPosPayload(sale, business, config, {
-        invoiceType: 2,
-        refUsin: options.refUsin || sale.fbrInvoiceNumber || sale.invoiceNumber,
+        invoiceType: 4, // Statutory Credit Note integer enum under FBR/PRAL POS spec (1=Purchase, 2=Sale, 3=Debit Note, 4=Credit Note)
+        refUsin: candidateRefUsin,
         dateTime: cnDate,
       })
     : buildFbrPayload(sale, business, config);
@@ -1075,8 +1263,142 @@ export async function transmitFbrCreditNote(
     }
   }
 
+  // Claim atomic transmission lease in database/store BEFORE making network calls.
+  // Instant conditional update operation, no long-held transactions across external HTTP fetch.
+  const leaseDurationMs = 60000; // 60-second lease
+  const leaseNotes = {
+    ...parsedNotes,
+    fbrCreditNote: {
+      status: "IN_FLIGHT",
+      leaseAcquiredAt: new Date(now).toISOString(),
+      leaseExpiresAt: new Date(now + leaseDurationMs).toISOString(),
+      workerId: `worker-${process.pid || 1}-${Math.random().toString(36).slice(2, 7)}`,
+      refUsin: candidateRefUsin,
+      invoiceType: isPos ? 4 : "Credit Note",
+    },
+  };
+  const leaseNotesJson = JSON.stringify(leaseNotes);
+
+  if (options.simulateLeasePersistenceFailure) {
+    return {
+      success: false,
+      sale,
+      message: `Critical database failure acquiring Credit Note transmission lease: simulated persistence failure. Gateway transmission aborted to prevent unrecorded fiscal state.`,
+    };
+  }
+
+  let leaseAcquired = false;
+  if (isPrismaAvailable) {
+    try {
+      let affectedRows = 0;
+      if (isAuthorizedAdminOverride) {
+        affectedRows = await prisma.$executeRaw`
+          UPDATE "Sale"
+          SET "notes" = ${leaseNotesJson}
+          WHERE "id" = ${sale.id}
+            AND (
+              "notes" IS NULL
+              OR "notes" NOT LIKE '%"status":"SUCCESS"%'
+            )
+        `;
+      } else {
+        affectedRows = await prisma.$executeRaw`
+          UPDATE "Sale"
+          SET "notes" = ${leaseNotesJson}
+          WHERE "id" = ${sale.id}
+            AND (
+              "notes" IS NULL
+              OR (
+                "notes" NOT LIKE '%"status":"SUCCESS"%'
+                AND "notes" NOT LIKE '%"status":"IN_FLIGHT"%'
+                AND "notes" NOT LIKE '%"status":"PENDING_RECONCILIATION"%'
+              )
+            )
+        `;
+      }
+      if (affectedRows > 0) {
+        leaseAcquired = true;
+        sale.notes = leaseNotesJson;
+      }
+    } catch (dbErr: any) {
+      return {
+        success: false,
+        sale,
+        message: `Critical database error acquiring Credit Note transmission lease: ${dbErr.message}. Gateway transmission aborted to prevent unrecorded fiscal state.`,
+      };
+    }
+  } else {
+    // In fallbackStore (in-memory mode for offline unit testing)
+    const storeSale = fallbackStore.sales.find((s) => s.id === sale.id);
+    if (!storeSale) {
+      return {
+        success: false,
+        sale,
+        message: `Sale #${sale.id} not found in store during lease acquisition.`,
+      };
+    }
+
+    let storeNotes: any = {};
+    try { storeNotes = JSON.parse(storeSale.notes || "{}"); } catch { storeNotes = {}; }
+    const currentStatus = storeNotes.fbrCreditNote?.status;
+
+    if (isAuthorizedAdminOverride) {
+      if (currentStatus !== "SUCCESS") {
+        storeSale.notes = leaseNotesJson;
+        sale.notes = leaseNotesJson;
+        leaseAcquired = true;
+      }
+    } else {
+      if (!currentStatus || (currentStatus !== "SUCCESS" && currentStatus !== "IN_FLIGHT" && currentStatus !== "PENDING_RECONCILIATION")) {
+        storeSale.notes = leaseNotesJson;
+        sale.notes = leaseNotesJson;
+        leaseAcquired = true;
+      } else {
+        leaseAcquired = false;
+      }
+    }
+  }
+
+  if (!leaseAcquired) {
+    return {
+      success: false,
+      sale,
+      message: `Could not acquire atomic transmission lease for Invoice #${sale.invoiceNumber}. Another worker has concurrently claimed this invoice or the record state has changed. Zero gateway calls executed.`,
+    };
+  }
+
+  if (isAuthorizedAdminOverride) {
+    const auditDetails = {
+      invoiceNumber: sale.invoiceNumber,
+      reason: options.adminContext!.reason,
+      authorizedByUserId: options.adminContext!.userId,
+      authorizedByRole: options.adminContext!.userRole,
+      authorizedByName: options.adminContext!.userName || "Admin",
+      timestamp: new Date().toISOString(),
+    };
+    try {
+      await createSafeAuditLog(prisma, {
+        businessId: sale.businessId,
+        action: "FBR_CREDIT_NOTE_ADMIN_OVERRIDE",
+        entity: "Sale",
+        entityId: sale.id,
+        details: JSON.stringify(auditDetails),
+      });
+    } catch {
+      if (!fallbackStore.auditLogs) fallbackStore.auditLogs = [];
+      fallbackStore.auditLogs.push({
+        businessId: sale.businessId,
+        action: "FBR_CREDIT_NOTE_ADMIN_OVERRIDE",
+        entity: "Sale",
+        entityId: sale.id,
+        details: JSON.stringify(auditDetails),
+        createdAt: new Date(),
+      });
+    }
+  }
+
   let liveFbrResponse: any = null;
-  let transmissionStatus: "SUCCESS" | "FAILED" = "SUCCESS";
+  let transmissionStatus: "SUCCESS" | "FAILED" | "PENDING_RECONCILIATION" = "SUCCESS";
   let cnInvoiceNumber = `CN-${sale.invoiceNumber}`;
   let transmissionMessage = "";
 
@@ -1103,7 +1425,24 @@ export async function transmitFbrCreditNote(
           cnInvoiceNumber = liveFbrResponse.InvoiceNumber;
         }
         transmissionStatus = "SUCCESS";
-        transmissionMessage = `Live FBR Credit Note confirmed: #${cnInvoiceNumber} (InvoiceType 2 acknowledged).`;
+
+        const isMock = Boolean(
+          options.isMockTransport ||
+          token.toLowerCase().includes("mock")
+        );
+        const isSandbox =
+          environment === "sandbox" ||
+          postUrl.includes("sandbox") ||
+          postUrl.includes("localhost") ||
+          postUrl.includes("127.0.0.1");
+
+        if (isMock) {
+          transmissionMessage = `Mocked Test FBR Gateway acknowledged: #${cnInvoiceNumber} (InvoiceType 4 verified offline).`;
+        } else if (isSandbox) {
+          transmissionMessage = `Sandbox FBR Gateway acknowledged: #${cnInvoiceNumber} (InvoiceType 4 acknowledged).`;
+        } else {
+          transmissionMessage = `Live Production FBR Credit Note confirmed: #${cnInvoiceNumber} (InvoiceType 4 acknowledged).`;
+        }
       } else {
         transmissionStatus = "FAILED";
         transmissionMessage =
@@ -1113,27 +1452,162 @@ export async function transmitFbrCreditNote(
           `FBR Gateway rejected Credit Note with HTTP ${res.status}`;
       }
     } catch (netErr: any) {
-      transmissionStatus = "FAILED";
-      transmissionMessage = `Network error transmitting Credit Note: ${netErr.message}`;
+      transmissionStatus = "PENDING_RECONCILIATION";
+      transmissionMessage = `Network error transmitting Credit Note: ${netErr.message}. Gateway outcome is unconfirmed. Automatic retry blocked to prevent duplicate fiscal stamping. Record transitioned to PENDING_RECONCILIATION.`;
     }
   } else {
     transmissionStatus = "SUCCESS";
-    transmissionMessage = `Sandbox Simulated Credit Note #${cnInvoiceNumber}.`;
+    transmissionMessage = `Sandbox Simulated Credit Note #${cnInvoiceNumber} (No gateway call executed).`;
   }
 
-  await createSafeAuditLog(prisma, {
-    businessId: sale.businessId,
-    action: "FBR_CREDIT_NOTE",
-    entity: "Sale",
-    entityId: sale.id,
-    details: JSON.stringify({
-      invoiceNumber: sale.invoiceNumber,
-      cnInvoiceNumber,
-      reason,
-      status: transmissionStatus,
-      fbrResponse: liveFbrResponse,
-    }),
-  });
+  // Persist credit note status in sale notes JSON to guarantee permanence without destructive schema migration
+  if (transmissionStatus === "SUCCESS" || transmissionStatus === "PENDING_RECONCILIATION") {
+    if (transmissionStatus === "SUCCESS") {
+      (sale as any).fbrCreditNoteStatus = "SUCCESS";
+      (sale as any).fbrCreditNoteNumber = cnInvoiceNumber;
+    }
+
+    const finalNotes = {
+      ...parsedNotes,
+      fbrCreditNote: {
+        cnInvoiceNumber: transmissionStatus === "SUCCESS" ? cnInvoiceNumber : undefined,
+        status: transmissionStatus,
+        timestamp: new Date().toISOString(),
+        refUsin: isPos ? (payload as FbrPosInvoicePayload).RefUSIN : candidateRefUsin,
+        invoiceType: isPos ? 4 : "Credit Note",
+        responseCode: liveFbrResponse?.Code || (transmissionStatus === "SUCCESS" ? "100" : "TIMEOUT"),
+        error: transmissionStatus === "PENDING_RECONCILIATION" ? transmissionMessage : undefined,
+      },
+    };
+    const finalNotesJson = JSON.stringify(finalNotes);
+
+    try {
+      if (options.simulateFinalPersistenceFailure) {
+        throw new Error("Simulated database failure during final response persistence");
+      }
+
+      if (isPrismaAvailable) {
+        await prisma.sale.update({
+          where: { id: sale.id },
+          data: { notes: finalNotesJson },
+        });
+      } else {
+        const storeSale = fallbackStore.sales.find((s) => s.id === sale.id);
+        if (storeSale) storeSale.notes = finalNotesJson;
+      }
+      sale.notes = finalNotesJson;
+    } catch (persistErr: any) {
+      // Final response persistence failed!
+      // Requirement 3 & 7: Do NOT return success: true.
+      // Return success: false with operational error and preserve raw response in audit log and return payload.
+      const emergencyDetails = {
+        invoiceNumber: sale.invoiceNumber,
+        cnInvoiceNumber,
+        payload,
+        fbrResponse: liveFbrResponse,
+        transmissionStatus,
+        persistenceError: persistErr.message,
+        timestamp: new Date().toISOString(),
+      };
+
+      try {
+        await createSafeAuditLog(prisma, {
+          businessId: sale.businessId,
+          action: "FBR_CREDIT_NOTE_PERSISTENCE_FAILURE",
+          entity: "Sale",
+          entityId: sale.id,
+          details: JSON.stringify(emergencyDetails),
+        });
+      } catch {
+        if (!fallbackStore.auditLogs) fallbackStore.auditLogs = [];
+        fallbackStore.auditLogs.push({
+          businessId: sale.businessId,
+          action: "FBR_CREDIT_NOTE_PERSISTENCE_FAILURE",
+          entity: "Sale",
+          entityId: sale.id,
+          details: JSON.stringify(emergencyDetails),
+          createdAt: new Date(),
+        });
+      }
+
+      return {
+        success: false,
+        sale,
+        cnInvoiceNumber,
+        fbrResponse: liveFbrResponse,
+        operationalError: true,
+        message: `CRITICAL OPERATIONAL ERROR: Fiscal Credit Note #${cnInvoiceNumber} was transmitted and accepted by FBR gateway, but local database persistence failed (${persistErr.message}). DO NOT resubmit to FBR. Raw gateway response has been preserved in audit logs. Local reconciliation required.`,
+      };
+    }
+  } else if (transmissionStatus === "FAILED") {
+    const failedNotes = {
+      ...parsedNotes,
+      fbrCreditNote: {
+        status: "FAILED",
+        timestamp: new Date().toISOString(),
+        error: transmissionMessage,
+      },
+    };
+    const failedNotesJson = JSON.stringify(failedNotes);
+    try {
+      if (isPrismaAvailable) {
+        await prisma.sale.update({
+          where: { id: sale.id },
+          data: { notes: failedNotesJson },
+        });
+      } else {
+        const storeSale = fallbackStore.sales.find((s) => s.id === sale.id);
+        if (storeSale) storeSale.notes = failedNotesJson;
+      }
+      sale.notes = failedNotesJson;
+    } catch {}
+  }
+
+  try {
+    await createSafeAuditLog(prisma, {
+      businessId: sale.businessId,
+      action: "FBR_CREDIT_NOTE",
+      entity: "Sale",
+      entityId: sale.id,
+      details: JSON.stringify({
+        invoiceNumber: sale.invoiceNumber,
+        cnInvoiceNumber,
+        reason,
+        status: transmissionStatus,
+        environment,
+        payload,
+        fbrResponse: liveFbrResponse,
+      }),
+    });
+  } catch (auditErr) {
+    if (!fallbackStore.auditLogs) fallbackStore.auditLogs = [];
+    fallbackStore.auditLogs.push({
+      businessId: sale.businessId,
+      action: "FBR_CREDIT_NOTE",
+      entity: "Sale",
+      entityId: sale.id,
+      details: JSON.stringify({
+        invoiceNumber: sale.invoiceNumber,
+        cnInvoiceNumber,
+        reason,
+        status: transmissionStatus,
+        environment,
+        payload,
+        fbrResponse: liveFbrResponse,
+      }),
+      createdAt: new Date(),
+    });
+  }
+
+  const isMock = Boolean(
+    options.isMockTransport ||
+    token.toLowerCase().includes("mock")
+  );
+  const isSandbox =
+    environment === "sandbox" ||
+    postUrl.includes("sandbox") ||
+    postUrl.includes("localhost") ||
+    postUrl.includes("127.0.0.1");
 
   return {
     success: transmissionStatus === "SUCCESS",
@@ -1142,6 +1616,13 @@ export async function transmitFbrCreditNote(
     message: transmissionMessage,
     fbrResponse: liveFbrResponse,
     payload,
+    mode: (token === "N/A" || !token)
+      ? "SIMULATED"
+      : isMock
+      ? "MOCKED"
+      : isSandbox
+      ? "SANDBOX"
+      : "LIVE_PRODUCTION",
   };
 }
 
