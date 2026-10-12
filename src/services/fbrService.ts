@@ -1134,14 +1134,22 @@ export async function executeTransmitFbrCreditNote(
       message: `Credit Note transmission for Invoice #${sale.invoiceNumber} is in PENDING_RECONCILIATION state. A previous attempt timed out or had an unconfirmed gateway outcome. Automatic retry blocked to prevent duplicate fiscal stamping. Manual verification required.`,
     };
   }
-  const existingCnNo = (sale as any).fbrCreditNoteInvoiceNumber || (sale as any).fbrCreditNoteNumber || parsedNotes.fbrCreditNote?.cnInvoiceNumber;
-  if (existingCnNo && !isAuthorizedAdminOverride) {
+  const confirmedCnNo =
+    ((sale as any).fbrCreditNoteInvoiceNumber && !(sale as any).fbrCreditNoteInvoiceNumber.startsWith("CN-"))
+      ? (sale as any).fbrCreditNoteInvoiceNumber
+      : ((sale as any).fbrCreditNoteNumber && !(sale as any).fbrCreditNoteNumber.startsWith("CN-"))
+      ? (sale as any).fbrCreditNoteNumber
+      : (parsedNotes.fbrCreditNote?.status === "SUCCESS" && (parsedNotes.fbrCreditNote?.responseCode === "100" || !parsedNotes.fbrCreditNote?.responseCode) && parsedNotes.fbrCreditNote?.cnInvoiceNumber && !parsedNotes.fbrCreditNote?.cnInvoiceNumber.startsWith("CN-"))
+      ? parsedNotes.fbrCreditNote.cnInvoiceNumber
+      : null;
+
+  if (confirmedCnNo && !isAuthorizedAdminOverride) {
     return {
       success: true,
       sale,
-      cnInvoiceNumber: existingCnNo,
+      cnInvoiceNumber: confirmedCnNo,
       fbrResponse: { message: "Credit Note already stamped on FBR" },
-      message: `Credit Note for Invoice #${sale.invoiceNumber} is already confirmed on FBR (${existingCnNo}). Duplicate transmission blocked.`,
+      message: `Credit Note for Invoice #${sale.invoiceNumber} is already confirmed on FBR (${confirmedCnNo}). Duplicate transmission blocked.`,
     };
   }
 
@@ -1421,27 +1429,39 @@ export async function executeTransmitFbrCreditNote(
       }
 
       if (res.ok) {
-        if (liveFbrResponse.InvoiceNumber && liveFbrResponse.InvoiceNumber !== "Not Available") {
-          cnInvoiceNumber = liveFbrResponse.InvoiceNumber;
-        }
-        transmissionStatus = "SUCCESS";
+        const isPosSuccess = isPos
+          ? (liveFbrResponse.Code === "100" && Boolean(liveFbrResponse.InvoiceNumber) && liveFbrResponse.InvoiceNumber !== "Not Available")
+          : (liveFbrResponse.validationResponse?.status !== "Invalid");
 
-        const isMock = Boolean(
-          options.isMockTransport ||
-          token.toLowerCase().includes("mock")
-        );
-        const isSandbox =
-          environment === "sandbox" ||
-          postUrl.includes("sandbox") ||
-          postUrl.includes("localhost") ||
-          postUrl.includes("127.0.0.1");
+        if (isPosSuccess) {
+          if (liveFbrResponse.InvoiceNumber && liveFbrResponse.InvoiceNumber !== "Not Available") {
+            cnInvoiceNumber = liveFbrResponse.InvoiceNumber;
+          }
+          transmissionStatus = "SUCCESS";
 
-        if (isMock) {
-          transmissionMessage = `Mocked Test FBR Gateway acknowledged: #${cnInvoiceNumber} (InvoiceType 3 verified offline).`;
-        } else if (isSandbox) {
-          transmissionMessage = `Sandbox FBR Gateway acknowledged: #${cnInvoiceNumber} (InvoiceType 3 acknowledged).`;
+          const isMock = Boolean(
+            options.isMockTransport ||
+            token.toLowerCase().includes("mock")
+          );
+          const isSandbox =
+            environment === "sandbox" ||
+            postUrl.includes("sandbox") ||
+            postUrl.includes("localhost") ||
+            postUrl.includes("127.0.0.1");
+
+          if (isMock) {
+            transmissionMessage = `Mocked Test FBR Gateway acknowledged: #${cnInvoiceNumber} (InvoiceType 3 verified offline).`;
+          } else if (isSandbox) {
+            transmissionMessage = `Sandbox FBR Gateway acknowledged: #${cnInvoiceNumber} (InvoiceType 3 acknowledged).`;
+          } else {
+            transmissionMessage = `Live Production FBR Credit Note confirmed: #${cnInvoiceNumber} (InvoiceType 3 acknowledged).`;
+          }
         } else {
-          transmissionMessage = `Live Production FBR Credit Note confirmed: #${cnInvoiceNumber} (InvoiceType 3 acknowledged).`;
+          transmissionStatus = "FAILED";
+          transmissionMessage =
+            liveFbrResponse?.Response ||
+            liveFbrResponse?.message ||
+            `FBR Gateway rejected Credit Note with Code ${liveFbrResponse?.Code || "Unknown"}`;
         }
       } else {
         transmissionStatus = "FAILED";
