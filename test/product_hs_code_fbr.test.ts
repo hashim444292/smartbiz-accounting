@@ -589,17 +589,17 @@ describe("Part 13: 10-Step Automated QA Scenario & FBR Engine Verification", () 
         mockSale,
         { defaultHsCode: "85171300" },
         { posId: "201327", environment: "sandbox" },
-        { invoiceType: 4, refUsin: "201327FJ5V3432560" }
+        { invoiceType: 3, refUsin: "201327FJ5V3432560" }
       );
 
-      // Verify root-level statutory Credit Note enum (4 = Credit Note under FBR/PRAL POS spec)
-      expect(payload.InvoiceType).toBe(4);
+      // Verify root-level statutory Credit Note enum (3 = Credit Note under FBR Retail POS spec)
+      expect(payload.InvoiceType).toBe(3);
       // Verify USIN is prefixed with CN-
       expect(payload.USIN).toBe("CN-INV-2026-00001");
       // Verify RefUSIN links back to original invoice reference
       expect(payload.RefUSIN).toBe("201327FJ5V3432560");
-      // Verify line items carry InvoiceType 4
-      expect(payload.Items[0].InvoiceType).toBe(4);
+      // Verify line items carry InvoiceType 3
+      expect(payload.Items[0].InvoiceType).toBe(3);
       expect(payload.TotalSaleValue).toBe(41500);
       expect(payload.POSID).toBe(201327);
     });
@@ -634,7 +634,7 @@ describe("Part 13: 10-Step Automated QA Scenario & FBR Engine Verification", () 
       expect(res.message).toContain("Duplicate transmission blocked");
     });
 
-    it("transmitFbrCreditNote acknowledges InvoiceType 4 in sandbox/test simulation", async () => {
+    it("transmitFbrCreditNote acknowledges InvoiceType 3 in sandbox/test simulation", async () => {
       const mockSaleId = "sale-fresh-cn-800";
       const mockSale = {
         id: mockSaleId,
@@ -654,7 +654,7 @@ describe("Part 13: 10-Step Automated QA Scenario & FBR Engine Verification", () 
 
       expect(res.success).toBe(true);
       expect(res.cnInvoiceNumber).toBeDefined();
-      expect(res.payload.InvoiceType).toBe(4);
+      expect(res.payload.InvoiceType).toBe(3);
       expect(res.payload.USIN).toBe("CN-INV-2026-00800");
     });
   });

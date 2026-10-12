@@ -60,7 +60,7 @@ describe("Offline Credit Note Engine Validation & Mocked Gateway Harness", () =>
   });
 
   // Requirement 2 & 3: Synthetic test invoice & Credit Note payload verification
-  it("Requirement 2 & 3: Emits InvoiceType 4 at invoice and item level with correct RefUSIN and math", async () => {
+  it("Requirement 2 & 3: Emits InvoiceType 3 at invoice and item level with correct RefUSIN and math", async () => {
     const syntheticSale = {
       id: SYNTHETIC_SALE_ID,
       businessId: TEST_BIZ_ID,
@@ -121,7 +121,7 @@ describe("Offline Credit Note Engine Validation & Mocked Gateway Harness", () =>
     const payload = JSON.parse(intercept.options.body);
 
     // 2. Invoice level assertions
-    expect(payload.InvoiceType).toBe(4); // Statutory Credit Note integer under FBR/PRAL POS spec (4 = Credit Note)
+    expect(payload.InvoiceType).toBe(3); // Statutory Credit Note integer under FBR Retail POS spec (3 = Credit Note)
     expect(payload.USIN).toBe(`CN-${SYNTHETIC_INVOICE_NO}`);
     expect(payload.RefUSIN).toBe(ORIGINAL_FBR_REF); // References original FBR invoice
     expect(payload.POSID).toBe(201327);
@@ -137,7 +137,7 @@ describe("Offline Credit Note Engine Validation & Mocked Gateway Harness", () =>
     // 4. Item level assertions
     expect(payload.Items.length).toBe(1);
     const item = payload.Items[0];
-    expect(item.InvoiceType).toBe(4); // Statutory Credit Note integer on item
+    expect(item.InvoiceType).toBe(3); // Statutory Credit Note integer on item
     expect(item.ItemCode).toBe("SKU-TEST-PHONE");
     expect(item.ItemName).toBe("Test Smartphone Model X");
     expect(item.Quantity).toBe(2);
@@ -151,7 +151,7 @@ describe("Offline Credit Note Engine Validation & Mocked Gateway Harness", () =>
     // 5. Response handling assertions
     expect(result.success).toBe(true);
     expect(result.cnInvoiceNumber).toBe("201327FJDB99900011");
-    expect(result.message).toContain("Mocked Test FBR Gateway acknowledged: #201327FJDB99900011 (InvoiceType 4 verified offline)");
+    expect(result.message).toContain("Mocked Test FBR Gateway acknowledged: #201327FJDB99900011 (InvoiceType 3 verified offline)");
     expect(result.message).not.toContain("Live Production FBR Credit Note confirmed");
     expect(result.mode).toBe("MOCKED");
   });
@@ -384,7 +384,7 @@ describe("Offline Credit Note Engine Validation & Mocked Gateway Harness", () =>
       isMockTransport: true,
     });
     expect(mockResult.mode).toBe("MOCKED");
-    expect(mockResult.message).toContain("Mocked Test FBR Gateway acknowledged: #201327FJDB33300099 (InvoiceType 4 verified offline)");
+    expect(mockResult.message).toContain("Mocked Test FBR Gateway acknowledged: #201327FJDB33300099 (InvoiceType 3 verified offline)");
     expect(mockResult.message).not.toContain("Live Production FBR Credit Note confirmed");
 
     // 2. Sandbox Mode
@@ -395,7 +395,7 @@ describe("Offline Credit Note Engine Validation & Mocked Gateway Harness", () =>
       isMockTransport: false,
     });
     expect(sandboxResult.mode).toBe("SANDBOX");
-    expect(sandboxResult.message).toContain("Sandbox FBR Gateway acknowledged: #201327FJDB33300099 (InvoiceType 4 acknowledged)");
+    expect(sandboxResult.message).toContain("Sandbox FBR Gateway acknowledged: #201327FJDB33300099 (InvoiceType 3 acknowledged)");
     expect(sandboxResult.message).not.toContain("Live Production FBR Credit Note confirmed");
 
     // 3. Live Production Mode (simulated gateway mock in offline test)
@@ -405,7 +405,7 @@ describe("Offline Credit Note Engine Validation & Mocked Gateway Harness", () =>
       isMockTransport: false,
     });
     expect(liveResult.mode).toBe("LIVE_PRODUCTION");
-    expect(liveResult.message).toContain("Live Production FBR Credit Note confirmed: #201327FJDB33300099 (InvoiceType 4 acknowledged)");
+    expect(liveResult.message).toContain("Live Production FBR Credit Note confirmed: #201327FJDB33300099 (InvoiceType 3 acknowledged)");
   });
 
   // ── DISTRIBUTED SAFETY SCENARIOS (12 TEST SUITE) ──────────────────────────
@@ -849,8 +849,8 @@ describe("Offline Credit Note Engine Validation & Mocked Gateway Harness", () =>
     expect(data.error).toContain("Unauthorized override: client-supplied forceRehit is strictly prohibited");
   });
 
-  // Requirement 5: Dual InvoiceType mapping verification (InvoiceType 2 for Sale, InvoiceType 4 for Credit Note)
-  it("Requirement 5: Confirms Credit Note payload uses InvoiceType 4 and normal Sale payload continues to use InvoiceType 2", () => {
+  // Requirement 5: Dual InvoiceType mapping verification (InvoiceType 1 for Sale, InvoiceType 3 for Credit Note)
+  it("Requirement 5: Confirms Credit Note payload uses InvoiceType 3 and normal Sale payload continues to use InvoiceType 1", () => {
     const sampleSale = {
       id: "sale-mapping-check-001",
       businessId: TEST_BIZ_ID,
@@ -878,23 +878,23 @@ describe("Offline Credit Note Engine Validation & Mocked Gateway Harness", () =>
 
     // 1. Normal Sale payload (default options without invoiceType override)
     const salePayload = buildFbrPosPayload(sampleSale, business);
-    expect(salePayload.InvoiceType).toBe(2); // 2 = Sale under FBR/PRAL POS spec
+    expect(salePayload.InvoiceType).toBe(1); // 1 = Sale under FBR Retail POS spec
     expect(salePayload.USIN).toBe("INV-2026-SALE-001");
     expect(salePayload.RefUSIN).toBe(""); // No RefUSIN on normal sales
     expect(salePayload.Items.length).toBe(1);
-    expect(salePayload.Items[0].InvoiceType).toBe(2); // 2 = Sale at item level
+    expect(salePayload.Items[0].InvoiceType).toBe(1); // 1 = Sale at item level
 
-    // 2. Credit Note payload (options with invoiceType: 4 and refUsin)
+    // 2. Credit Note payload (options with invoiceType: 3 and refUsin)
     const cnPayload = buildFbrPosPayload(sampleSale, business, undefined, {
-      invoiceType: 4, // 4 = Credit Note under FBR/PRAL POS spec
+      invoiceType: 3, // 3 = Credit Note under FBR Retail POS spec
       refUsin: "201327FJSALEORIGINAL99",
       dateTime: "2026-10-12 10:30:00",
     });
-    expect(cnPayload.InvoiceType).toBe(4); // 4 = Credit Note at header level
+    expect(cnPayload.InvoiceType).toBe(3); // 3 = Credit Note at header level
     expect(cnPayload.USIN).toBe("CN-INV-2026-SALE-001"); // Credit note USIN prefix
     expect(cnPayload.RefUSIN).toBe("201327FJSALEORIGINAL99"); // Original FBR invoice reference
     expect(cnPayload.Items.length).toBe(1);
-    expect(cnPayload.Items[0].InvoiceType).toBe(4); // 4 = Credit Note at item level
+    expect(cnPayload.Items[0].InvoiceType).toBe(3); // 3 = Credit Note at item level
   });
 
   // Requirement 8: Historical records 201327FJDA35364997 and 201327FJDA42134387 remain untouched
@@ -913,8 +913,8 @@ describe("Offline Credit Note Engine Validation & Mocked Gateway Harness", () =>
     expect(modifiedSales.length).toBe(0);
   });
 
-  // Requirement: Verify actual serialized HTTP request body over the wire for Credit Note (InvoiceType 4)
-  it("Regression: Serialized HTTP request body for Credit Note strictly enforces root InvoiceType: 4, item-level InvoiceType: 4, and validated RefUSIN", async () => {
+  // Requirement: Verify actual serialized HTTP request body over the wire for Credit Note (InvoiceType 3)
+  it("Regression: Serialized HTTP request body for Credit Note strictly enforces root InvoiceType: 3, item-level InvoiceType: 3, and validated RefUSIN", async () => {
     const saleId = "cn-wire-serialize-test-001";
     const testInvNum = "INV-2026-00746-TEST";
     const originalFbrRef = "201327FJTEST74600001";
@@ -986,22 +986,24 @@ describe("Offline Credit Note Engine Validation & Mocked Gateway Harness", () =>
     const wirePayload = JSON.parse(capturedBodyString);
 
     // Root-level assertions on wire JSON
-    expect(wirePayload.InvoiceType).toBe(4);
-    expect(wirePayload.InvoiceType).not.toBe(2); // Strict regression guard: CANNOT be 2 (Sale)
-    expect(wirePayload.InvoiceType).not.toBe(1); // CANNOT be 1 (Purchase)
-    expect(wirePayload.InvoiceType).not.toBe(3); // CANNOT be 3 (Debit Note)
+    expect(wirePayload.InvoiceType).toBe(3);
+    expect(wirePayload.InvoiceType).not.toBe(1); // CANNOT be 1 (Sale)
+    expect(wirePayload.InvoiceType).not.toBe(2); // Strict regression guard: CANNOT be 2 (Debit Note / Sales turnover increase)
+    expect(wirePayload.InvoiceType).not.toBe(4); // CANNOT be 4 (Invalid on Retail POS)
     expect(wirePayload.RefUSIN).toBe(originalFbrRef);
     expect(wirePayload.RefUSIN).not.toBe(testInvNum); // Never local invoice number
     expect(wirePayload.USIN).toBe(`CN-${testInvNum}`);
 
     // Item-level assertions on wire JSON
     expect(wirePayload.Items.length).toBe(1);
-    expect(wirePayload.Items[0].InvoiceType).toBe(4);
+    expect(wirePayload.Items[0].InvoiceType).toBe(3);
+    expect(wirePayload.Items[0].InvoiceType).not.toBe(1);
     expect(wirePayload.Items[0].InvoiceType).not.toBe(2);
+    expect(wirePayload.Items[0].InvoiceType).not.toBe(4);
   });
 
-  // Requirement: Verify actual serialized HTTP request body over the wire for normal Sale (InvoiceType 2)
-  it("Regression: Serialized HTTP request body for normal Sale strictly enforces root InvoiceType: 2, item-level InvoiceType: 2, and empty RefUSIN", async () => {
+  // Requirement: Verify actual serialized HTTP request body over the wire for normal Sale (InvoiceType 1)
+  it("Regression: Serialized HTTP request body for normal Sale strictly enforces root InvoiceType: 1, item-level InvoiceType: 1, and empty RefUSIN", async () => {
     const saleId = "sale-wire-serialize-test-002";
     const testInvNum = "INV-2026-NORMAL-SALE";
 
@@ -1061,14 +1063,18 @@ describe("Offline Credit Note Engine Validation & Mocked Gateway Harness", () =>
     const wirePayload = JSON.parse(capturedBodyString);
 
     // Root-level assertions on wire JSON for normal sale
-    expect(wirePayload.InvoiceType).toBe(2); // 2 = Sale
-    expect(wirePayload.InvoiceType).not.toBe(4); // Must NOT be Credit Note
+    expect(wirePayload.InvoiceType).toBe(1); // 1 = Sale under Retail POS IMS
+    expect(wirePayload.InvoiceType).not.toBe(2); // Must NOT be Debit Note
+    expect(wirePayload.InvoiceType).not.toBe(3); // Must NOT be Credit Note
+    expect(wirePayload.InvoiceType).not.toBe(4); // Must NOT be Invalid
     expect(wirePayload.RefUSIN).toBe(""); // Normal sale has empty RefUSIN
     expect(wirePayload.USIN).toBe(testInvNum); // No CN- prefix
 
     // Item-level assertions on wire JSON for normal sale
     expect(wirePayload.Items.length).toBe(1);
-    expect(wirePayload.Items[0].InvoiceType).toBe(2);
+    expect(wirePayload.Items[0].InvoiceType).toBe(1);
+    expect(wirePayload.Items[0].InvoiceType).not.toBe(2);
+    expect(wirePayload.Items[0].InvoiceType).not.toBe(3);
     expect(wirePayload.Items[0].InvoiceType).not.toBe(4);
   });
 

@@ -42,7 +42,7 @@ describe("FBR Idempotency, Concurrency & Gateway Edge-Case Verification Suite", 
   });
 
   // Scenario 1: First Credit Note submission
-  it("Scenario 1: Fresh sale submits successfully with InvoiceType 4 on first attempt", async () => {
+  it("Scenario 1: Fresh sale submits successfully with InvoiceType 3 on first attempt", async () => {
     const sale = {
       id: "sale-fresh-1",
       businessId: BIZ_ID,
@@ -61,7 +61,7 @@ describe("FBR Idempotency, Concurrency & Gateway Edge-Case Verification Suite", 
 
     expect(res.success).toBe(true);
     expect(res.cnInvoiceNumber).toBeDefined();
-    expect(res.payload.InvoiceType).toBe(4);
+    expect(res.payload.InvoiceType).toBe(3);
     expect(res.payload.USIN).toBe("CN-INV-2026-00800");
     expect(res.payload.RefUSIN).toBe("201327FJEV11223344");
   });
@@ -208,7 +208,7 @@ describe("FBR Idempotency, Concurrency & Gateway Edge-Case Verification Suite", 
 
     expect(res.success).toBe(true);
     expect(res.cnInvoiceNumber).toBeDefined();
-    expect(res.payload.InvoiceType).toBe(4);
+    expect(res.payload.InvoiceType).toBe(3);
     // After successful transmission, notes is updated with confirmed Credit Note
     const updatedNotes = JSON.parse(sale.notes || "{}");
     expect(updatedNotes.fbrCreditNote?.status).toBe("SUCCESS");

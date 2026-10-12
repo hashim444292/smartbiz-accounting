@@ -462,14 +462,14 @@ export function buildFbrPosPayload(
   const buyerPhone = customer?.phone || "";
 
   // FBR/PRAL POS Specification:
-  // 1 = Purchase
-  // 2 = Sale
-  // 3 = Debit Note
-  // 4 = Credit Note
-  // Default to 2 (Sale) for standard sale invoices:
-  const invoiceType = options.invoiceType ?? 2;
+  // FBR/PRAL Retail POS Specification:
+  // 1 = Sale (New Invoice)
+  // 2 = Debit Note (Debit adjustment / Supplementary sale)
+  // 3 = Credit Note (Sales Return / Cancellation / Reversal)
+  // Default to 1 (Sale) for standard sale invoices:
+  const invoiceType = options.invoiceType ?? 1;
   const refUsin = options.refUsin || "";
-  const isCreditNote = invoiceType === 4;
+  const isCreditNote = invoiceType === 3;
   const usin = isCreditNote ? (sale.invoiceNumber?.startsWith("CN-") ? sale.invoiceNumber : `CN-${sale.invoiceNumber}`) : sale.invoiceNumber;
 
   const paymentMode =
@@ -602,7 +602,7 @@ export async function testFbrToken(
           Discount: 0,
           FurtherTax: 0,
           PaymentMode: 1,
-          InvoiceType: 2, // 2 = Sale under FBR/PRAL POS spec
+          InvoiceType: 1, // 1 = Sale under FBR Retail POS spec
           Items: [
             {
               ItemCode: "P-1",
@@ -614,7 +614,7 @@ export async function testFbrToken(
               TaxRate: 18,
               Discount: 0,
               FurtherTax: 0,
-              InvoiceType: 2, // 2 = Sale under FBR/PRAL POS spec
+              InvoiceType: 1, // 1 = Sale under FBR Retail POS spec
               PCTCode: "85171300",
             },
           ],
@@ -1042,7 +1042,7 @@ async function executeTransmitSaleToFbr(
   }
 }
 
-// ── TRANSMIT FBR CREDIT NOTE / SALES RETURN (InvoiceType: 4) ────────────────
+// ── TRANSMIT FBR CREDIT NOTE / SALES RETURN (InvoiceType: 3) ────────────────
 export interface ServerAdminContext {
   userId: string;
   userRole: "ADMIN" | "SUPER_ADMIN";
@@ -1062,7 +1062,7 @@ export interface TransmitFbrCreditNoteOptions {
   simulateFinalPersistenceFailure?: boolean;
 }
 
-// ── TRANSMIT FBR CREDIT NOTE / SALES RETURN (InvoiceType: 4) ────────────────
+// ── TRANSMIT FBR CREDIT NOTE / SALES RETURN (InvoiceType: 3) ────────────────
 export async function transmitFbrCreditNote(
   invoiceId: string,
   reason = "Sales Return / Duplicate Correction",
@@ -1245,7 +1245,7 @@ export async function executeTransmitFbrCreditNote(
   const cnDate = options.creditNoteDate || (sale.date ? new Date(sale.date).toISOString().replace("T", " ").slice(0, 19) : "2026-09-30 23:50:00");
   const payload = isPos
     ? buildFbrPosPayload(sale, business, config, {
-        invoiceType: 4, // Statutory Credit Note integer enum under FBR/PRAL POS spec (1=Purchase, 2=Sale, 3=Debit Note, 4=Credit Note)
+        invoiceType: 3, // Statutory Credit Note integer enum under FBR/PRAL POS spec (1=Sale, 2=Debit Note, 3=Credit Note)
         refUsin: candidateRefUsin,
         dateTime: cnDate,
       })
@@ -1274,7 +1274,7 @@ export async function executeTransmitFbrCreditNote(
       leaseExpiresAt: new Date(now + leaseDurationMs).toISOString(),
       workerId: `worker-${process.pid || 1}-${Math.random().toString(36).slice(2, 7)}`,
       refUsin: candidateRefUsin,
-      invoiceType: isPos ? 4 : "Credit Note",
+      invoiceType: isPos ? 3 : "Credit Note",
     },
   };
   const leaseNotesJson = JSON.stringify(leaseNotes);
@@ -1437,11 +1437,11 @@ export async function executeTransmitFbrCreditNote(
           postUrl.includes("127.0.0.1");
 
         if (isMock) {
-          transmissionMessage = `Mocked Test FBR Gateway acknowledged: #${cnInvoiceNumber} (InvoiceType 4 verified offline).`;
+          transmissionMessage = `Mocked Test FBR Gateway acknowledged: #${cnInvoiceNumber} (InvoiceType 3 verified offline).`;
         } else if (isSandbox) {
-          transmissionMessage = `Sandbox FBR Gateway acknowledged: #${cnInvoiceNumber} (InvoiceType 4 acknowledged).`;
+          transmissionMessage = `Sandbox FBR Gateway acknowledged: #${cnInvoiceNumber} (InvoiceType 3 acknowledged).`;
         } else {
-          transmissionMessage = `Live Production FBR Credit Note confirmed: #${cnInvoiceNumber} (InvoiceType 4 acknowledged).`;
+          transmissionMessage = `Live Production FBR Credit Note confirmed: #${cnInvoiceNumber} (InvoiceType 3 acknowledged).`;
         }
       } else {
         transmissionStatus = "FAILED";
@@ -1474,7 +1474,7 @@ export async function executeTransmitFbrCreditNote(
         status: transmissionStatus,
         timestamp: new Date().toISOString(),
         refUsin: isPos ? (payload as FbrPosInvoicePayload).RefUSIN : candidateRefUsin,
-        invoiceType: isPos ? 4 : "Credit Note",
+        invoiceType: isPos ? 3 : "Credit Note",
         responseCode: liveFbrResponse?.Code || (transmissionStatus === "SUCCESS" ? "100" : "TIMEOUT"),
         error: transmissionStatus === "PENDING_RECONCILIATION" ? transmissionMessage : undefined,
       },
