@@ -22,6 +22,7 @@ import {
   storeAddCompany,
 } from "../src/lib/fallbackStore";
 import { POST as complianceRoute } from "../src/app/api/compliance/fbr/route";
+import { getFbrRowActionVisibility } from "../src/lib/fbrRowActions";
 import { NextRequest } from "next/server";
 
 describe("Offline Credit Note Engine Validation & Mocked Gateway Harness", () => {
@@ -1069,5 +1070,96 @@ describe("Offline Credit Note Engine Validation & Mocked Gateway Harness", () =>
     expect(wirePayload.Items.length).toBe(1);
     expect(wirePayload.Items[0].InvoiceType).toBe(2);
     expect(wirePayload.Items[0].InvoiceType).not.toBe(4);
+  });
+
+  // Requirement: Regression test covering INV-2026-00746 and INV-2026-00731 single Credit Note action
+  describe("UI Button Regression: getFbrRowActionVisibility guarantees exactly ONE Credit Note button", () => {
+    it("INV-2026-00746 (fbrStatus: SUCCESS, status: CANCELLED) renders exactly ONE Credit Note button and no duplicate Reverse", () => {
+      const inv746 = {
+        invoiceNumber: "INV-2026-00746",
+        status: "CANCELLED",
+        fbrStatus: "SUCCESS",
+        fbrInvoiceNumber: "201327FJEI55320237",
+        paymentStatus: "PAID",
+        remainingAmount: 0,
+      };
+
+      const vis = getFbrRowActionVisibility(inv746);
+
+      expect(vis.showCreditNote).toBe(true);
+      expect(vis.showReverse).toBe(false);
+      expect(vis.showViewQr).toBe(true);
+      expect(vis.showJson).toBe(true);
+      expect(vis.showHitFbr).toBe(false);
+      expect(vis.showSettle).toBe(false);
+
+      // Verify strict singular Credit Note action:
+      const creditNoteButtonCount = [vis.showCreditNote].filter(Boolean).length;
+      expect(creditNoteButtonCount).toBe(1);
+    });
+
+    it("INV-2026-00731 (fbrStatus: SUCCESS, status: PAID) renders exactly ONE Credit Note button and does NOT duplicate", () => {
+      // Previously, because status !== 'CANCELLED', the second reversal button also rendered
+      // with label 'Credit Note' whenever fbrStatus was SUCCESS, producing TWO Credit Note buttons.
+      const inv731 = {
+        invoiceNumber: "INV-2026-00731",
+        status: "PAID",
+        fbrStatus: "SUCCESS",
+        fbrInvoiceNumber: "201327FJEI55319800",
+        paymentStatus: "PAID",
+        remainingAmount: 0,
+      };
+
+      const vis = getFbrRowActionVisibility(inv731);
+
+      expect(vis.showCreditNote).toBe(true);
+      expect(vis.showReverse).toBe(false); // Must NOT show reverse
+      expect(vis.showViewQr).toBe(true);
+      expect(vis.showJson).toBe(true);
+      expect(vis.showHitFbr).toBe(false);
+      expect(vis.showSettle).toBe(false);
+
+      // Verify strict singular Credit Note action:
+      const creditNoteButtonCount = [vis.showCreditNote].filter(Boolean).length;
+      expect(creditNoteButtonCount).toBe(1);
+    });
+
+    it("Unstamped invoice (Ready to Hit) renders Hit FBR and Reverse, but NEVER Credit Note", () => {
+      const unstamped = {
+        invoiceNumber: "INV-2026-UNSTAMPED-01",
+        status: "COMPLETED",
+        fbrStatus: "PENDING",
+        fbrInvoiceNumber: null,
+        paymentStatus: "PAID",
+        remainingAmount: 0,
+      };
+
+      const vis = getFbrRowActionVisibility(unstamped);
+
+      expect(vis.showCreditNote).toBe(false);
+      expect(vis.showReverse).toBe(true);
+      expect(vis.showHitFbr).toBe(true);
+      expect(vis.showSettle).toBe(false);
+      expect(vis.showViewQr).toBe(false);
+    });
+
+    it("Unstamped invoice with outstanding balance renders Settle & Unlock, and NEVER Credit Note", () => {
+      const unpaid = {
+        invoiceNumber: "INV-2026-UNSTAMPED-02",
+        status: "PENDING",
+        fbrStatus: null,
+        fbrInvoiceNumber: null,
+        paymentStatus: "PARTIAL",
+        remainingAmount: 250,
+      };
+
+      const vis = getFbrRowActionVisibility(unpaid);
+
+      expect(vis.showCreditNote).toBe(false);
+      expect(vis.showReverse).toBe(true);
+      expect(vis.showHitFbr).toBe(false);
+      expect(vis.showSettle).toBe(true);
+      expect(vis.showViewQr).toBe(false);
+    });
   });
 });

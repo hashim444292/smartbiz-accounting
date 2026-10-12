@@ -41,6 +41,7 @@ import { useLanguage } from "@/context/LanguageContext";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { FbrQrCode } from "@/components/ui/FbrQrCode";
+import { getFbrRowActionVisibility } from "@/lib/fbrRowActions";
 
 export default function FbrCompliancePage() {
   const { activeCompany, user } = useAuth();
@@ -1225,6 +1226,7 @@ export default function FbrCompliancePage() {
                   const isSelectable = !isSuccess;
                   const isSelected = selectedIds.includes(inv.id);
                   const isHittingThis = hittingId === inv.id;
+                  const actionVis = getFbrRowActionVisibility(inv);
 
                   return (
                     <tr
@@ -1381,28 +1383,31 @@ export default function FbrCompliancePage() {
                             <span>JSON</span>
                           </button>
 
-                          {isSuccess ? (
-                            <>
-                              <button
-                                type="button"
-                                onClick={() => setSelectedReceiptInvoice(inv)}
-                                className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-indigo-600 hover:bg-indigo-50 shadow-2xs"
-                              >
-                                <QrCode className="h-3.5 w-3.5" />
-                                <span>View QR</span>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleTransmitCreditNote(inv)}
-                                disabled={transmittingCreditNoteId === inv.id}
-                                className="inline-flex items-center gap-1 rounded-lg border border-amber-300 bg-amber-50 px-2 py-1 text-[11px] font-bold text-amber-800 hover:bg-amber-100 shadow-2xs"
-                                title="Transmit FBR Credit Note (InvoiceType 4) to reverse/cancel on FBR"
-                              >
-                                <RotateCcw className={`h-3 w-3 ${transmittingCreditNoteId === inv.id ? "animate-spin text-amber-700" : ""}`} />
-                                <span>Credit Note</span>
-                              </button>
-                            </>
-                          ) : isEligibleToHit ? (
+                          {actionVis.showViewQr && (
+                            <button
+                              type="button"
+                              onClick={() => setSelectedReceiptInvoice(inv)}
+                              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-indigo-600 hover:bg-indigo-50 shadow-2xs"
+                            >
+                              <QrCode className="h-3.5 w-3.5" />
+                              <span>View QR</span>
+                            </button>
+                          )}
+
+                          {actionVis.showCreditNote && (
+                            <button
+                              type="button"
+                              onClick={() => handleTransmitCreditNote(inv)}
+                              disabled={transmittingCreditNoteId === inv.id}
+                              className="inline-flex items-center gap-1 rounded-lg border border-amber-300 bg-amber-50 px-2 py-1 text-[11px] font-bold text-amber-800 hover:bg-amber-100 shadow-2xs"
+                              title="Transmit FBR Credit Note (InvoiceType 4) to reverse/cancel on FBR"
+                            >
+                              <RotateCcw className={`h-3 w-3 ${transmittingCreditNoteId === inv.id ? "animate-spin text-amber-700" : ""}`} />
+                              <span>Credit Note</span>
+                            </button>
+                          )}
+
+                          {actionVis.showHitFbr && (
                             <Button
                               type="button"
                               size="sm"
@@ -1414,7 +1419,9 @@ export default function FbrCompliancePage() {
                               <Zap className="h-3 w-3 mr-1" />
                               Hit FBR
                             </Button>
-                          ) : (
+                          )}
+
+                          {actionVis.showSettle && (
                             <div className="flex items-center gap-1.5">
                               {/* 1-Click Settle Button */}
                               <button
@@ -1466,7 +1473,7 @@ export default function FbrCompliancePage() {
                           </button>
 
                           {/* Local Reversal Button (Only for unverified / non-stamped invoices) */}
-                          {inv.status !== "CANCELLED" && inv.fbrStatus !== "SUCCESS" && (
+                          {actionVis.showReverse && (
                             <button
                               type="button"
                               onClick={() => handleReverseInvoice(inv)}
