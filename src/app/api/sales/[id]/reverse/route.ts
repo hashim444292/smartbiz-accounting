@@ -4,8 +4,11 @@ import { fallbackStore } from "@/lib/fallbackStore";
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const { id } = params;
-  const body = await req.json();
-  const reason = body.reason || "Customer return / cancellation";
+  let reason = "Customer return / cancellation";
+  try {
+    const body = await req.json();
+    if (body?.reason) reason = body.reason;
+  } catch {}
 
   try {
     const result = await reverseSale(id, reason);
