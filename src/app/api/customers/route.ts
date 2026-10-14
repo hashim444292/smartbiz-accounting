@@ -36,7 +36,7 @@ function enrichCustomer(c: any) {
     ntn,
     cnic,
     province,
-    taxStatus: ntn ? "REGISTERED" : taxStatus,
+    taxStatus: taxStatus || (ntn ? "REGISTERED" : "UNREGISTERED"),
   };
 }
 

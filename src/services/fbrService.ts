@@ -27,6 +27,24 @@ export const FBR_POS_ENDPOINTS = {
   },
 };
 
+// ── SAFE FBR GATEWAY JSON PARSER ─────────────────────────────────────────────
+export function parseFbrResponse(resText: string): any {
+  if (!resText || typeof resText !== "string") return {};
+  const trimmed = resText.trim();
+  if (!trimmed) return {};
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    try {
+      // Strip trailing commas before closing braces/brackets (common FBR PRAL gateway quirk)
+      const sanitized = trimmed.replace(/,\s*([\]}])/g, "$1");
+      return JSON.parse(sanitized);
+    } catch {
+      return { raw: trimmed };
+    }
+  }
+}
+
 // ── FBR DIGITAL INVOICING INTERFACES ─────────────────────────────────────────
 export interface FbrDigitalInvoiceItem {
   hsCode: string;
@@ -379,9 +397,15 @@ export function buildFbrPayload(
 
   const rawBuyerNTN = (fbrMeta?.customerNtn || fbrMeta?.buyerNTN || customer?.ntn || custTaxMeta.ntn || "").trim();
   const rawBuyerCNIC = (fbrMeta?.customerCnic || fbrMeta?.buyerCNIC || customer?.cnic || custTaxMeta.cnic || "").trim();
-  const cleanNtn = rawBuyerNTN.replace(/[^0-9]/g, "");
-  const cleanCnic = rawBuyerCNIC.replace(/[^0-9]/g, "");
-  const isRegistered = Boolean(cleanNtn && cleanNtn !== "0000000" && cleanNtn.length >= 7);
+  let cleanNtn = rawBuyerNTN.replace(/[^0-9]/g, "");
+  let cleanCnic = rawBuyerCNIC.replace(/[^0-9]/g, "");
+  if (cleanNtn.length === 8) {
+    cleanNtn = cleanNtn.slice(0, 7);
+  }
+
+  const isExplicitlyUnregistered = custTaxMeta.taxStatus === "UNREGISTERED";
+  const hasValidNtn = Boolean(cleanNtn && cleanNtn !== "0000000" && cleanNtn.length === 7);
+  const isRegistered = !isExplicitlyUnregistered && hasValidNtn;
 
   let buyerNTNCNIC = "";
   if (isRegistered) {
@@ -705,12 +729,7 @@ export async function testFbrToken(
     });
 
     const text = await res.text();
-    let json: any = null;
-    try {
-      json = JSON.parse(text);
-    } catch {
-      json = { raw: text };
-    }
+    const json = parseFbrResponse(text);
 
     if (res.ok) {
       if (isPos) {
@@ -833,7 +852,16 @@ async function executeTransmitSaleToFbr(
   }
 
   // Idempotency Safeguard: Never re-transmit an invoice that is already verified & SUCCESS on FBR, has an FBR fiscal number, or is PENDING_RECONCILIATION
-  const isAlreadyStamped = (sale.fbrStatus === "SUCCESS" || sale.fbrStatus === "PENDING_RECONCILIATION" || Boolean(sale.fbrInvoiceNumber)) && !options.forceRehit;
+  // Note: Synthetic fallback numbers (FBR-DI- or FBR-POS-) are local place-holders from rejected/mocked attempts and must NOT block genuine live re-transmissions.
+  const isSyntheticFbrNumber = Boolean(
+    sale.fbrInvoiceNumber &&
+    (sale.fbrInvoiceNumber.startsWith("FBR-DI-") || sale.fbrInvoiceNumber.startsWith("FBR-POS-"))
+  );
+  const isAlreadyStamped =
+    ((sale.fbrStatus === "SUCCESS" && !isSyntheticFbrNumber) ||
+      sale.fbrStatus === "PENDING_RECONCILIATION" ||
+      (Boolean(sale.fbrInvoiceNumber) && !isSyntheticFbrNumber)) &&
+    !options.forceRehit;
   if (isAlreadyStamped) {
     if (sale.fbrStatus === "PENDING_RECONCILIATION") {
       return {
@@ -904,12 +932,10 @@ async function executeTransmitSaleToFbr(
   const additionalFee = isPos ? (currentFee >= 1 ? 0 : 1.0) : (currentFee > 0 ? -currentFee : 0);
   const newTotal = Math.max(0, Number(sale.totalAmount) + additionalFee);
 
-  let fbrInvNum = isPos
-    ? `FBR-POS-${new Date().getFullYear()}-${Math.floor(100000 + Math.random() * 900000)}`
-    : `FBR-DI-${new Date().getFullYear()}-${Math.floor(100000 + Math.random() * 900000)}`;
-  let fbrQr = generateFbrQrCode(fbrInvNum, newTotal, config.posId);
+  let fbrInvNum = "";
+  let fbrQr = "";
   let liveFbrResponse: any = null;
-  let transmissionStatus: "SUCCESS" | "FAILED" | "PENDING_RECONCILIATION" = "SUCCESS";
+  let transmissionStatus: "SUCCESS" | "FAILED" | "PENDING_RECONCILIATION" = "FAILED";
   let transmissionMessage = "";
 
   // 4. If Bearer Token is available, make REAL HTTP POST to FBR Gateway
@@ -925,11 +951,7 @@ async function executeTransmitSaleToFbr(
       });
 
       const resText = await res.text();
-      try {
-        liveFbrResponse = JSON.parse(resText);
-      } catch {
-        liveFbrResponse = { raw: resText };
-      }
+      liveFbrResponse = parseFbrResponse(resText);
 
       if (res.ok) {
         if (isPos) {
@@ -938,25 +960,35 @@ async function executeTransmitSaleToFbr(
             fbrQr = generateFbrQrCode(fbrInvNum, newTotal, config.posId);
             transmissionStatus = "SUCCESS";
             transmissionMessage = `Live FBR POS Gateway confirmed: Invoice #${fbrInvNum} acknowledged.`;
+          } else if (liveFbrResponse.Code === "100") {
+            fbrInvNum = liveFbrResponse.InvoiceNumber || `POS-${Date.now()}`;
+            fbrQr = generateFbrQrCode(fbrInvNum, newTotal, config.posId);
+            transmissionStatus = "SUCCESS";
+            transmissionMessage = `Live FBR POS Gateway confirmed: Code 100 acknowledged.`;
           } else if (liveFbrResponse.Code === "104") {
             // Awaiting FBR portal activation
+            fbrInvNum = `FBR-POS-${new Date().getFullYear()}-${Math.floor(100000 + Math.random() * 900000)}`;
+            fbrQr = generateFbrQrCode(fbrInvNum, newTotal, config.posId);
             transmissionStatus = "SUCCESS";
             transmissionMessage = `FBR POS Gateway acknowledged: Code 104 (POS ID sync pending on FBR portal). Assigned Invoice #${fbrInvNum}.`;
           } else {
-            transmissionStatus = "SUCCESS";
-            transmissionMessage = `Live FBR POS Gateway HTTP 200 response: ${liveFbrResponse.Response || "Submitted"}.`;
+            transmissionStatus = "FAILED";
+            fbrInvNum = "";
+            fbrQr = "";
+            transmissionMessage = liveFbrResponse.Response || `FBR POS Gateway rejected with code ${liveFbrResponse.Code || res.status}`;
           }
         } else {
           // Digital Invoicing (B2B DI)
-          if (liveFbrResponse.validationResponse?.status === "Invalid") {
-            transmissionStatus = "FAILED";
-            const firstErr = liveFbrResponse.validationResponse.invoiceStatuses?.[0]?.error || liveFbrResponse.validationResponse.error || "Digital Invoicing validation failed.";
-            transmissionMessage = `FBR DI validation error: ${firstErr}`;
-          } else {
+          const isDiValid =
+            (liveFbrResponse.validationResponse?.status === "Valid" ||
+              liveFbrResponse.validationResponse?.statusCode === "00" ||
+              !liveFbrResponse.validationResponse?.status) &&
+            Boolean(liveFbrResponse.invoiceNumber) &&
+            liveFbrResponse.invoiceNumber !== "Not Available";
+
+          if (isDiValid) {
             transmissionStatus = "SUCCESS";
-            if (liveFbrResponse.invoiceNumber) {
-              fbrInvNum = liveFbrResponse.invoiceNumber;
-            }
+            fbrInvNum = liveFbrResponse.invoiceNumber;
             if (liveFbrResponse.qrCode) {
               fbrQr = liveFbrResponse.qrCode;
             } else if (liveFbrResponse.validationResponse?.qrCode) {
@@ -965,10 +997,24 @@ async function executeTransmitSaleToFbr(
               fbrQr = generateFbrQrCode(fbrInvNum, newTotal, config.posId);
             }
             transmissionMessage = `Live FBR Digital Invoicing Gateway confirmed: Invoice #${fbrInvNum} acknowledged.`;
+          } else {
+            transmissionStatus = "FAILED";
+            fbrInvNum = "";
+            fbrQr = "";
+            const firstErr =
+              liveFbrResponse.validationResponse?.error ||
+              liveFbrResponse.validationResponse?.invoiceStatuses?.[0]?.error ||
+              liveFbrResponse.error ||
+              liveFbrResponse.message ||
+              (liveFbrResponse.raw ? `Raw response: ${liveFbrResponse.raw.slice(0, 150)}` : "FBR Gateway did not acknowledge invoice.");
+            const errCode = liveFbrResponse.validationResponse?.errorCode || liveFbrResponse.errorCode || "";
+            transmissionMessage = `FBR DI rejection: ${firstErr}${errCode ? ` (Code: ${errCode})` : ""}`;
           }
         }
       } else {
         transmissionStatus = "FAILED";
+        fbrInvNum = "";
+        fbrQr = "";
         transmissionMessage =
           liveFbrResponse?.fault?.description ||
           liveFbrResponse?.fault?.message ||
@@ -977,12 +1023,18 @@ async function executeTransmitSaleToFbr(
       }
     } catch (networkErr: any) {
       transmissionStatus = "PENDING_RECONCILIATION";
+      fbrInvNum = "";
+      fbrQr = "";
       transmissionMessage = `FBR Gateway network timeout/error: ${networkErr.message}. Gateway outcome is unconfirmed. Automatic retry blocked to prevent duplicate fiscal stamping. Please reconcile on FBR portal.`;
     }
 
   } else {
     // Sandbox simulation mode
     transmissionStatus = "SUCCESS";
+    fbrInvNum = isPos
+      ? `FBR-POS-${new Date().getFullYear()}-${Math.floor(100000 + Math.random() * 900000)}`
+      : `FBR-DI-${new Date().getFullYear()}-${Math.floor(100000 + Math.random() * 900000)}`;
+    fbrQr = generateFbrQrCode(fbrInvNum, newTotal, config.posId);
     transmissionMessage = `Sandbox Simulated Submission (${isPos ? "Retail POS IMS" : "Digital Invoicing"} format).`;
   }
 
@@ -1005,8 +1057,8 @@ async function executeTransmitSaleToFbr(
         remainingAmount: updatedRemainingAmount,
         paymentStatus: isFullyPaid ? "PAID" : sale.paymentStatus,
         fbrStatus: transmissionStatus,
-        fbrInvoiceNumber: fbrInvNum,
-        fbrQrCode: fbrQr,
+        fbrInvoiceNumber: transmissionStatus === "SUCCESS" ? fbrInvNum : null,
+        fbrQrCode: transmissionStatus === "SUCCESS" ? fbrQr : null,
       } as any,
       include: { items: true, customer: true },
     });
@@ -1022,7 +1074,7 @@ async function executeTransmitSaleToFbr(
       entityId: sale.id,
       details: JSON.stringify({
         invoiceNumber: sale.invoiceNumber,
-        fbrInvoiceNumber: fbrInvNum,
+        fbrInvoiceNumber: transmissionStatus === "SUCCESS" ? fbrInvNum : (liveFbrResponse?.invoiceNumber || "FAILED"),
         status: transmissionStatus,
         environment,
         message: transmissionMessage,
@@ -1034,8 +1086,8 @@ async function executeTransmitSaleToFbr(
       sale: updated,
       payload,
       fbrResponse: liveFbrResponse,
-      fbrInvoiceNumber: fbrInvNum,
-      fbrQrCode: fbrQr,
+      fbrInvoiceNumber: transmissionStatus === "SUCCESS" ? fbrInvNum : undefined,
+      fbrQrCode: transmissionStatus === "SUCCESS" ? fbrQr : undefined,
       message: transmissionMessage,
     };
   } catch (dbErr: any) {
@@ -1044,8 +1096,8 @@ async function executeTransmitSaleToFbr(
       await prisma.$executeRawUnsafe(
         `UPDATE "Sale" SET "fbrStatus" = $1, "fbrInvoiceNumber" = $2, "fbrQrCode" = $3, "totalAmount" = $4, "paidAmount" = $5, "remainingAmount" = $6, "paymentStatus" = $7::"PaymentStatus", "posFee" = $8 WHERE id = $9`,
         transmissionStatus,
-        fbrInvNum,
-        fbrQr,
+        transmissionStatus === "SUCCESS" ? fbrInvNum : null,
+        transmissionStatus === "SUCCESS" ? fbrQr : null,
         newTotal,
         updatedPaidAmount,
         updatedRemainingAmount,
@@ -1064,15 +1116,15 @@ async function executeTransmitSaleToFbr(
     sale.remainingAmount = updatedRemainingAmount;
     sale.paymentStatus = isFullyPaid ? "PAID" : sale.paymentStatus;
     sale.fbrStatus = transmissionStatus;
-    sale.fbrInvoiceNumber = fbrInvNum;
-    sale.fbrQrCode = fbrQr;
+    sale.fbrInvoiceNumber = transmissionStatus === "SUCCESS" ? fbrInvNum : null;
+    sale.fbrQrCode = transmissionStatus === "SUCCESS" ? fbrQr : null;
 
     return {
       success: transmissionStatus === "SUCCESS",
       sale,
       payload,
       fbrResponse: liveFbrResponse,
-      fbrInvoiceNumber: fbrInvNum,
+      fbrInvoiceNumber: transmissionStatus === "SUCCESS" ? fbrInvNum : undefined,
       fbrQrCode: fbrQr,
       message: transmissionMessage,
       fallback: true,
@@ -1460,11 +1512,7 @@ export async function executeTransmitFbrCreditNote(
       });
 
       const resText = await res.text();
-      try {
-        liveFbrResponse = JSON.parse(resText);
-      } catch {
-        liveFbrResponse = { raw: resText };
-      }
+      liveFbrResponse = parseFbrResponse(resText);
 
       if (res.ok) {
         const isPosSuccess = isPos

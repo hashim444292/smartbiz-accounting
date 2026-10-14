@@ -11,7 +11,7 @@ vi.mock("@/lib/prisma", () => {
   };
 });
 
-import { buildFbrPayload, buildFbrPosPayload } from "../src/services/fbrService";
+import { buildFbrPayload, buildFbrPosPayload, parseFbrResponse } from "../src/services/fbrService";
 import { GET as getCustomers, POST as postCustomers } from "../src/app/api/customers/route";
 import { fallbackStore } from "../src/lib/fallbackStore";
 import { NextRequest } from "next/server";
@@ -150,7 +150,7 @@ describe("FBR Digital Invoicing Statutory Rules & Customer Validation", () => {
       };
 
       const payload = buildFbrPayload(sale, mockConfig);
-      expect(payload.buyerNTNCNIC).toBe("12345678");
+      expect(payload.buyerNTNCNIC).toBe("1234567");
       expect(payload.buyerBusinessName).toBe("Allied Engineering (Pvt) Ltd");
       expect(payload.scenarioId).toBe("SN001");
       expect(payload.buyerProvince).toBe("Punjab");
@@ -332,6 +332,34 @@ describe("FBR Digital Invoicing Statutory Rules & Customer Validation", () => {
       expect(customer.cnic).toBe("4220112345678");
       expect(customer.province).toBe("Khyber Pakhtunkhwa");
       expect(customer.taxStatus).toBe("REGISTERED");
+    });
+  });
+
+  describe("FBR Gateway Response Parsing & Trailing Comma Sanitization", () => {
+    it("should safely parse FBR gateway responses with trailing commas", () => {
+      const rawWithTrailingComma = `{
+        "dated": "2026-10-14 23:16:58",
+        "validationResponse": {"statusCode":"01","status":"Invalid","errorCode":"0002","error":"Buyer Registration No. is not in proper format. Please make sure that if available buyer registration no. is in correct format i.e. CNIC 13 digits, NTN 7 digits (No special characters)","invoiceStatuses":null},
+        "sourceInvoiceNo":"",
+      }`;
+
+      const parsed = parseFbrResponse(rawWithTrailingComma);
+      expect(parsed).toBeDefined();
+      expect(parsed.validationResponse?.status).toBe("Invalid");
+      expect(parsed.validationResponse?.errorCode).toBe("0002");
+      expect(parsed.validationResponse?.error).toContain("Buyer Registration No. is not in proper format");
+    });
+
+    it("should safely parse valid standard FBR gateway responses with invoiceNumber", () => {
+      const validRaw = `{
+        "invoiceNumber": "4220106071803DI8FLL6H622834",
+        "dated": "2026-10-14 23:16:16",
+        "validationResponse": {"statusCode":"00","status":"Valid","error":"","invoiceStatuses":[{"itemSNo":"1","statusCode":"00","status":"Valid","invoiceNo":"4220106071803DI8FLL6H622834-1","errorCode":"","error":""}]}
+      }`;
+
+      const parsed = parseFbrResponse(validRaw);
+      expect(parsed.invoiceNumber).toBe("4220106071803DI8FLL6H622834");
+      expect(parsed.validationResponse?.status).toBe("Valid");
     });
   });
 });
