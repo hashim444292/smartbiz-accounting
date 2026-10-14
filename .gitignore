@@ -28,6 +28,7 @@ yarn-error.log*
 
 # vercel
 .vercel
+FBR_ReadOnly_Audit_Export/
 
 # typescript
 *.tsbuildinfo

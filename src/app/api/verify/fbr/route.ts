@@ -94,7 +94,7 @@ export async function GET(request: NextRequest) {
         salesTax: Number(sale.salesTax || 0),
         furtherTax: Number(sale.furtherTax || 0),
         extraTax: Number(sale.extraTax || 0),
-        posFee: Number(sale.posFee || 1.0),
+        posFee: Number(sale.posFee !== null && sale.posFee !== undefined ? sale.posFee : (sale.business?.integrationType === "DIGITAL_INVOICING" || (typeof sale.fbrInvoiceNumber === "string" && sale.fbrInvoiceNumber.includes("DI")) ? 0.0 : 1.0)),
         totalAmount: Number(sale.totalAmount || 0),
         paidAmount: Number(sale.paidAmount || sale.totalAmount || 0),
         paymentMethod: sale.paymentMethod || "CASH",

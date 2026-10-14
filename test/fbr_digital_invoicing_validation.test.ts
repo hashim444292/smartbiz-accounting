@@ -12,6 +12,12 @@ vi.mock("@/lib/prisma", () => {
 });
 
 import { buildFbrPayload, buildFbrPosPayload, parseFbrResponse } from "../src/services/fbrService";
+import { getFbrRowActionVisibility } from "../src/lib/fbrRowActions";
+import { storeDeleteSale } from "../src/lib/fallbackStore";
+import { DELETE as deleteSaleRoute } from "../src/app/api/sales/[id]/route";
+import { POST as reverseSaleRoute } from "../src/app/api/sales/[id]/reverse/route";
+import { POST as complianceRoute } from "../src/app/api/compliance/fbr/route";
+import { GET as verifyFbrRoute } from "../src/app/api/verify/fbr/route";
 import { GET as getCustomers, POST as postCustomers } from "../src/app/api/customers/route";
 import { fallbackStore } from "../src/lib/fallbackStore";
 import { NextRequest } from "next/server";
@@ -360,6 +366,184 @@ describe("FBR Digital Invoicing Statutory Rules & Customer Validation", () => {
       const parsed = parseFbrResponse(validRaw);
       expect(parsed.invoiceNumber).toBe("4220106071803DI8FLL6H622834");
       expect(parsed.validationResponse?.status).toBe("Valid");
+    });
+  });
+
+  describe("Digital Invoicing Statutory Zero POS Fee Rules", () => {
+    it("should never charge Rs. 1/- POS fee in Digital Invoicing payload or verification", async () => {
+      const diSale: any = {
+        id: "sale-di-posfee-01",
+        businessId: "biz-di-test",
+        invoiceNumber: "INV-2026-DI-001",
+        fbrInvoiceNumber: "4220106071803DI8TEST001",
+        fbrStatus: "SUCCESS",
+        totalAmount: 1180,
+        subtotal: 1000,
+        salesTax: 180,
+        posFee: 0,
+        paymentStatus: "PAID",
+        customerName: "Buyer Textile Ltd",
+        customer: {
+          name: "Buyer Textile Ltd",
+          ntn: "7654321",
+        },
+        items: [
+          {
+            productName: "Fabric Roll",
+            quantity: 1,
+            unitPrice: 1000,
+            taxRate: 18,
+            taxAmount: 180,
+          },
+        ],
+      };
+
+      const payload = buildFbrPayload(diSale, mockConfig);
+      // FBR Digital Invoicing JSON payload does not contain POS Fee fields
+      expect((payload as any).posFee).toBeUndefined();
+      expect((payload as any).POSFee).toBeUndefined();
+
+      fallbackStore.sales.push(diSale);
+
+      const req = new NextRequest("http://localhost/api/verify/fbr?inv=4220106071803DI8TEST001");
+      const res = await verifyFbrRoute(req);
+      const json = await res.json();
+
+      expect(json.found).toBe(true);
+      expect(json.data.posFee).toBe(0);
+    });
+  });
+
+  describe("Prohibition of Credit Notes & Reversals for Digital Invoicing", () => {
+    it("should reject Credit Note API transmission for Digital Invoices with 400", async () => {
+      const diSaleId = "sale-di-cn-block";
+      fallbackStore.sales.push({
+        id: diSaleId,
+        businessId: "biz-di-test",
+        invoiceNumber: "INV-2026-DI-CN",
+        fbrInvoiceNumber: "4220106071803DI8CNTEST",
+        fbrStatus: "SUCCESS",
+        date: new Date(),
+        totalAmount: 5000,
+        notes: "{}",
+      } as any);
+
+      const req = new NextRequest("http://localhost/api/compliance/fbr", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "credit_note",
+          invoiceId: diSaleId,
+          reason: "Test rejection",
+        }),
+      });
+
+      const res = await complianceRoute(req);
+      const data = await res.json();
+
+      expect(res.status).toBe(400);
+      expect(data.success).toBe(false);
+      expect(data.error).toContain("Credit Notes and Reversals are not permitted for FBR Digital Invoices");
+    });
+
+    it("should reject Sale Reversal for Digital Invoices with 400", async () => {
+      const diSaleId = "sale-di-rev-block";
+      fallbackStore.sales.push({
+        id: diSaleId,
+        businessId: "biz-di-test",
+        invoiceNumber: "INV-2026-DI-REV",
+        fbrInvoiceNumber: "4220106071803DI8REVTEST",
+        fbrStatus: "SUCCESS",
+        status: "POSTED",
+        totalAmount: 5000,
+        notes: "{}",
+      } as any);
+
+      const req = new NextRequest(`http://localhost/api/sales/${diSaleId}/reverse`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: "Return request" }),
+      });
+
+      const res = await reverseSaleRoute(req, { params: { id: diSaleId } });
+      const data = await res.json();
+
+      expect(res.status).toBe(400);
+      expect(data.success).toBe(false);
+      expect(data.error).toContain("Credit Notes and Reversals are not permitted for FBR Digital Invoices");
+    });
+  });
+
+  describe("Statutory Immutability (Delete Prohibition) on FBR-Synced Invoices", () => {
+    it("should reject deleting an FBR-synced invoice via DELETE /api/sales/[id] with 403", async () => {
+      const syncedSaleId = "sale-synced-delete-block";
+      fallbackStore.sales.push({
+        id: syncedSaleId,
+        businessId: "biz-di-test",
+        invoiceNumber: "INV-2026-SYNCED",
+        fbrInvoiceNumber: "4220106071803DI8DELBLOCK",
+        fbrStatus: "SUCCESS",
+        totalAmount: 1000,
+      } as any);
+
+      const req = new NextRequest(`http://localhost/api/sales/${syncedSaleId}`, {
+        method: "DELETE",
+        headers: { "x-business-id": "biz-di-test" },
+      });
+
+      const res = await deleteSaleRoute(req, { params: { id: syncedSaleId } });
+      const data = await res.json();
+
+      expect(res.status).toBe(403);
+      expect(data.success).toBe(false);
+      expect(data.error).toContain("Cannot delete fiscalized invoice");
+    });
+
+    it("should throw in storeDeleteSale when attempting to delete an FBR-synced invoice", () => {
+      const syncedSaleId = "sale-store-delete-block";
+      fallbackStore.sales.push({
+        id: syncedSaleId,
+        businessId: "biz-di-test",
+        invoiceNumber: "INV-STORE-BLOCK",
+        fbrInvoiceNumber: "4220106071803DI8STORE",
+        fbrStatus: "SUCCESS",
+      } as any);
+
+      expect(() => storeDeleteSale(syncedSaleId, "biz-di-test")).toThrow(
+        "Cannot delete fiscalized invoice"
+      );
+    });
+  });
+
+  describe("UI Row Action Visibility Rules", () => {
+    it("should hide Credit Note, Reverse, and Delete for Digital Invoicing stamped invoices", () => {
+      const diInv = {
+        fbrInvoiceNumber: "4220106071803DI8TESTROW",
+        fbrStatus: "SUCCESS",
+        paymentStatus: "PAID",
+      };
+
+      const vis = getFbrRowActionVisibility(diInv, { isDigitalInvoicing: true });
+      expect(vis.showCreditNote).toBe(false);
+      expect(vis.showReverse).toBe(false);
+      expect(vis.showDelete).toBe(false);
+      expect(vis.showEdit).toBe(false);
+      expect(vis.showViewQr).toBe(true);
+      expect(vis.showJson).toBe(true);
+    });
+
+    it("should allow Credit Note for Retail POS stamped invoices but strictly block Delete and Edit", () => {
+      const posInv = {
+        fbrInvoiceNumber: "201327FJPOS0001",
+        fbrStatus: "SUCCESS",
+        paymentStatus: "PAID",
+      };
+
+      const vis = getFbrRowActionVisibility(posInv, { isDigitalInvoicing: false, integrationType: "TIER1_POS" });
+      expect(vis.showCreditNote).toBe(true);
+      expect(vis.showDelete).toBe(false);
+      expect(vis.showEdit).toBe(false);
+      expect(vis.showReverse).toBe(false); // Stamped POS invoices use Credit Note, not local Reverse
     });
   });
 });

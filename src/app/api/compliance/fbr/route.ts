@@ -226,7 +226,31 @@ export async function POST(req: NextRequest) {
           { status: 403 }
         );
       }
+
       const { invoiceId, reason = "Sales Return / Duplicate Correction", creditNoteDate, refUsin } = body;
+
+      let sale: any = null;
+      try {
+        sale = await prisma.sale.findUnique({ where: { id: invoiceId }, select: { fbrInvoiceNumber: true } });
+      } catch {
+        sale = fallbackStore.sales.find((s) => s.id === invoiceId);
+      }
+
+      const config = await getFbrConfig(businessId);
+      const isDiInvoice =
+        Boolean(sale?.fbrInvoiceNumber && sale.fbrInvoiceNumber.includes("DI")) ||
+        (config.integrationType === "DIGITAL_INVOICING" && !(sale?.fbrInvoiceNumber && !sale.fbrInvoiceNumber.includes("DI")));
+
+      if (isDiInvoice) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Credit Notes and Reversals are not permitted for FBR Digital Invoices.",
+          },
+          { status: 400 }
+        );
+      }
+
       const result = await transmitFbrCreditNote(invoiceId, reason, { creditNoteDate, refUsin });
       return NextResponse.json({
         success: result.success,
@@ -245,6 +269,17 @@ export async function POST(req: NextRequest) {
             error: "Unauthorized override: client-supplied forceRehit is strictly prohibited by fiscal compliance rules. Manual override requires server-side administrative authorization.",
           },
           { status: 403 }
+        );
+      }
+
+      const config = await getFbrConfig(businessId);
+      if (config.integrationType === "DIGITAL_INVOICING") {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Credit Notes and Reversals are not permitted for FBR Digital Invoices.",
+          },
+          { status: 400 }
         );
       }
       const { invoiceIds = [], reason = "Duplicate Correction / Reversal", creditNoteDate } = body;

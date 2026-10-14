@@ -17,6 +17,13 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         return NextResponse.json({ success: false, error: "Sale not found" }, { status: 404 });
       }
 
+      if (sale.fbrInvoiceNumber?.includes("DI") || sale.fbrStatus === "SUCCESS") {
+        return NextResponse.json(
+          { success: false, error: "Credit Notes and Reversals are not permitted for FBR Digital Invoices." },
+          { status: 400 }
+        );
+      }
+
       sale.status = "CANCELLED";
 
       // Restore product stock

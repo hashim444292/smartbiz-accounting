@@ -189,21 +189,33 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
       data: result,
     });
   } catch (err: any) {
-    const businessId = await getActiveBusinessId(req);
-    const { storeDeleteSale } = await import("@/lib/fallbackStore");
-    const removed = storeDeleteSale(id, businessId);
+    try {
+      const businessId = await getActiveBusinessId(req);
+      const { storeDeleteSale } = await import("@/lib/fallbackStore");
+      let removed = storeDeleteSale(id, businessId);
+      if (!removed) {
+        removed = storeDeleteSale(id);
+      }
 
-    if (removed) {
-      return NextResponse.json({
-        success: true,
-        message: `Invoice #${removed.invoiceNumber} deleted successfully.`,
-        fallback: true,
-      });
+      if (removed) {
+        return NextResponse.json({
+          success: true,
+          message: `Invoice #${removed.invoiceNumber} deleted successfully.`,
+          fallback: true,
+        });
+      }
+    } catch (fallbackErr: any) {
+      const isFiscal = fallbackErr.message?.includes("fiscalized") || fallbackErr.message?.includes("FBR");
+      return NextResponse.json(
+        { success: false, error: fallbackErr.message || "Failed to delete invoice." },
+        { status: isFiscal ? 403 : 400 }
+      );
     }
 
+    const isFiscalizedError = err.message?.includes("fiscalized") || err.message?.includes("FBR");
     return NextResponse.json(
       { success: false, error: err.message || "Failed to delete invoice." },
-      { status: 400 }
+      { status: isFiscalizedError ? 403 : 400 }
     );
   }
 }

@@ -2977,9 +2977,9 @@ export default function CreateSalePage() {
               </div>
               {!isAccountingOnly && savedInvoiceResult.postToFbr && (
                 <div className="p-3 rounded-xl bg-white border border-slate-200 shadow-2xs dark:bg-slate-900 dark:border-slate-800">
-                  <span className="text-[10px] text-slate-400 font-bold uppercase">FBR POS Fee</span>
+                  <span className="text-[10px] text-slate-400 font-bold uppercase">{fbrInvoiceType === "DIGITAL_INVOICING" ? "Digital Invoicing Fee" : "FBR POS Fee"}</span>
                   <p className="text-sm font-bold font-mono text-slate-500 mt-0.5">
-                    {savedInvoiceResult.posFee > 0 ? `Rs ${savedInvoiceResult.posFee.toFixed(2)}` : "Rs 0.00 (Uncharged)"}
+                    {savedInvoiceResult.posFee > 0 ? `Rs ${savedInvoiceResult.posFee.toFixed(2)}` : "Rs 0.00 (Exempt)"}
                   </p>
                 </div>
               )}

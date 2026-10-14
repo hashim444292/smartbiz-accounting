@@ -584,11 +584,28 @@ export async function reverseSale(
   return await prisma.$transaction(async (tx) => {
     const sale = await tx.sale.findUnique({
       where: { id: saleId },
-      include: { items: true },
+      include: { items: true, business: true },
     });
 
     if (!sale) throw new Error("Sale not found.");
     if (sale.status === "CANCELLED") throw new Error("Sale is already cancelled.");
+
+    // Statutory Rule: Digital Invoicing does not permit credit notes / reversals
+    let isDI =
+      (sale.business as any)?.integrationType === "DIGITAL_INVOICING" ||
+      (typeof sale.fbrInvoiceNumber === "string" && sale.fbrInvoiceNumber.includes("DI"));
+    if (!isDI) {
+      try {
+        const { getFbrConfig } = await import("@/services/fbrService");
+        const cfg = await getFbrConfig(sale.businessId);
+        if (cfg.integrationType === "DIGITAL_INVOICING" && !(sale.fbrInvoiceNumber && !sale.fbrInvoiceNumber.includes("DI"))) {
+          isDI = true;
+        }
+      } catch {}
+    }
+    if (isDI) {
+      throw new Error("Credit Notes and Reversals are not permitted for FBR Digital Invoices.");
+    }
 
     await assertPeriodOpen(tx, sale.businessId, new Date());
 
@@ -698,6 +715,12 @@ export async function deleteSale(
     });
 
     if (!sale) throw new Error("Sale invoice not found.");
+
+    if (sale.fbrStatus === "SUCCESS" || Boolean(sale.fbrInvoiceNumber)) {
+      throw new Error(
+        `Cannot delete fiscalized invoice #${sale.invoiceNumber}. Invoice is synchronized with FBR (${sale.fbrInvoiceNumber || "SUCCESS"}). Statutory tax compliance strictly prohibits deleting FBR registered invoices.`
+      );
+    }
 
     // 1. Revert customer receivable balance if remaining amount was unpaid
     const remaining = toDecimal(sale.remainingAmount);

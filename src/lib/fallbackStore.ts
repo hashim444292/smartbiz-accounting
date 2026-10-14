@@ -2703,6 +2703,12 @@ export function storeUpdateSale(
 export function storeDeleteSale(id: string, businessId?: string) {
   const idx = fallbackStore.sales.findIndex((s) => s.id === id && (!businessId || s.businessId === businessId));
   if (idx === -1) return null;
+  const targetSale = fallbackStore.sales[idx];
+  if (targetSale.fbrStatus === "SUCCESS" || Boolean(targetSale.fbrInvoiceNumber)) {
+    throw new Error(
+      `Cannot delete fiscalized invoice #${targetSale.invoiceNumber}. Invoice is synchronized with FBR (${targetSale.fbrInvoiceNumber || "SUCCESS"}). Statutory tax compliance strictly prohibits deleting FBR registered invoices.`
+    );
+  }
   const [removed] = fallbackStore.sales.splice(idx, 1);
   return removed;
 }

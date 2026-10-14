@@ -251,14 +251,19 @@ export default function FbrCompliancePage() {
   const [isBatchDeleting, setIsBatchDeleting] = useState(false);
 
   const handleDeleteInvoice = async (inv: any) => {
-    const isStamped = inv.fbrStatus === "SUCCESS";
-    const confirmMsg = isStamped
-      ? (language === "ur"
-          ? `انوائس #${inv.invoiceNumber} پہلے سے FBR پر منظور شدہ ہے۔ کیا آپ اسے واقعی اس سسٹم سے ڈیلیٹ کرنا چاہتے ہیں؟`
-          : `Invoice #${inv.invoiceNumber} is approved by FBR. Are you sure you want to delete it from this system?`)
-      : (language === "ur"
-          ? `کیا آپ انوائس #${inv.invoiceNumber} کو مستقل ڈیلیٹ کرنا چاہتے ہیں؟ اس سے کھاتے اور اسٹاک واپس درست ہو جائیں گے۔`
-          : `Are you sure you want to permanently delete invoice #${inv.invoiceNumber}? This will restore ledger and inventory.`);
+    const isStamped = inv.fbrStatus === "SUCCESS" || Boolean(inv.fbrInvoiceNumber);
+    if (isStamped) {
+      alert(
+        language === "ur"
+          ? `انوائس #${inv.invoiceNumber} FBR سے منظور شدہ ہے (FBR Ref: ${inv.fbrInvoiceNumber || ""})۔ قانونی طور پر FBR سینک انوائس کو ڈیلیٹ کرنا سختی سے ممنوع ہے۔`
+          : `Invoice #${inv.invoiceNumber} is synchronized with FBR (${inv.fbrInvoiceNumber || ""}). Statutory compliance strictly prohibits deleting FBR registered invoices.`
+      );
+      return;
+    }
+
+    const confirmMsg = language === "ur"
+      ? `کیا آپ انوائس #${inv.invoiceNumber} کو مستقل ڈیلیٹ کرنا چاہتے ہیں؟ اس سے کھاتے اور اسٹاک واپس درست ہو جائیں گے۔`
+      : `Are you sure you want to permanently delete invoice #${inv.invoiceNumber}? This will restore ledger and inventory.`;
 
     if (!window.confirm(confirmMsg)) return;
 
@@ -293,11 +298,34 @@ export default function FbrCompliancePage() {
 
   const handleBatchDelete = async () => {
     if (selectedIds.length === 0) return;
-    const confirmPrompt = language === "ur"
-      ? `کیا آپ منتخب کردہ تمام ${selectedIds.length} انوائسز کو مستقل ڈیلیٹ کرنا چاہتے ہیں؟`
-      : `Are you sure you want to permanently delete all ${selectedIds.length} selected invoices?`;
-    if (!window.confirm(confirmPrompt)) {
+
+    const selectedInvoices = allInvoices.filter((inv) => selectedIds.includes(inv.id));
+    const syncedInvoices = selectedInvoices.filter((inv) => inv.fbrStatus === "SUCCESS" || Boolean(inv.fbrInvoiceNumber));
+    const deletableIds = selectedInvoices
+      .filter((inv) => inv.fbrStatus !== "SUCCESS" && !Boolean(inv.fbrInvoiceNumber))
+      .map((inv) => inv.id);
+
+    if (deletableIds.length === 0) {
+      alert(
+        language === "ur"
+          ? "تمام منتخب کردہ انوائسز FBR پر رجسٹرڈ ہیں۔ قانونی طور پر FBR سینک انوائسز کو ڈیلیٹ کرنا سختی سے ممنوع ہے۔"
+          : "All selected invoices are synchronized with FBR. Statutory compliance strictly prohibits deleting FBR registered invoices."
+      );
       return;
+    }
+
+    if (syncedInvoices.length > 0) {
+      const proceed = window.confirm(
+        language === "ur"
+          ? `نوٹ: ${syncedInvoices.length} FBR سینک انوائسز محفوظ رکھی گئی ہیں اور ڈیلیٹ نہیں ہو سکتیں۔ صرف باقی ${deletableIds.length} ان-سینک انوائسز ڈیلیٹ ہوں گی۔ کیا آپ جاری رکھنا چاہتے ہیں؟`
+          : `Note: ${syncedInvoices.length} FBR-synchronized invoice(s) are protected and cannot be deleted. Only the remaining ${deletableIds.length} unstamped invoice(s) will be deleted. Do you want to proceed?`
+      );
+      if (!proceed) return;
+    } else {
+      const confirmPrompt = language === "ur"
+        ? `کیا آپ منتخب کردہ تمام ${deletableIds.length} انوائسز کو مستقل ڈیلیٹ کرنا چاہتے ہیں؟`
+        : `Are you sure you want to permanently delete all ${deletableIds.length} selected invoices?`;
+      if (!window.confirm(confirmPrompt)) return;
     }
 
     setIsBatchDeleting(true);
@@ -305,7 +333,7 @@ export default function FbrCompliancePage() {
       const res = await fetch("/api/sales", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ids: selectedIds }),
+        body: JSON.stringify({ ids: deletableIds }),
       });
       const json = await res.json();
       if (json.success) {
@@ -476,7 +504,7 @@ export default function FbrCompliancePage() {
       list = list.filter((inv) => (!inv.fbrStatus || inv.fbrStatus === "PENDING") && inv.paymentStatus !== "PAID");
     } else if (activeTab === "SUCCESS") {
       // Transmitted & verified on FBR
-      list = list.filter((inv) => inv.fbrStatus === "SUCCESS");
+      list = list.filter((inv) => inv.fbrStatus === "SUCCESS" || Boolean(inv.fbrInvoiceNumber));
     } else if (activeTab === "ALL") {
       list = list.filter((inv) => inv.fbrStatus !== "NOT_APPLICABLE");
     }
@@ -494,6 +522,10 @@ export default function FbrCompliancePage() {
     return list;
   }, [allInvoices, activeTab, searchQuery]);
 
+  const isDigitalInvoicing =
+    complianceData?.config?.integrationType === "DIGITAL_INVOICING" ||
+    activeCompany?.integrationType === "DIGITAL_INVOICING";
+
   // Counts
   const readyInvoices = allInvoices.filter(
     (inv) => (!inv.fbrStatus || inv.fbrStatus === "PENDING") && !inv.fbrInvoiceNumber && inv.paymentStatus === "PAID"
@@ -506,7 +538,9 @@ export default function FbrCompliancePage() {
   const readyCount = readyInvoices.length;
   const awaitingPaymentCount = awaitingPaymentInvoices.length;
   const successCount = successInvoices.length;
-  const totalPosFees = successCount * 1.0;
+  const totalPosFees = isDigitalInvoicing
+    ? 0.0
+    : allInvoices.reduce((sum: number, inv: any) => sum + Number(inv.posFee || 0), 0);
 
   // Single Invoice FBR Hit Handler
   const handleHitFbr = async (invoice: any) => {
@@ -539,9 +573,13 @@ export default function FbrCompliancePage() {
         throw new Error(data.message || data.error || "Failed to transmit invoice to FBR");
       }
 
+      const feeText = isDigitalInvoicing
+        ? "Rs. 0.00 POS fee (Digital Invoicing statutory exemption)."
+        : "Rs. 1/- POS fee applied.";
+
       setActionMessage({
         type: "success",
-        text: `Invoice #${data.data.invoiceNumber} successfully transmitted to FBR. FBR Number: ${data.data.fbrInvoiceNumber}. Rs. 1/- POS fee applied.`,
+        text: `Invoice #${data.data.invoiceNumber} successfully transmitted to FBR. FBR Number: ${data.data.fbrInvoiceNumber}. ${feeText}`,
       });
 
       // Show receipt modal
@@ -567,9 +605,13 @@ export default function FbrCompliancePage() {
       return;
     }
 
-    const confirmPrompt = language === "ur"
-      ? `FBR پر ${idsToHit.length} انوائسز ارسال کریں؟\n\n- ہر انوائس 2 سیکنڈ کے وقفے سے محفوظ طریقے سے ہٹ ہوگی (FBR Rate-Limiting Protection).\n- قانونی Rs. 1/- POS فیس لاگو ہوگی۔\n- غیر ادا شدہ و ادھار انوائسز (${awaitingPaymentCount}) محفوظ طریقے سے روک لی گئی ہیں۔`
-      : `Transmit ${idsToHit.length} fully paid invoice(s) to FBR?\n\n- Each invoice will transmit safely with a 2-second rate-limiting delay.\n- Statutory Rs. 1/- POS fee per invoice will be charged.\n- Partial & Credit invoices (${awaitingPaymentCount}) are safely held back.`;
+    const confirmPrompt = isDigitalInvoicing
+      ? (language === "ur"
+          ? `FBR ڈیجیٹل انوائسنگ پر ${idsToHit.length} انوائسز ارسال کریں؟\n\n- ہر انوائس 2 سیکنڈ کے وقفے سے محفوظ طریقے سے ہٹ ہوگی (FBR Rate-Limiting Protection).\n- ڈیجیٹل انوائسنگ پر کوئی POS فیس لاگو نہیں ہوگی (Rs. 0.00).\n- غیر ادا شدہ و ادھار انوائسز (${awaitingPaymentCount}) محفوظ طریقے سے روک لی گئی ہیں۔`
+          : `Transmit ${idsToHit.length} fully paid invoice(s) to FBR Digital Invoicing?\n\n- Each invoice will transmit safely with a 2-second rate-limiting delay.\n- Rs. 0.00 POS fee (Digital Invoicing statutory exemption).\n- Partial & Credit invoices (${awaitingPaymentCount}) are safely held back.`)
+      : (language === "ur"
+          ? `FBR پر ${idsToHit.length} انوائسز ارسال کریں؟\n\n- ہر انوائس 2 سیکنڈ کے وقفے سے محفوظ طریقے سے ہٹ ہوگی (FBR Rate-Limiting Protection).\n- قانونی Rs. 1/- POS فیس لاگو ہوگی۔\n- غیر ادا شدہ و ادھار انوائسز (${awaitingPaymentCount}) محفوظ طریقے سے روک لی گئی ہیں۔`
+          : `Transmit ${idsToHit.length} fully paid invoice(s) to FBR?\n\n- Each invoice will transmit safely with a 2-second rate-limiting delay.\n- Statutory Rs. 1/- POS fee per invoice will be charged.\n- Partial & Credit invoices (${awaitingPaymentCount}) are safely held back.`);
 
     if (!confirm(confirmPrompt)) {
       return;
@@ -795,14 +837,16 @@ export default function FbrCompliancePage() {
           </button>
 
           {/* FBR Credit Notes Button */}
-          <button
-            onClick={() => setShowCreditNoteModal(true)}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-900 hover:bg-amber-100 shadow-2xs transition"
-            title="Issue FBR Credit Notes to negate duplicate hits"
-          >
-            <RotateCcw className="h-3.5 w-3.5 text-amber-700" />
-            <span>{t("FBR Credit Notes (Reconcile)", "FBR کریڈٹ نوٹس")}</span>
-          </button>
+          {!isDigitalInvoicing && (
+            <button
+              onClick={() => setShowCreditNoteModal(true)}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-900 hover:bg-amber-100 shadow-2xs transition"
+              title="Issue FBR Credit Notes to negate duplicate hits"
+            >
+              <RotateCcw className="h-3.5 w-3.5 text-amber-700" />
+              <span>{t("FBR Credit Notes (Reconcile)", "FBR کریڈٹ نوٹس")}</span>
+            </button>
+          )}
 
           {/* Create Sale Invoice */}
           <Link
@@ -992,13 +1036,13 @@ export default function FbrCompliancePage() {
         {/* Card 4: POS Fees Charged */}
         <div className="rounded-2xl border border-blue-200 bg-blue-50/50 p-4 shadow-xs">
           <span className="text-[10px] uppercase font-bold text-blue-800 block tracking-wider">
-            FBR POS Fees Charged
+            {isDigitalInvoicing ? "FBR Service Fee (Digital Invoicing)" : "FBR POS Fees Charged"}
           </span>
           <p className="mt-2 text-2xl font-bold font-mono text-blue-700">
             Rs. {totalPosFees.toLocaleString("en-PK", { minimumFractionDigits: 2 })}
           </p>
           <span className="text-[10px] text-blue-600 flex items-center gap-1 mt-1 font-medium">
-            Rs. 1.00 per Transmitted Invoice
+            {isDigitalInvoicing ? "Statutory Exemption (Rs. 0.00)" : "Rs. 1.00 per Transmitted Invoice"}
           </span>
         </div>
       </div>
@@ -1226,7 +1270,7 @@ export default function FbrCompliancePage() {
                   const isSelectable = !isSuccess;
                   const isSelected = selectedIds.includes(inv.id);
                   const isHittingThis = hittingId === inv.id;
-                  const actionVis = getFbrRowActionVisibility(inv);
+                  const actionVis = getFbrRowActionVisibility(inv, { isDigitalInvoicing });
 
                   return (
                     <tr
@@ -1314,7 +1358,11 @@ export default function FbrCompliancePage() {
 
                       {/* POS Fee */}
                       <td className="py-3 px-3 text-center">
-                        {Number(inv.posFee || 0) >= 1 ? (
+                        {isDigitalInvoicing ? (
+                          <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500 border border-slate-200">
+                            Rs 0.00 (Exempt)
+                          </span>
+                        ) : Number(inv.posFee || 0) >= 1 ? (
                           <span className="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700 border border-blue-200">
                             Rs. 1.00 Charged
                           </span>
@@ -1457,20 +1505,26 @@ export default function FbrCompliancePage() {
                           </Link>
 
                           {/* Delete Invoice Button */}
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteInvoice(inv)}
-                            disabled={deletingId === inv.id}
-                            className="inline-flex items-center gap-1 rounded-lg border border-rose-200 bg-rose-50/70 px-2 py-1 text-[11px] font-bold text-rose-700 hover:bg-rose-100 shadow-2xs transition"
-                            title={
-                              inv.fbrStatus === "SUCCESS"
-                                ? "Delete Stamped Invoice (Reverses stock & ledger)"
-                                : "Permanently Delete Invoice"
-                            }
-                          >
-                            <Trash2 className={`h-3 w-3 ${deletingId === inv.id ? "animate-spin text-rose-600" : ""}`} />
-                            <span>Delete</span>
-                          </button>
+                          {actionVis.showDelete ? (
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteInvoice(inv)}
+                              disabled={deletingId === inv.id}
+                              className="inline-flex items-center gap-1 rounded-lg border border-rose-200 bg-rose-50/70 px-2 py-1 text-[11px] font-bold text-rose-700 hover:bg-rose-100 shadow-2xs transition"
+                              title="Permanently Delete Invoice"
+                            >
+                              <Trash2 className={`h-3 w-3 ${deletingId === inv.id ? "animate-spin text-rose-600" : ""}`} />
+                              <span>Delete</span>
+                            </button>
+                          ) : (
+                            <span
+                              className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-slate-400 cursor-not-allowed"
+                              title="FBR Synced - Deletion Prohibited by Law"
+                            >
+                              <Lock className="h-3 w-3 text-slate-400" />
+                              <span>FBR Synced</span>
+                            </span>
+                          )}
 
                           {/* Local Reversal Button (Only for unverified / non-stamped invoices) */}
                           {actionVis.showReverse && (
@@ -1765,9 +1819,13 @@ export default function FbrCompliancePage() {
                     </span>
                   </div>
                   <div className="flex justify-between py-1 border-b border-slate-100 bg-blue-50/60 px-2 rounded">
-                    <span className="font-semibold text-blue-900">Statutory POS Fee:</span>
+                    <span className="font-semibold text-blue-900">
+                      {isDigitalInvoicing || (typeof selectedReceiptInvoice.fbrInvoiceNumber === "string" && selectedReceiptInvoice.fbrInvoiceNumber.includes("DI"))
+                        ? "FBR Digital Invoicing Fee:"
+                        : "Statutory POS Fee:"}
+                    </span>
                     <span className="font-mono font-bold text-blue-900">
-                      Rs {Number(selectedReceiptInvoice.posFee || 1.0).toFixed(2)}
+                      Rs {Number(selectedReceiptInvoice.posFee !== undefined && selectedReceiptInvoice.posFee !== null ? selectedReceiptInvoice.posFee : (isDigitalInvoicing ? 0.0 : 1.0)).toFixed(2)}
                     </span>
                   </div>
                   <div className="flex justify-between py-1.5 border-t border-slate-200 text-sm">

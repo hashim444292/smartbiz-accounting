@@ -33,6 +33,7 @@ import {
   ShieldCheck,
   UserPlus,
   Users,
+  Lock,
 } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { useAuth } from "@/context/AuthContext";
@@ -74,6 +75,7 @@ export default function SalesPage() {
   const isAccountingOnly =
     activeCompany?.packageType === "ACCOUNTING_ONLY" ||
     (activeCompany?.enabledModules && !activeCompany.enabledModules.includes("compliance"));
+  const isDigitalInvoicing = activeCompany?.integrationType === "DIGITAL_INVOICING";
   const effectiveBranch = isBranchLocked ? user?.branchId : (selectedBranch?.id || activeBranchId || null);
 
   const [sales, setSales] = useState<SaleRecord[]>([]);
@@ -140,7 +142,7 @@ export default function SalesPage() {
       if (effectiveBranch) headers["x-branch-id"] = effectiveBranch;
       const query = effectiveBranch ? `?branchId=${effectiveBranch}` : "?branchId=all";
 
-      const json = await smartFetch(`/api/sales${query}`, { headers, ttlMs: 20000 });
+      const json = await smartFetch(`/api/sales${query}`, { headers, ttlMs: 2000 });
       if (json.success) {
         setSales(json.data);
       }
@@ -191,14 +193,19 @@ export default function SalesPage() {
   };
 
   const handleDeleteSale = async (sale: SaleRecord) => {
-    const isTransmitted = sale.fbrStatus === "SUCCESS";
-    const confirmPrompt = isTransmitted
-      ? (language === "ur"
-          ? `انوائس #${sale.invoiceNumber} FBR سے منسلک ہے!\nکیا آپ واقعی اس انوائس کو مکمل ڈیلیٹ کرنا چاہتے ہیں؟\nاس سے گاہک کا لیجر اور انوینٹری اسٹاک خودکار طور پر بحال (reverse) ہو جائے گا۔`
-          : `Invoice #${sale.invoiceNumber} is linked with FBR!\nAre you sure you want to permanently delete this invoice?\nThis will automatically reverse customer ledger and inventory stock.`)
-      : (language === "ur"
-          ? `کیا آپ واقعی انوائس #${sale.invoiceNumber} کو مکمل ڈیلیٹ کرنا چاہتے ہیں؟\nاس سے انوینٹری اور کھاتہ خودکار ریورس ہو جائے گا۔`
-          : `Are you sure you want to delete invoice #${sale.invoiceNumber}?\nThis will automatically reverse inventory and ledger entries.`);
+    const isTransmitted = sale.fbrStatus === "SUCCESS" || Boolean(sale.fbrInvoiceNumber);
+    if (isTransmitted) {
+      alert(
+        language === "ur"
+          ? `انوائس #${sale.invoiceNumber} FBR سے منظور شدہ ہے (FBR Ref: ${sale.fbrInvoiceNumber || ""})۔ قانونی طور پر FBR سینک انوائس کو ڈیلیٹ کرنا سختی سے ممنوع ہے۔`
+          : `Invoice #${sale.invoiceNumber} is registered on FBR (${sale.fbrInvoiceNumber || ""}). Statutory compliance strictly prohibits deleting FBR registered invoices.`
+      );
+      return;
+    }
+
+    const confirmPrompt = language === "ur"
+      ? `کیا آپ واقعی انوائس #${sale.invoiceNumber} کو مکمل ڈیلیٹ کرنا چاہتے ہیں؟\nاس سے انوینٹری اور کھاتہ خودکار ریورس ہو جائے گا۔`
+      : `Are you sure you want to delete invoice #${sale.invoiceNumber}?\nThis will automatically reverse inventory and ledger entries.`;
 
     if (!confirm(confirmPrompt)) return;
 
@@ -245,17 +252,42 @@ export default function SalesPage() {
 
   const handleBulkDeleteSales = async () => {
     if (selectedSaleIds.length === 0) return;
-    const confirmPrompt = language === "ur"
-      ? `کیا آپ واقعی منتخب کردہ ${selectedSaleIds.length} انوائسز کو مکمل ڈیلیٹ کرنا چاہتے ہیں؟\n\n- گاہک کا لیجر (Accounts Receivable) اور انوینٹری اسٹاک خودکار طور پر بحال (reverse) ہو جائے گا۔\n- اس عمل کو واپس نہیں لایا جا سکتا۔`
-      : `Are you sure you want to permanently delete ${selectedSaleIds.length} selected invoices?\n\n- Customer ledger and inventory will be automatically reversed.\n- This action cannot be undone.`;
-    if (!confirm(confirmPrompt)) return;
+
+    const selectedSales = sales.filter((s) => selectedSaleIds.includes(s.id));
+    const syncedSales = selectedSales.filter((s) => s.fbrStatus === "SUCCESS" || Boolean(s.fbrInvoiceNumber));
+    const deletableIds = selectedSales
+      .filter((s) => s.fbrStatus !== "SUCCESS" && !Boolean(s.fbrInvoiceNumber))
+      .map((s) => s.id);
+
+    if (deletableIds.length === 0) {
+      alert(
+        language === "ur"
+          ? "تمام منتخب کردہ انوائسز FBR پر رجسٹرڈ ہیں۔ قانونی طور پر FBR سینک انوائسز کو ڈیلیٹ کرنا سختی سے ممنوع ہے۔"
+          : "All selected invoices are synchronized with FBR. Statutory compliance strictly prohibits deleting FBR registered invoices."
+      );
+      return;
+    }
+
+    if (syncedSales.length > 0) {
+      const proceed = confirm(
+        language === "ur"
+          ? `نوٹ: ${syncedSales.length} FBR سینک انوائسز محفوظ رکھی گئی ہیں اور ڈیلیٹ نہیں ہو سکتیں۔ صرف باقی ${deletableIds.length} ان-سینک انوائسز ڈیلیٹ ہوں گی۔ کیا آپ جاری رکھنا چاہتے ہیں؟`
+          : `Note: ${syncedSales.length} FBR-synchronized invoice(s) are protected and cannot be deleted. Only the remaining ${deletableIds.length} unstamped invoice(s) will be deleted. Do you want to proceed?`
+      );
+      if (!proceed) return;
+    } else {
+      const confirmPrompt = language === "ur"
+        ? `کیا آپ واقعی منتخب کردہ ${deletableIds.length} انوائسز کو مکمل ڈیلیٹ کرنا چاہتے ہیں؟\n\n- گاہک کا لیجر (Accounts Receivable) اور انوینٹری اسٹاک خودکار طور پر بحال (reverse) ہو جائے گا۔\n- اس عمل کو واپس نہیں لایا جا سکتا۔`
+        : `Are you sure you want to permanently delete ${deletableIds.length} selected invoices?\n\n- Customer ledger and inventory will be automatically reversed.\n- This action cannot be undone.`;
+      if (!confirm(confirmPrompt)) return;
+    }
 
     setIsBulkDeleting(true);
     try {
       const res = await fetch("/api/sales", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ids: selectedSaleIds }),
+        body: JSON.stringify({ ids: deletableIds }),
       });
       const json = await res.json();
       if (json.success) {
@@ -1317,7 +1349,7 @@ export default function SalesPage() {
                             <ShieldCheck className={`h-3.5 w-3.5 ${transmittingFbrId === sale.id ? "animate-spin text-blue-700" : ""}`} />
                           </button>
                         )}
-                        {sale.status === "POSTED" && (
+                        {sale.status === "POSTED" && !isDigitalInvoicing && !(typeof sale.fbrInvoiceNumber === "string" && sale.fbrInvoiceNumber.includes("DI")) && (
                           <button
                             onClick={() => handleReverse(sale.id, sale.invoiceNumber)}
                             disabled={reversingId === sale.id}
@@ -1327,14 +1359,23 @@ export default function SalesPage() {
                             <RotateCcw className="h-3.5 w-3.5" />
                           </button>
                         )}
-                        <button
-                          onClick={() => handleDeleteSale(sale)}
-                          disabled={deletingSaleId === sale.id}
-                          className="rounded-lg p-1.5 text-rose-600 hover:bg-rose-100/70 hover:text-rose-800 dark:hover:bg-rose-950/50"
-                          title={t("Delete Invoice", "انوائس ڈیلیٹ کریں")}
-                        >
-                          <Trash2 className={`h-3.5 w-3.5 ${deletingSaleId === sale.id ? "animate-spin" : ""}`} />
-                        </button>
+                        {sale.fbrStatus !== "SUCCESS" && !Boolean(sale.fbrInvoiceNumber) ? (
+                          <button
+                            onClick={() => handleDeleteSale(sale)}
+                            disabled={deletingSaleId === sale.id}
+                            className="rounded-lg p-1.5 text-rose-600 hover:bg-rose-100/70 hover:text-rose-800 dark:hover:bg-rose-950/50"
+                            title={t("Delete Invoice", "انوائس ڈیلیٹ کریں")}
+                          >
+                            <Trash2 className={`h-3.5 w-3.5 ${deletingSaleId === sale.id ? "animate-spin" : ""}`} />
+                          </button>
+                        ) : (
+                          <span
+                            className="rounded-lg p-1.5 text-slate-400 dark:text-slate-500 cursor-not-allowed inline-flex items-center"
+                            title={t("FBR Synced - Deletion Prohibited", "FBR سے منظور شدہ - ڈیلیٹ ممنوع ہے")}
+                          >
+                            <Lock className="h-3.5 w-3.5" />
+                          </span>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -1758,16 +1799,23 @@ export default function SalesPage() {
             </div>
 
             <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800">
-              <Button
-                type="button"
-                variant="outline"
-                className="border-rose-200 text-rose-600 hover:bg-rose-50 hover:border-rose-300 text-xs"
-                onClick={() => handleDeleteSale(editingSale)}
-                disabled={deletingSaleId === editingSale.id}
-              >
-                <Trash2 className="h-3.5 w-3.5 mr-1" />
-                {t("Delete Invoice", "انوائس ڈیلیٹ کریں")}
-              </Button>
+              {editingSale.fbrStatus !== "SUCCESS" && !Boolean(editingSale.fbrInvoiceNumber) ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="border-rose-200 text-rose-600 hover:bg-rose-50 hover:border-rose-300 text-xs"
+                  onClick={() => handleDeleteSale(editingSale)}
+                  disabled={deletingSaleId === editingSale.id}
+                >
+                  <Trash2 className="h-3.5 w-3.5 mr-1" />
+                  {t("Delete Invoice", "انوائس ڈیلیٹ کریں")}
+                </Button>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 text-xs text-slate-500 font-semibold px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded-lg">
+                  <Lock className="h-3.5 w-3.5 text-slate-400" />
+                  {t("FBR Synced (Delete Prohibited)", "FBR پر تصدیق شدہ (ڈیلیٹ ممنوع ہے)")}
+                </span>
+              )}
 
               <div className="flex items-center gap-2">
                 <Button

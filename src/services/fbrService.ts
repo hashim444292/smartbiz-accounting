@@ -1102,7 +1102,7 @@ async function executeTransmitSaleToFbr(
         updatedPaidAmount,
         updatedRemainingAmount,
         isFullyPaid ? "PAID" : sale.paymentStatus,
-        1.0,
+        isPos ? 1.0 : 0.0,
         invoiceId
       );
     } catch (rawErr) {
@@ -1110,7 +1110,7 @@ async function executeTransmitSaleToFbr(
     }
 
     // Fallback store update
-    sale.posFee = 1.0;
+    sale.posFee = isPos ? 1.0 : 0.0;
     sale.totalAmount = newTotal;
     sale.paidAmount = updatedPaidAmount;
     sale.remainingAmount = updatedRemainingAmount;
@@ -1302,6 +1302,17 @@ export async function executeTransmitFbrCreditNote(
   }
 
   const config = await getFbrConfig(sale.businessId);
+  const isDiMode =
+    Boolean(sale.fbrInvoiceNumber && sale.fbrInvoiceNumber.includes("DI")) ||
+    (config.integrationType === "DIGITAL_INVOICING" && !(sale.fbrInvoiceNumber && !sale.fbrInvoiceNumber.includes("DI")));
+  if (isDiMode) {
+    return {
+      success: false,
+      sale,
+      message: "Credit Notes and Reversals are not permitted for FBR Digital Invoices.",
+    };
+  }
+
   let isPos = config.integrationType === "TIER1_POS";
   if (config.integrationType === "BOTH") {
     const hasTaxId = Boolean(sale.customer?.ntn || sale.customer?.cnic);
