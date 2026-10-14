@@ -546,4 +546,51 @@ describe("FBR Digital Invoicing Statutory Rules & Customer Validation", () => {
       expect(vis.showReverse).toBe(false); // Stamped POS invoices use Credit Note, not local Reverse
     });
   });
+
+  describe("FBR Sandbox 12 Scenarios Certification Engine", () => {
+    it("should have all 12 scenarios defined with exact PRAL saleType specifications", async () => {
+      const { FBR_DI_SCENARIOS } = await import("@/services/fbrService");
+      expect(Object.keys(FBR_DI_SCENARIOS).length).toBe(12);
+
+      expect(FBR_DI_SCENARIOS.SN001.saleType).toBe("Goods at standard rate (default)");
+      expect(FBR_DI_SCENARIOS.SN002.saleType).toBe("Goods at standard rate (default)");
+      expect(FBR_DI_SCENARIOS.SN003.saleType).toBe("Steel melting and re-rolling");
+      expect(FBR_DI_SCENARIOS.SN004.saleType).toBe("Ship breaking");
+      expect(FBR_DI_SCENARIOS.SN005.saleType).toBe("Goods at Reduced Rate");
+      expect(FBR_DI_SCENARIOS.SN006.saleType).toBe("Exempt Goods");
+      expect(FBR_DI_SCENARIOS.SN007.saleType).toBe("Goods at zero-rate");
+      expect(FBR_DI_SCENARIOS.SN008.saleType).toBe("3rd Schedule Goods");
+      expect(FBR_DI_SCENARIOS.SN009.saleType).toBe("Cotton Ginners");
+      expect(FBR_DI_SCENARIOS.SN010.saleType).toBe("Telecommunication services");
+      expect(FBR_DI_SCENARIOS.SN011.saleType).toBe("Toll Manufacturing");
+      expect(FBR_DI_SCENARIOS.SN012.saleType).toBe("Petroleum Products");
+    });
+
+    it("should return all 12 scenarios via /api/compliance/fbr action: get_scenarios", async () => {
+      const req = new NextRequest("http://localhost/api/compliance/fbr", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "get_scenarios" }),
+      });
+
+      const res = await complianceRoute(req);
+      const data = await res.json();
+
+      expect(res.status).toBe(200);
+      expect(data.success).toBe(true);
+      expect(data.scenarios.length).toBe(12);
+      expect(data.scenarios.map((s: any) => s.id)).toEqual([
+        "SN001", "SN002", "SN003", "SN004", "SN005", "SN006",
+        "SN007", "SN008", "SN009", "SN010", "SN011", "SN012",
+      ]);
+    });
+
+    it("should reject invalid scenario ID with descriptive error", async () => {
+      const { executeTransmitScenarioTest } = await import("@/services/fbrService");
+      await expect(executeTransmitScenarioTest("biz-di-test", "SN999")).rejects.toThrow(
+        "Invalid Scenario ID: SN999"
+      );
+    });
+  });
 });
+

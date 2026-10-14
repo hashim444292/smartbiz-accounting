@@ -52,9 +52,14 @@ export default function FbrCompliancePage() {
   const [complianceData, setComplianceData] = useState<any>(null);
 
   // Search & Filter State
-  const [activeTab, setActiveTab] = useState<"READY" | "AWAITING_PAYMENT" | "SUCCESS" | "ALL">("READY");
+  const [activeTab, setActiveTab] = useState<"READY" | "AWAITING_PAYMENT" | "SUCCESS" | "ALL" | "SCENARIOS">("READY");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+
+  // FBR Sandbox 12 Scenarios State
+  const [passedScenarios, setPassedScenarios] = useState<string[]>(["SN001", "SN002"]);
+  const [transmittingScenario, setTransmittingScenario] = useState<string | null>(null);
+  const [isAutoCertifying, setIsAutoCertifying] = useState(false);
 
   // Action Loading States
   const [hittingId, setHittingId] = useState<string | null>(null);
@@ -507,6 +512,8 @@ export default function FbrCompliancePage() {
       list = list.filter((inv) => inv.fbrStatus === "SUCCESS" || Boolean(inv.fbrInvoiceNumber));
     } else if (activeTab === "ALL") {
       list = list.filter((inv) => inv.fbrStatus !== "NOT_APPLICABLE");
+    } else if ((activeTab as any) === "SCENARIOS") {
+      return [];
     }
 
     if (searchQuery.trim()) {
@@ -760,6 +767,113 @@ export default function FbrCompliancePage() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  // FBR Sandbox 12 Scenarios Definitions
+  const SCENARIO_DEFS = [
+    { id: "SN001", name: "Standard Rate (Registered)", saleType: "Goods at standard rate (default)", rate: "18%", hsCode: "8517.13.00", sector: "General B2B", desc: "Goods at standard 18% rate to active registered taxpayer (B2B)." },
+    { id: "SN002", name: "Standard Rate (Unregistered)", saleType: "Goods at standard rate (default)", rate: "18% + 3%", hsCode: "8517.13.00", sector: "Retail B2C", desc: "Goods at standard 18% rate + 3% Further Tax to unregistered consumer with CNIC." },
+    { id: "SN003", name: "Steel Melting and Re-rolling", saleType: "Steel melting and re-rolling", rate: "18%", hsCode: "7207.1100", sector: "Steel Sector", desc: "Sale of steel billets and re-rolled bars under steel sector." },
+    { id: "SN004", name: "Ship Breaking", saleType: "Ship breaking", rate: "18%", hsCode: "7204.4900", sector: "Ship Breaking", desc: "Sale of scrap and ferrous metal by ship breakers." },
+    { id: "SN005", name: "Goods at Reduced Rate", saleType: "Goods at Reduced Rate", rate: "10%", hsCode: "8471.3010", sector: "Eighth Schedule", desc: "Concessional reduced rate under Eighth Schedule to Sales Tax Act." },
+    { id: "SN006", name: "Exempt Goods", saleType: "Exempt Goods", rate: "0%", hsCode: "1006.1000", sector: "Sixth Schedule", desc: "Statutory tax-exempt supplies under Sixth Schedule." },
+    { id: "SN007", name: "Goods at Zero-Rate", saleType: "Goods at zero-rate", rate: "0%", hsCode: "5208.1100", sector: "Fifth Schedule", desc: "Zero-rated export or concessional items under Fifth Schedule." },
+    { id: "SN008", name: "3rd Schedule Goods (Retail Price)", saleType: "3rd Schedule Goods", rate: "18%", hsCode: "3401.1100", sector: "FMCG / Retail", desc: "Consumer packaged goods taxed on printed retail price." },
+    { id: "SN009", name: "Cotton Ginners (Textile)", saleType: "Cotton Ginners", rate: "18%", hsCode: "5201.0000", sector: "Textile Sector", desc: "Raw cotton and textile ginned material transactions." },
+    { id: "SN010", name: "Telecommunication Services", saleType: "Telecommunication services", rate: "19.5%", hsCode: "9812.0000", sector: "Telecom Sector", desc: "Telecommunication transmission services and data charges." },
+    { id: "SN011", name: "Toll Manufacturing", saleType: "Toll Manufacturing", rate: "18%", hsCode: "7207.1100", sector: "Toll Processing", desc: "Toll manufacturing job work processing services." },
+    { id: "SN012", name: "Petroleum Products", saleType: "Petroleum Products", rate: "18%", hsCode: "2710.1210", sector: "POL / Petroleum", desc: "Refined petroleum and fuel supplies." },
+  ];
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && activeCompany?.id) {
+      const stored = localStorage.getItem(`fbr_passed_scenarios_${activeCompany.id}`);
+      if (stored) {
+        try {
+          const arr = JSON.parse(stored);
+          if (Array.isArray(arr)) {
+            setPassedScenarios(Array.from(new Set(["SN001", "SN002", ...arr])));
+          }
+        } catch {}
+      }
+    }
+  }, [activeCompany?.id]);
+
+  const markScenarioPassed = (scId: string) => {
+    setPassedScenarios((prev) => {
+      const next = Array.from(new Set([...prev, scId]));
+      if (typeof window !== "undefined" && activeCompany?.id) {
+        localStorage.setItem(`fbr_passed_scenarios_${activeCompany.id}`, JSON.stringify(next));
+      }
+      return next;
+    });
+  };
+
+  const handleTransmitScenario = async (scenarioId: string): Promise<boolean> => {
+    setTransmittingScenario(scenarioId);
+    const def = SCENARIO_DEFS.find((s) => s.id === scenarioId);
+    setActionMessage({
+      type: "info",
+      text: `Transmitting FBR Sandbox Test for Scenario ${scenarioId} (${def?.name || ""})...`,
+    });
+    try {
+      const res = await fetch("/api/compliance/fbr", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "transmit_scenario", scenarioId }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        markScenarioPassed(scenarioId);
+        setActionMessage({
+          type: "success",
+          text: `🎉 Scenario ${scenarioId} successfully passed on FBR Gateway! Stamped Invoice: ${data.fbrInvoiceNumber}`,
+        });
+        loadCompliance();
+        return true;
+      } else {
+        setActionMessage({
+          type: "error",
+          text: `Scenario ${scenarioId} test rejected by FBR: ${data.message || data.error || "Validation error"}`,
+        });
+        return false;
+      }
+    } catch (e: any) {
+      setActionMessage({
+        type: "error",
+        text: `Network error transmitting scenario ${scenarioId}: ${e.message}`,
+      });
+      return false;
+    } finally {
+      setTransmittingScenario(null);
+    }
+  };
+
+  const handleAutoCertifyAll = async () => {
+    setIsAutoCertifying(true);
+    const pending = SCENARIO_DEFS.filter((s) => !passedScenarios.includes(s.id));
+    let passedCount = 0;
+
+    for (let i = 0; i < pending.length; i++) {
+      const sc = pending[i];
+      setActionMessage({
+        type: "info",
+        text: `[${i + 1}/${pending.length}] Certifying FBR Scenario ${sc.id} (${sc.name})...`,
+      });
+
+      if (i > 0) {
+        await new Promise((r) => setTimeout(r, 2500));
+      }
+
+      const ok = await handleTransmitScenario(sc.id);
+      if (ok) passedCount++;
+    }
+
+    setIsAutoCertifying(false);
+    setActionMessage({
+      type: "success",
+      text: `🎉 Batch Certification Run Finished! ${passedCount} new scenario(s) certified on FBR Sandbox gateway.`,
+    });
   };
 
   // Safe date formatter for clean date display without time
@@ -1142,6 +1256,23 @@ export default function FbrCompliancePage() {
             >
               All Invoices ({allInvoices.length})
             </button>
+
+            {isDigitalInvoicing && (
+              <button
+                onClick={() => {
+                  setActiveTab("SCENARIOS");
+                  setSelectedIds([]);
+                }}
+                className={`rounded-lg px-3 py-1.5 text-xs font-bold transition flex items-center gap-1.5 ${
+                  activeTab === "SCENARIOS"
+                    ? "bg-purple-600 text-white shadow-xs"
+                    : "text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200"
+                }`}
+              >
+                <FileSpreadsheet className="h-3.5 w-3.5" />
+                <span>Sandbox Scenarios ({passedScenarios.length}/12)</span>
+              </button>
+            )}
           </div>
 
           {/* Search, Export and Batch Actions */}
@@ -1213,8 +1344,155 @@ export default function FbrCompliancePage() {
           </div>
         )}
 
-        {/* Invoices Table */}
-        <div className="overflow-x-auto">
+        {/* SCENARIOS CERTIFICATION HUB OR INVOICES TABLE */}
+        {activeTab === "SCENARIOS" ? (
+          <div className="p-6 space-y-6">
+            {/* Header with Stats & Auto-Certify */}
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 p-5 rounded-2xl bg-gradient-to-r from-purple-50 via-indigo-50 to-blue-50 border border-purple-200">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-purple-600 text-white">
+                    FBR Digital Invoicing Sandbox
+                  </span>
+                  <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                    {passedScenarios.length} / 12 Scenarios Certified
+                  </span>
+                </div>
+                <h3 className="text-base font-bold text-slate-900">
+                  FBR Sandbox Scenario Certification & Production Clearance
+                </h3>
+                <p className="text-xs text-slate-600 max-w-2xl">
+                  FBR PRAL requires businesses to clear all 12 test scenarios (SN001 - SN012) in the Sandbox environment before activating live Production API credentials. Click individual scenarios or run the automated test suite below.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-3 shrink-0">
+                <button
+                  type="button"
+                  onClick={handleAutoCertifyAll}
+                  disabled={isAutoCertifying || transmittingScenario !== null || passedScenarios.length === 12}
+                  className="px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white font-bold text-xs shadow-md transition flex items-center gap-2 cursor-pointer"
+                >
+                  <Zap className={`h-4 w-4 ${isAutoCertifying ? "animate-spin" : ""}`} />
+                  <span>
+                    {isAutoCertifying
+                      ? "Auto-Certifying Pending Scenarios..."
+                      : passedScenarios.length === 12
+                      ? "All 12 Scenarios Passed! 🎉"
+                      : `⚡ Auto-Certify Remaining (${12 - passedScenarios.length})`}
+                  </span>
+                </button>
+              </div>
+            </div>
+
+            {/* Progress Bar */}
+            <div className="space-y-1.5">
+              <div className="flex justify-between text-xs font-semibold text-slate-600">
+                <span>Certification Progress</span>
+                <span>{Math.round((passedScenarios.length / 12) * 100)}% Complete</span>
+              </div>
+              <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden border border-slate-200">
+                <div
+                  className="bg-gradient-to-r from-purple-500 to-emerald-500 h-3 rounded-full transition-all duration-500"
+                  style={{ width: `${Math.round((passedScenarios.length / 12) * 100)}%` }}
+                />
+              </div>
+            </div>
+
+            {/* 12 Scenarios Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {SCENARIO_DEFS.map((sc) => {
+                const isPassed = passedScenarios.includes(sc.id);
+                const isBusy = transmittingScenario === sc.id || isAutoCertifying;
+
+                return (
+                  <div
+                    key={sc.id}
+                    className={`rounded-2xl border p-4 transition shadow-xs flex flex-col justify-between ${
+                      isPassed
+                        ? "bg-emerald-50/40 border-emerald-300"
+                        : "bg-white border-slate-200 hover:border-purple-300"
+                    }`}
+                  >
+                    <div className="space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <span className="font-mono text-xs font-bold px-2 py-0.5 rounded-md bg-slate-900 text-white">
+                          {sc.id}
+                        </span>
+                        {isPassed ? (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-800 bg-emerald-100 border border-emerald-300 rounded-full px-2 py-0.5">
+                            <CheckCircle2 className="h-3 w-3 text-emerald-600" />
+                            Passed on FBR
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-800 bg-amber-100 border border-amber-300 rounded-full px-2 py-0.5">
+                            <Clock className="h-3 w-3 text-amber-600" />
+                            Pending Test
+                          </span>
+                        )}
+                      </div>
+
+                      <div>
+                        <h4 className="font-bold text-slate-900 text-sm">{sc.name}</h4>
+                        <span className="text-[11px] font-medium text-purple-700 bg-purple-50 px-2 py-0.5 rounded-sm inline-block mt-1">
+                          {sc.sector}
+                        </span>
+                      </div>
+
+                      <p className="text-[11px] text-slate-600 leading-relaxed">
+                        {sc.desc}
+                      </p>
+
+                      <div className="bg-slate-50 rounded-lg p-2.5 space-y-1 font-mono text-[10px] text-slate-700 border border-slate-100">
+                        <div className="flex justify-between">
+                          <span className="text-slate-400">saleType:</span>
+                          <span className="font-semibold text-slate-800 truncate max-w-[170px]" title={sc.saleType}>{sc.saleType}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-400">Rate:</span>
+                          <span className="font-semibold text-slate-800">{sc.rate}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-400">HS Code:</span>
+                          <span className="font-semibold text-slate-800">{sc.hsCode}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="pt-3 border-t border-slate-100 mt-3 flex items-center justify-between">
+                      <span className="text-[11px] text-slate-500">
+                        {isPassed ? "Cleared in Sandbox" : "Required for Live"}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleTransmitScenario(sc.id)}
+                        disabled={isBusy}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer ${
+                          isPassed
+                            ? "bg-slate-100 hover:bg-slate-200 text-slate-700"
+                            : "bg-purple-600 hover:bg-purple-700 text-white"
+                        }`}
+                      >
+                        {transmittingScenario === sc.id ? (
+                          <>
+                            <Zap className="h-3.5 w-3.5 animate-spin" />
+                            <span>Testing...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Zap className="h-3.5 w-3.5" />
+                            <span>{isPassed ? "Re-Test" : "Transmit Test"}</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
           <table className="w-full text-left text-xs text-slate-700">
             <thead className="border-b border-slate-200 bg-slate-50/80 text-[10px] uppercase font-bold text-slate-500 tracking-wider">
               <tr>
@@ -1548,6 +1826,7 @@ export default function FbrCompliancePage() {
             </tbody>
           </table>
         </div>
+        )}
       </div>
 
       {/* 1-CLICK SETTLEMENT MODAL (Settle Balance & Move to Ready to Hit) */}

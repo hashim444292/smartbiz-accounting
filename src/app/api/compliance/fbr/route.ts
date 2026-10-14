@@ -308,6 +308,35 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    // 6. Transmit Sandbox Scenario Test
+    if (body.action === "transmit_scenario") {
+      if (!canManageFbr) {
+        return NextResponse.json(
+          { success: false, error: "Access Denied: Only Super Admin or Business Owner can run FBR Scenario Tests." },
+          { status: 403 }
+        );
+      }
+      const { scenarioId } = body;
+      if (!scenarioId) {
+        return NextResponse.json(
+          { success: false, error: "scenarioId is required (e.g. SN001 through SN012)" },
+          { status: 400 }
+        );
+      }
+      const { executeTransmitScenarioTest } = await import("@/services/fbrService");
+      const result = await executeTransmitScenarioTest(businessId, scenarioId);
+      return NextResponse.json(result);
+    }
+
+    // 7. Get All Scenario Definitions
+    if (body.action === "get_scenarios") {
+      const { FBR_DI_SCENARIOS } = await import("@/services/fbrService");
+      return NextResponse.json({
+        success: true,
+        scenarios: Object.values(FBR_DI_SCENARIOS),
+      });
+    }
+
     // Default: Create simulated FBR POS sale
     const newSale = await createFbrPosInvoice({
       ...body,

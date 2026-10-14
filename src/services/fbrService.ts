@@ -83,6 +83,175 @@ export interface FbrDigitalInvoicePayload {
   items: FbrDigitalInvoiceItem[];
 }
 
+// ── FBR DIGITAL INVOICING SCENARIOS DICTIONARY ──────────────────────────────
+export interface FbrScenarioDefinition {
+  id: string;
+  name: string;
+  saleType: string;
+  defaultRate: number;
+  rateString: string;
+  buyerType: "REGISTERED" | "UNREGISTERED" | "ANY";
+  hsCode: string;
+  productDescription: string;
+  uoM: string;
+  sroScheduleNo?: string;
+  sroItemSerialNo?: string;
+  description: string;
+}
+
+export const FBR_DI_SCENARIOS: Record<string, FbrScenarioDefinition> = {
+  SN001: {
+    id: "SN001",
+    name: "Standard Rate (Registered)",
+    saleType: "Goods at standard rate (default)",
+    defaultRate: 18,
+    rateString: "18%",
+    buyerType: "REGISTERED",
+    hsCode: "8517.13.00",
+    productDescription: "Standard Rate Goods to Registered Buyer",
+    uoM: "Numbers, pieces, units",
+    description: "Goods at standard 18% rate to active registered person (B2B).",
+  },
+  SN002: {
+    id: "SN002",
+    name: "Standard Rate (Unregistered)",
+    saleType: "Goods at standard rate (default)",
+    defaultRate: 18,
+    rateString: "18%",
+    buyerType: "UNREGISTERED",
+    hsCode: "8517.13.00",
+    productDescription: "Standard Rate Goods to Unregistered Consumer",
+    uoM: "Numbers, pieces, units",
+    description: "Goods at standard 18% rate + 3% Further Tax to unregistered consumer (B2C).",
+  },
+  SN003: {
+    id: "SN003",
+    name: "Steel Melting and Re-rolling",
+    saleType: "Steel melting and re-rolling",
+    defaultRate: 18,
+    rateString: "18%",
+    buyerType: "REGISTERED",
+    hsCode: "7207.1100",
+    productDescription: "Steel Billets / Re-rolled Bars",
+    uoM: "MT",
+    description: "Sale of steel products under steel melting and re-rolling sector.",
+  },
+  SN004: {
+    id: "SN004",
+    name: "Ship Breaking",
+    saleType: "Ship breaking",
+    defaultRate: 18,
+    rateString: "18%",
+    buyerType: "REGISTERED",
+    hsCode: "7204.4900",
+    productDescription: "Ship Scrap Ferrous Metal",
+    uoM: "MT",
+    description: "Sale of scrap and steel items by ship breakers.",
+  },
+  SN005: {
+    id: "SN005",
+    name: "Goods at Reduced Rate",
+    saleType: "Goods at Reduced Rate",
+    defaultRate: 10,
+    rateString: "10%",
+    buyerType: "REGISTERED",
+    hsCode: "8471.3010",
+    productDescription: "Reduced Rate Concession Items",
+    uoM: "Numbers, pieces, units",
+    sroScheduleNo: "Table-1 (Eighth Schedule)",
+    sroItemSerialNo: "1",
+    description: "Sales tax at reduced rate under the Eighth Schedule.",
+  },
+  SN006: {
+    id: "SN006",
+    name: "Exempt Goods",
+    saleType: "Exempt Goods",
+    defaultRate: 0,
+    rateString: "0%",
+    buyerType: "REGISTERED",
+    hsCode: "1006.1000",
+    productDescription: "Sixth Schedule Exempt Supplies",
+    uoM: "Kg",
+    sroScheduleNo: "Table-1 (Sixth Schedule)",
+    sroItemSerialNo: "1",
+    description: "Exempt goods supply under the Sixth Schedule.",
+  },
+  SN007: {
+    id: "SN007",
+    name: "Goods at Zero-Rate",
+    saleType: "Goods at zero-rate",
+    defaultRate: 0,
+    rateString: "0%",
+    buyerType: "REGISTERED",
+    hsCode: "5208.1100",
+    productDescription: "Fifth Schedule Zero-Rated Supplies",
+    uoM: "Mtr",
+    sroScheduleNo: "Fifth Schedule",
+    sroItemSerialNo: "1",
+    description: "Zero-rated export or concessional goods under the Fifth Schedule.",
+  },
+  SN008: {
+    id: "SN008",
+    name: "3rd Schedule Goods (Retail Price)",
+    saleType: "3rd Schedule Goods",
+    defaultRate: 18,
+    rateString: "18%",
+    buyerType: "REGISTERED",
+    hsCode: "3401.1100",
+    productDescription: "Printed Retail Price Consumer Goods",
+    uoM: "Numbers, pieces, units",
+    description: "Consumer FMCG items taxed on printed retail price.",
+  },
+  SN009: {
+    id: "SN009",
+    name: "Cotton Ginners (Textile)",
+    saleType: "Cotton Ginners",
+    defaultRate: 18,
+    rateString: "18%",
+    buyerType: "REGISTERED",
+    hsCode: "5201.0000",
+    productDescription: "Raw Cotton Ginned / Textile Raw Material",
+    uoM: "Kg",
+    description: "Cotton spinners and ginners textile sector transactions.",
+  },
+  SN010: {
+    id: "SN010",
+    name: "Telecommunication Services",
+    saleType: "Telecommunication services",
+    defaultRate: 19.5,
+    rateString: "19.5%",
+    buyerType: "REGISTERED",
+    hsCode: "9812.0000",
+    productDescription: "Data & Telecom Transmission Services",
+    uoM: "Numbers, pieces, units",
+    description: "Telecom sector services and bandwidth charges.",
+  },
+  SN011: {
+    id: "SN011",
+    name: "Toll Manufacturing",
+    saleType: "Toll Manufacturing",
+    defaultRate: 18,
+    rateString: "18%",
+    buyerType: "REGISTERED",
+    hsCode: "7207.1100",
+    productDescription: "Toll Manufacturing Job Processing",
+    uoM: "MT",
+    description: "Toll manufacturing job work processing services.",
+  },
+  SN012: {
+    id: "SN012",
+    name: "Petroleum Products",
+    saleType: "Petroleum Products",
+    defaultRate: 18,
+    rateString: "18%",
+    buyerType: "REGISTERED",
+    hsCode: "2710.1210",
+    productDescription: "Refined Petroleum Oil & Fuels",
+    uoM: "Ltr",
+    description: "Petroleum and POL products supply.",
+  },
+};
+
 // ── FBR TIER-1 RETAIL POS INTERFACES ─────────────────────────────────────────
 export interface FbrPosInvoiceItem {
   ItemCode: string;
@@ -352,7 +521,8 @@ export function formatFbrDate(dateInput?: string | Date): string {
 export function buildFbrPayload(
   sale: any,
   business: any,
-  config?: Partial<FbrConfig>
+  config?: Partial<FbrConfig>,
+  options?: { scenarioId?: string }
 ): FbrDigitalInvoicePayload {
   const sellerNTN = cleanFbrNtn(config?.sellerNtn || business?.ntn);
   const sellerBusinessName = config?.sellerBusinessName || business?.name || "Business";
@@ -418,13 +588,13 @@ export function buildFbrPayload(
     );
   }
 
-  let scenarioId = fbrMeta?.scenario || config?.scenarioId;
-  if (!isRegistered) {
-    // Unregistered buyers use SN002 in FBR DI
-    scenarioId = "SN002";
-  } else if (!scenarioId || scenarioId === "SN000" || scenarioId === "SN002") {
-    scenarioId = "SN001";
+  let scenarioId = options?.scenarioId || fbrMeta?.scenario || config?.scenarioId;
+  if (!scenarioId || scenarioId === "SN000") {
+    scenarioId = isRegistered ? "SN001" : "SN002";
   }
+
+  const scenarioDef = FBR_DI_SCENARIOS[scenarioId];
+  const isExemptOrZero = scenarioId === "SN006" || scenarioId === "SN007";
 
   const buyerProvince = customer?.province || custTaxMeta.province || fbrMeta?.buyerProvince || sellerProvince;
   const buyerAddress = customer?.address || custTaxMeta.address || fbrMeta?.buyerAddress || sellerAddress;
@@ -435,34 +605,34 @@ export function buildFbrPayload(
     const discount = Number(item.discount || 0);
     const lineSubtotal = Math.max(0, qty * unitPrice - discount);
 
-    const taxRateVal = Number(item.taxRate !== undefined && item.taxRate !== null ? item.taxRate : 18);
-    if (taxRateVal <= 0 || isNaN(taxRateVal)) {
+    const taxRateVal = Number(item.taxRate !== undefined && item.taxRate !== null ? item.taxRate : (scenarioDef?.defaultRate ?? 18));
+    if (!isExemptOrZero && (taxRateVal <= 0 || isNaN(taxRateVal))) {
       const pName = item.productName || item.product?.name || "Item";
       throw new Error(
         `Digital Invoicing does not permit 0% tax. Line item #${idx + 1} ("${pName}") must have an applicable sales tax rate greater than 0% (e.g. 18%).`
       );
     }
-    const taxAmountVal = Number(item.taxAmount ?? (lineSubtotal * (taxRateVal / 100)));
+    const taxAmountVal = isExemptOrZero ? 0 : Number(item.taxAmount ?? (lineSubtotal * (taxRateVal / 100)));
     const totalLineValue = round2(lineSubtotal + taxAmountVal).toNumber();
 
     return {
-      hsCode: formatHsCode(item.hsCode || fbrMeta?.hsCode || item.product?.hsCode || business?.defaultHsCode),
-      productDescription: item.productName || item.product?.name || "Retail Merchandise",
-      rate: `${taxRateVal}%`,
-      uoM: item.uom || fbrMeta?.uom || "Numbers, pieces, units",
+      hsCode: formatHsCode(item.hsCode || fbrMeta?.hsCode || item.product?.hsCode || scenarioDef?.hsCode || business?.defaultHsCode),
+      productDescription: item.productName || item.product?.name || scenarioDef?.productDescription || "Retail Merchandise",
+      rate: isExemptOrZero ? "0%" : `${taxRateVal}%`,
+      uoM: item.uom || fbrMeta?.uom || scenarioDef?.uoM || "Numbers, pieces, units",
       quantity: qty,
       totalValues: totalLineValue,
       valueSalesExcludingST: round2(lineSubtotal).toNumber(),
-      fixedNotifiedValueOrRetailPrice: round2(unitPrice).toNumber(),
+      fixedNotifiedValueOrRetailPrice: scenarioId === "SN008" ? totalLineValue : round2(unitPrice).toNumber(),
       salesTaxApplicable: round2(taxAmountVal).toNumber(),
       salesTaxWithheldAtSource: 0,
       extraTax: item.extraTax ? String(item.extraTax) : (fbrMeta?.extraTax ? String(fbrMeta.extraTax) : ""),
-      furtherTax: isRegistered ? 0 : round2(lineSubtotal * 0.03).toNumber(),
-      sroScheduleNo: item.sroSchedule || fbrMeta?.sroSchedule || "",
+      furtherTax: (isRegistered || isExemptOrZero) ? 0 : round2(lineSubtotal * 0.03).toNumber(),
+      sroScheduleNo: item.sroSchedule || fbrMeta?.sroSchedule || scenarioDef?.sroScheduleNo || "",
       fedPayable: 0,
       discount: round2(discount).toNumber(),
-      saleType: "Goods at standard rate (default)",
-      sroItemSerialNo: item.sroItem || fbrMeta?.sroItem || "",
+      saleType: item.saleType || scenarioDef?.saleType || "Goods at standard rate (default)",
+      sroItemSerialNo: item.sroItem || fbrMeta?.sroItem || scenarioDef?.sroItemSerialNo || "",
     };
   });
 
@@ -798,6 +968,155 @@ export async function testFbrToken(
       endpoint: url,
     };
   }
+}
+
+// ── TRANSMIT SANDBOX SCENARIO TEST INVOICE ─────────────────────────────────
+export async function executeTransmitScenarioTest(
+  businessId: string,
+  scenarioId: string
+): Promise<{
+  success: boolean;
+  scenarioId: string;
+  fbrInvoiceNumber?: string;
+  message?: string;
+  payload?: any;
+  rawResponse?: any;
+}> {
+  const scenario = FBR_DI_SCENARIOS[scenarioId];
+  if (!scenario) {
+    throw new Error(`Invalid Scenario ID: ${scenarioId}. Allowed scenarios are SN001 through SN012.`);
+  }
+
+  const config = await getFbrConfig(businessId);
+  let business: any = null;
+  try {
+    business = await prisma.business.findUnique({ where: { id: businessId } });
+  } catch {}
+  if (!business) {
+    business = fallbackStore.companies.find((c) => c.id === businessId) || {
+      name: "Adeel Textile",
+      ntn: "71805196",
+      strn: "3277876317222",
+      address: "R-70 Rehman Villas, Karachi",
+      province: "Sindh",
+    };
+  }
+
+  const environment = config.environment || "sandbox";
+  const postUrl = FBR_ENDPOINTS[environment].postInvoice;
+  const token = (config.token || "").trim();
+
+  const sellerNTN = cleanFbrNtn(config.sellerNtn || business.ntn || "71805196");
+  const sellerBusinessName = config.sellerBusinessName || business.name || "Adeel Textile";
+  const sellerProvince = config.sellerProvince || business.province || "Sindh";
+  const sellerAddress = config.sellerAddress || business.address || "R-70 Rehman Villas, Karachi";
+
+  const isUnregistered = scenario.buyerType === "UNREGISTERED";
+  const buyerNTNCNIC = isUnregistered ? "4210112345671" : "4428410";
+  const buyerBusinessName = isUnregistered ? "Tariq Mehmood" : "Shakeel Mobiles";
+  const buyerRegistrationType: "Registered" | "Unregistered" = isUnregistered ? "Unregistered" : "Registered";
+
+  const qty = 1;
+  const unitPrice = 1000;
+  const lineSubtotal = 1000;
+  const rateVal = scenario.defaultRate;
+  const isZeroOrExempt = scenarioId === "SN006" || scenarioId === "SN007";
+  const taxAmountVal = isZeroOrExempt ? 0 : round2(lineSubtotal * (rateVal / 100)).toNumber();
+  const furtherTaxVal = isUnregistered ? 30 : 0;
+  const totalLineValue = round2(lineSubtotal + taxAmountVal + furtherTaxVal).toNumber();
+
+  const item: FbrDigitalInvoiceItem = {
+    hsCode: scenario.hsCode,
+    productDescription: scenario.productDescription,
+    rate: scenario.rateString,
+    uoM: scenario.uoM,
+    quantity: qty,
+    totalValues: totalLineValue,
+    valueSalesExcludingST: lineSubtotal,
+    fixedNotifiedValueOrRetailPrice: scenarioId === "SN008" ? totalLineValue : unitPrice,
+    salesTaxApplicable: taxAmountVal,
+    salesTaxWithheldAtSource: 0,
+    extraTax: "",
+    furtherTax: furtherTaxVal,
+    sroScheduleNo: scenario.sroScheduleNo || "",
+    fedPayable: 0,
+    discount: 0,
+    saleType: scenario.saleType,
+    sroItemSerialNo: scenario.sroItemSerialNo || "",
+  };
+
+  const timestampSuffix = Date.now().toString().slice(-6);
+  const invoiceRefNo = `TEST-${scenarioId}-${timestampSuffix}`;
+
+  const payload: FbrDigitalInvoicePayload = {
+    invoiceType: "Sale Invoice",
+    invoiceDate: new Date().toISOString().split("T")[0],
+    sellerNTNCNIC: sellerNTN,
+    sellerBusinessName,
+    sellerProvince,
+    sellerAddress,
+    buyerNTNCNIC,
+    buyerBusinessName,
+    buyerProvince: "Sindh",
+    buyerAddress: "Karachi, Pakistan",
+    buyerRegistrationType,
+    invoiceRefNo,
+    scenarioId,
+    items: [item],
+  };
+
+  if (!token || token === "N/A") {
+    throw new Error("No FBR Digital Invoicing Bearer Token configured. Please set token in FBR settings.");
+  }
+
+  const res = await fetch(postUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const resText = await res.text();
+  const parsedResponse = parseFbrResponse(resText);
+
+  const invoiceNumber =
+    parsedResponse.invoiceNumber ||
+    parsedResponse.InvoiceNumber ||
+    (parsedResponse.data && (parsedResponse.data.invoiceNumber || parsedResponse.data.InvoiceNumber)) ||
+    null;
+
+  const isSuccess = Boolean(invoiceNumber);
+
+  // If DB available, record audit log
+  try {
+    await prisma.auditLog.create({
+      data: {
+        businessId,
+        action: `FBR_SCENARIO_${scenarioId}_TEST`,
+        entity: "FbrScenarioTest",
+        entityId: invoiceRefNo,
+        changes: JSON.stringify({
+          scenarioId,
+          isSuccess,
+          invoiceNumber,
+          fbrResponse: parsedResponse,
+        }),
+      },
+    });
+  } catch {}
+
+  return {
+    success: isSuccess,
+    scenarioId,
+    fbrInvoiceNumber: invoiceNumber || undefined,
+    message: isSuccess
+      ? `Scenario ${scenarioId} (${scenario.name}) passed successfully! Official FBR Number: ${invoiceNumber}`
+      : parsedResponse.message || parsedResponse.error || "Scenario test rejected by FBR gateway.",
+    payload,
+    rawResponse: parsedResponse,
+  };
 }
 
 // ── IN-FLIGHT CONCURRENCY LOCKS ─────────────────────────────────────────────
