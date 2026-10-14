@@ -15,6 +15,7 @@ import {
   Receipt,
   Package,
   Users,
+  UserPlus,
   KeyRound,
   X,
   ArrowRight,
@@ -879,13 +880,22 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
               <span>Add Purchase</span>
             </Link>
           ) : (
-            <Link
-              href="/products/create"
-              className="hidden sm:inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs transition hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
-            >
-              <Package className="h-3.5 w-3.5 text-slate-500 dark:text-slate-400" />
-              <span>Add Product</span>
-            </Link>
+            <>
+              <Link
+                href="/customers?action=add"
+                className="hidden md:inline-flex items-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50/70 px-3 py-1.5 text-xs font-bold text-blue-700 shadow-2xs transition hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-950/50 dark:text-blue-300"
+              >
+                <UserPlus className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+                <span>+ Customer</span>
+              </Link>
+              <Link
+                href="/products/create"
+                className="hidden sm:inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs transition hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+              >
+                <Package className="h-3.5 w-3.5 text-slate-500 dark:text-slate-400" />
+                <span>Add Product</span>
+              </Link>
+            </>
           )}
 
           {/* Quick Action: FBR POS Sale (Full Suite) or New Sale (Accounting) */}

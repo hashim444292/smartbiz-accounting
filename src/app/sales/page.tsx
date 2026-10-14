@@ -31,6 +31,8 @@ import {
   Square,
   Edit,
   ShieldCheck,
+  UserPlus,
+  Users,
 } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { useAuth } from "@/context/AuthContext";
@@ -736,6 +738,14 @@ export default function SalesPage() {
             <Printer className="h-3.5 w-3.5 text-slate-600" />
             <span>{t("Print Sales Report", "سیلز رپورٹ پرنٹ کریں")}</span>
           </button>
+
+          <Link
+            href="/customers?action=add"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50/70 px-3.5 py-2 text-xs font-bold text-blue-700 hover:bg-blue-100 shadow-2xs transition dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-300"
+          >
+            <UserPlus className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+            <span>+ Register Customer</span>
+          </Link>
 
           <Link href="/sales/create">
             <Button variant="primary" size="md">

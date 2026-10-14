@@ -50,6 +50,12 @@ export default function CustomersPage() {
 
   useEffect(() => {
     fetchCustomers();
+    if (typeof window !== "undefined") {
+      const p = new URLSearchParams(window.location.search);
+      if (p.get("action") === "add" || p.get("register") === "true") {
+        setShowAddModal(true);
+      }
+    }
   }, [activeCompany?.id]);
 
   const handleCreateCustomer = async (e: React.FormEvent) => {

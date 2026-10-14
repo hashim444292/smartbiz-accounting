@@ -66,6 +66,7 @@ const TENANT_NAVIGATION_GROUPS: NavGroup[] = [
     items: [
       { name: "Sales & Invoices", nameUrdu: "سیلز اور انوائسز", href: "/sales", icon: Receipt, moduleKey: "sales", userPermKey: "sales" },
       { name: "POS Counter", nameUrdu: "پی او ایس کاؤنٹر", href: "/sales/create", icon: ShoppingCart, moduleKey: "pos", userPermKey: "pos" },
+      { name: "Registered Customers", nameUrdu: "رجسٹرڈ کسٹمرز", href: "/customers", icon: Users, moduleKey: "sales", userPermKey: "customers" },
       { name: "Excel / CSV Bulk Upload", nameUrdu: "ایکسل بلک اپلوڈ", href: "/sales/import", icon: UploadCloud, moduleKey: "bulkImport", userPermKey: "sales" },
       { name: "Purchases & Bills", nameUrdu: "خریداری اور بلز", href: "/purchases", icon: ShoppingBag, moduleKey: "purchases", userPermKey: "purchases" },
       { name: "Cash & Payments", nameUrdu: "کیش اور ادائیگیاں", href: "/payments", icon: Wallet, moduleKey: "accounting", userPermKey: "payments" },
@@ -78,7 +79,7 @@ const TENANT_NAVIGATION_GROUPS: NavGroup[] = [
     items: [
       { name: "Inventory & Stock", nameUrdu: "انونٹری اور اسٹاک", href: "/inventory", icon: Boxes, moduleKey: "inventory", userPermKey: "inventory" },
       { name: "Add Inventory", nameUrdu: "نئی انونٹری اندراج", href: "/products/create", icon: Plus, moduleKey: "inventory", userPermKey: "products" },
-      { name: "Customers (Receivables)", nameUrdu: "کسٹمرز کھاتہ (وصولیاں)", href: "/customers", icon: Users, moduleKey: "sales", userPermKey: "customers" },
+      { name: "Customers Ledger", nameUrdu: "کسٹمرز لیجر (وصولیاں)", href: "/customers", icon: Users, moduleKey: "sales", userPermKey: "customers" },
       { name: "Suppliers (Payables)", nameUrdu: "سپلائرز کھاتہ (واجبات)", href: "/suppliers", icon: Truck, moduleKey: "purchases", userPermKey: "suppliers" },
       { name: "Products & Rates", nameUrdu: "پروڈکٹس اور ریٹس", href: "/products", icon: Package, moduleKey: "inventory", userPermKey: "products" },
     ],
@@ -315,9 +316,8 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
                   return false;
                 }
                 if (isFbrInvoicingOnly) {
-                  // In FBR Invoicing Only, strictly hide Purchases, Stock/Inventory, Cash/Payments, Expenses, Customers, AI Scanner
+                  // In FBR Invoicing Only, strictly hide Purchases, Stock/Inventory, Cash/Payments, Expenses, AI Scanner (Customers are preserved for DI B2B registration)
                   if (
-                    item.href === "/customers" ||
                     item.moduleKey === "accounting" ||
                     item.moduleKey === "purchases" ||
                     item.moduleKey === "inventory" ||
@@ -412,8 +412,8 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
                     const active = isItemActive(item.href);
                     const Icon = item.icon;
                     const displayName = language === "ur"
-                      ? (isFbrInvoicingOnly && item.href === "/reports" ? "سیلز رپورٹس و ڈاؤنلوڈ" : (item.nameUrdu || item.name))
-                      : (isFbrInvoicingOnly && item.href === "/reports" ? "Sales Reports & Downloads" : item.name);
+                      ? (isFbrInvoicingOnly && item.href === "/reports" ? "سیلز رپورٹس و ڈاؤنلوڈ" : (isFbrInvoicingOnly && item.href === "/customers" ? "رجسٹرڈ خریدار (DI)" : (item.nameUrdu || item.name)))
+                      : (isFbrInvoicingOnly && item.href === "/reports" ? "Sales Reports & Downloads" : (isFbrInvoicingOnly && item.href === "/customers" ? "Registered Buyers (DI)" : item.name));
 
                     let itemBadge = item.badge;
                     if (!itemBadge && stockTotals) {
