@@ -24,9 +24,14 @@ export default function CustomersPage() {
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [address, setAddress] = useState("");
+  const [province, setProvince] = useState("Sindh");
+  const [ntn, setNtn] = useState("");
+  const [cnic, setCnic] = useState("");
+  const [taxStatus, setTaxStatus] = useState<"REGISTERED" | "UNREGISTERED">("UNREGISTERED");
   const [openingBalance, setOpeningBalance] = useState(0);
   const [creditLimit, setCreditLimit] = useState(0);
   const [submitting, setSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   const fetchCustomers = async () => {
     setLoading(true);
@@ -49,6 +54,20 @@ export default function CustomersPage() {
 
   const handleCreateCustomer = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFormError(null);
+
+    const cleanNtn = ntn.trim().replace(/[^0-9]/g, "");
+    const cleanCnic = cnic.trim().replace(/[^0-9]/g, "");
+
+    if (taxStatus === "REGISTERED" && cleanNtn.length < 7) {
+      setFormError("Registered taxpayers require a valid 7 or 8-digit NTN (e.g. 1234567-8).");
+      return;
+    }
+    if (cnic.trim() && cleanCnic.length !== 13) {
+      setFormError("CNIC must be exactly 13 digits without dashes (e.g. 42101-1234567-1).");
+      return;
+    }
+
     setSubmitting(true);
     try {
       const headers: Record<string, string> = { "Content-Type": "application/json" };
@@ -57,11 +76,15 @@ export default function CustomersPage() {
         method: "POST",
         headers,
         body: JSON.stringify({
-          name,
-          businessName,
-          phone,
-          email,
-          address,
+          name: name.trim(),
+          businessName: businessName.trim() || null,
+          phone: phone.trim() || null,
+          email: email.trim() || null,
+          address: address.trim() || null,
+          province,
+          ntn: ntn.trim() || null,
+          cnic: cleanCnic || null,
+          taxStatus,
           openingBalance,
           creditLimit,
         }),
@@ -72,11 +95,21 @@ export default function CustomersPage() {
         setName("");
         setBusinessName("");
         setPhone("");
+        setEmail("");
+        setAddress("");
+        setNtn("");
+        setCnic("");
+        setProvince("Sindh");
+        setTaxStatus("UNREGISTERED");
+        setOpeningBalance(0);
+        setCreditLimit(0);
         invalidateCache();
         fetchCustomers();
+      } else {
+        setFormError(json.error || "Failed to save customer");
       }
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      setFormError(err.message || "Network error while saving customer");
     } finally {
       setSubmitting(false);
     }
@@ -156,13 +189,31 @@ export default function CustomersPage() {
                 filtered.map((c) => (
                   <tr key={c.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40">
                     <td className="px-4 py-3 font-semibold text-slate-900 dark:text-white">
-                      <div>{c.name}</div>
+                      <div className="flex items-center gap-2">
+                        <span>{c.name}</span>
+                        {c.ntn ? (
+                          <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[9px] font-bold text-blue-700 dark:bg-blue-950/60 dark:text-blue-300">
+                            NTN: {c.ntn}
+                          </span>
+                        ) : c.cnic ? (
+                          <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[9px] font-bold text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                            CNIC: {c.cnic}
+                          </span>
+                        ) : (
+                          <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[9px] font-semibold text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
+                            No Tax ID
+                          </span>
+                        )}
+                      </div>
                       {c.businessName && <div className="text-[11px] font-normal text-slate-500">{c.businessName}</div>}
                     </td>
                     <td className="px-4 py-3">
                       {c.phone && <div className="flex items-center gap-1 text-[11px] text-slate-600 dark:text-slate-400"><Phone className="h-3 w-3 text-slate-400" />{c.phone}</div>}
                     </td>
-                    <td className="px-4 py-3 text-[11px] text-slate-500">{c.address || "—"}</td>
+                    <td className="px-4 py-3 text-[11px] text-slate-500">
+                      <div>{c.address || "—"}</div>
+                      <div className="text-[10px] text-slate-400">{c.province || "Sindh"}</div>
+                    </td>
                     <td className="px-4 py-3 text-right tabular-nums">{c.creditLimit ? formatMoney(c.creditLimit) : "No limit"}</td>
                     <td className="px-4 py-3 text-right font-bold text-rose-600 dark:text-rose-400 tabular-nums">
                       {formatMoney(c.currentBalance)}
@@ -185,15 +236,82 @@ export default function CustomersPage() {
       </div>
 
       {/* Add Customer Modal */}
-      <Modal isOpen={showAddModal} onClose={() => setShowAddModal(false)} title="Register Customer Account">
+      <Modal isOpen={showAddModal} onClose={() => setShowAddModal(false)} title="Register Customer Account (Digital Invoicing Ready)">
         <form onSubmit={handleCreateCustomer} className="space-y-3.5">
-          <Input label="Customer / Contact Person" value={name} onChange={(e) => setName(e.target.value)} required />
-          <Input label="Company / Business Name" value={businessName} onChange={(e) => setBusinessName(e.target.value)} />
-          <div className="grid grid-cols-2 gap-3">
-            <Input label="Phone Number" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+92 300 ..." />
-            <Input label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+          {formError && (
+            <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs font-medium text-rose-800 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-300">
+              ⚠️ {formError}
+            </div>
+          )}
+
+          <div className="rounded-xl border border-blue-200 bg-blue-50/60 p-3 text-xs text-blue-900 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-200">
+            <span className="font-bold">🌐 FBR Digital Invoicing:</span> For B2B Digital Invoices, customers cannot be anonymous or walk-in. Register their legal name, business name, and NTN (7-8 digits) or CNIC (13 digits) with Province.
           </div>
-          <Input label="Address" value={address} onChange={(e) => setAddress(e.target.value)} />
+
+          <div className="grid grid-cols-2 gap-3">
+            <Input label="Customer / Contact Person *" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Tariq Mehmood" required />
+            <Input label="Company / Business Name" value={businessName} onChange={(e) => setBusinessName(e.target.value)} placeholder="e.g. Mehmood Traders" />
+          </div>
+
+          {/* FBR Tax Profile Section */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                Buyer Tax Status *
+              </label>
+              <select
+                value={taxStatus}
+                onChange={(e) => setTaxStatus(e.target.value as any)}
+                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-800 focus:border-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+              >
+                <option value="UNREGISTERED">Unregistered Buyer (CNIC Required)</option>
+                <option value="REGISTERED">Sales Tax Registered (NTN Required)</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                Province (FBR Jurisdiction) *
+              </label>
+              <select
+                value={province}
+                onChange={(e) => setProvince(e.target.value)}
+                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-800 focus:border-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+              >
+                <option value="Sindh">Sindh</option>
+                <option value="Punjab">Punjab</option>
+                <option value="Khyber Pakhtunkhwa">Khyber Pakhtunkhwa</option>
+                <option value="Balochistan">Balochistan</option>
+                <option value="Islamabad Capital Territory">Islamabad Capital Territory</option>
+                <option value="Gilgit-Baltistan">Gilgit-Baltistan</option>
+                <option value="Azad Jammu & Kashmir">Azad Jammu & Kashmir</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <Input
+              label={taxStatus === "REGISTERED" ? "NTN (National Tax No.) *" : "NTN (Optional if CNIC given)"}
+              value={ntn}
+              onChange={(e) => setNtn(e.target.value)}
+              placeholder="e.g. 1234567-8"
+              required={taxStatus === "REGISTERED"}
+            />
+            <Input
+              label={taxStatus === "UNREGISTERED" ? "CNIC (13 digits without dashes) *" : "CNIC (Optional)"}
+              value={cnic}
+              onChange={(e) => setCnic(e.target.value)}
+              placeholder="e.g. 4210112345671"
+              maxLength={15}
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <Input label="Phone Number" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+92 300 1234567" />
+            <Input label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="billing@buyer.com" />
+          </div>
+
+          <Input label="Complete Business / Shop Address" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Shop #12, Saddar Market, Karachi" />
+
           <div className="grid grid-cols-2 gap-3">
             <Input
               label="Opening Balance (Receivable)"

@@ -353,33 +353,71 @@ export function buildFbrPayload(
   }
 
   const customer = sale.customer || null;
-  const rawBuyerNTN = (fbrMeta?.customerNtn || fbrMeta?.buyerNTN || customer?.ntn || "").trim();
-  const rawBuyerCNIC = (fbrMeta?.customerCnic || fbrMeta?.buyerCNIC || customer?.cnic || "").trim();
-  const isRegistered = Boolean(rawBuyerNTN && rawBuyerNTN !== "0000000" && rawBuyerNTN.length >= 7);
+  let custTaxMeta: any = {};
+  if (customer?.notes) {
+    try {
+      if (typeof customer.notes === "string" && customer.notes.trim().startsWith("{")) {
+        custTaxMeta = JSON.parse(customer.notes);
+      }
+    } catch {}
+  }
 
-  const buyerNTNCNIC = isRegistered
-    ? rawBuyerNTN.replace(/[^0-9]/g, "")
-    : (rawBuyerCNIC.replace(/[^0-9]/g, "") || "4210100000000");
+  const buyerName = (sale.customerName || customer?.name || "").trim();
+  const lowerBuyerName = buyerName.toLowerCase();
+  if (
+    !buyerName ||
+    lowerBuyerName === "walk-in customer" ||
+    lowerBuyerName === "walk-in retail customer" ||
+    lowerBuyerName === "walk in (walk in)" ||
+    lowerBuyerName.startsWith("walk-in") ||
+    lowerBuyerName.startsWith("walk in")
+  ) {
+    throw new Error(
+      "FBR Digital Invoicing requires a registered buyer. Walk-in customers are strictly prohibited in Digital Invoicing."
+    );
+  }
+
+  const rawBuyerNTN = (fbrMeta?.customerNtn || fbrMeta?.buyerNTN || customer?.ntn || custTaxMeta.ntn || "").trim();
+  const rawBuyerCNIC = (fbrMeta?.customerCnic || fbrMeta?.buyerCNIC || customer?.cnic || custTaxMeta.cnic || "").trim();
+  const cleanNtn = rawBuyerNTN.replace(/[^0-9]/g, "");
+  const cleanCnic = rawBuyerCNIC.replace(/[^0-9]/g, "");
+  const isRegistered = Boolean(cleanNtn && cleanNtn !== "0000000" && cleanNtn.length >= 7);
+
+  let buyerNTNCNIC = "";
+  if (isRegistered) {
+    buyerNTNCNIC = cleanNtn;
+  } else if (cleanCnic.length === 13) {
+    buyerNTNCNIC = cleanCnic;
+  } else {
+    throw new Error(
+      `FBR Digital Invoicing requires a valid 7-8 digit NTN or 13-digit CNIC for customer "${buyerName}". Neither valid NTN nor 13-digit CNIC was found.`
+    );
+  }
 
   let scenarioId = fbrMeta?.scenario || config?.scenarioId;
   if (!isRegistered) {
-    // Unregistered / walk-in buyers can NEVER use SN001 in FBR DI
+    // Unregistered buyers use SN002 in FBR DI
     scenarioId = "SN002";
   } else if (!scenarioId || scenarioId === "SN000" || scenarioId === "SN002") {
     scenarioId = "SN001";
   }
 
-  const buyerName = sale.customerName || customer?.name || "Walk-in Customer";
-  const buyerProvince = customer?.province || sellerProvince;
-  const buyerAddress = customer?.address || sellerAddress;
+  const buyerProvince = customer?.province || custTaxMeta.province || fbrMeta?.buyerProvince || sellerProvince;
+  const buyerAddress = customer?.address || custTaxMeta.address || fbrMeta?.buyerAddress || sellerAddress;
 
-  const items: FbrDigitalInvoiceItem[] = (sale.items || []).map((item: any) => {
+  const items: FbrDigitalInvoiceItem[] = (sale.items || []).map((item: any, idx: number) => {
     const qty = Number(item.quantity || 1);
     const unitPrice = Number(item.unitPrice || 0);
     const discount = Number(item.discount || 0);
     const lineSubtotal = Math.max(0, qty * unitPrice - discount);
 
-    const taxRateVal = Number(item.taxRate ?? 18);
+    const taxRateVal = Number(item.taxRate !== undefined && item.taxRate !== null ? item.taxRate : 18);
+    if (taxRateVal <= 0 || isNaN(taxRateVal)) {
+      const pName = item.productName || item.product?.name || "Item";
+      throw new Error(
+        `Digital Invoicing does not permit 0% tax. Line item #${idx + 1} ("${pName}") must have an applicable sales tax rate greater than 0% (e.g. 18%).`
+      );
+    }
     const taxAmountVal = Number(item.taxAmount ?? (lineSubtotal * (taxRateVal / 100)));
     const totalLineValue = round2(lineSubtotal + taxAmountVal).toNumber();
 

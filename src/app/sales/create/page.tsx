@@ -60,6 +60,9 @@ interface CustomerOption {
   taxStatus?: string;
   currentBalance: number;
   ntn?: string;
+  cnic?: string;
+  province?: string;
+  address?: string | null;
 }
 
 interface CategoryOption {
@@ -174,6 +177,8 @@ export default function CreateSalePage() {
     email: "",
     taxStatus: "UNREGISTERED" as BuyerTaxStatus,
     ntn: "",
+    cnic: "",
+    province: "Sindh",
     address: "",
   });
 
@@ -202,8 +207,9 @@ export default function CreateSalePage() {
       const discAmt = round2(toDecimal(sub).mul(discPct).div(100)).toNumber();
       const taxable = Math.max(0, sub - discAmt);
 
-      // Tax rate based on Buyer Tax Status
-      const tr = currentBuyerStatus === "EXEMPT" ? 0 : 18;
+      // Tax rate based on Buyer Tax Status (Digital Invoicing strictly disallows 0% tax)
+      const isDiMode = fbrInvoiceType === "DIGITAL_INVOICING";
+      const tr = isDiMode ? 18 : (currentBuyerStatus === "EXEMPT" ? 0 : 18);
       const taxAmt = round2(toDecimal(taxable).mul(tr).div(100)).toNumber();
       const lineTotal = taxable + taxAmt;
 
@@ -224,7 +230,7 @@ export default function CreateSalePage() {
         availableStock: item.availableStock || 0,
       };
     },
-    [orgHsCode]
+    [orgHsCode, fbrInvoiceType]
   );
 
   // Load Initial Metadata, Products, Customers
@@ -339,9 +345,28 @@ export default function CreateSalePage() {
 
   // Synchronize Line Item Tax Rates when Buyer Tax Status changes
   const handleBuyerTaxStatusChange = (newStatus: BuyerTaxStatus) => {
-    setBuyerTaxStatus(newStatus);
-    setItems((prevItems) => prevItems.map((it) => recalculateItem(it, newStatus)));
+    const effectiveStatus: BuyerTaxStatus =
+      fbrInvoiceType === "DIGITAL_INVOICING" && newStatus === "EXEMPT" ? "REGISTERED" : newStatus;
+    setBuyerTaxStatus(effectiveStatus);
+    setItems((prevItems) => prevItems.map((it) => recalculateItem(it, effectiveStatus)));
   };
+
+  // When switching to Digital Invoicing mode, automatically ensure no 0% tax exists
+  useEffect(() => {
+    if (fbrInvoiceType === "DIGITAL_INVOICING") {
+      if (buyerTaxStatus === "EXEMPT") {
+        setBuyerTaxStatus("REGISTERED");
+      }
+      setItems((prevItems) =>
+        prevItems.map((it) => {
+          if (!it.taxRate || it.taxRate <= 0) {
+            return recalculateItem(it, "REGISTERED");
+          }
+          return it;
+        })
+      );
+    }
+  }, [fbrInvoiceType, buyerTaxStatus, recalculateItem]);
 
   // Keyboard shortcut Alt+A to add item
   useEffect(() => {
@@ -494,10 +519,12 @@ export default function CreateSalePage() {
   // Reset form to initial clean state immediately after creation
   const resetForm = useCallback(() => {
     setCustomerId("");
-    setCustomerName("Walk in (Walk in)");
+    const isDi = fbrInvoiceType === "DIGITAL_INVOICING";
+    setCustomerName(isDi ? "" : "Walk in (Walk in)");
     setWalkInName("");
     setWalkInPhone("");
-    setBuyerTaxStatus("EXEMPT");
+    const initialTaxStatus: BuyerTaxStatus = isDi ? "REGISTERED" : "EXEMPT";
+    setBuyerTaxStatus(initialTaxStatus);
     setOverallDiscount(0);
     setNotes("");
     setPaymentMode("FULL");
@@ -520,13 +547,13 @@ export default function CreateSalePage() {
           discountPercent: 0,
           availableStock: Number(defaultProd.currentStock || 10),
         },
-        "EXEMPT"
+        initialTaxStatus
       );
       setItems([initialItem]);
     } else {
       setItems([]);
     }
-  }, [products, orgHsCode, recalculateItem]);
+  }, [products, orgHsCode, recalculateItem, fbrInvoiceType]);
 
   // Change payment mode handler
   const handleSetPaymentMode = (mode: PaymentMode) => {
@@ -556,9 +583,33 @@ export default function CreateSalePage() {
   const handleSaveCustomer = async (e: React.FormEvent) => {
     e.preventDefault();
     setCustomerSaveError(null);
-    if (!newCustomerForm.name.trim()) {
+    const name = newCustomerForm.name.trim();
+    if (!name) {
       setCustomerSaveError("Customer name is required.");
       return;
+    }
+
+    const lowerName = name.toLowerCase();
+    if (lowerName === "walk in" || lowerName === "walk-in" || lowerName.startsWith("walk in") || lowerName.startsWith("walk-in")) {
+      setCustomerSaveError("Walk-in customer name is not permitted in Digital Invoicing.");
+      return;
+    }
+
+    const cleanNtn = newCustomerForm.ntn.trim().replace(/[^0-9]/g, "");
+    const cleanCnic = newCustomerForm.cnic.trim().replace(/[^0-9]/g, "");
+
+    if (fbrInvoiceType === "DIGITAL_INVOICING") {
+      if (newCustomerForm.taxStatus === "REGISTERED") {
+        if (!cleanNtn || cleanNtn.length < 7) {
+          setCustomerSaveError("Valid 7-8 digit NTN is required for Registered Taxpayer in Digital Invoicing.");
+          return;
+        }
+      } else {
+        if (cleanCnic.length !== 13 && cleanNtn.length < 7) {
+          setCustomerSaveError("Valid 13-digit CNIC (or 7-8 digit NTN) is required for Digital Invoicing.");
+          return;
+        }
+      }
     }
 
     try {
@@ -567,11 +618,15 @@ export default function CreateSalePage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name: newCustomerForm.name.trim(),
+          name: name,
           businessName: newCustomerForm.businessName.trim() || null,
           phone: newCustomerForm.phone.trim() || null,
           email: newCustomerForm.email.trim() || null,
           address: newCustomerForm.address.trim() || null,
+          ntn: cleanNtn || null,
+          cnic: cleanCnic || null,
+          province: newCustomerForm.province || "Sindh",
+          taxStatus: newCustomerForm.taxStatus,
           openingBalance: 0,
         }),
       });
@@ -585,16 +640,21 @@ export default function CreateSalePage() {
       setCustomers((prev) => [createdCust, ...prev]);
       setCustomerId(createdCust.id);
       setCustomerName(createdCust.name);
-      setBuyerTaxStatus(newCustomerForm.taxStatus);
-      handleBuyerTaxStatusChange(newCustomerForm.taxStatus);
+      const effStatus = fbrInvoiceType === "DIGITAL_INVOICING" && newCustomerForm.taxStatus === "EXEMPT"
+        ? "REGISTERED"
+        : newCustomerForm.taxStatus;
+      setBuyerTaxStatus(effStatus);
+      handleBuyerTaxStatusChange(effStatus);
       setIsAddCustomerModalOpen(false);
       setNewCustomerForm({
         name: "",
         businessName: "",
         phone: "",
         email: "",
-        taxStatus: "UNREGISTERED",
+        taxStatus: fbrInvoiceType === "DIGITAL_INVOICING" ? "REGISTERED" : "UNREGISTERED",
         ntn: "",
+        cnic: "",
+        province: "Sindh",
         address: "",
       });
     } catch (err: any) {
@@ -707,19 +767,49 @@ export default function CreateSalePage() {
     const actualPaid = paymentMode === "CREDIT" ? 0 : Number(paidAmount || 0);
     const remaining = Math.max(0, totalPayable - actualPaid);
 
-    if (!customerId && remaining > 0) {
-      if (!walkInName.trim()) {
-        errors["walkInName"] = t("Customer name is required for credit balance", "ادھار / باقی رقم کے لیے خریدار کا نام درج کرنا لازمی ہے");
+    // Digital Invoicing Strict Rules (No walk-in, valid NTN/CNIC required, no 0% tax)
+    if (!isAccountingOnly && postToFbr && fbrInvoiceType === "DIGITAL_INVOICING") {
+      if (!customerId) {
+        errors["customer"] = t(
+          "FBR Digital Invoicing requires a registered buyer. Walk-in customers are not allowed in Digital Invoicing.",
+          "ایف بی آر ڈیجیٹل انوائسنگ کے لیے رجسٹرڈ کسٹمر لازمی ہے۔ واک اِن کسٹمر کی اجازت نہیں ہے۔"
+        );
+      } else {
+        const cust = customers.find((c) => c.id === customerId);
+        const cleanNtn = (cust?.ntn || "").replace(/[^0-9]/g, "");
+        const cleanCnic = ((cust as any)?.cnic || "").replace(/[^0-9]/g, "");
+        if (cleanNtn.length < 7 && cleanCnic.length !== 13) {
+          errors["customer"] = t(
+            `Customer "${cust?.name || ""}" must have a valid 7-8 digit NTN or 13-digit CNIC for FBR Digital Invoicing.`,
+            `ڈیجیٹل انوائسنگ کے لیے کسٹمر کا درست 7-8 ہندسوں پر مشتمل NTN یا 13 ہندسوں کا CNIC ہونا لازمی ہے۔`
+          );
+        }
       }
-      if (!walkInPhone.trim()) {
-        errors["walkInPhone"] = t("Customer phone number is required for credit follow-up", "باقی رقم فالو اپ کے لیے خریدار کا فون نمبر درج کریں");
-      }
-    }
 
-    if (buyerTaxStatus === "REGISTERED" && customerId) {
-      const cust = customers.find((c) => c.id === customerId);
-      if (cust && !cust.ntn && !(cust as any).cnic) {
-        errors["customer"] = t("NTN or CNIC is required for Registered Taxpayer", "رجسٹرڈ خریدار کے لیے کسٹمر کا NTN یا CNIC ہونا لازمی ہے");
+      // Strictly disallow 0% tax in Digital Invoicing
+      items.forEach((it, idx) => {
+        if (!it.taxRate || Number(it.taxRate) <= 0) {
+          errors[`item_${idx}_tax`] = t(
+            `Digital Invoicing does not permit 0% tax. Line item #${idx + 1} ("${it.productName}") must have a valid sales tax rate (e.g. 18%).`,
+            `ڈیجیٹل انوائسنگ میں 0% ٹیکس کی اجازت نہیں ہے۔ آئٹم #${idx + 1} ("${it.productName}") پر ٹیکس ریٹ ہونا لازمی ہے۔`
+          );
+        }
+      });
+    } else {
+      if (!customerId && remaining > 0) {
+        if (!walkInName.trim()) {
+          errors["walkInName"] = t("Customer name is required for credit balance", "ادھار / باقی رقم کے لیے خریدار کا نام درج کرنا لازمی ہے");
+        }
+        if (!walkInPhone.trim()) {
+          errors["walkInPhone"] = t("Customer phone number is required for credit follow-up", "باقی رقم فالو اپ کے لیے خریدار کا فون نمبر درج کریں");
+        }
+      }
+
+      if (buyerTaxStatus === "REGISTERED" && customerId) {
+        const cust = customers.find((c) => c.id === customerId);
+        if (cust && !cust.ntn && !(cust as any).cnic) {
+          errors["customer"] = t("NTN or CNIC is required for Registered Taxpayer", "رجسٹرڈ خریدار کے لیے کسٹمر کا NTN یا CNIC ہونا لازمی ہے");
+        }
       }
     }
 
@@ -1173,6 +1263,10 @@ export default function CreateSalePage() {
                       setCustomerId(val);
                       clearFieldError("customer");
                       if (!val) {
+                        if (fbrInvoiceType === "DIGITAL_INVOICING") {
+                          setCustomerName("");
+                          return;
+                        }
                         setCustomerName("Walk in (Walk in)");
                         handleBuyerTaxStatusChange("EXEMPT");
                         if (!isAccountingOnly && registeredFbrType === "BOTH") {
@@ -1183,7 +1277,11 @@ export default function CreateSalePage() {
                         if (c) {
                           setCustomerName(c.name);
                           if (c.taxStatus === "REGISTERED" || c.taxStatus === "EXEMPT" || c.taxStatus === "UNREGISTERED") {
-                            handleBuyerTaxStatusChange(c.taxStatus);
+                            const effStatus: BuyerTaxStatus =
+                              fbrInvoiceType === "DIGITAL_INVOICING" && c.taxStatus === "EXEMPT"
+                                ? "REGISTERED"
+                                : (c.taxStatus as BuyerTaxStatus);
+                            handleBuyerTaxStatusChange(effStatus);
                           }
                           if (!isAccountingOnly && registeredFbrType === "BOTH") {
                             if (c.taxStatus === "REGISTERED" || (c as any).ntn) {
@@ -1201,14 +1299,20 @@ export default function CreateSalePage() {
                         : "border-slate-200 focus:border-blue-500 focus:ring-blue-500 dark:border-slate-800"
                     }`}
                   >
-                    <option value="">{t("Walk-in Customer (Exempt)", "عام گاہک (Walk-in) — چھوٹ")}</option>
+                    {fbrInvoiceType === "DIGITAL_INVOICING" ? (
+                      <option value="" disabled>
+                        {t("-- Select Registered Customer (Walk-in Prohibited in DI) --", "-- رجسٹرڈ کسٹمر منتخب کریں (DI میں واک اِن منع ہے) --")}
+                      </option>
+                    ) : (
+                      <option value="">{t("Walk-in Customer (Exempt)", "عام گاہک (Walk-in) — چھوٹ")}</option>
+                    )}
                     {[...customers]
                       .sort((a, b) => Number(b.currentBalance || 0) - Number(a.currentBalance || 0))
                       .map((c) => (
                         <option key={c.id} value={c.id}>
                           {Number(c.currentBalance || 0) > 0
-                            ? `⚠️ ${c.name} ${c.businessName ? `(${c.businessName})` : c.phone ? `(${c.phone})` : ""} — ${c.taxStatus || "Customer"} (Balance Due: Rs ${Number(c.currentBalance).toLocaleString()})`
-                            : `✅ ${c.name} ${c.businessName ? `(${c.businessName})` : c.phone ? `(${c.phone})` : ""} — ${c.taxStatus || "Customer"} (All Clear: Rs 0)`}
+                            ? `⚠️ ${c.name} ${c.businessName ? `(${c.businessName})` : c.phone ? `(${c.phone})` : ""} — ${c.ntn ? `NTN: ${c.ntn}` : (c as any).cnic ? `CNIC: ${(c as any).cnic}` : c.taxStatus || "Customer"} (Balance Due: Rs ${Number(c.currentBalance).toLocaleString()})`
+                            : `✅ ${c.name} ${c.businessName ? `(${c.businessName})` : c.phone ? `(${c.phone})` : ""} — ${c.ntn ? `NTN: ${c.ntn}` : (c as any).cnic ? `CNIC: ${(c as any).cnic}` : c.taxStatus || "Customer"} (All Clear: Rs 0)`}
                         </option>
                       ))}
                     <option value="__ADD_NEW__" className="font-bold text-blue-600">
@@ -1221,8 +1325,17 @@ export default function CreateSalePage() {
                 <div className="flex items-center justify-between rounded-lg border border-slate-200/80 bg-slate-50 px-2.5 py-1 text-[11px] dark:border-slate-800 dark:bg-slate-800/40">
                   <div className="flex items-center gap-1.5 truncate">
                     <span className="font-semibold text-slate-800 dark:text-slate-200 truncate">
-                      {customerName}
+                      {customerName || (fbrInvoiceType === "DIGITAL_INVOICING" ? "No Customer Selected" : "Walk in")}
                     </span>
+                    {selectedCustomer?.ntn ? (
+                      <span className="rounded bg-blue-100 px-1.5 py-0.2 text-[9px] font-bold text-blue-700 dark:bg-blue-950/60 dark:text-blue-300">
+                        NTN: {selectedCustomer.ntn}
+                      </span>
+                    ) : (selectedCustomer as any)?.cnic ? (
+                      <span className="rounded bg-slate-200 px-1.5 py-0.2 text-[9px] font-bold text-slate-700 dark:bg-slate-700 dark:text-slate-300">
+                        CNIC: {(selectedCustomer as any).cnic}
+                      </span>
+                    ) : null}
                     <span className="rounded bg-slate-200 px-1.5 py-0.2 text-[10px] font-semibold text-slate-700 dark:bg-slate-700 dark:text-slate-300">
                       {buyerTaxStatus === "EXEMPT" ? "Exempt" : buyerTaxStatus === "REGISTERED" ? "Taxpayer" : "Non-taxpayer"}
                     </span>
@@ -1239,10 +1352,26 @@ export default function CreateSalePage() {
                     )
                   ) : (
                     <span className="text-[10px] text-slate-500">
-                      Walk-in
+                      {fbrInvoiceType === "DIGITAL_INVOICING" ? "Registration Required" : "Walk-in"}
                     </span>
                   )}
                 </div>
+
+                {fbrInvoiceType === "DIGITAL_INVOICING" && !customerId && (
+                  <div className="mt-1 flex items-center justify-between rounded-lg border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+                    <span>⚠️ Digital Invoicing requires a registered customer with NTN or CNIC.</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCustomerSaveError(null);
+                        setIsAddCustomerModalOpen(true);
+                      }}
+                      className="font-bold underline text-blue-700 dark:text-blue-400 shrink-0 ml-2"
+                    >
+                      + Register Buyer
+                    </button>
+                  </div>
+                )}
 
                 {fieldErrors["customer"] && (
                   <p className="text-[10px] font-semibold text-rose-500 mt-1">
@@ -1250,8 +1379,8 @@ export default function CreateSalePage() {
                   </p>
                 )}
 
-                {/* Walk-in Customer Details: ONLY displayed when Partial / Credit Sale has remaining balance */}
-                {!customerId && remainingReceivable > 0 && (
+                {/* Walk-in Customer Details: ONLY displayed when Partial / Credit Sale has remaining balance in POS mode */}
+                {!customerId && remainingReceivable > 0 && fbrInvoiceType !== "DIGITAL_INVOICING" && (
                   <div className="mt-2 rounded-xl border border-amber-300 bg-amber-50/80 p-3 text-xs space-y-2.5 transition animate-in fade-in dark:border-amber-800 dark:bg-amber-950/40 shadow-xs">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-1.5 font-bold text-slate-800 dark:text-slate-200">
@@ -1327,7 +1456,9 @@ export default function CreateSalePage() {
                   onChange={(e) => handleBuyerTaxStatusChange(e.target.value as BuyerTaxStatus)}
                   className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 focus:border-blue-500 focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200"
                 >
-                  <option value="EXEMPT">{t("Exempt / Regular Consumer (0% Tax)", "عام کسٹمر / چھوٹ (0% Tax)")}</option>
+                  {fbrInvoiceType !== "DIGITAL_INVOICING" && (
+                    <option value="EXEMPT">{t("Exempt / Regular Consumer (0% Tax)", "عام کسٹمر / چھوٹ (0% Tax)")}</option>
+                  )}
                   <option value="REGISTERED">{t("Registered Taxpayer (18% Sales Tax)", "رجسٹرڈ ٹیکس دہندہ (18% Sales Tax)")}</option>
                   <option value="UNREGISTERED">{t("Unregistered Business (18% + 3% Further Tax)", "غیر رجسٹرڈ بزنس (18% + 3% Further Tax)")}</option>
                 </select>
@@ -2399,8 +2530,8 @@ export default function CreateSalePage() {
       <Modal
         isOpen={isAddCustomerModalOpen}
         onClose={() => setIsAddCustomerModalOpen(false)}
-        title="+ Register New Customer"
-        description="Add a new client/buyer profile and immediately select them for this sales invoice"
+        title="+ Register New Customer (Digital Invoicing Ready)"
+        description="Add a verified client profile with NTN/CNIC tax credentials and immediately select them for this sales invoice"
       >
         <form onSubmit={handleSaveCustomer} className="space-y-4">
           {customerSaveError && (
@@ -2410,10 +2541,16 @@ export default function CreateSalePage() {
             </div>
           )}
 
+          {fbrInvoiceType === "DIGITAL_INVOICING" && (
+            <div className="rounded-xl border border-blue-200 bg-blue-50/70 p-3 text-xs text-blue-900 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-200">
+              <span className="font-bold">🌐 FBR Digital Invoicing Requirement:</span> Walk-in / anonymous buyers are prohibited. Register the legal customer/business name along with either a 7-8 digit NTN (for registered) or 13-digit CNIC (for unregistered), and tax jurisdiction province.
+            </div>
+          )}
+
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="sm:col-span-2">
+            <div>
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-                Customer / Person Name <span className="text-rose-500">*</span>
+                Customer / Contact Person <span className="text-rose-500">*</span>
               </label>
               <input
                 type="text"
@@ -2427,24 +2564,90 @@ export default function CreateSalePage() {
 
             <div>
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-                Business / Shop Name
+                Business / Company Name
               </label>
               <input
                 type="text"
                 value={newCustomerForm.businessName}
                 onChange={(e) => setNewCustomerForm({ ...newCustomerForm, businessName: e.target.value })}
-                placeholder="e.g. Mehmood Telecom"
+                placeholder="e.g. Mehmood Traders"
                 className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-800 focus:border-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
               />
             </div>
 
             <div>
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-                Phone Number <span className="text-rose-500">*</span>
+                Buyer Tax Status <span className="text-rose-500">*</span>
+              </label>
+              <select
+                value={newCustomerForm.taxStatus}
+                onChange={(e) => setNewCustomerForm({ ...newCustomerForm, taxStatus: e.target.value as BuyerTaxStatus })}
+                className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-800 focus:border-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+              >
+                <option value="UNREGISTERED">Unregistered Buyer (CNIC Required)</option>
+                <option value="REGISTERED">Sales Tax Registered (NTN Required)</option>
+                {fbrInvoiceType !== "DIGITAL_INVOICING" && (
+                  <option value="EXEMPT">Exempt Supplies (0% Tax)</option>
+                )}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                Province (FBR Jurisdiction) <span className="text-rose-500">*</span>
+              </label>
+              <select
+                value={newCustomerForm.province}
+                onChange={(e) => setNewCustomerForm({ ...newCustomerForm, province: e.target.value })}
+                className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-800 focus:border-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+              >
+                <option value="Sindh">Sindh</option>
+                <option value="Punjab">Punjab</option>
+                <option value="Khyber Pakhtunkhwa">Khyber Pakhtunkhwa</option>
+                <option value="Balochistan">Balochistan</option>
+                <option value="Islamabad Capital Territory">Islamabad Capital Territory</option>
+                <option value="Gilgit-Baltistan">Gilgit-Baltistan</option>
+                <option value="Azad Jammu & Kashmir">Azad Jammu & Kashmir</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                {newCustomerForm.taxStatus === "REGISTERED"
+                  ? "NTN Number (7-8 digits) *"
+                  : "NTN (Optional if CNIC provided)"}
               </label>
               <input
                 type="text"
-                required
+                value={newCustomerForm.ntn}
+                onChange={(e) => setNewCustomerForm({ ...newCustomerForm, ntn: e.target.value })}
+                placeholder="e.g. 1234567-8"
+                className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-800 focus:border-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                {newCustomerForm.taxStatus === "UNREGISTERED" && fbrInvoiceType === "DIGITAL_INVOICING"
+                  ? "CNIC (13 digits without dashes) *"
+                  : "CNIC (13 digits without dashes)"}
+              </label>
+              <input
+                type="text"
+                value={newCustomerForm.cnic}
+                onChange={(e) => setNewCustomerForm({ ...newCustomerForm, cnic: e.target.value })}
+                placeholder="e.g. 4210112345671"
+                maxLength={15}
+                className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-800 focus:border-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                Phone Number
+              </label>
+              <input
+                type="text"
                 value={newCustomerForm.phone}
                 onChange={(e) => setNewCustomerForm({ ...newCustomerForm, phone: e.target.value })}
                 placeholder="0300 1234567"
@@ -2454,35 +2657,20 @@ export default function CreateSalePage() {
 
             <div>
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-                Buyer Tax Status
-              </label>
-              <select
-                value={newCustomerForm.taxStatus}
-                onChange={(e) => setNewCustomerForm({ ...newCustomerForm, taxStatus: e.target.value as BuyerTaxStatus })}
-                className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-800 focus:border-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-              >
-                <option value="UNREGISTERED">Unregistered Buyer (18% + 3% Further Tax)</option>
-                <option value="REGISTERED">Registered Taxpayer (18% Sales Tax)</option>
-                <option value="EXEMPT">Exempt Supplies (0% Tax)</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-                NTN / CNIC Number
+                Email
               </label>
               <input
-                type="text"
-                value={newCustomerForm.ntn}
-                onChange={(e) => setNewCustomerForm({ ...newCustomerForm, ntn: e.target.value })}
-                placeholder="e.g. 1234567-8 or 42101-xxxxxxx-x"
+                type="email"
+                value={newCustomerForm.email}
+                onChange={(e) => setNewCustomerForm({ ...newCustomerForm, email: e.target.value })}
+                placeholder="buyer@domain.com"
                 className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-800 focus:border-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
               />
             </div>
 
             <div className="sm:col-span-2">
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-                Address / City
+                Complete Business Address
               </label>
               <input
                 type="text"
