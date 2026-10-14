@@ -769,20 +769,21 @@ export default function FbrCompliancePage() {
     document.body.removeChild(link);
   };
 
-  // FBR Sandbox 12 Scenarios Definitions
+  // FBR Sandbox Scenarios Definitions
   const SCENARIO_DEFS = [
-    { id: "SN001", name: "Standard Rate (Registered)", saleType: "Goods at standard rate (default)", rate: "18%", hsCode: "8517.13.00", sector: "General B2B", desc: "Goods at standard 18% rate to active registered taxpayer (B2B)." },
-    { id: "SN002", name: "Standard Rate (Unregistered)", saleType: "Goods at standard rate (default)", rate: "18% + 3%", hsCode: "8517.13.00", sector: "Retail B2C", desc: "Goods at standard 18% rate + 3% Further Tax to unregistered consumer with CNIC." },
-    { id: "SN003", name: "Steel Melting and Re-rolling", saleType: "Steel melting and re-rolling", rate: "18%", hsCode: "7207.1100", sector: "Steel Sector", desc: "Sale of steel billets and re-rolled bars under steel sector." },
-    { id: "SN004", name: "Ship Breaking", saleType: "Ship breaking", rate: "18%", hsCode: "7204.4900", sector: "Ship Breaking", desc: "Sale of scrap and ferrous metal by ship breakers." },
+    { id: "SN001", name: "Standard Rate (Registered)", saleType: "Goods at standard rate (default)", rate: "18%", hsCode: "8517.1300", sector: "General B2B", desc: "Goods at standard 18% rate to active registered taxpayer (B2B)." },
+    { id: "SN002", name: "Standard Rate (Unregistered)", saleType: "Goods at standard rate (default)", rate: "18% + 3%", hsCode: "8517.1300", sector: "Retail B2C", desc: "Goods at standard 18% rate + 3% Further Tax to unregistered consumer with CNIC." },
+    { id: "SN003", name: "Steel Melting and Re-rolling", saleType: "Steel melting and re-rolling", rate: "18%", hsCode: "7207.1210", sector: "Steel Sector", desc: "Sale of steel billets and re-rolled bars under steel sector." },
+    { id: "SN004", name: "Ship Breaking", saleType: "Ship breaking", rate: "18%", hsCode: "8908.0000", sector: "Ship Breaking", desc: "Sale of scrap and vessels by ship breakers." },
     { id: "SN005", name: "Goods at Reduced Rate", saleType: "Goods at Reduced Rate", rate: "10%", hsCode: "8471.3010", sector: "Eighth Schedule", desc: "Concessional reduced rate under Eighth Schedule to Sales Tax Act." },
-    { id: "SN006", name: "Exempt Goods", saleType: "Exempt Goods", rate: "0%", hsCode: "1006.1000", sector: "Sixth Schedule", desc: "Statutory tax-exempt supplies under Sixth Schedule." },
+    { id: "SN006", name: "Exempt Goods", saleType: "Exempt goods", rate: "Exempt", hsCode: "1001.1900", sector: "Sixth Schedule", desc: "Statutory tax-exempt supplies under Sixth Schedule." },
     { id: "SN007", name: "Goods at Zero-Rate", saleType: "Goods at zero-rate", rate: "0%", hsCode: "5208.1100", sector: "Fifth Schedule", desc: "Zero-rated export or concessional items under Fifth Schedule." },
-    { id: "SN008", name: "3rd Schedule Goods (Retail Price)", saleType: "3rd Schedule Goods", rate: "18%", hsCode: "3401.1100", sector: "FMCG / Retail", desc: "Consumer packaged goods taxed on printed retail price." },
-    { id: "SN009", name: "Cotton Ginners (Textile)", saleType: "Cotton Ginners", rate: "18%", hsCode: "5201.0000", sector: "Textile Sector", desc: "Raw cotton and textile ginned material transactions." },
+    { id: "SN008", name: "3rd Schedule Goods (Retail Price)", saleType: " 3rd Schedule Goods ", rate: "18%", hsCode: "3401.1100", sector: "FMCG / Retail", desc: "Consumer packaged goods taxed on printed retail price." },
+    { id: "SN009", name: "Cotton Ginners (Textile)", saleType: "Cotton ginners", rate: "18%", hsCode: "5201.0090", sector: "Textile Sector", desc: "Raw cotton and textile ginned material transactions." },
     { id: "SN010", name: "Telecommunication Services", saleType: "Telecommunication services", rate: "19.5%", hsCode: "9812.0000", sector: "Telecom Sector", desc: "Telecommunication transmission services and data charges." },
-    { id: "SN011", name: "Toll Manufacturing", saleType: "Toll Manufacturing", rate: "18%", hsCode: "7207.1100", sector: "Toll Processing", desc: "Toll manufacturing job work processing services." },
-    { id: "SN012", name: "Petroleum Products", saleType: "Petroleum Products", rate: "18%", hsCode: "2710.1210", sector: "POL / Petroleum", desc: "Refined petroleum and fuel supplies." },
+    { id: "SN011", name: "Toll Manufacturing", saleType: "Toll Manufacturing", rate: "18%", hsCode: "7207.1210", sector: "Toll Processing", desc: "Toll manufacturing job work processing services." },
+    { id: "SN012", name: "Petroleum Products", saleType: "Petroleum Products", rate: "18%", hsCode: "2710.1210", sector: "POL / Petroleum", desc: "Refined petroleum and light diesel oil supplies." },
+    { id: "SN013", name: "Electricity Supply to Retailers", saleType: "Electricity Supply to Retailers", rate: "5%", hsCode: "2716.0000", sector: "Power / Utility", desc: "Electricity supplies to tier-1 and unregistered retailers." },
   ];
 
   useEffect(() => {
@@ -1270,7 +1271,7 @@ export default function FbrCompliancePage() {
                 }`}
               >
                 <FileSpreadsheet className="h-3.5 w-3.5" />
-                <span>Sandbox Scenarios ({passedScenarios.length}/12)</span>
+                <span>Sandbox Scenarios ({passedScenarios.length}/{SCENARIO_DEFS.length})</span>
               </button>
             )}
           </div>
@@ -1355,14 +1356,14 @@ export default function FbrCompliancePage() {
                     FBR Digital Invoicing Sandbox
                   </span>
                   <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
-                    {passedScenarios.length} / 12 Scenarios Certified
+                    {passedScenarios.length} / {SCENARIO_DEFS.length} Scenarios Certified
                   </span>
                 </div>
                 <h3 className="text-base font-bold text-slate-900">
                   FBR Sandbox Scenario Certification & Production Clearance
                 </h3>
                 <p className="text-xs text-slate-600 max-w-2xl">
-                  FBR PRAL requires businesses to clear all 12 test scenarios (SN001 - SN012) in the Sandbox environment before activating live Production API credentials. Click individual scenarios or run the automated test suite below.
+                  FBR PRAL requires businesses to clear all test scenarios ({SCENARIO_DEFS.map(s => s.id).join(", ")}) in the Sandbox environment before activating live Production API credentials. Click individual scenarios or run the automated test suite below.
                 </p>
               </div>
 
@@ -1370,16 +1371,16 @@ export default function FbrCompliancePage() {
                 <button
                   type="button"
                   onClick={handleAutoCertifyAll}
-                  disabled={isAutoCertifying || transmittingScenario !== null || passedScenarios.length === 12}
+                  disabled={isAutoCertifying || transmittingScenario !== null || passedScenarios.length >= SCENARIO_DEFS.length}
                   className="px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white font-bold text-xs shadow-md transition flex items-center gap-2 cursor-pointer"
                 >
                   <Zap className={`h-4 w-4 ${isAutoCertifying ? "animate-spin" : ""}`} />
                   <span>
                     {isAutoCertifying
                       ? "Auto-Certifying Pending Scenarios..."
-                      : passedScenarios.length === 12
-                      ? "All 12 Scenarios Passed! 🎉"
-                      : `⚡ Auto-Certify Remaining (${12 - passedScenarios.length})`}
+                      : passedScenarios.length >= SCENARIO_DEFS.length
+                      ? "All Scenarios Passed! 🎉"
+                      : `⚡ Auto-Certify Remaining (${Math.max(0, SCENARIO_DEFS.length - passedScenarios.length)})`}
                   </span>
                 </button>
               </div>
@@ -1388,13 +1389,13 @@ export default function FbrCompliancePage() {
             {/* Progress Bar */}
             <div className="space-y-1.5">
               <div className="flex justify-between text-xs font-semibold text-slate-600">
-                <span>Certification Progress</span>
-                <span>{Math.round((passedScenarios.length / 12) * 100)}% Complete</span>
+                <span>Certification Progress ({passedScenarios.length} / {SCENARIO_DEFS.length} Scenarios Certified)</span>
+                <span>{Math.min(100, Math.round((passedScenarios.length / SCENARIO_DEFS.length) * 100))}% Complete</span>
               </div>
               <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden border border-slate-200">
                 <div
                   className="bg-gradient-to-r from-purple-500 to-emerald-500 h-3 rounded-full transition-all duration-500"
-                  style={{ width: `${Math.round((passedScenarios.length / 12) * 100)}%` }}
+                  style={{ width: `${Math.min(100, Math.round((passedScenarios.length / SCENARIO_DEFS.length) * 100))}%` }}
                 />
               </div>
             </div>

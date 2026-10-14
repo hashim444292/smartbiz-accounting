@@ -96,6 +96,9 @@ export interface FbrScenarioDefinition {
   uoM: string;
   sroScheduleNo?: string;
   sroItemSerialNo?: string;
+  minUnitPrice?: number;
+  petroleumLevyOn?: string;
+  petroleumLevy?: number;
   description: string;
 }
 
@@ -107,9 +110,10 @@ export const FBR_DI_SCENARIOS: Record<string, FbrScenarioDefinition> = {
     defaultRate: 18,
     rateString: "18%",
     buyerType: "REGISTERED",
-    hsCode: "8517.13.00",
+    hsCode: "8517.1300",
     productDescription: "Standard Rate Goods to Registered Buyer",
     uoM: "Numbers, pieces, units",
+    minUnitPrice: 1000,
     description: "Goods at standard 18% rate to active registered person (B2B).",
   },
   SN002: {
@@ -119,9 +123,10 @@ export const FBR_DI_SCENARIOS: Record<string, FbrScenarioDefinition> = {
     defaultRate: 18,
     rateString: "18%",
     buyerType: "UNREGISTERED",
-    hsCode: "8517.13.00",
+    hsCode: "8517.1300",
     productDescription: "Standard Rate Goods to Unregistered Consumer",
     uoM: "Numbers, pieces, units",
+    minUnitPrice: 1000,
     description: "Goods at standard 18% rate + 3% Further Tax to unregistered consumer (B2C).",
   },
   SN003: {
@@ -131,9 +136,10 @@ export const FBR_DI_SCENARIOS: Record<string, FbrScenarioDefinition> = {
     defaultRate: 18,
     rateString: "18%",
     buyerType: "REGISTERED",
-    hsCode: "7207.1100",
-    productDescription: "Steel Billets / Re-rolled Bars",
+    hsCode: "7207.1210",
+    productDescription: "Steel Billets",
     uoM: "MT",
+    minUnitPrice: 173000,
     description: "Sale of steel products under steel melting and re-rolling sector.",
   },
   SN004: {
@@ -143,9 +149,10 @@ export const FBR_DI_SCENARIOS: Record<string, FbrScenarioDefinition> = {
     defaultRate: 18,
     rateString: "18%",
     buyerType: "REGISTERED",
-    hsCode: "7204.4900",
-    productDescription: "Ship Scrap Ferrous Metal",
+    hsCode: "8908.0000",
+    productDescription: "Vessel For Breaking Up",
     uoM: "MT",
+    minUnitPrice: 180000,
     description: "Sale of scrap and steel items by ship breakers.",
   },
   SN005: {
@@ -156,24 +163,26 @@ export const FBR_DI_SCENARIOS: Record<string, FbrScenarioDefinition> = {
     rateString: "10%",
     buyerType: "REGISTERED",
     hsCode: "8471.3010",
-    productDescription: "Reduced Rate Concession Items",
+    productDescription: "Laptop Computer",
     uoM: "Numbers, pieces, units",
-    sroScheduleNo: "Table-1 (Eighth Schedule)",
+    sroScheduleNo: "EIGHTH SCHEDULE Table 1",
     sroItemSerialNo: "1",
+    minUnitPrice: 50000,
     description: "Sales tax at reduced rate under the Eighth Schedule.",
   },
   SN006: {
     id: "SN006",
     name: "Exempt Goods",
-    saleType: "Exempt Goods",
+    saleType: "Exempt goods",
     defaultRate: 0,
-    rateString: "0%",
+    rateString: "Exempt",
     buyerType: "REGISTERED",
-    hsCode: "1006.1000",
-    productDescription: "Sixth Schedule Exempt Supplies",
-    uoM: "Kg",
-    sroScheduleNo: "Table-1 (Sixth Schedule)",
+    hsCode: "1001.1900",
+    productDescription: "Exempt Agricultural Produce",
+    uoM: "KG",
+    sroScheduleNo: "Sixth Schedule Table 1",
     sroItemSerialNo: "1",
+    minUnitPrice: 5000,
     description: "Exempt goods supply under the Sixth Schedule.",
   },
   SN007: {
@@ -184,34 +193,37 @@ export const FBR_DI_SCENARIOS: Record<string, FbrScenarioDefinition> = {
     rateString: "0%",
     buyerType: "REGISTERED",
     hsCode: "5208.1100",
-    productDescription: "Fifth Schedule Zero-Rated Supplies",
-    uoM: "Mtr",
+    productDescription: "Woven Fabrics of Cotton",
+    uoM: "Meter",
     sroScheduleNo: "Fifth Schedule",
-    sroItemSerialNo: "1",
+    sroItemSerialNo: "2",
+    minUnitPrice: 20000,
     description: "Zero-rated export or concessional goods under the Fifth Schedule.",
   },
   SN008: {
     id: "SN008",
     name: "3rd Schedule Goods (Retail Price)",
-    saleType: "3rd Schedule Goods",
+    saleType: " 3rd Schedule Goods ",
     defaultRate: 18,
     rateString: "18%",
     buyerType: "REGISTERED",
     hsCode: "3401.1100",
-    productDescription: "Printed Retail Price Consumer Goods",
-    uoM: "Numbers, pieces, units",
+    productDescription: "Toilet Soap FMCG",
+    uoM: "KG",
+    minUnitPrice: 1000,
     description: "Consumer FMCG items taxed on printed retail price.",
   },
   SN009: {
     id: "SN009",
     name: "Cotton Ginners (Textile)",
-    saleType: "Cotton Ginners",
+    saleType: "Cotton ginners",
     defaultRate: 18,
     rateString: "18%",
     buyerType: "REGISTERED",
-    hsCode: "5201.0000",
-    productDescription: "Raw Cotton Ginned / Textile Raw Material",
-    uoM: "Kg",
+    hsCode: "5201.0090",
+    productDescription: "Raw Cotton Ginned",
+    uoM: "KG",
+    minUnitPrice: 20000,
     description: "Cotton spinners and ginners textile sector transactions.",
   },
   SN010: {
@@ -222,8 +234,9 @@ export const FBR_DI_SCENARIOS: Record<string, FbrScenarioDefinition> = {
     rateString: "19.5%",
     buyerType: "REGISTERED",
     hsCode: "9812.0000",
-    productDescription: "Data & Telecom Transmission Services",
+    productDescription: "Data and Internet Bandwidth",
     uoM: "Numbers, pieces, units",
+    minUnitPrice: 10000,
     description: "Telecom sector services and bandwidth charges.",
   },
   SN011: {
@@ -233,9 +246,10 @@ export const FBR_DI_SCENARIOS: Record<string, FbrScenarioDefinition> = {
     defaultRate: 18,
     rateString: "18%",
     buyerType: "REGISTERED",
-    hsCode: "7207.1100",
-    productDescription: "Toll Manufacturing Job Processing",
+    hsCode: "7207.1210",
+    productDescription: "Steel Billets Toll Job",
     uoM: "MT",
+    minUnitPrice: 173000,
     description: "Toll manufacturing job work processing services.",
   },
   SN012: {
@@ -246,9 +260,25 @@ export const FBR_DI_SCENARIOS: Record<string, FbrScenarioDefinition> = {
     rateString: "18%",
     buyerType: "REGISTERED",
     hsCode: "2710.1210",
-    productDescription: "Refined Petroleum Oil & Fuels",
-    uoM: "Ltr",
+    productDescription: "Light Diesel Oil",
+    uoM: "Liter",
+    minUnitPrice: 30000,
+    petroleumLevyOn: "Quantity",
+    petroleumLevy: 0,
     description: "Petroleum and POL products supply.",
+  },
+  SN013: {
+    id: "SN013",
+    name: "Electricity Supply to Retailers",
+    saleType: "Electricity Supply to Retailers",
+    defaultRate: 5,
+    rateString: "5%",
+    buyerType: "REGISTERED",
+    hsCode: "2716.0000",
+    productDescription: "Electrical Energy Electricity Units",
+    uoM: "KWH",
+    minUnitPrice: 1000,
+    description: "Electricity supply to tier-1 and unregistered retailers under special regime.",
   },
 };
 
@@ -1017,12 +1047,12 @@ export async function executeTransmitScenarioTest(
   const buyerRegistrationType: "Registered" | "Unregistered" = isUnregistered ? "Unregistered" : "Registered";
 
   const qty = 1;
-  const unitPrice = 1000;
-  const lineSubtotal = 1000;
+  const unitPrice = scenario.minUnitPrice ?? 1000;
+  const lineSubtotal = unitPrice;
   const rateVal = scenario.defaultRate;
   const isZeroOrExempt = scenarioId === "SN006" || scenarioId === "SN007";
   const taxAmountVal = isZeroOrExempt ? 0 : round2(lineSubtotal * (rateVal / 100)).toNumber();
-  const furtherTaxVal = isUnregistered ? 30 : 0;
+  const furtherTaxVal = isUnregistered ? round2(lineSubtotal * 0.03).toNumber() : 0;
   const totalLineValue = round2(lineSubtotal + taxAmountVal + furtherTaxVal).toNumber();
 
   const item: FbrDigitalInvoiceItem = {
@@ -1044,6 +1074,11 @@ export async function executeTransmitScenarioTest(
     saleType: scenario.saleType,
     sroItemSerialNo: scenario.sroItemSerialNo || "",
   };
+
+  if (scenario.petroleumLevyOn !== undefined) {
+    (item as any).petroleumLevyOn = scenario.petroleumLevyOn;
+    (item as any).petroleumLevy = scenario.petroleumLevy ?? 0;
+  }
 
   const timestampSuffix = Date.now().toString().slice(-6);
   const invoiceRefNo = `TEST-${scenarioId}-${timestampSuffix}`;
