@@ -550,7 +550,7 @@ describe("FBR Digital Invoicing Statutory Rules & Customer Validation", () => {
   describe("FBR Sandbox Scenarios Certification Engine", () => {
     it("should have all scenarios defined with exact PRAL saleType specifications", async () => {
       const { FBR_DI_SCENARIOS } = await import("@/services/fbrService");
-      expect(Object.keys(FBR_DI_SCENARIOS).length).toBe(13);
+      expect(Object.keys(FBR_DI_SCENARIOS).length).toBe(19);
 
       expect(FBR_DI_SCENARIOS.SN001.saleType).toBe("Goods at standard rate (default)");
       expect(FBR_DI_SCENARIOS.SN002.saleType).toBe("Goods at standard rate (default)");
@@ -565,6 +565,12 @@ describe("FBR Digital Invoicing Statutory Rules & Customer Validation", () => {
       expect(FBR_DI_SCENARIOS.SN011.saleType).toBe("Toll Manufacturing");
       expect(FBR_DI_SCENARIOS.SN012.saleType).toBe("Petroleum Products");
       expect(FBR_DI_SCENARIOS.SN013.saleType).toBe("Electricity Supply to Retailers");
+      expect(FBR_DI_SCENARIOS.SN016.saleType).toBe("Processing/Conversion of Goods");
+      expect(FBR_DI_SCENARIOS.SN017.saleType).toBe("Goods (FED in ST Mode)");
+      expect(FBR_DI_SCENARIOS.SN024.saleType).toBe("Goods as per SRO.297(|)/2023");
+      expect(FBR_DI_SCENARIOS.SN026.saleType).toBe("Goods at standard rate (default)");
+      expect(FBR_DI_SCENARIOS.SN027.saleType.trim()).toBe("3rd Schedule Goods");
+      expect(FBR_DI_SCENARIOS.SN028.saleType).toBe("Goods at Reduced Rate");
     });
 
     it("should return all scenarios via /api/compliance/fbr action: get_scenarios", async () => {
@@ -579,10 +585,11 @@ describe("FBR Digital Invoicing Statutory Rules & Customer Validation", () => {
 
       expect(res.status).toBe(200);
       expect(data.success).toBe(true);
-      expect(data.scenarios.length).toBe(13);
+      expect(data.scenarios.length).toBe(19);
       expect(data.scenarios.map((s: any) => s.id)).toEqual([
         "SN001", "SN002", "SN003", "SN004", "SN005", "SN006",
         "SN007", "SN008", "SN009", "SN010", "SN011", "SN012", "SN013",
+        "SN016", "SN017", "SN024", "SN026", "SN027", "SN028",
       ]);
     });
 

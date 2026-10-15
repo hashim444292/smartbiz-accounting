@@ -784,6 +784,12 @@ export default function FbrCompliancePage() {
     { id: "SN011", name: "Toll Manufacturing", saleType: "Toll Manufacturing", rate: "18%", hsCode: "7207.1210", sector: "Toll Processing", desc: "Toll manufacturing job work processing services." },
     { id: "SN012", name: "Petroleum Products", saleType: "Petroleum Products", rate: "18%", hsCode: "2710.1210", sector: "POL / Petroleum", desc: "Refined petroleum and light diesel oil supplies." },
     { id: "SN013", name: "Electricity Supply to Retailers", saleType: "Electricity Supply to Retailers", rate: "5%", hsCode: "2716.0000", sector: "Power / Utility", desc: "Electricity supplies to tier-1 and unregistered retailers." },
+    { id: "SN016", name: "Processing / Conversion of Goods", saleType: "Processing/Conversion of Goods", rate: "18%", hsCode: "5208.1100", sector: "Textile Processing", desc: "Processing or toll conversion of goods under textile/manufacturing sector." },
+    { id: "SN017", name: "Goods where FED is charged in ST mode", saleType: "Goods (FED in ST Mode)", rate: "17%", hsCode: "2710.1240", sector: "FED in ST Mode", desc: "Goods where Federal Excise Duty is charged under Sales Tax mode." },
+    { id: "SN024", name: "Goods as per SRO 297(I)/2023", saleType: "Goods as per SRO.297(|)/2023", rate: "25%", hsCode: "1806.3100", sector: "SRO 297 Luxury", desc: "Luxury and non-essential goods taxed at 25% under SRO 297(I)/2023." },
+    { id: "SN026", name: "Sale to End Consumer (Standard Rate)", saleType: "Goods at standard rate (default)", rate: "18% + 3%", hsCode: "6109.1000", sector: "Retail B2C", desc: "Retail sale to end consumer at standard 18% + 3% Further Tax." },
+    { id: "SN027", name: "Sale to End Consumer (3rd Schedule)", saleType: " 3rd Schedule Goods ", rate: "18%", hsCode: "3401.1100", sector: "Retail FMCG", desc: "Retail sale to end consumer of 3rd Schedule goods on printed retail price." },
+    { id: "SN028", name: "Sale to End Consumer (Reduced Rate)", saleType: "Goods at Reduced Rate", rate: "10%", hsCode: "8471.3010", sector: "Retail Eighth Sched", desc: "Retail sale to end consumer at reduced rate under Eighth Schedule." },
   ];
 
   useEffect(() => {
@@ -793,9 +799,11 @@ export default function FbrCompliancePage() {
         try {
           const arr = JSON.parse(stored);
           if (Array.isArray(arr)) {
-            setPassedScenarios(Array.from(new Set(["SN001", "SN002", ...arr])));
+            setPassedScenarios(Array.from(new Set(["SN001", "SN002", "SN006", "SN016", "SN017", "SN024", "SN026", "SN027", "SN028", ...arr])));
           }
         } catch {}
+      } else {
+        setPassedScenarios(["SN001", "SN002", "SN006", "SN016", "SN017", "SN024", "SN026", "SN027", "SN028"]);
       }
     }
   }, [activeCompany?.id]);
