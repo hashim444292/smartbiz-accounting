@@ -779,6 +779,14 @@ export default function SalesPage() {
             <span>+ Register Customer</span>
           </Link>
 
+          <Link
+            href="/products/create"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50/70 px-3.5 py-2 text-xs font-bold text-emerald-700 hover:bg-emerald-100 shadow-2xs transition dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300"
+          >
+            <Plus className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+            <span>+ Add Product</span>
+          </Link>
+
           <Link href="/sales/create">
             <Button variant="primary" size="md">
               <Plus className="h-4 w-4 mr-1.5" />

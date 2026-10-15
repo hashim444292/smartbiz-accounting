@@ -889,11 +889,20 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
                 <span>+ Customer</span>
               </Link>
               <Link
-                href="/products/create"
+                href="/products"
                 className="hidden sm:inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs transition hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+                title="View Products Catalog & Rates"
               >
                 <Package className="h-3.5 w-3.5 text-slate-500 dark:text-slate-400" />
-                <span>Add Product</span>
+                <span>Products</span>
+              </Link>
+              <Link
+                href="/products/create"
+                className="hidden sm:inline-flex items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50/70 px-3 py-1.5 text-xs font-bold text-emerald-700 shadow-2xs transition hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300"
+                title="Add New Product Item with HS Code & Tax"
+              >
+                <Plus className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                <span>+ Add Product</span>
               </Link>
             </>
           )}

@@ -316,15 +316,21 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
                   return false;
                 }
                 if (isFbrInvoicingOnly) {
-                  // In FBR Invoicing Only, strictly hide Purchases, Stock/Inventory, Cash/Payments, Expenses, AI Scanner (Customers are preserved for DI B2B registration)
+                  // Hide duplicate Customers from STOCK & ACCOUNTS (already present in INVOICING & POS)
+                  if (group.section.includes("STOCK") && item.href === "/customers") {
+                    return false;
+                  }
+                  // Hide accounting ledgers, purchase bills, scanner, warehouse stock and suppliers
                   if (
                     item.moduleKey === "accounting" ||
                     item.moduleKey === "purchases" ||
-                    item.moduleKey === "inventory" ||
-                    item.moduleKey === "aiEntry"
+                    item.moduleKey === "aiEntry" ||
+                    item.href === "/inventory" ||
+                    item.href === "/suppliers"
                   ) {
                     return false;
                   }
+                  // Preserve Products Catalog (/products) and Add Product (/products/create) for invoicing items
                 }
                 if (activeCompany?.enabledModules && !activeCompany.enabledModules.includes(item.moduleKey)) {
                   return false;
@@ -362,11 +368,15 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
                   ? "سیلز رپورٹس و ڈاؤنلوڈ"
                   : isFbrInvoicingOnly && group.section.includes("DAILY")
                   ? "انوائسنگ و بلنگ"
+                  : isFbrInvoicingOnly && group.section.includes("STOCK")
+                  ? "پروڈکٹس کیٹلاگ"
                   : group.sectionUrdu || group.section)
               : (isFbrInvoicingOnly && group.section.includes("REPORTS")
                   ? "REPORTS & FBR"
                   : isFbrInvoicingOnly && group.section.includes("DAILY")
                   ? "INVOICING & POS"
+                  : isFbrInvoicingOnly && group.section.includes("STOCK")
+                  ? "PRODUCTS & CATALOG"
                   : group.section.includes("REPORTS & TAX") && isAccountingOnly
                   ? "REPORTS & LEDGER"
                   : group.section);
@@ -412,8 +422,24 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
                     const active = isItemActive(item.href);
                     const Icon = item.icon;
                     const displayName = language === "ur"
-                      ? (isFbrInvoicingOnly && item.href === "/reports" ? "سیلز رپورٹس و ڈاؤنلوڈ" : (isFbrInvoicingOnly && item.href === "/customers" ? "رجسٹرڈ خریدار (DI)" : (item.nameUrdu || item.name)))
-                      : (isFbrInvoicingOnly && item.href === "/reports" ? "Sales Reports & Downloads" : (isFbrInvoicingOnly && item.href === "/customers" ? "Registered Buyers (DI)" : item.name));
+                      ? (isFbrInvoicingOnly && item.href === "/reports"
+                          ? "سیلز رپورٹس و ڈاؤنلوڈ"
+                          : isFbrInvoicingOnly && item.href === "/customers"
+                          ? "رجسٹرڈ خریدار (DI)"
+                          : isFbrInvoicingOnly && item.href === "/products"
+                          ? "پروڈکٹس کیٹلاگ"
+                          : isFbrInvoicingOnly && item.href === "/products/create"
+                          ? "+ نیا پروڈکٹ شامل کریں"
+                          : (item.nameUrdu || item.name))
+                      : (isFbrInvoicingOnly && item.href === "/reports"
+                          ? "Sales Reports & Downloads"
+                          : isFbrInvoicingOnly && item.href === "/customers"
+                          ? "Registered Buyers (DI)"
+                          : isFbrInvoicingOnly && item.href === "/products"
+                          ? "Products & Rates"
+                          : isFbrInvoicingOnly && item.href === "/products/create"
+                          ? "+ Add Product"
+                          : item.name);
 
                     let itemBadge = item.badge;
                     if (!itemBadge && stockTotals) {
