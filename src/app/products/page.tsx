@@ -41,6 +41,7 @@ export default function ProductsListPage() {
   const [selectedStatus, setSelectedStatus] = useState("ACTIVE");
 
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
 
@@ -90,6 +91,7 @@ export default function ProductsListPage() {
   }, [page, search, selectedCategory, selectedStatus, activeCompany?.id]);
 
   const handleArchive = async (id: string, currentlyArchived: boolean) => {
+    setActionError(null);
     try {
       const endpoint = currentlyArchived
         ? `/api/products/${id}?action=restore`
@@ -99,10 +101,23 @@ export default function ProductsListPage() {
       if (data.success) {
         setActionSuccess(currentlyArchived ? "Product restored to active" : "Product archived");
         setTimeout(() => setActionSuccess(null), 3000);
+        // Optimistically update product status in table immediately
+        setProducts((prev) =>
+          prev.map((p) =>
+            p.id === id
+              ? { ...p, status: currentlyArchived ? "ACTIVE" : "ARCHIVED", isActive: currentlyArchived }
+              : p
+          )
+        );
         loadProducts();
+      } else {
+        setActionError(data.error || "Failed to update product status");
+        setTimeout(() => setActionError(null), 4000);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Archive error:", err);
+      setActionError(err.message || "Network error updating product status");
+      setTimeout(() => setActionError(null), 4000);
     }
   };
 
@@ -217,6 +232,13 @@ export default function ProductsListPage() {
         <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2 animate-in fade-in font-medium">
           <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
           <span>{actionSuccess}</span>
+        </div>
+      )}
+
+      {actionError && (
+        <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center gap-2 animate-in fade-in font-medium">
+          <span className="font-bold">Error:</span>
+          <span>{actionError}</span>
         </div>
       )}
 

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import { formatMoney } from "@/lib/decimal";
 import { Button } from "@/components/ui/button";
@@ -87,20 +87,45 @@ export default function InventoryPage() {
     }
   }, [activeTab, activeCompany?.id, activeBranchId]);
 
-  const safeProducts = Array.isArray(products) ? products : [];
+  const safeProducts = useMemo(() => (Array.isArray(products) ? products : []), [products]);
 
-  const filtered = safeProducts.filter(
-    (p) =>
-      p?.name?.toLowerCase().includes(search.toLowerCase()) ||
-      (p?.sku && p.sku.toLowerCase().includes(search.toLowerCase())) ||
-      (p?.barcode && p.barcode.toLowerCase().includes(search.toLowerCase()))
+  const filtered = useMemo(() => {
+    if (!search.trim()) return safeProducts;
+    const q = search.toLowerCase();
+    return safeProducts.filter(
+      (p) =>
+        p?.name?.toLowerCase().includes(q) ||
+        (p?.sku && p.sku.toLowerCase().includes(q)) ||
+        (p?.barcode && p.barcode.toLowerCase().includes(q))
+    );
+  }, [safeProducts, search]);
+
+  const lowStock = useMemo(
+    () => safeProducts.filter((p) => Number(p?.currentStock || 0) <= Number(p?.minStockLevel || 0)),
+    [safeProducts]
   );
 
-  const lowStock = safeProducts.filter((p) => Number(p?.currentStock || 0) <= Number(p?.minStockLevel || 0));
-  const totalValuation = safeProducts.reduce(
-    (acc, p) => acc + (Number(p?.currentStock || 0) * Number(p?.averageCost || p?.purchasePrice || 0)),
-    0
+  const totalValuation = useMemo(
+    () =>
+      safeProducts.reduce(
+        (acc, p) => acc + Number(p?.currentStock || 0) * Number(p?.averageCost || p?.purchasePrice || 0),
+        0
+      ),
+    [safeProducts]
   );
+
+  const filteredTransactions = useMemo(() => {
+    if (!search.trim()) return transactions;
+    const q = search.toLowerCase();
+    return transactions.filter((t) => {
+      const prodName = (t.product?.name || t.productName || "").toLowerCase();
+      const notes = (t.notes || "").toLowerCase();
+      const reason = (t.reason || "").toLowerCase();
+      const creator = (t.createdByName || "").toLowerCase();
+      const br = (t.branch?.name || t.branchName || "").toLowerCase();
+      return prodName.includes(q) || notes.includes(q) || reason.includes(q) || creator.includes(q) || br.includes(q);
+    });
+  }, [transactions, search]);
 
   const exportCSV = () => {
     const headers = "Product Name,SKU,Barcode,Current Stock,Unit,Average Cost,Selling Price,Total Valuation\n";
@@ -266,34 +291,14 @@ export default function InventoryPage() {
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {txLoading ? (
                   <TableRowsSkeleton rows={6} cols={7} />
-                ) : transactions.filter((t) => {
-                    if (!search.trim()) return true;
-                    const q = search.toLowerCase();
-                    const prodName = (t.product?.name || t.productName || "").toLowerCase();
-                    const notes = (t.notes || "").toLowerCase();
-                    const reason = (t.reason || "").toLowerCase();
-                    const creator = (t.createdByName || "").toLowerCase();
-                    const br = (t.branch?.name || t.branchName || "").toLowerCase();
-                    return prodName.includes(q) || notes.includes(q) || reason.includes(q) || creator.includes(q) || br.includes(q);
-                  }).length === 0 ? (
+                ) : filteredTransactions.length === 0 ? (
                   <tr>
                     <td colSpan={7} className="py-8 text-center text-xs text-slate-400">
                       No stock movement transactions recorded yet.
                     </td>
                   </tr>
                 ) : (
-                  transactions
-                    .filter((t) => {
-                      if (!search.trim()) return true;
-                      const q = search.toLowerCase();
-                      const prodName = (t.product?.name || t.productName || "").toLowerCase();
-                      const notes = (t.notes || "").toLowerCase();
-                      const reason = (t.reason || "").toLowerCase();
-                      const creator = (t.createdByName || "").toLowerCase();
-                      const br = (t.branch?.name || t.branchName || "").toLowerCase();
-                      return prodName.includes(q) || notes.includes(q) || reason.includes(q) || creator.includes(q) || br.includes(q);
-                    })
-                    .map((t) => {
+                  filteredTransactions.map((t) => {
                       const isPositive = Number(t.quantity || 0) > 0;
                       const isAdj = t.type === "ADJUSTMENT";
                       const isDamage = t.type === "DAMAGE";

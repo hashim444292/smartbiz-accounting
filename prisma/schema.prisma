@@ -173,6 +173,7 @@ model BusinessMember {
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([businessId, userId])
+  @@index([userId])
 }
 
 model Customer {
@@ -322,6 +323,8 @@ model Product {
   @@index([businessId, name])
   @@index([businessId, sku])
   @@index([businessId, barcode])
+  @@index([businessId, categoryId])
+  @@index([businessId, status])
 }
 
 model InventoryTransaction {
@@ -411,6 +414,9 @@ model Sale {
   @@unique([businessId, invoiceNumber])
   @@index([businessId, date])
   @@index([businessId, branchId])
+  @@index([businessId, customerId])
+  @@index([businessId, status])
+  @@index([businessId, fbrStatus])
 }
 
 model SaleItem {
@@ -430,6 +436,9 @@ model SaleItem {
 
   sale        Sale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
   product     Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@index([saleId])
+  @@index([productId])
 }
 
 model Purchase {
@@ -469,6 +478,7 @@ model Purchase {
   @@unique([businessId, purchaseNumber])
   @@index([businessId, date])
   @@index([businessId, branchId])
+  @@index([businessId, supplierId])
 }
 
 model PurchaseItem {
@@ -486,6 +496,9 @@ model PurchaseItem {
 
   purchase    Purchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
   product     Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@index([purchaseId])
+  @@index([productId])
 }
 
 model Payment {
@@ -531,6 +544,10 @@ model PaymentAllocation {
   payment      Payment   @relation(fields: [paymentId], references: [id], onDelete: Cascade)
   sale         Sale?     @relation(fields: [saleId], references: [id], onDelete: Cascade)
   purchase     Purchase? @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+
+  @@index([paymentId])
+  @@index([saleId])
+  @@index([purchaseId])
 }
 
 model ExpenseCategory {
@@ -595,6 +612,7 @@ model Account {
   cashBank    CashBankAccount?
 
   @@unique([businessId, code])
+  @@index([businessId, type])
 }
 
 model JournalEntry {
@@ -627,6 +645,9 @@ model JournalLine {
 
   journalEntry   JournalEntry @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
   account        Account      @relation(fields: [accountId], references: [id], onDelete: Restrict)
+
+  @@index([journalEntryId])
+  @@index([accountId])
 }
 
 model CashBankAccount {
@@ -744,6 +765,8 @@ model AuditLog {
   user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([businessId, createdAt])
+  @@index([businessId, entity, entityId])
+  @@index([businessId, userId])
 }
 
 model AppSetting {

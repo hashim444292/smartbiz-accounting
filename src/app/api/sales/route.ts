@@ -93,11 +93,20 @@ export async function POST(req: NextRequest) {
     if (body.directTransmit === true && sale.paymentStatus === "PAID") {
       try {
         const { transmitSaleToFbr } = await import("@/services/fbrService");
-        const fbrResult = await transmitSaleToFbr(sale.id);
+        const fbrPromise = transmitSaleToFbr(sale.id);
+        const timeoutPromise = new Promise<{ timeout: true }>((resolve) =>
+          setTimeout(() => resolve({ timeout: true }), 3500)
+        );
+        const result = await Promise.race([fbrPromise, timeoutPromise]);
+        if ("timeout" in result) {
+          console.warn(`[FBR] Direct transmit for sale ${sale.id} timed out after 3.5s. Continuing asynchronously.`);
+          fbrPromise.catch((err) => console.warn("[FBR Background Transmit Error]:", err));
+          return NextResponse.json({ success: true, data: sale, fbrStatus: "QUEUED" });
+        }
         return NextResponse.json({
           success: true,
-          data: fbrResult.sale || sale,
-          fbr: fbrResult,
+          data: result.sale || sale,
+          fbr: result,
         });
       } catch (fbrErr) {
         console.warn("FBR direct transmit notification:", fbrErr);

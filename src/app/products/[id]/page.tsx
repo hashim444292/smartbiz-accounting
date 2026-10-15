@@ -27,6 +27,7 @@ export default function ProductDetailsPage() {
   const [product, setProduct] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const loadProduct = async () => {
     setLoading(true);
@@ -48,6 +49,7 @@ export default function ProductDetailsPage() {
   }, [productId]);
 
   const handleArchiveToggle = async () => {
+    setActionError(null);
     const isArchived = product?.status === "ARCHIVED" || product?.isActive === false;
     const endpoint = isArchived
       ? `/api/products/${productId}?action=restore`
@@ -59,10 +61,25 @@ export default function ProductDetailsPage() {
       if (data.success) {
         setActionSuccess(isArchived ? "Product restored to active" : "Product archived");
         setTimeout(() => setActionSuccess(null), 3000);
+        // Optimistically update product status in state
+        setProduct((prev: any) =>
+          prev
+            ? {
+                ...prev,
+                status: isArchived ? "ACTIVE" : "ARCHIVED",
+                isActive: isArchived,
+              }
+            : prev
+        );
         loadProduct();
+      } else {
+        setActionError(data.error || "Failed to update product status");
+        setTimeout(() => setActionError(null), 4000);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Archive toggle error:", err);
+      setActionError(err.message || "Network error updating product status");
+      setTimeout(() => setActionError(null), 4000);
     }
   };
 
@@ -144,6 +161,13 @@ export default function ProductDetailsPage() {
         <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2">
           <CheckCircle2 className="h-4 w-4 text-emerald-600" />
           <span>{actionSuccess}</span>
+        </div>
+      )}
+
+      {actionError && (
+        <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center gap-2 font-medium">
+          <span className="font-bold">Error:</span>
+          <span>{actionError}</span>
         </div>
       )}
 

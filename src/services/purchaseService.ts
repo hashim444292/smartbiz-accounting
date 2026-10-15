@@ -118,10 +118,29 @@ export async function createAndPostPurchase(input: CreatePurchaseInput) {
       lineTotal: Decimal;
     }> = [];
 
+    const business = await tx.business.findUnique({ where: { id: businessId } });
+
+    // Batch pre-fetch known product IDs to eliminate N+1 queries
+    const validProductIds = items
+      .map((it) => it.productId)
+      .filter((id): id is string => Boolean(id && id !== "__custom__" && !id.startsWith("prod-")));
+    const existingProductsMap = new Map<string, any>();
+    if (validProductIds.length > 0) {
+      const dbProducts = await tx.product.findMany({
+        where: { id: { in: validProductIds }, businessId },
+      });
+      for (const p of dbProducts) {
+        existingProductsMap.set(p.id, p);
+      }
+    }
+
     for (const item of items) {
-      let product = item.productId && item.productId !== "__custom__" ? await tx.product.findUnique({
-        where: { id: item.productId },
-      }) : null;
+      let product = item.productId ? existingProductsMap.get(item.productId) || null : null;
+      if (!product && item.productId && item.productId !== "__custom__") {
+        product = await tx.product.findUnique({
+          where: { id: item.productId },
+        });
+      }
 
       if (!product && (item as any).productName) {
         product = await tx.product.findFirst({
@@ -252,6 +271,8 @@ export async function createAndPostPurchase(input: CreatePurchaseInput) {
         referenceId: purchase.id,
         notes: `Purchase invoice #${purchaseNumber} from ${supplierName}`,
         date,
+        skipPeriodCheck: true,
+        business,
       });
 
       const updateData: any = {

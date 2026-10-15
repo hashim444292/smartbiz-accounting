@@ -28,6 +28,8 @@ export async function recordStockMovement(
     createdById?: string;
     createdByName?: string;
     date?: Date;
+    skipPeriodCheck?: boolean;
+    business?: { negativeStockPolicy: boolean | null } | null;
   }
 ) {
   const { businessId, productId, type, referenceType, referenceId, notes } = params;
@@ -38,8 +40,10 @@ export async function recordStockMovement(
     throw new Error("Movement quantity must be greater than zero.");
   }
 
-  // Ensure period is open
-  await assertPeriodOpen(tx, businessId, date);
+  // Ensure period is open (unless caller already asserted)
+  if (!params.skipPeriodCheck) {
+    await assertPeriodOpen(tx, businessId, date);
+  }
 
   const product = await tx.product.findUnique({
     where: { id: productId },
@@ -49,9 +53,11 @@ export async function recordStockMovement(
     throw new Error(`Product with ID ${productId} not found.`);
   }
 
-  const business = await tx.business.findUnique({
-    where: { id: businessId },
-  });
+  const business = params.business !== undefined
+    ? params.business
+    : await tx.business.findUnique({
+        where: { id: businessId },
+      });
 
   const isIncoming = ["OPENING", "STOCK_IN", "PURCHASE", "SALE_RETURN"].includes(type);
   const currentStock = toDecimal(product.currentStock);

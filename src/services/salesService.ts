@@ -174,10 +174,27 @@ export async function createAndPostSale(input: CreateSaleInput) {
       costPrice: Decimal;
     }> = [];
 
+    // Batch pre-fetch known product IDs to eliminate N+1 queries
+    const validProductIds = items
+      .map((it) => it.productId)
+      .filter((id): id is string => Boolean(id && id !== "prod-default" && !id.startsWith("prod-")));
+    const existingProductsMap = new Map<string, any>();
+    if (validProductIds.length > 0) {
+      const dbProducts = await tx.product.findMany({
+        where: { id: { in: validProductIds }, businessId },
+      });
+      for (const p of dbProducts) {
+        existingProductsMap.set(p.id, p);
+      }
+    }
+
     for (const item of items) {
-      let product = item.productId && item.productId !== "prod-default" && !item.productId.startsWith("prod-") ? await tx.product.findUnique({
-        where: { id: item.productId },
-      }) : null;
+      let product = item.productId ? existingProductsMap.get(item.productId) || null : null;
+      if (!product && item.productId && item.productId !== "prod-default" && !item.productId.startsWith("prod-")) {
+        product = await tx.product.findUnique({
+          where: { id: item.productId },
+        });
+      }
 
       if (!product && item.sku) {
         product = await tx.product.findFirst({
@@ -384,6 +401,8 @@ export async function createAndPostSale(input: CreateSaleInput) {
           referenceId: sale.id,
           notes: `Sale invoice #${invoiceNumber}`,
           date,
+          skipPeriodCheck: true,
+          business,
         });
       }
 
@@ -631,6 +650,8 @@ export async function reverseSale(
         referenceType: "SALE_RETURN",
         referenceId: sale.id,
         notes: `Reversal of sale #${sale.invoiceNumber}: ${reason}`,
+        skipPeriodCheck: true,
+        business: sale.business,
       });
     }
 
