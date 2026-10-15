@@ -73,7 +73,7 @@ export default function DashboardPage() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<DashboardTab>("all");
-  const [tableLayout, setTableLayout] = useState<TableLayoutMode>("table");
+  const [tableLayout, setTableLayout] = useState<TableLayoutMode>("cards");
   const [retryingId, setRetryingId] = useState<string | null>(null);
   const [isAsaanMode, setIsAsaanMode] = useState<boolean>(true);
   const [reminderFilter, setReminderFilter] = useState<"ALL" | "RECEIVABLE" | "PAYABLE">("ALL");
@@ -1590,13 +1590,15 @@ export default function DashboardPage() {
         </div>
 
         {/* Mobile Swipe Hint when in Table view */}
-        <div className="md:hidden bg-slate-50/90 dark:bg-slate-900/60 border-b border-slate-100 dark:border-slate-800 px-4 py-1.5 text-[11px] text-slate-500 dark:text-slate-400 flex items-center justify-between">
-          <span>{t("👉 Swipe table sideways to inspect all columns", "👉 تمام کالم دیکھنے کے لیے ٹیبل کو بائیں دائیں گھمائیں")}</span>
-          <span className="font-semibold text-slate-700 dark:text-slate-300">{data?.recentInvoices?.length || 0} {t("bills", "بل")}</span>
-        </div>
+        {tableLayout === "table" && (
+          <div className="md:hidden bg-slate-50/90 dark:bg-slate-900/60 border-b border-slate-100 dark:border-slate-800 px-4 py-1.5 text-[11px] text-slate-500 dark:text-slate-400 flex items-center justify-between">
+            <span>{t("👉 Swipe table sideways to inspect all columns", "👉 تمام کالم دیکھنے کے لیے ٹیبل کو بائیں دائیں گھمائیں")}</span>
+            <span className="font-semibold text-slate-700 dark:text-slate-300">{data?.recentInvoices?.length || 0} {t("bills", "بل")}</span>
+          </div>
+        )}
 
         {/* Mobile Cards View (Optional on small screens) */}
-        {tableLayout === "cards" ? (
+        {tableLayout === "cards" && (
           <div className="p-3.5 space-y-3 md:hidden">
             {data?.recentInvoices && data.recentInvoices.length > 0 ? (
               data.recentInvoices.map((inv: any) => {
@@ -1714,9 +1716,10 @@ export default function DashboardPage() {
               </div>
             )}
           </div>
-        ) : (
-          /* High-Density Responsive Table View */
-          <div className="overflow-x-auto">
+        )}
+
+        {/* High-Density Responsive Table View: Always on desktop/laptop, and on mobile if Table mode is selected */}
+        <div className={`${tableLayout === "cards" ? "hidden md:block" : "block"} overflow-x-auto`}>
             <table className="w-full min-w-[850px] text-left text-xs border-collapse">
               <thead>
                 <tr className="border-b border-slate-200/80 bg-slate-50/80 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-400">
@@ -1827,7 +1830,6 @@ export default function DashboardPage() {
               </tbody>
             </table>
           </div>
-        )}
       </div>
     </div>
   );

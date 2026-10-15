@@ -1146,7 +1146,146 @@ export default function SalesPage() {
 
       {/* Sales List Table (Screen View with Pagination) */}
       <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 print:hidden">
-        <div className="overflow-x-auto">
+        {/* Mobile Responsive Cards View (< md) */}
+        <div className="md:hidden divide-y divide-slate-100 dark:divide-slate-800">
+          {loading ? (
+            Array.from({ length: 4 }).map((_, idx) => (
+              <div key={idx} className="p-4 space-y-3 animate-pulse">
+                <div className="flex justify-between items-center">
+                  <div className="h-4 w-28 bg-slate-200 dark:bg-slate-800 rounded" />
+                  <div className="h-5 w-16 bg-slate-100 dark:bg-slate-800 rounded-full" />
+                </div>
+                <div className="h-4 w-40 bg-slate-200 dark:bg-slate-800 rounded" />
+                <div className="flex justify-between pt-2">
+                  <div className="h-4 w-24 bg-slate-100 dark:bg-slate-800 rounded" />
+                  <div className="h-5 w-24 bg-slate-200 dark:bg-slate-800 rounded" />
+                </div>
+              </div>
+            ))
+          ) : paginatedSales.length === 0 ? (
+            <div className="py-10 px-4 text-center text-xs text-slate-400">
+              No sales invoices found matching your criteria.
+            </div>
+          ) : (
+            paginatedSales.map((sale) => {
+              const isSelected = selectedSaleIds.includes(sale.id);
+              return (
+                <div
+                  key={sale.id}
+                  className={`p-3.5 space-y-2.5 transition-colors ${
+                    isSelected ? "bg-indigo-50/50 dark:bg-indigo-950/30" : "bg-white dark:bg-slate-900"
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <Link
+                          href={`/sales/${sale.id}`}
+                          className="font-bold text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                        >
+                          {sale.invoiceNumber}
+                        </Link>
+                        {!isAccountingOnly && sale.fbrStatus && (
+                          sale.fbrStatus === "SUCCESS" ? (
+                            <span className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800">
+                              🏛️ FBR Sync
+                            </span>
+                          ) : sale.fbrStatus === "PENDING" ? (
+                            <span className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800">
+                              ⏳ FBR Queue
+                            </span>
+                          ) : null
+                        )}
+                        {sale.isEdited && (
+                          <span className="inline-flex items-center rounded-md bg-amber-50 px-1 py-0.5 text-[9px] font-semibold text-amber-800 border border-amber-300 dark:bg-amber-950/60 dark:text-amber-300">
+                            ✏️ Edited
+                          </span>
+                        )}
+                      </div>
+                      <p className="font-semibold text-xs text-slate-900 dark:text-white">
+                        {sale.customerName}
+                      </p>
+                      <p className="text-[11px] text-slate-500">
+                        {new Date(sale.date).toLocaleDateString()} • {sale.items?.length || 0} items
+                      </p>
+                    </div>
+
+                    <div className="text-right space-y-1 shrink-0">
+                      <span className="block font-mono font-bold text-sm text-slate-900 dark:text-white">
+                        {formatMoney(sale.totalAmount)}
+                      </span>
+                      <Badge
+                        variant={
+                          sale.paymentStatus === "PAID"
+                            ? "success"
+                            : sale.paymentStatus === "PARTIAL"
+                            ? "warning"
+                            : "danger"
+                        }
+                      >
+                        {sale.paymentStatus}
+                      </Badge>
+                    </div>
+                  </div>
+
+                  {/* Payment Breakdown */}
+                  <div className="flex items-center justify-between text-[11px] bg-slate-50 dark:bg-slate-800/50 rounded-lg px-2.5 py-1.5 font-mono">
+                    <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
+                      Paid: {formatMoney(sale.paidAmount)}
+                    </span>
+                    <span className={`font-bold ${Number(sale.remainingAmount || 0) > 0 ? "text-rose-600 dark:text-rose-400" : "text-slate-400"}`}>
+                      Due: {formatMoney(sale.remainingAmount)}
+                    </span>
+                  </div>
+
+                  {/* Mobile Quick Action Buttons */}
+                  <div className="flex items-center justify-between pt-1 gap-2 border-t border-slate-100 dark:border-slate-800">
+                    <button
+                      type="button"
+                      onClick={() => handleToggleSelectSale(sale.id)}
+                      className="text-xs text-slate-500 flex items-center gap-1 py-1"
+                    >
+                      {isSelected ? (
+                        <CheckSquare className="h-4 w-4 text-indigo-600" />
+                      ) : (
+                        <Square className="h-4 w-4" />
+                      )}
+                      <span className="text-[10px]">Select</span>
+                    </button>
+
+                    <div className="flex items-center gap-1.5">
+                      <Link
+                        href={`/sales/${sale.id}`}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-slate-700 bg-slate-100 dark:bg-slate-800 dark:text-slate-200 rounded-lg hover:bg-slate-200 transition"
+                      >
+                        <Eye className="h-3.5 w-3.5" />
+                        <span>View</span>
+                      </Link>
+                      <Link
+                        href={`/sales/${sale.id}?print=true`}
+                        target="_blank"
+                        className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-emerald-700 bg-emerald-50 dark:bg-emerald-950/60 dark:text-emerald-300 rounded-lg hover:bg-emerald-100 transition border border-emerald-200 dark:border-emerald-800"
+                      >
+                        <Printer className="h-3.5 w-3.5" />
+                        <span>Print</span>
+                      </Link>
+                      <button
+                        onClick={() => openEditModal(sale)}
+                        className="p-1 text-indigo-600 hover:bg-indigo-50 dark:text-indigo-400 rounded-lg"
+                        title="Edit Invoice Details"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* Desktop Table View (>= md) */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-left text-xs text-slate-600 dark:text-slate-300">
             <thead className="border-b border-slate-200 bg-slate-50/75 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-400">
               <tr>

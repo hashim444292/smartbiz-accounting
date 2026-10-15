@@ -751,7 +751,7 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
           </div>
 
           {/* Theme Switcher Toggle */}
-          <div className="relative" ref={themeMenuRef}>
+          <div className="relative hidden sm:block" ref={themeMenuRef}>
             <button
               onClick={() => setThemeMenuOpen(!themeMenuOpen)}
               className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white transition shadow-2xs"
@@ -813,7 +813,7 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
           </div>
 
           {/* Language Switcher Dropdown */}
-          <div className="relative" ref={langMenuRef}>
+          <div className="relative hidden sm:block" ref={langMenuRef}>
             <button
               onClick={() => setLangMenuOpen(!langMenuOpen)}
               className="flex h-9 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 hover:text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white transition shadow-2xs"

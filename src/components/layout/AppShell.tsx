@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { Sidebar } from "./Sidebar";
 import { Header } from "./Header";
+import { BottomNav } from "./BottomNav";
 import { DateRangeProvider } from "@/context/DateRangeContext";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 
@@ -84,7 +85,8 @@ function ShellContent({ children }: { children: React.ReactNode }) {
         )}
 
         <Header onMenuClick={() => setSidebarOpen(true)} />
-        <main className="flex-1 p-3.5 sm:p-5 lg:p-6 max-w-7xl w-full mx-auto">{children}</main>
+        <main className="flex-1 p-3.5 sm:p-5 lg:p-6 pb-20 lg:pb-6 max-w-7xl w-full mx-auto">{children}</main>
+        <BottomNav onOpenMenu={() => setSidebarOpen(true)} />
       </div>
     </div>
   );
