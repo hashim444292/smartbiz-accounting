@@ -61,6 +61,12 @@ export default function FbrCompliancePage() {
   const [transmittingScenario, setTransmittingScenario] = useState<string | null>(null);
   const [isAutoCertifying, setIsAutoCertifying] = useState(false);
 
+  useEffect(() => {
+    if (!isSuperAdmin && activeTab === "SCENARIOS") {
+      setActiveTab("READY");
+    }
+  }, [isSuperAdmin, activeTab]);
+
   // Action Loading States
   const [hittingId, setHittingId] = useState<string | null>(null);
   const [isBatchHitting, setIsBatchHitting] = useState(false);
@@ -1083,24 +1089,26 @@ export default function FbrCompliancePage() {
               </div>
             </div>
 
-            <div className="flex items-center gap-2 shrink-0">
-              <button
-                onClick={handleTestSandbox}
-                disabled={testingConnection}
-                className="inline-flex items-center gap-1.5 rounded-xl border border-indigo-200 bg-white px-3 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-50 shadow-2xs transition"
-              >
-                <Zap className={`h-3.5 w-3.5 text-indigo-600 ${testingConnection ? "animate-spin" : ""}`} />
-                <span>{testingConnection ? "Testing Gateway..." : "Test Sandbox API"}</span>
-              </button>
+            {isSuperAdmin && (
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={handleTestSandbox}
+                  disabled={testingConnection}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-indigo-200 bg-white px-3 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-50 shadow-2xs transition"
+                >
+                  <Zap className={`h-3.5 w-3.5 text-indigo-600 ${testingConnection ? "animate-spin" : ""}`} />
+                  <span>{testingConnection ? "Testing Gateway..." : "Test Sandbox API"}</span>
+                </button>
 
-              <button
-                onClick={() => setFbrConfigModal(true)}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-3.5 py-2 text-xs font-semibold text-white hover:bg-slate-800 shadow-sm transition"
-              >
-                <Settings className="h-3.5 w-3.5" />
-                <span>FBR Credentials</span>
-              </button>
-            </div>
+                <button
+                  onClick={() => setFbrConfigModal(true)}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-3.5 py-2 text-xs font-semibold text-white hover:bg-slate-800 shadow-sm transition"
+                >
+                  <Settings className="h-3.5 w-3.5" />
+                  <span>FBR Credentials</span>
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -1266,7 +1274,7 @@ export default function FbrCompliancePage() {
               All Invoices ({allInvoices.length})
             </button>
 
-            {isDigitalInvoicing && (
+            {isSuperAdmin && isDigitalInvoicing && (
               <button
                 onClick={() => {
                   setActiveTab("SCENARIOS");

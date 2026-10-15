@@ -14,7 +14,8 @@ export default function SettingsPage() {
   const { t } = useLanguage();
   const { user, activeCompany, isLoading, refreshSession } = useAuth();
   const isSuperAdmin = user?.role === "SUPER_ADMIN" || user?.role === "ADMIN";
-  const canManageFbr = user?.role === "SUPER_ADMIN" || user?.role === "ADMIN" || (user?.role as string) === "OWNER_ADMIN";
+  // FBR API & Digital Invoicing Configuration tab is strictly reserved for Platform Super Admins (hidden from client)
+  const canManageFbr = user?.role === "SUPER_ADMIN";
   const [activeTab, setActiveTab] = useState<"PROFILE" | "DEFAULTS" | "FBR" | "USERS" | "AUDIT">("PROFILE");
   const [saved, setSaved] = useState(false);
   const [defaultsSaved, setDefaultsSaved] = useState(false);
@@ -55,6 +56,13 @@ export default function SettingsPage() {
   const [realAuditLogs, setRealAuditLogs] = useState<any[]>([]);
 
   useEffect(() => {
+    if (!canManageFbr && activeTab === "FBR") {
+      setActiveTab("PROFILE");
+    }
+  }, [canManageFbr, activeTab]);
+
+  useEffect(() => {
+    if (!canManageFbr) return;
     async function loadFbrSettings() {
       try {
         const res = await fetch("/api/compliance/fbr");
@@ -76,7 +84,9 @@ export default function SettingsPage() {
       }
     }
     loadFbrSettings();
+  }, [canManageFbr]);
 
+  useEffect(() => {
     async function loadUsersAndAudit() {
       try {
         const [uRes, aRes] = await Promise.all([
