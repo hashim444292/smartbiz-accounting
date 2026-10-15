@@ -49,7 +49,7 @@ export default function AdminDashboardPage() {
           fetch("/api/admin/companies").then((r) => r.json()),
           fetch("/api/admin/billing").then((r) => r.json()),
         ];
-        if (user?.role === "SUPER_ADMIN") {
+        if (user?.role === "SUPER_ADMIN" || user?.role === "ADMIN") {
           promises.push(fetch("/api/admin/users").then((r) => r.json()));
         }
 

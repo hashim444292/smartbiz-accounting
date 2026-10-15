@@ -212,9 +212,9 @@ export async function DELETE(
 ) {
   try {
     const session = await getSession();
-    if (session && session.role !== "SUPER_ADMIN") {
+    if (session && session.role !== "SUPER_ADMIN" && session.role !== "ADMIN") {
       return NextResponse.json(
-        { success: false, error: "Access denied. Only Super Admin can delete companies." },
+        { success: false, error: "Access denied. Only Platform Admins can delete companies." },
         { status: 403 }
       );
     }

@@ -8,9 +8,9 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   try {
     const session = await getSession();
-    if (session && session.role !== "SUPER_ADMIN") {
+    if (session && session.role !== "SUPER_ADMIN" && session.role !== "ADMIN") {
       return NextResponse.json(
-        { success: false, error: "Access denied. User directory is only accessible to Super Admin." },
+        { success: false, error: "Access denied. User directory is only accessible to Platform Admins." },
         { status: 403 }
       );
     }
@@ -75,9 +75,9 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const session = await getSession();
-    if (session && session.role !== "SUPER_ADMIN") {
+    if (session && session.role !== "SUPER_ADMIN" && session.role !== "ADMIN") {
       return NextResponse.json(
-        { success: false, error: "Access denied. Only Super Admin can create user accounts." },
+        { success: false, error: "Access denied. Only Platform Admins can create user accounts." },
         { status: 403 }
       );
     }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession, hashPassword, comparePassword } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { fallbackStore, storeUpdateUser } from "@/lib/fallbackStore";
+import { createSafeAuditLog } from "@/lib/auditHelper";
 
 export const dynamic = "force-dynamic";
 
@@ -61,15 +62,13 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Check fallback store if not validated via DB
-    const fallbackUser = fallbackStore.users.find(
-      (u) => u.id === userId || u.email.toLowerCase() === userEmail.toLowerCase()
-    );
-
-    if (!isCurrentValid && fallbackUser) {
-      // Direct match or default credentials check
-      const defaultPasswords = ["admin123", "hanif123", "account123", "staff123", "smart123", "madina123", "password123"];
-      if (fallbackUser.password === currentPassword || defaultPasswords.includes(currentPassword)) {
+    // Check fallback store ONLY if no DB user exists (offline dev fallback)
+    let fallbackUser: any = null;
+    if (!dbUser) {
+      fallbackUser = fallbackStore.users.find(
+        (u) => u.id === userId || (userEmail && u.email.toLowerCase() === userEmail.toLowerCase())
+      );
+      if (fallbackUser && fallbackUser.password === currentPassword) {
         isCurrentValid = true;
       }
     }
@@ -91,6 +90,19 @@ export async function POST(req: NextRequest) {
           where: { id: dbUser.id },
           data: { passwordHash: newPasswordHash },
         });
+
+        // Audit trail
+        const businessId = session?.businessId || (dbUser.memberships?.[0]?.businessId) || "global";
+        await createSafeAuditLog(prisma, {
+          businessId,
+          userId: dbUser.id,
+          userName: dbUser.name || session?.name || "User",
+          userEmail: dbUser.email,
+          action: "PASSWORD_CHANGED",
+          entity: "USER",
+          entityId: dbUser.id,
+          details: `User ${dbUser.email} successfully updated their password via Profile Settings.`,
+        }).catch((e: any) => console.error("Audit log error on password change:", e?.message));
       } catch (err: any) {
         console.error("change-password update DB error:", err?.message || err);
       }

@@ -15,9 +15,8 @@ export async function GET(req: NextRequest) {
     if (session) {
       let accessibleCompanies: any[] = [];
       let activeCompany: any = null;
-
       try {
-        if (session.role === "SUPER_ADMIN") {
+        if (session.role === "SUPER_ADMIN" || session.role === "ADMIN") {
           accessibleCompanies = await prisma.business.findMany({
             orderBy: { name: "asc" },
           });
@@ -36,7 +35,7 @@ export async function GET(req: NextRequest) {
           (await prisma.business.findUnique({ where: { id: targetId } }));
       } catch {
         // Fallback store
-        if (session.role === "SUPER_ADMIN") {
+        if (session.role === "SUPER_ADMIN" || session.role === "ADMIN") {
           accessibleCompanies = fallbackStore.companies;
         } else {
           const userCompanyIds = session.companyIds || [session.businessId];

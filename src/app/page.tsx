@@ -104,7 +104,7 @@ export default function DashboardPage() {
       router.replace("/login");
       return;
     }
-    if (!isLoading && user?.role === "SUPER_ADMIN" && !isInspectingClient) {
+    if (!isLoading && (user?.role === "SUPER_ADMIN" || user?.role === "ADMIN") && !isInspectingClient) {
       router.replace("/admin");
     }
   }, [user, isInspectingClient, isLoading, router]);
@@ -155,8 +155,8 @@ export default function DashboardPage() {
   const showAccounting = !isFbrInvoicingOnly && (activeTab === "all" || activeTab === "accounting");
   const showFbr = !isAccountingOnly && (activeTab === "all" || activeTab === "fbr" || isFbrInvoicingOnly);
 
-  // Super Admin Platform Mode: Do NOT display customer books by default
-  if (!isLoading && user?.role === "SUPER_ADMIN" && !isInspectingClient) {
+  // Super Admin & Platform Admin Mode: Do NOT display customer books by default
+  if (!isLoading && (user?.role === "SUPER_ADMIN" || user?.role === "ADMIN") && !isInspectingClient) {
     return (
       <div className="min-h-[60vh] flex flex-col items-center justify-center text-center p-4 sm:p-6 space-y-4">
         <div className="h-14 w-14 rounded-2xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-bold border border-indigo-200 dark:border-indigo-800 shadow-xs animate-pulse">

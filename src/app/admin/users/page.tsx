@@ -168,7 +168,7 @@ export default function UsersManagementPage() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (currentLoggedUser && currentLoggedUser.role !== "SUPER_ADMIN") {
+    if (currentLoggedUser && currentLoggedUser.role !== "SUPER_ADMIN" && currentLoggedUser.role !== "ADMIN") {
       router.replace("/");
     }
   }, [currentLoggedUser, router]);

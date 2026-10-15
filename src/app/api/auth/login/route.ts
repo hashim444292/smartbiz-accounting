@@ -34,7 +34,11 @@ export async function POST(req: NextRequest) {
         const isValid = await comparePassword(password, user.passwordHash);
         if (isValid) {
           const primaryBusiness = user.memberships[0]?.business || (await prisma.business.findFirst({ orderBy: { createdAt: "asc" } }));
-          const companyIds = user.memberships.map((m) => m.businessId);
+          let companyIds = user.memberships.map((m) => m.businessId);
+          if (user.role === "SUPER_ADMIN" || user.role === "ADMIN") {
+            const allBiz = await prisma.business.findMany({ select: { id: true } });
+            companyIds = allBiz.map((b) => b.id);
+          }
 
           const payload = {
             userId: user.id,

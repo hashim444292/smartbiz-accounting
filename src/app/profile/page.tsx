@@ -429,9 +429,6 @@ export default function ProfilePage() {
                     {showCurrentPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>
-                <p className="mt-1 text-[11px] text-slate-400">
-                  Demo hint: Default initial password is typically <code className="bg-slate-100 px-1 py-0.5 rounded text-slate-600">admin123</code>, <code className="bg-slate-100 px-1 py-0.5 rounded text-slate-600">hanif123</code>, <code className="bg-slate-100 px-1 py-0.5 rounded text-slate-600">smart123</code>, or <code className="bg-slate-100 px-1 py-0.5 rounded text-slate-600">madina123</code>.
-                </p>
               </div>
 
               {/* New Password */}

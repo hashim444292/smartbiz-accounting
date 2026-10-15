@@ -27,6 +27,7 @@ import {
   Bell,
   AlertTriangle,
   Clock,
+  History,
   Languages,
 } from "lucide-react";
 import { DateRangeSelector } from "./DateRangeSelector";
@@ -230,13 +231,6 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
     setSearchOpen(false);
     router.push(url);
   };
-
-  const QUICK_USERS = [
-    { id: "usr-1", name: "System Super Admin", email: "admin@smartbiz.com", role: "SUPER_ADMIN", icon: "👑" },
-    { id: "usr-2", name: "Muhammad Hanif (Owner)", email: "hanif@mobile.com", role: "OWNER_ADMIN", icon: "🏢" },
-    { id: "usr-3", name: "Farhan Accountant", email: "accountant@smartbiz.com", role: "ACCOUNTANT", icon: "📊" },
-    { id: "usr-4", name: "Bilal Cashier (Staff)", email: "staff@smartbiz.com", role: "STAFF", icon: "💼" },
-  ];
 
   return (
     <>
@@ -992,53 +986,37 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
                   </div>
                 </Link>
 
-                {/* Switch User Account List - STRICTLY FOR SUPER ADMIN ONLY */}
-                {user?.role === "SUPER_ADMIN" ? (
-                  <>
-                    <div className="space-y-1">
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 px-1 mb-1">
-                        Admin Switch User Account
-                      </p>
-                      {QUICK_USERS.map((qu) => {
-                        const isCurrent = user?.email === qu.email || user?.userId === qu.id;
-                        return (
-                          <button
-                            key={qu.id}
-                            type="button"
-                            onClick={async () => {
-                              if (isCurrent) return;
-                              setSwitchingUserId(qu.id);
-                              await switchUser(qu.id);
-                              setSwitchingUserId(null);
-                              setUserMenuOpen(false);
-                            }}
-                            disabled={switchingUserId === qu.id}
-                            className={`w-full flex items-center justify-between rounded-xl px-2.5 py-1.5 text-left text-xs transition ${
-                              isCurrent
-                                ? "bg-indigo-50 text-indigo-700 font-bold border border-indigo-200 dark:bg-indigo-950/60 dark:text-indigo-300 dark:border-indigo-800"
-                                : "text-slate-700 hover:bg-slate-50 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
-                            }`}
-                          >
-                            <div className="truncate pr-2 flex items-center gap-2">
-                              <span>{qu.icon}</span>
-                              <div className="truncate">
-                                <p className="truncate font-semibold">{qu.name}</p>
-                                <p className="text-[10px] text-slate-400 truncate">{qu.email}</p>
-                              </div>
-                            </div>
-                            {switchingUserId === qu.id ? (
-                              <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-indigo-600 border-t-transparent" />
-                            ) : isCurrent ? (
-                              <span className="text-[9px] bg-indigo-600 text-white px-1.5 py-0.2 rounded font-bold">Current</span>
-                            ) : (
-                              <span className="text-[10px] text-indigo-600 dark:text-indigo-400 opacity-0 hover:opacity-100">Switch</span>
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
-
-                    <div className="space-y-1 pt-2 border-t border-slate-100 dark:border-slate-800 mt-2">
+                {/* Platform Admin Menu (Super Admin & Admin) */}
+                {(user?.role === "SUPER_ADMIN" || user?.role === "ADMIN") ? (
+                  <div className="space-y-1 pt-1 border-t border-slate-100 dark:border-slate-800">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 px-1 mb-1">
+                      Platform Control
+                    </p>
+                    <Link
+                      href="/admin/companies"
+                      onClick={() => setUserMenuOpen(false)}
+                      className="flex items-center gap-2 rounded-xl px-2.5 py-1.5 text-xs text-slate-700 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800 font-medium transition"
+                    >
+                      <Building2 className="h-3.5 w-3.5 text-slate-500" />
+                      <span>Manage Companies & Switch</span>
+                    </Link>
+                    <Link
+                      href="/admin/users"
+                      onClick={() => setUserMenuOpen(false)}
+                      className="flex items-center gap-2 rounded-xl px-2.5 py-1.5 text-xs text-slate-700 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800 font-medium transition"
+                    >
+                      <Users className="h-3.5 w-3.5 text-slate-500" />
+                      <span>Manage User Accounts</span>
+                    </Link>
+                    <Link
+                      href="/audit-logs"
+                      onClick={() => setUserMenuOpen(false)}
+                      className="flex items-center gap-2 rounded-xl px-2.5 py-1.5 text-xs text-slate-700 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800 font-medium transition"
+                    >
+                      <History className="h-3.5 w-3.5 text-slate-500" />
+                      <span>Platform Activity Log</span>
+                    </Link>
+                    <div className="pt-1 border-t border-slate-100 dark:border-slate-800 mt-1">
                       <Link
                         href="/profile"
                         onClick={() => setUserMenuOpen(false)}
@@ -1047,37 +1025,21 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
                         <KeyRound className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
                         <span>My Profile & Password</span>
                       </Link>
-                      <Link
-                        href="/admin/users"
-                        onClick={() => setUserMenuOpen(false)}
-                        className="flex items-center gap-2 rounded-xl px-2.5 py-1.5 text-xs text-slate-700 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800 font-medium transition"
-                      >
-                        <Users className="h-3.5 w-3.5 text-slate-500" />
-                        <span>Manage User Accounts</span>
-                      </Link>
-                      <Link
-                        href="/admin/companies"
-                        onClick={() => setUserMenuOpen(false)}
-                        className="flex items-center gap-2 rounded-xl px-2.5 py-1.5 text-xs text-slate-700 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800 font-medium transition"
-                      >
-                        <Building2 className="h-3.5 w-3.5 text-slate-500" />
-                        <span>Manage Companies / Clients</span>
-                      </Link>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setUserMenuOpen(false);
-                          logout();
-                        }}
-                        className="w-full flex items-center gap-2 rounded-xl px-2.5 py-1.5 text-xs text-rose-600 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950/30 font-semibold transition"
-                      >
-                        <LogOut className="h-3.5 w-3.5" />
-                        <span>Sign Out</span>
-                      </button>
                     </div>
-                  </>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setUserMenuOpen(false);
+                        logout();
+                      }}
+                      className="w-full flex items-center gap-2 rounded-xl px-2.5 py-1.5 text-xs text-rose-600 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950/30 font-semibold transition mt-1"
+                    >
+                      <LogOut className="h-3.5 w-3.5" />
+                      <span>Sign Out</span>
+                    </button>
+                  </div>
                 ) : (
-                  /* Client Profile Menu - No User Switching, Only Profile, Settings & Logout */
+                  /* Client User Menu (Owner Admin, Accountant, Staff) */
                   <div className="space-y-1 pt-1 border-t border-slate-100 dark:border-slate-800">
                     <Link
                       href="/profile"
@@ -1095,6 +1057,15 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
                     >
                       <Building2 className="h-3.5 w-3.5 text-slate-500" />
                       <span>Company Profile & Settings</span>
+                    </Link>
+
+                    <Link
+                      href="/audit-logs"
+                      onClick={() => setUserMenuOpen(false)}
+                      className="flex items-center gap-2 rounded-xl px-2.5 py-1.5 text-xs text-slate-700 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800 font-medium transition"
+                    >
+                      <History className="h-3.5 w-3.5 text-slate-500" />
+                      <span>Activity Log</span>
                     </Link>
 
                     <button

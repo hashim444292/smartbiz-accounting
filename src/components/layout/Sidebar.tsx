@@ -29,6 +29,7 @@ import {
   ArrowLeft,
   ExternalLink,
   Plus,
+  KeyRound,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useLanguage } from "@/context/LanguageContext";
@@ -101,6 +102,7 @@ const TENANT_NAVIGATION_GROUPS: NavGroup[] = [
       { name: "Branches & Staff", nameUrdu: "برانچز اور اسٹاف", href: "/branches", icon: Store, roles: ["SUPER_ADMIN", "ADMIN", "OWNER_ADMIN"], userPermKey: "branches" },
       { name: "Activity Log", nameUrdu: "آڈٹ ٹریک لاگ", href: "/audit-logs", icon: History, roles: ["SUPER_ADMIN", "ADMIN", "OWNER_ADMIN", "ACCOUNTANT"], userPermKey: "accounting" },
       { name: "Settings & Defaults", nameUrdu: "کمپنی سیٹنگز", href: "/settings", icon: Settings, roles: ["SUPER_ADMIN", "ADMIN", "OWNER_ADMIN"] },
+      { name: "My Profile & Password", nameUrdu: "پروفائل اور پاس ورڈ", href: "/profile", icon: KeyRound, roles: ["SUPER_ADMIN", "ADMIN", "OWNER_ADMIN", "ACCOUNTANT", "STAFF"] },
     ],
   },
 ];
@@ -191,8 +193,8 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
   const platformGroups: NavGroup[] = PLATFORM_ADMIN_GROUPS.map((g) => ({
     ...g,
     items: g.items.filter((item) => {
-      // User accounts & credential management is strictly for the master SUPER_ADMIN
-      if (item.href === "/admin/users" && userRole !== "SUPER_ADMIN") return false;
+      // User accounts & credential management is for platform admins (SUPER_ADMIN and ADMIN)
+      if (item.href === "/admin/users" && userRole !== "SUPER_ADMIN" && userRole !== "ADMIN") return false;
       return true;
     }),
   }));
