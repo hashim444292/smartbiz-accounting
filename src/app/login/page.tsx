@@ -30,12 +30,6 @@ export default function LoginPage() {
     }
   };
 
-  const handleDemoFill = (demoEmail: string, demoPass: string) => {
-    setEmail(demoEmail);
-    setPassword(demoPass);
-    setError(null);
-  };
-
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
       {/* Background ambient gradient glow */}
@@ -120,60 +114,10 @@ export default function LoginPage() {
             </div>
           </form>
 
-          {/* Quick Demo Credentials Box */}
-          <div className="mt-6 pt-5 border-t border-slate-100">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                1-Click Demo Accounts
-              </span>
-              <span className="text-[10px] text-indigo-600 font-medium">Click to populate</span>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => handleDemoFill("admin@smartbiz.com", "admin123")}
-                className="p-2 text-left rounded-xl bg-slate-50 hover:bg-indigo-50/70 border border-slate-200 hover:border-indigo-300 transition group"
-              >
-                <p className="text-[11px] font-bold text-slate-800 group-hover:text-indigo-700 flex items-center gap-1">
-                  <span>👑</span> Super Admin
-                </p>
-                <p className="text-[10px] text-slate-500 truncate">admin@smartbiz.com</p>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleDemoFill("hanif@mobile.com", "hanif123")}
-                className="p-2 text-left rounded-xl bg-slate-50 hover:bg-indigo-50/70 border border-slate-200 hover:border-indigo-300 transition group"
-              >
-                <p className="text-[11px] font-bold text-slate-800 group-hover:text-indigo-700 flex items-center gap-1">
-                  <span>🏢</span> Owner (Hanif)
-                </p>
-                <p className="text-[10px] text-slate-500 truncate">hanif@mobile.com</p>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleDemoFill("accountant@smartbiz.com", "account123")}
-                className="p-2 text-left rounded-xl bg-slate-50 hover:bg-indigo-50/70 border border-slate-200 hover:border-indigo-300 transition group"
-              >
-                <p className="text-[11px] font-bold text-slate-800 group-hover:text-indigo-700 flex items-center gap-1">
-                  <span>📊</span> Accountant
-                </p>
-                <p className="text-[10px] text-slate-500 truncate">accountant@smartbiz.com</p>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleDemoFill("staff@smartbiz.com", "staff123")}
-                className="p-2 text-left rounded-xl bg-slate-50 hover:bg-indigo-50/70 border border-slate-200 hover:border-indigo-300 transition group"
-              >
-                <p className="text-[11px] font-bold text-slate-800 group-hover:text-indigo-700 flex items-center gap-1">
-                  <span>💼</span> Cashier / Staff
-                </p>
-                <p className="text-[10px] text-slate-500 truncate">staff@smartbiz.com</p>
-              </button>
-            </div>
+          {/* Production Security Assurance Badge */}
+          <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-center gap-2 text-slate-400 text-xs">
+            <ShieldCheck className="h-4 w-4 text-emerald-600 shrink-0" />
+            <span className="font-medium text-[11px] text-slate-500">256-Bit Encrypted &bull; FBR Digital Linked System</span>
           </div>
         </div>
       </div>
