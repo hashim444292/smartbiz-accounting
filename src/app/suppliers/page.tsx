@@ -173,7 +173,7 @@ export default function SuppliersPage() {
         <form onSubmit={handleCreateSupplier} className="space-y-3.5">
           <Input label="Supplier / Contact Person" value={name} onChange={(e) => setName(e.target.value)} required />
           <Input label="Business / Company Name" value={businessName} onChange={(e) => setBusinessName(e.target.value)} />
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Input label="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
             <Input label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
           </div>

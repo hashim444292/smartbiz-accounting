@@ -254,13 +254,13 @@ export default function CustomersPage() {
             <span className="font-bold">🌐 FBR Digital Invoicing:</span> For B2B Digital Invoices, customers cannot be anonymous or walk-in. Register their legal name, business name, and NTN (7-8 digits) or CNIC (13 digits) with Province.
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Input label="Customer / Contact Person *" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Tariq Mehmood" required />
             <Input label="Company / Business Name" value={businessName} onChange={(e) => setBusinessName(e.target.value)} placeholder="e.g. Mehmood Traders" />
           </div>
 
           {/* FBR Tax Profile Section */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
                 Buyer Tax Status *
@@ -294,7 +294,7 @@ export default function CustomersPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Input
               label={taxStatus === "REGISTERED" ? "NTN (National Tax No.) *" : "NTN (Optional if CNIC given)"}
               value={ntn}
@@ -311,14 +311,14 @@ export default function CustomersPage() {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Input label="Phone Number" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+92 300 1234567" />
             <Input label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="billing@buyer.com" />
           </div>
 
           <Input label="Complete Business / Shop Address" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Shop #12, Saddar Market, Karachi" />
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Input
               label="Opening Balance (Receivable)"
               type="number"

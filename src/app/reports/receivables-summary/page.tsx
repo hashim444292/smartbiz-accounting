@@ -140,7 +140,7 @@ export default function ReceivablesSummaryPage() {
         </div>
       ) : (
         /* Printable Document Container (Matches Client Physical Sheet) */
-        <div className="bg-white text-slate-900 p-8 rounded-xl border border-slate-200 shadow-sm print:border-none print:shadow-none print:p-0 font-sans">
+        <div className="bg-white text-slate-900 p-4 sm:p-6 lg:p-8 rounded-xl border border-slate-200 shadow-sm print:border-none print:shadow-none print:p-0 font-sans">
           {/* Header */}
           <div className="flex justify-between items-start text-xs border-b border-slate-200 pb-2 mb-2">
             <div>

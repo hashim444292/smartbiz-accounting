@@ -30,6 +30,7 @@ import {
   ExternalLink,
   Plus,
   KeyRound,
+  X,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useLanguage } from "@/context/LanguageContext";
@@ -258,6 +259,15 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
               </div>
             )}
           </Link>
+
+          {/* Mobile Close Button */}
+          <button
+            onClick={onClose}
+            aria-label="Close sidebar"
+            className="flex lg:hidden h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 hover:text-slate-800 hover:bg-slate-50 transition-colors dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400 dark:hover:text-white"
+          >
+            <X className="h-4 w-4" />
+          </button>
 
           {/* Desktop Collapse Toggle */}
           <button

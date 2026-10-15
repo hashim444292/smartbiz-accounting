@@ -210,46 +210,48 @@ export default function PurchaseDetailPage() {
             </span>
           </div>
 
-          <table className="w-full text-left text-xs">
-            <thead className="border-b border-slate-200 text-[11px] font-bold uppercase text-slate-500 dark:border-slate-800">
-              <tr>
-                <th className="pb-2 w-10 text-center">#</th>
-                <th className="pb-2">Item Description & Catalog Code</th>
-                <th className="pb-2 text-center">Qty Received</th>
-                <th className="pb-2 text-right">Unit Cost</th>
-                <th className="pb-2 text-right">Line Total</th>
-                <th className="pb-2 text-center w-24">Tally</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {purchase.items?.map((item: any, i: number) => (
-                <tr key={i}>
-                  <td className="py-3 text-center text-slate-400">{i + 1}</td>
-                  <td className="py-3 pr-2">
-                    <p className="font-semibold text-slate-800 dark:text-slate-200">
-                      {item.productName}
-                    </p>
-                    {item.sku && <p className="text-[10px] text-slate-400">SKU: {item.sku}</p>}
-                  </td>
-                  <td className="py-3 px-2 text-center font-bold text-slate-900 dark:text-white tabular-nums">
-                    {Number(item.quantity || 0).toLocaleString()}
-                  </td>
-                  <td className="py-3 px-2 text-right tabular-nums text-slate-600 dark:text-slate-300">
-                    {formatMoney(item.unitCost)}
-                  </td>
-                  <td className="py-3 pl-2 text-right font-bold text-slate-900 dark:text-white tabular-nums">
-                    {formatMoney(item.lineTotal)}
-                  </td>
-                  <td className="py-3 text-center">
-                    <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
-                      <CheckCircle2 className="h-3 w-3" />
-                      <span>Verified</span>
-                    </span>
-                  </td>
+          <div className="overflow-x-auto -mx-2 sm:mx-0 px-2 sm:px-0">
+            <table className="w-full text-left text-xs min-w-[560px]">
+              <thead className="border-b border-slate-200 text-[11px] font-bold uppercase text-slate-500 dark:border-slate-800">
+                <tr>
+                  <th className="pb-2 w-10 text-center">#</th>
+                  <th className="pb-2">Item Description & Catalog Code</th>
+                  <th className="pb-2 text-center">Qty Received</th>
+                  <th className="pb-2 text-right">Unit Cost</th>
+                  <th className="pb-2 text-right">Line Total</th>
+                  <th className="pb-2 text-center w-24">Tally</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                {purchase.items?.map((item: any, i: number) => (
+                  <tr key={i}>
+                    <td className="py-3 text-center text-slate-400">{i + 1}</td>
+                    <td className="py-3 pr-2">
+                      <p className="font-semibold text-slate-800 dark:text-slate-200">
+                        {item.productName}
+                      </p>
+                      {item.sku && <p className="text-[10px] text-slate-400">SKU: {item.sku}</p>}
+                    </td>
+                    <td className="py-3 px-2 text-center font-bold text-slate-900 dark:text-white tabular-nums">
+                      {Number(item.quantity || 0).toLocaleString()}
+                    </td>
+                    <td className="py-3 px-2 text-right tabular-nums text-slate-600 dark:text-slate-300">
+                      {formatMoney(item.unitCost)}
+                    </td>
+                    <td className="py-3 pl-2 text-right font-bold text-slate-900 dark:text-white tabular-nums">
+                      {formatMoney(item.lineTotal)}
+                    </td>
+                    <td className="py-3 text-center">
+                      <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                        <CheckCircle2 className="h-3 w-3" />
+                        <span>Verified</span>
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
 
         {/* Totals & Settlement */}

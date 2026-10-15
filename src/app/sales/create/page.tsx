@@ -1177,7 +1177,7 @@ export default function CreateSalePage() {
           </div>
         )}
 
-        <form onSubmit={handleSubmitInvoice} className="space-y-6">
+        <form onSubmit={handleSubmitInvoice} className="space-y-6 pb-20 lg:pb-0">
           {/* Top Card: Invoice Number, Date, Customer (Buyer), Buyer Tax Status */}
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-6">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -2354,6 +2354,28 @@ export default function CreateSalePage() {
                 </div>
               </div>
             </div>
+          </div>
+
+          {/* Mobile Sticky Bottom Action Bar */}
+          <div className="fixed bottom-0 left-0 right-0 z-30 flex items-center justify-between gap-3 border-t border-slate-200/90 bg-white/95 px-4 py-3 shadow-2xl backdrop-blur-md dark:border-slate-800 dark:bg-slate-900/95 lg:hidden">
+            <div className="min-w-0 flex-1">
+              <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                {totalPieces} {totalPieces === 1 ? "Item" : "Items"} • {t("Total", "کل رقم")}
+              </span>
+              <span className="truncate text-base font-black tabular-nums text-slate-900 dark:text-white">
+                PKR {totalPayable.toLocaleString("en-PK", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </span>
+            </div>
+            <Button
+              type="submit"
+              variant="primary"
+              size="md"
+              className="shrink-0 bg-blue-600 px-5 py-2.5 font-bold shadow-md hover:bg-blue-700"
+              isLoading={submitting}
+            >
+              <CheckCircle2 className="mr-1.5 h-4 w-4" />
+              {submitting ? t("Saving...", "محفوظ ہو رہا ہے...") : t("Save Invoice", "بل محفوظ کریں")}
+            </Button>
           </div>
         </form>
       </div>

@@ -425,7 +425,7 @@ export default function ExpensesPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Select label="Expense Category" value={categoryId} onChange={(e) => setCategoryId(e.target.value)} required>
               {categories.map((c) => (
                 <option key={c.id} value={c.id}>{c.name}</option>
@@ -434,11 +434,11 @@ export default function ExpensesPage() {
             <Input label="Date" type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
           </div>
           <Input label="Description / Purpose" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="e.g. Electricity bill for September" required />
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Input label="Amount (Rs)" type="number" step="0.01" value={amount} onChange={(e) => setAmount(parseFloat(e.target.value) || 0)} required />
             <Input label="Paid To" value={paidTo} onChange={(e) => setPaidTo(e.target.value)} placeholder="e.g. K-Electric / Landlord" />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Select label="Payment Method" value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)}>
               <option value="CASH">Cash in Hand</option>
               <option value="BANK">Bank Account</option>
@@ -493,7 +493,7 @@ export default function ExpensesPage() {
               )}
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Select
                 label="Expense Category"
                 value={editCategoryId}

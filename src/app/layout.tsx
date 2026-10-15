@@ -1,13 +1,29 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { AppShell } from "@/components/layout/AppShell";
 import { ThemeProvider } from "@/context/ThemeContext";
 import { LanguageProvider } from "@/context/LanguageContext";
 
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 5,
+  viewportFit: "cover",
+  themeColor: [
+    { media: "(prefers-color-scheme: dark)", color: "#0B1120" },
+    { media: "(prefers-color-scheme: light)", color: "#f8fafc" },
+  ],
+};
+
 export const metadata: Metadata = {
   title: "accounts360.live | Financial Accounting, Multi-Company Ledger & FBR POS",
   description:
     "Professional cloud accounting ERP for Pakistani enterprises: real-time double-entry ledger, multi-location stock, automated tax closing, and official FBR digital POS compliance.",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Accounts360",
+  },
 };
 
 export default function RootLayout({

@@ -217,35 +217,37 @@ export default function SaleDetailPage() {
 
         {/* Items Table */}
         <div className="py-6">
-          <table className="w-full text-left text-xs">
-            <thead className="border-b border-slate-200 text-[11px] font-bold uppercase text-slate-500 dark:border-slate-800">
-              <tr>
-                <th className="pb-2">Item Description</th>
-                <th className="pb-2 text-center">HS Code / UOM</th>
-                <th className="pb-2 text-center">Qty</th>
-                <th className="pb-2 text-right">Unit Price</th>
-                <th className="pb-2 text-right">Amount</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {sale.items?.map((item: any, i: number) => (
-                <tr key={i}>
-                  <td className="py-3 pr-2">
-                    <p className="font-semibold text-slate-800 dark:text-slate-200">{item.productName}</p>
-                    {item.sku && <p className="text-[10px] text-slate-400">SKU: {item.sku}</p>}
-                  </td>
-                  <td className="py-3 px-2 text-center text-[10px] font-mono text-slate-500">
-                    {item.hsCode || "8517.1390"}
-                  </td>
-                  <td className="py-3 px-2 text-center tabular-nums">{item.quantity}</td>
-                  <td className="py-3 px-2 text-right tabular-nums">{formatMoney(item.unitPrice)}</td>
-                  <td className="py-3 pl-2 text-right font-bold text-slate-900 dark:text-white tabular-nums">
-                    {formatMoney(item.lineTotal)}
-                  </td>
+          <div className="overflow-x-auto -mx-2 sm:mx-0 px-2 sm:px-0">
+            <table className="w-full text-left text-xs min-w-[520px]">
+              <thead className="border-b border-slate-200 text-[11px] font-bold uppercase text-slate-500 dark:border-slate-800">
+                <tr>
+                  <th className="pb-2">Item Description</th>
+                  <th className="pb-2 text-center">HS Code / UOM</th>
+                  <th className="pb-2 text-center">Qty</th>
+                  <th className="pb-2 text-right">Unit Price</th>
+                  <th className="pb-2 text-right">Amount</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                {sale.items?.map((item: any, i: number) => (
+                  <tr key={i}>
+                    <td className="py-3 pr-2">
+                      <p className="font-semibold text-slate-800 dark:text-slate-200">{item.productName}</p>
+                      {item.sku && <p className="text-[10px] text-slate-400">SKU: {item.sku}</p>}
+                    </td>
+                    <td className="py-3 px-2 text-center text-[10px] font-mono text-slate-500">
+                      {item.hsCode || "8517.1390"}
+                    </td>
+                    <td className="py-3 px-2 text-center tabular-nums">{item.quantity}</td>
+                    <td className="py-3 px-2 text-right tabular-nums">{formatMoney(item.unitPrice)}</td>
+                    <td className="py-3 pl-2 text-right font-bold text-slate-900 dark:text-white tabular-nums">
+                      {formatMoney(item.lineTotal)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
 
         {/* Totals */}

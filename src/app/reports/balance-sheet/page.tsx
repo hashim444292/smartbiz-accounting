@@ -71,7 +71,7 @@ export default function BalanceSheetPage() {
         </Button>
       </div>
 
-      <div className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm dark:border-slate-800 dark:bg-slate-900 print:border-none print:p-0">
+      <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6 lg:p-8 shadow-sm dark:border-slate-800 dark:bg-slate-900 print:border-none print:p-0">
         <div className="border-b border-slate-200 pb-4 dark:border-slate-800">
           <h1 className="text-lg font-bold text-slate-900 dark:text-white">Balance Sheet (Financial Position)</h1>
           <p className="text-xs text-slate-500">As of September 2026 • Prepared according to standard accounting principles</p>
