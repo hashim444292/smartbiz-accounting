@@ -67,7 +67,7 @@ export async function getActiveBusinessId(req?: NextRequest): Promise<string> {
     return fallbackStore.companies[0].id;
   }
 
-  return "biz-101";
+  return fallbackStore.companies?.[0]?.id || "";
 }
 
 /**
