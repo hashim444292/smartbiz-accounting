@@ -50,6 +50,7 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
     switchBranch,
   } = useAuth();
   const isAccountingOnly = activeCompany?.packageType === "ACCOUNTING_ONLY" || (activeCompany?.enabledModules && !activeCompany.enabledModules.includes("compliance"));
+  const isPlatformMode = (user?.role === "SUPER_ADMIN" || user?.role === "ADMIN") && !isInspectingClient;
   const { theme, resolvedTheme, setTheme } = useTheme();
   const { language, setLanguage, t } = useLanguage();
   const router = useRouter();
@@ -537,8 +538,8 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
             <Search className="h-4 w-4" />
           </button>
 
-          {/* Global Date Range Selector */}
-          <DateRangeSelector />
+          {/* Global Date Range Selector (Hidden in Platform Admin mode) */}
+          {!isPlatformMode && <DateRangeSelector />}
 
           {/* Payment Reminders Notification Bell */}
           <div className="relative" ref={remindersRef}>

@@ -121,25 +121,44 @@ const PLATFORM_ADMIN_GROUPS: NavGroup[] = [
   },
 ];
 
-export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () => void }) {
+interface SidebarProps {
+  isOpen?: boolean;
+  onClose?: () => void;
+  isCollapsed?: boolean;
+  onToggleCollapse?: () => void;
+}
+
+export function Sidebar({
+  isOpen,
+  onClose,
+  isCollapsed: controlledCollapsed,
+  onToggleCollapse: controlledToggle,
+}: SidebarProps) {
   const pathname = usePathname();
   const { user, activeCompany, companies, isInspectingClient, inspectCompany, exitInspection } = useAuth();
   const { language } = useLanguage();
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [internalCollapsed, setInternalCollapsed] = useState(false);
 
-  // Read saved collapse state from localStorage if available
+  const isCollapsed = controlledCollapsed !== undefined ? controlledCollapsed : internalCollapsed;
+
+  // Read saved collapse state from localStorage if available (when uncontrolled)
   useEffect(() => {
+    if (controlledCollapsed !== undefined) return;
     try {
       const saved = localStorage.getItem("sb_sidebar_collapsed");
       if (saved !== null) {
-        setIsCollapsed(saved === "true");
+        setInternalCollapsed(saved === "true");
       }
     } catch {}
-  }, []);
+  }, [controlledCollapsed]);
 
   const toggleCollapse = () => {
-    const nextState = !isCollapsed;
-    setIsCollapsed(nextState);
+    if (controlledToggle) {
+      controlledToggle();
+      return;
+    }
+    const nextState = !internalCollapsed;
+    setInternalCollapsed(nextState);
     try {
       localStorage.setItem("sb_sidebar_collapsed", String(nextState));
       window.dispatchEvent(new Event("storage"));
@@ -221,7 +240,7 @@ export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () =>
       )}
 
       <aside
-        className={`fixed top-0 bottom-0 left-0 z-50 flex flex-col border-r border-slate-200/90 bg-white text-slate-700 shadow-subtle transition-all duration-300 ease-in-out dark:border-slate-800/90 dark:bg-[#111827] dark:text-slate-300 lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-50 flex flex-col border-r border-slate-200/90 bg-white text-slate-700 shadow-subtle transition-all duration-300 ease-in-out dark:border-slate-800/90 dark:bg-[#111827] dark:text-slate-300 lg:static lg:z-30 lg:h-screen lg:sticky lg:top-0 lg:shrink-0 lg:translate-x-0 ${
           isOpen ? "translate-x-0" : "-translate-x-full"
         } ${isCollapsed ? "w-20" : "w-64"}`}
       >

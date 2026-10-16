@@ -34,13 +34,20 @@ function ShellContent({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 font-sans antialiased text-slate-900 dark:bg-[#0B1120] dark:text-slate-100 transition-colors duration-150 overflow-x-hidden w-full max-w-full">
-      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-      <div
-        className={`flex flex-col min-h-screen transition-all duration-300 w-full max-w-full overflow-x-hidden ${
-          isCollapsed ? "lg:pl-20" : "lg:pl-64"
-        }`}
-      >
+    <div className="min-h-screen flex bg-slate-50 font-sans antialiased text-slate-900 dark:bg-[#0B1120] dark:text-slate-100 transition-colors duration-150 overflow-x-hidden w-full max-w-full">
+      <Sidebar
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        isCollapsed={isCollapsed}
+        onToggleCollapse={() => {
+          const next = !isCollapsed;
+          setIsCollapsed(next);
+          try {
+            localStorage.setItem("sb_sidebar_collapsed", String(next));
+          } catch {}
+        }}
+      />
+      <div className="flex-1 flex flex-col min-h-screen min-w-0 w-full overflow-x-hidden">
         {/* Active Super Admin User Session Switching Banner */}
         {user && user.role !== "SUPER_ADMIN" && user.isSwitched && (
           <div className="bg-gradient-to-r from-purple-800 via-indigo-800 to-indigo-900 text-white px-4 py-2 text-xs flex items-center justify-between shadow-xs z-30 border-b border-indigo-700/50">
@@ -85,7 +92,7 @@ function ShellContent({ children }: { children: React.ReactNode }) {
         )}
 
         <Header onMenuClick={() => setSidebarOpen(true)} />
-        <main className="flex-1 p-3.5 sm:p-5 lg:p-6 pb-20 lg:pb-6 max-w-7xl w-full mx-auto overflow-x-hidden">{children}</main>
+        <main className="flex-1 p-3.5 sm:p-5 lg:p-6 pb-24 lg:pb-8 max-w-7xl w-full mx-auto overflow-x-hidden">{children}</main>
         <BottomNav onOpenMenu={() => setSidebarOpen(true)} />
       </div>
     </div>
