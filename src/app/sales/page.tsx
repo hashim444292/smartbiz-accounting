@@ -748,7 +748,7 @@ export default function SalesPage() {
         <div className="flex flex-wrap items-center gap-2.5">
           <Link
             href="/sales/import"
-            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 shadow-2xs transition"
+            className="hidden sm:inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 shadow-2xs transition"
           >
             <UploadCloud className="h-3.5 w-3.5 text-indigo-600" />
             <span>Bulk Upload (CSV)</span>
@@ -756,7 +756,7 @@ export default function SalesPage() {
 
           <button
             onClick={exportSalesToCsv}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 shadow-2xs transition"
+            className="hidden sm:inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 shadow-2xs transition"
           >
             <Download className="h-3.5 w-3.5 text-slate-600" />
             <span>Export CSV</span>
@@ -764,7 +764,7 @@ export default function SalesPage() {
 
           <button
             onClick={() => window.print()}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 shadow-2xs transition"
+            className="hidden sm:inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 shadow-2xs transition"
             title={t("Print Sales Report for filtered period", "فلٹر شدہ مدت کی سیلز رپورٹ پرنٹ کریں")}
           >
             <Printer className="h-3.5 w-3.5 text-slate-600" />

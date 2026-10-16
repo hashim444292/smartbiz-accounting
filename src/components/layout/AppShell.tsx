@@ -34,10 +34,10 @@ function ShellContent({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 font-sans antialiased text-slate-900 dark:bg-[#0B1120] dark:text-slate-100 transition-colors duration-150">
+    <div className="min-h-screen bg-slate-50 font-sans antialiased text-slate-900 dark:bg-[#0B1120] dark:text-slate-100 transition-colors duration-150 overflow-x-hidden w-full max-w-full">
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <div
-        className={`flex flex-col min-h-screen transition-all duration-300 ${
+        className={`flex flex-col min-h-screen transition-all duration-300 w-full max-w-full overflow-x-hidden ${
           isCollapsed ? "lg:pl-20" : "lg:pl-64"
         }`}
       >
@@ -85,7 +85,7 @@ function ShellContent({ children }: { children: React.ReactNode }) {
         )}
 
         <Header onMenuClick={() => setSidebarOpen(true)} />
-        <main className="flex-1 p-3.5 sm:p-5 lg:p-6 pb-20 lg:pb-6 max-w-7xl w-full mx-auto">{children}</main>
+        <main className="flex-1 p-3.5 sm:p-5 lg:p-6 pb-20 lg:pb-6 max-w-7xl w-full mx-auto overflow-x-hidden">{children}</main>
         <BottomNav onOpenMenu={() => setSidebarOpen(true)} />
       </div>
     </div>

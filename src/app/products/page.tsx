@@ -194,7 +194,7 @@ export default function ProductsListPage() {
           <button
             type="button"
             onClick={() => setIsCategoryModalOpen(true)}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 shadow-2xs transition"
+            className="hidden sm:inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 shadow-2xs transition"
           >
             <Tag className="h-3.5 w-3.5 text-indigo-600" />
             <span>Manage Categories</span>
@@ -204,7 +204,7 @@ export default function ProductsListPage() {
             type="button"
             onClick={exportCsv}
             disabled={isExporting}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 shadow-2xs transition disabled:opacity-50"
+            className="hidden sm:inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 shadow-2xs transition disabled:opacity-50"
           >
             <Download className="h-3.5 w-3.5 text-slate-500" />
             <span>{isExporting ? "Exporting..." : "Export CSV"}</span>
@@ -212,7 +212,7 @@ export default function ProductsListPage() {
 
           <Link
             href="/products/import"
-            className="inline-flex items-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs font-bold text-indigo-700 hover:bg-indigo-100 transition shadow-2xs"
+            className="hidden sm:inline-flex items-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs font-bold text-indigo-700 hover:bg-indigo-100 transition shadow-2xs"
           >
             <UploadCloud className="h-4 w-4" />
             <span>Import Products (CSV)</span>

@@ -9,20 +9,17 @@ import {
   Building2,
   ChevronDown,
   Check,
-  ShieldCheck,
   LogOut,
   Search,
   Receipt,
   Package,
   Users,
-  UserPlus,
   KeyRound,
   X,
   ArrowRight,
   Sun,
   Moon,
   Monitor,
-  Type,
   Store,
   Bell,
   AlertTriangle,
@@ -53,7 +50,7 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
     switchBranch,
   } = useAuth();
   const isAccountingOnly = activeCompany?.packageType === "ACCOUNTING_ONLY" || (activeCompany?.enabledModules && !activeCompany.enabledModules.includes("compliance"));
-  const { theme, resolvedTheme, setTheme, toggleTheme, font, setFont, fontOptions } = useTheme();
+  const { theme, resolvedTheme, setTheme } = useTheme();
   const { language, setLanguage, t } = useLanguage();
   const router = useRouter();
   const pathname = usePathname();
@@ -75,10 +72,6 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
   // Theme switcher dropdown state
   const [themeMenuOpen, setThemeMenuOpen] = useState(false);
   const themeMenuRef = useRef<HTMLDivElement>(null);
-
-  // Typography font switcher dropdown state
-  const [fontMenuOpen, setFontMenuOpen] = useState(false);
-  const fontMenuRef = useRef<HTMLDivElement>(null);
 
   // Branch switcher dropdown state
   const [branchDropdownOpen, setBranchDropdownOpen] = useState(false);
@@ -138,9 +131,6 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
       }
       if (themeMenuRef.current && !themeMenuRef.current.contains(event.target as Node)) {
         setThemeMenuOpen(false);
-      }
-      if (fontMenuRef.current && !fontMenuRef.current.contains(event.target as Node)) {
-        setFontMenuOpen(false);
       }
       if (remindersRef.current && !remindersRef.current.contains(event.target as Node)) {
         setRemindersOpen(false);
@@ -234,8 +224,8 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
 
   return (
     <>
-      <header className="sticky top-0 z-30 flex h-16 w-full items-center justify-between border-b border-slate-200/80 bg-white/95 px-3.5 sm:px-6 backdrop-blur-md dark:border-slate-800/90 dark:bg-[#111827]/95 transition-colors duration-150">
-        <div className="flex items-center gap-2.5 sm:gap-3">
+      <header className="sticky top-0 z-30 flex h-16 w-full max-w-full items-center justify-between border-b border-slate-200/80 bg-white/95 px-3 sm:px-6 backdrop-blur-md dark:border-slate-800/90 dark:bg-[#111827]/95 transition-colors duration-150 overflow-hidden">
+        <div className="flex items-center gap-2 sm:gap-3 shrink-0 min-w-0">
           <button
             onClick={onMenuClick}
             aria-label="Toggle menu"
@@ -415,7 +405,7 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
               </div>
             </div>
           ) : (branches && branches.length > 0 && ((user?.role !== "SUPER_ADMIN" && user?.role !== "ADMIN") || isInspectingClient)) ? (
-            <div className="relative" ref={branchDropdownRef}>
+            <div className="relative hidden md:block shrink-0" ref={branchDropdownRef}>
               <button
                 onClick={() => setBranchDropdownOpen(!branchDropdownOpen)}
                 className={`flex items-center gap-1.5 sm:gap-2 rounded-xl border px-2.5 sm:px-3 py-1.5 text-xs font-semibold transition ${
@@ -521,14 +511,14 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
             </div>
           ) : null}
 
-          {/* Categorized Global Search Trigger */}
+          {/* Categorized Global Search Trigger (Desktop) */}
           <button
             onClick={() => setSearchOpen(true)}
-            className="hidden md:flex items-center gap-2 rounded-xl border border-slate-200/90 bg-slate-100/70 px-3 py-1.5 text-xs text-slate-500 hover:text-slate-700 hover:bg-slate-100 dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-400 dark:hover:text-slate-200 transition w-60 lg:w-76 justify-between shadow-2xs"
+            className="hidden lg:flex items-center gap-2 rounded-xl border border-slate-200/90 bg-slate-100/70 px-3 py-1.5 text-xs text-slate-500 hover:text-slate-700 hover:bg-slate-100 dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-400 dark:hover:text-slate-200 transition w-44 xl:w-60 justify-between shadow-2xs"
           >
             <div className="flex items-center gap-2 truncate">
-              <Search className="h-3.5 w-3.5 text-slate-400" />
-              <span className="truncate">Search invoices, items, NTN...</span>
+              <Search className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+              <span className="truncate">Search records...</span>
             </div>
             <kbd className="rounded-md border border-slate-300 bg-white px-1.5 py-0.5 text-[10px] font-mono font-semibold text-slate-500 shadow-2xs dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 shrink-0">
               ⌘K
@@ -537,95 +527,18 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
         </div>
 
         {/* Right Nav Actions */}
-        <div className="flex items-center gap-2 sm:gap-2.5">
-          {/* Mobile search button */}
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          {/* Mobile & Tablet Search Button (< lg) */}
           <button
             onClick={() => setSearchOpen(true)}
-            className="rounded-xl p-2 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800 md:hidden transition"
-            title="Global Search"
+            className="rounded-xl p-2 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800 lg:hidden transition shrink-0"
+            title="Global Search (⌘K)"
           >
             <Search className="h-4 w-4" />
           </button>
 
           {/* Global Date Range Selector */}
           <DateRangeSelector />
-
-          {/* Typography / Font Family Switcher */}
-          <div className="hidden sm:block relative" ref={fontMenuRef}>
-            <button
-              onClick={() => setFontMenuOpen(!fontMenuOpen)}
-              className="flex h-9 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white transition shadow-2xs"
-              title={`Typography: ${fontOptions.find((f) => f.id === font)?.name || "Font"} (Click to customize typeface)`}
-            >
-              <Type className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
-              <span className="hidden xl:inline text-[11px] font-bold">
-                {fontOptions.find((f) => f.id === font)?.name || "Inter"}
-              </span>
-              <ChevronDown className="h-3 w-3 text-slate-400" />
-            </button>
-
-            {fontMenuOpen && (
-              <div className="absolute right-0 mt-2 w-72 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl dark:border-slate-800 dark:bg-[#111827] z-50 animate-in fade-in zoom-in-95 duration-100">
-                <div className="px-2.5 py-1.5 mb-1 border-b border-slate-100 dark:border-slate-800">
-                  <p className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                    <Type className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
-                    ERP Typography
-                  </p>
-                  <p className="text-[10px] text-slate-400 leading-tight">
-                    Select enterprise typeface (persists automatically)
-                  </p>
-                </div>
-
-                <div className="space-y-1">
-                  {fontOptions.map((opt) => {
-                    const isSelected = font === opt.id;
-                    return (
-                      <button
-                        key={opt.id}
-                        onClick={() => {
-                          setFont(opt.id);
-                          setFontMenuOpen(false);
-                        }}
-                        className={`w-full flex items-start justify-between rounded-xl p-2 text-left transition ${
-                          isSelected
-                            ? "bg-indigo-50 border border-indigo-200/80 dark:bg-indigo-950/60 dark:border-indigo-800/80"
-                            : "hover:bg-slate-100 dark:hover:bg-slate-800/70 border border-transparent"
-                        }`}
-                      >
-                        <div className="pr-2">
-                          <div className="flex items-center gap-1.5">
-                            <span
-                              className={`text-xs font-bold ${opt.className} ${
-                                isSelected
-                                  ? "text-indigo-700 dark:text-indigo-300"
-                                  : "text-slate-800 dark:text-slate-200"
-                              }`}
-                            >
-                              {opt.name}
-                            </span>
-                            <span className="text-[9px] px-1.5 py-0.2 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 font-medium">
-                              {opt.category}
-                            </span>
-                          </div>
-                          <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight mt-0.5">
-                            {opt.description}
-                          </p>
-                        </div>
-                        {isSelected && (
-                          <Check className="h-4 w-4 text-indigo-600 dark:text-indigo-400 shrink-0 mt-0.5" />
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                <div className="mt-1.5 pt-1.5 border-t border-slate-100 dark:border-slate-800 px-2 text-[10px] text-slate-400 leading-tight flex items-center gap-1">
-                  <span className="font-mono text-indigo-600 dark:text-indigo-400 font-bold">123</span>
-                  <span>Ledgers & figures use JetBrains Mono tabular spacing.</span>
-                </div>
-              </div>
-            )}
-          </div>
 
           {/* Payment Reminders Notification Bell */}
           <div className="relative" ref={remindersRef}>
@@ -751,7 +664,7 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
           </div>
 
           {/* Theme Switcher Toggle */}
-          <div className="relative hidden sm:block" ref={themeMenuRef}>
+          <div className="relative hidden md:block shrink-0" ref={themeMenuRef}>
             <button
               onClick={() => setThemeMenuOpen(!themeMenuOpen)}
               className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white transition shadow-2xs"
@@ -813,7 +726,7 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
           </div>
 
           {/* Language Switcher Dropdown */}
-          <div className="relative hidden sm:block" ref={langMenuRef}>
+          <div className="relative hidden md:block shrink-0" ref={langMenuRef}>
             <button
               onClick={() => setLangMenuOpen(!langMenuOpen)}
               className="flex h-9 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 hover:text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white transition shadow-2xs"
@@ -864,61 +777,14 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
             )}
           </div>
 
-          {/* Quick Action: Contextual Add Button */}
-          {pathname?.startsWith("/purchases") ? (
-            <Link
-              href="/purchases/create"
-              className="hidden sm:inline-flex items-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-bold text-indigo-700 shadow-2xs transition hover:bg-indigo-100 dark:border-indigo-800 dark:bg-indigo-950/50 dark:text-indigo-300"
-            >
-              <Plus className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
-              <span>Add Purchase</span>
-            </Link>
-          ) : (
-            <>
-              <Link
-                href="/customers?action=add"
-                className="hidden md:inline-flex items-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50/70 px-3 py-1.5 text-xs font-bold text-blue-700 shadow-2xs transition hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-950/50 dark:text-blue-300"
-              >
-                <UserPlus className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
-                <span>+ Customer</span>
-              </Link>
-              <Link
-                href="/products"
-                className="hidden sm:inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs transition hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
-                title="View Products Catalog & Rates"
-              >
-                <Package className="h-3.5 w-3.5 text-slate-500 dark:text-slate-400" />
-                <span>Products</span>
-              </Link>
-              <Link
-                href="/products/create"
-                className="hidden sm:inline-flex items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50/70 px-3 py-1.5 text-xs font-bold text-emerald-700 shadow-2xs transition hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300"
-                title="Add New Product Item with HS Code & Tax"
-              >
-                <Plus className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
-                <span>+ Add Product</span>
-              </Link>
-            </>
-          )}
-
-          {/* Quick Action: FBR POS Sale (Full Suite) or New Sale (Accounting) */}
-          {!isAccountingOnly ? (
-            <Link
-              href="/compliance/fbr"
-              className="hidden sm:inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-xs transition hover:bg-indigo-700 shadow-indigo-600/20"
-            >
-              <ShieldCheck className="h-3.5 w-3.5" />
-              <span>FBR POS Sale</span>
-            </Link>
-          ) : (
-            <Link
-              href="/sales/create"
-              className="hidden sm:inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-xs transition hover:bg-blue-700 shadow-blue-600/20"
-            >
-              <Receipt className="h-3.5 w-3.5" />
-              <span>New Sale</span>
-            </Link>
-          )}
+          {/* Quick Primary Action: + New Invoice (Desktop xl+) */}
+          <Link
+            href="/sales/create"
+            className="hidden xl:inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-3.5 py-1.5 text-xs font-bold text-white shadow-xs hover:bg-indigo-700 transition shadow-indigo-600/20 shrink-0"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            <span>{t("New Bill", "نیا بل")}</span>
+          </Link>
 
           {/* User Badge & Profile with Dropdown */}
           <div className="relative pl-1 border-l border-slate-200 dark:border-slate-800" ref={userMenuRef}>
@@ -1081,6 +947,30 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
                     </button>
                   </div>
                 )}
+
+                {/* Quick Theme & Language strip inside user profile menu (ideal for mobile) */}
+                <div className="pt-2 mt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs px-1">
+                  <div className="flex items-center gap-1.5 w-full">
+                    <button
+                      type="button"
+                      onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
+                      className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-[11px] font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 transition"
+                      title="Toggle Light / Dark mode"
+                    >
+                      {resolvedTheme === "dark" ? <Sun className="h-3.5 w-3.5 text-amber-400" /> : <Moon className="h-3.5 w-3.5 text-slate-600" />}
+                      <span>{resolvedTheme === "dark" ? "Light Mode" : "Dark Mode"}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setLanguage(language === "en" ? "ur" : "en")}
+                      className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-xl border border-blue-200 dark:border-blue-800 bg-blue-50/80 dark:bg-blue-950/40 text-[11px] font-bold text-blue-700 dark:text-blue-300 hover:bg-blue-100 transition"
+                      title="Toggle Language"
+                    >
+                      <Languages className="h-3.5 w-3.5" />
+                      <span>{language === "en" ? "اردو" : "English"}</span>
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
           </div>
