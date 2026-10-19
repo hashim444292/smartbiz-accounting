@@ -39,6 +39,7 @@ export async function GET(req: NextRequest) {
                 sku: true,
                 uom: true,
                 unit: true,
+                hsCode: true,
               },
             },
           },
@@ -233,6 +234,7 @@ export async function POST(req: NextRequest) {
           unitPrice: p,
           lineTotal: lt,
           costPrice: prod?.averageCost || 0,
+          hsCode: it.hsCode ? it.hsCode.trim() : (prod?.hsCode || "5201.0090"),
         };
       });
 

@@ -246,7 +246,7 @@ export default function SaleDetailPage() {
                         {item.sku && <p className="text-[10px] text-slate-400">SKU: {item.sku}</p>}
                       </td>
                       <td className="py-3 px-2 text-center text-[10px] font-mono text-slate-500">
-                        <div>{item.hsCode || "8517.1390"}</div>
+                        <div className="font-semibold text-slate-700 dark:text-slate-300">{item.hsCode || item.product?.hsCode || (sale as any)?.business?.defaultHsCode || "—"}</div>
                         <span className="inline-block mt-0.5 px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-800 text-[9px] font-bold text-slate-700 dark:text-slate-300">
                           {effectiveUom}
                         </span>

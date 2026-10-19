@@ -126,7 +126,7 @@ export async function createAndPostSale(input: CreateSaleInput) {
 
     const business = await tx.business.findUnique({
       where: { id: businessId },
-      select: { packageType: true, negativeStockPolicy: true },
+      select: { packageType: true, negativeStockPolicy: true, defaultHsCode: true, defaultUom: true },
     });
     const isFbrInvoicingOnly = business?.packageType === "FBR_INVOICING_ONLY";
 
@@ -217,6 +217,7 @@ export async function createAndPostSale(input: CreateSaleInput) {
 
         // For FBR_INVOICING_ONLY: Auto-create lightweight product so foreign key constraint passes, without stock tracking
         const defaultCat = await tx.category.findFirst({ where: { businessId } });
+        const finalHs = (item.hsCode && item.hsCode.trim()) || business?.defaultHsCode || "5201.0090";
         product = await tx.product.create({
           data: {
             businessId,
@@ -228,21 +229,33 @@ export async function createAndPostSale(input: CreateSaleInput) {
             categoryId: defaultCat?.id || null,
             unit: (item as any).uom || "pcs",
             uom: (item as any).uom || "pcs",
-            hsCode: item.hsCode || "8517.1390",
+            hsCode: finalHs,
           },
         });
-      } else if (item.uom && item.uom.toUpperCase() !== "PCS" && (product.uom === "pcs" || product.unit === "pcs" || !product.uom)) {
-        try {
-          await tx.product.update({
-            where: { id: product.id },
-            data: {
-              uom: item.uom.toUpperCase(),
-              unit: item.uom.toUpperCase(),
-            },
-          });
-          product.uom = item.uom.toUpperCase();
-          product.unit = item.uom.toUpperCase();
-        } catch {}
+      } else {
+        const updates: any = {};
+        if (item.uom && item.uom.toUpperCase() !== "PCS" && (product.uom === "pcs" || product.unit === "pcs" || !product.uom)) {
+          updates.uom = item.uom.toUpperCase();
+          updates.unit = item.uom.toUpperCase();
+        }
+        if (item.hsCode && item.hsCode.trim() && item.hsCode.trim() !== product.hsCode) {
+          updates.hsCode = item.hsCode.trim();
+        }
+        if (Object.keys(updates).length > 0) {
+          try {
+            await tx.product.update({
+              where: { id: product.id },
+              data: updates,
+            });
+            if (updates.uom) {
+              product.uom = updates.uom;
+              product.unit = updates.unit;
+            }
+            if (updates.hsCode) {
+              product.hsCode = updates.hsCode;
+            }
+          } catch {}
+        }
       }
 
       const q = round4(item.quantity);
@@ -259,11 +272,12 @@ export async function createAndPostSale(input: CreateSaleInput) {
       totalDiscount = totalDiscount.add(d);
       totalCOGS = totalCOGS.add(lineCost);
 
+      const resolvedItemHs = (item.hsCode && item.hsCode.trim()) || product.hsCode || business?.defaultHsCode || "5201.0090";
       processedItems.push({
         productId: product.id,
         productName: product.name,
         sku: product.sku,
-        hsCode: item.hsCode || product.hsCode || "8517.13",
+        hsCode: resolvedItemHs,
         quantity: q,
         unitPrice: p,
         discount: d,
@@ -340,7 +354,8 @@ export async function createAndPostSale(input: CreateSaleInput) {
     // Merge FBR / extra tax metadata into notes
     let notesToSave = notes || null;
     const hasItemUoms = items.some((it) => it.uom);
-    if (input.fbrMeta || input.scenario || input.customerNtn || input.customerCnic || input.advanceIncomeTax || hasItemUoms) {
+    const hasItemHsCodes = items.some((it) => it.hsCode);
+    if (input.fbrMeta || input.scenario || input.customerNtn || input.customerCnic || input.advanceIncomeTax || hasItemUoms || hasItemHsCodes) {
       const metaObj = {
         ...(typeof input.fbrMeta === "object" ? input.fbrMeta : {}),
         scenario: input.scenario || input.fbrMeta?.scenario || "SN001",
@@ -349,6 +364,7 @@ export async function createAndPostSale(input: CreateSaleInput) {
         advanceIncomeTax: input.advanceIncomeTax ? Number(input.advanceIncomeTax) : 0,
         extraTax: extraTaxVal.toNumber(),
         itemsUom: items.map((it) => (it.uom || "PCS").toUpperCase()),
+        itemsHsCode: processedItems.map((pi) => pi.hsCode),
       };
       notesToSave = JSON.stringify({ fbrMeta: metaObj, remarks: notes || "" });
     }

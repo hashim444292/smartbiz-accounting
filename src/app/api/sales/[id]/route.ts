@@ -19,7 +19,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
         items: {
           include: {
             product: {
-              select: { id: true, name: true, sku: true, uom: true, unit: true },
+              select: { id: true, name: true, sku: true, uom: true, unit: true, hsCode: true },
             },
           },
         },

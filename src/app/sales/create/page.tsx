@@ -93,6 +93,47 @@ type BuyerTaxStatus = "EXEMPT" | "REGISTERED" | "UNREGISTERED";
 type PaymentMethod = "CASH" | "BANK" | "CHEQUE" | "POS_DIGITAL";
 type PaymentMode = "FULL" | "PARTIAL" | "CREDIT";
 
+const COMMON_FBR_HS_CODES = [
+  { code: "5201.0090", label: "Raw Cotton (Ginned / Textile)" },
+  { code: "5208.1100", label: "Woven Fabrics of Cotton (Unbleached / Gray Cloth)" },
+  { code: "5208.3200", label: "Woven Fabrics of Cotton (Dyed / Printed)" },
+  { code: "5202.9900", label: "Cotton Waste / Yarn Waste" },
+  { code: "5205.1100", label: "Cotton Yarn (Single Cotton Combed/Carded)" },
+  { code: "6109.1000", label: "T-Shirts, Singlets & Vests (Cotton)" },
+  { code: "6203.4200", label: "Men's / Boys' Trousers & Pants (Cotton)" },
+  { code: "1001.1900", label: "Wheat / Grain / Agricultural Produce" },
+  { code: "1006.3000", label: "Semi-Milled or Wholly Milled Rice" },
+  { code: "1701.9900", label: "Refined White Sugar" },
+  { code: "1515.9000", label: "Cooking Oil & Edible Vegetable Oils" },
+  { code: "3401.1100", label: "Toilet Soap & Organic Surface-Active Products" },
+  { code: "7207.1210", label: "Semi-Finished Products of Iron / Steel Billets" },
+  { code: "8517.1390", label: "Smartphones & Cellular Mobile Phones" },
+  { code: "8517.7900", label: "Parts of Telephone Sets & Mobile Accessories" },
+  { code: "8471.3010", label: "Portable Digital Computers / Laptops" },
+  { code: "2710.1240", label: "White Spirit / Solvents / Petrochemicals" },
+  { code: "9812.0000", label: "Telecommunication & Information Technology Services" },
+  { code: "9901.0000", label: "General Commercial Merchandise" },
+];
+
+function formatHsCodeInput(val: string): string {
+  const cleaned = val.trim().replace(/[^0-9.]/g, "");
+  if (!cleaned) return val;
+  if (cleaned.includes(".")) {
+    const [head, tail] = cleaned.split(".");
+    return `${head.slice(0, 4)}.${(tail || "0000").padEnd(4, "0").slice(0, 4)}`;
+  }
+  if (cleaned.length === 8) {
+    return `${cleaned.slice(0, 4)}.${cleaned.slice(4, 8)}`;
+  }
+  if (cleaned.length === 6) {
+    return `${cleaned.slice(0, 4)}.${cleaned.slice(4, 6)}00`;
+  }
+  if (cleaned.length === 4) {
+    return `${cleaned}.0000`;
+  }
+  return cleaned;
+}
+
 export default function CreateSalePage() {
   const router = useRouter();
   const { t, language } = useLanguage();
@@ -110,10 +151,16 @@ export default function CreateSalePage() {
   const [products, setProducts] = useState<ProductOption[]>([]);
   const [customers, setCustomers] = useState<CustomerOption[]>([]);
   const [categories, setCategories] = useState<CategoryOption[]>([]);
-  const [tenantName, setTenantName] = useState<string>("ABC Electronics (Pvt) Ltd");
-  const [orgHsCode, setOrgHsCode] = useState<string>("8517.13");
-  const [invoiceNumberPreview, setInvoiceNumberPreview] = useState<string>("ABC-2026-AUTO");
+  const [tenantName, setTenantName] = useState<string>("SmartBiz Enterprise");
+  const [orgHsCode, setOrgHsCode] = useState<string>(activeCompany?.defaultHsCode || "5201.0090");
+  const [invoiceNumberPreview, setInvoiceNumberPreview] = useState<string>("INV-2026-AUTO");
   const [loadingOptions, setLoadingOptions] = useState<boolean>(true);
+
+  useEffect(() => {
+    if (activeCompany?.defaultHsCode) {
+      setOrgHsCode(activeCompany.defaultHsCode);
+    }
+  }, [activeCompany?.defaultHsCode]);
 
   // Form Header State
   const [customerId, setCustomerId] = useState<string>("");
@@ -164,7 +211,7 @@ export default function CreateSalePage() {
     sellingPrice: "",
     purchasePrice: "",
     openingQuantity: "10",
-    hsCode: "8517.13",
+    hsCode: activeCompany?.defaultHsCode || "5201.0090",
   });
 
   // Manage & Delete Catalog Products State
@@ -280,7 +327,7 @@ export default function CreateSalePage() {
         }
 
         // 1. Organization & Categories
-        let currentOrgHs = "8517.13";
+        let currentOrgHs = activeCompany?.defaultHsCode || "5201.0090";
         if (metaJson.success && metaJson.data?.organization) {
           const org = metaJson.data.organization;
           if (org.name) setTenantName(org.name);
@@ -331,12 +378,12 @@ export default function CreateSalePage() {
           const initialItem = recalculateItem(
             {
               productId: "",
-              productName: "Galaxy Smartphone S25 256GB",
-              sku: "SKU-S25-256",
+              productName: "Commercial Merchandise Item",
+              sku: "SKU-ITEM-01",
               hsCode: currentOrgHs,
               uom: "PCS",
               quantity: 1,
-              unitPrice: 285000,
+              unitPrice: 1000,
               discountPercent: 0,
               availableStock: 50,
             },
@@ -513,6 +560,7 @@ export default function CreateSalePage() {
   // Update Line Item Fields
   const handleItemFieldChange = (index: number, field: keyof SaleLineItem, value: any) => {
     if (field === "productName") clearFieldError(`item_${index}_product`);
+    if (field === "hsCode") clearFieldError(`item_${index}_hscode`);
     if (field === "quantity") clearFieldError(`item_${index}_quantity`);
     if (field === "unitPrice") clearFieldError(`item_${index}_price`);
     if (field === "discountPercent") clearFieldError(`item_${index}_disc`);
@@ -527,6 +575,27 @@ export default function CreateSalePage() {
         },
         buyerTaxStatus
       );
+      return next;
+    });
+  };
+
+  // Auto-format HS Code on blur if digits entered
+  const handleHsCodeBlur = (index: number) => {
+    setItems((prev) => {
+      const next = [...prev];
+      const raw = next[index]?.hsCode;
+      if (raw) {
+        const formatted = formatHsCodeInput(raw);
+        if (formatted !== raw) {
+          next[index] = recalculateItem(
+            {
+              ...next[index],
+              hsCode: formatted,
+            },
+            buyerTaxStatus
+          );
+        }
+      }
       return next;
     });
   };
@@ -883,6 +952,17 @@ export default function CreateSalePage() {
           );
         }
       });
+
+      // Strictly require valid HS/PCT Code in Digital Invoicing (prevent irreversible PRAL errors)
+      items.forEach((it, idx) => {
+        const hsClean = (it.hsCode || "").trim().replace(/[^0-9]/g, "");
+        if (!hsClean || hsClean.length < 4) {
+          errors[`item_${idx}_hscode`] = t(
+            `Line item #${idx + 1} requires a valid 4-to-8 digit FBR HS/PCT code (e.g. 5201.0090, 5208.1100).`,
+            `آئٹم #${idx + 1} کے لیے درست ایف بی آر ایچ ایس کوڈ درج کرنا لازمی ہے۔`
+          );
+        }
+      });
     } else {
       if (!customerId && remaining > 0) {
         if (!walkInName.trim()) {
@@ -1003,7 +1083,7 @@ export default function CreateSalePage() {
             unitPrice: it.unitPrice,
             discount: it.discountAmount,
             taxRate: it.taxRate,
-            hsCode: it.hsCode || orgHsCode,
+            hsCode: it.hsCode ? it.hsCode.trim() : (orgHsCode || "5201.0090"),
           })),
           overallDiscount: Number(overallDiscount || 0),
           taxAmount: gstAmount + furtherTaxAmount,
@@ -1126,7 +1206,7 @@ export default function CreateSalePage() {
                   unitPrice: it.unitPrice,
                   discount: itemDiscPerPiece,
                   taxRate: it.taxRate,
-                  hsCode: it.hsCode || orgHsCode,
+                  hsCode: it.hsCode ? it.hsCode.trim() : (orgHsCode || "5201.0090"),
                 },
               ],
               overallDiscount: overallDiscPerPiece,
@@ -1697,7 +1777,13 @@ export default function CreateSalePage() {
                 <thead className="bg-slate-50/80 border-b border-slate-200 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:bg-slate-800/40 dark:border-slate-800 dark:text-slate-400">
                   <tr>
                     <th className="py-3 pl-4 pr-2 w-10 text-center">#</th>
-                    <th className="py-3 px-3 min-w-[260px]">{t("Product / Item", "آئٹم کا نام")}</th>
+                    <th className="py-3 px-3 min-w-[240px]">{t("Product / Item", "آئٹم کا نام")}</th>
+                    <th className="py-3 px-2 w-32 text-center">
+                      <div className="flex items-center justify-center gap-1">
+                        <span>{t("HS Code", "ایچ ایس کوڈ")}</span>
+                        <span className="text-[9px] px-1 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300 font-mono font-bold">FBR</span>
+                      </div>
+                    </th>
                     <th className="py-3 px-2 w-20 text-center">{t("UOM", "یونٹ")}</th>
                     <th className="py-3 px-2 w-20 text-center">{t("Qty", "تعداد")}</th>
                     <th className="py-3 px-2 w-32 text-right">{t("Price", "قیمت")}</th>
@@ -1798,12 +1884,38 @@ export default function CreateSalePage() {
                           )}
                         </div>
 
-                        {it.availableStock > 0 && (
-                          <div className="text-[10px] text-slate-400 flex items-center gap-2">
+                        <div className="text-[10px] text-slate-400 flex items-center gap-2">
+                          {it.availableStock > 0 && (
                             <span>{t("Stock:", "اسٹاک:")} <strong className="text-slate-600 dark:text-slate-300">{it.availableStock} {it.uom}</strong></span>
-                            {it.sku && <span>SKU: {it.sku}</span>}
-                          </div>
-                        )}
+                          )}
+                          {it.sku && <span>SKU: {it.sku}</span>}
+                          {it.hsCode && <span className="font-mono text-blue-600 dark:text-blue-400 font-semibold">HS: {it.hsCode}</span>}
+                        </div>
+                      </td>
+
+                      {/* HS / PCT CODE */}
+                      <td className="py-3 px-2 text-center align-top pt-4">
+                        <div className="space-y-1">
+                          <input
+                            type="text"
+                            value={it.hsCode || ""}
+                            onChange={(e) => handleItemFieldChange(idx, "hsCode", e.target.value)}
+                            onBlur={() => handleHsCodeBlur(idx)}
+                            placeholder={orgHsCode || "5201.0090"}
+                            list="fbr-hs-code-list"
+                            title={t("FBR Harmonized Tariff / PCT Code (e.g. 5208.1100, 5201.0090)", "ایف بی آر ایچ ایس کوڈ")}
+                            className={`w-full rounded-lg border px-2 py-1.5 text-center font-mono text-xs font-semibold focus:outline-none dark:bg-slate-900 ${
+                              fieldErrors[`item_${idx}_hscode`]
+                                ? "border-rose-400 focus:border-rose-600 bg-rose-50/20 text-rose-700 dark:text-rose-300"
+                                : "border-slate-200 bg-white text-slate-800 focus:border-blue-500 dark:border-slate-700 dark:text-slate-200"
+                            }`}
+                          />
+                          {fieldErrors[`item_${idx}_hscode`] && (
+                            <p className="text-[9px] font-semibold text-rose-500 text-center leading-tight">
+                              {fieldErrors[`item_${idx}_hscode`]}
+                            </p>
+                          )}
+                        </div>
                       </td>
 
                       {/* UOM */}
@@ -1927,6 +2039,15 @@ export default function CreateSalePage() {
                 </tbody>
               </table>
             </div>
+
+            {/* FBR Harmonized System (HS / PCT) Codes Datalist */}
+            <datalist id="fbr-hs-code-list">
+              {COMMON_FBR_HS_CODES.map((hs) => (
+                <option key={hs.code} value={hs.code}>
+                  {hs.code} — {hs.label}
+                </option>
+              ))}
+            </datalist>
           </div>
 
           {/* Bottom Grid: Payment Methods & Guarantee (Left) vs Tax & Payment Summary (Right) */}
@@ -2659,18 +2780,18 @@ export default function CreateSalePage() {
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
                   HS / PCT Code (FBR Fiscal Compliance)
                 </label>
-                <div className="relative mt-1">
+                <div className="mt-1">
                   <input
                     type="text"
                     value={newProductForm.hsCode}
                     onChange={(e) => setNewProductForm({ ...newProductForm, hsCode: e.target.value })}
-                    placeholder={orgHsCode}
+                    placeholder={orgHsCode || "5201.0090"}
+                    list="fbr-hs-code-list"
                     className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-mono font-bold text-slate-800 focus:border-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                   />
-                  <Lock className="absolute right-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
                 </div>
                 <p className="mt-1 text-[11px] text-slate-400">
-                  Default inherited from organization HS Code standard: <strong>{orgHsCode}</strong>
+                  Select from tariff list or enter any custom 8-digit FBR PCT code (e.g. <strong>5201.0090</strong>, <strong>5208.1100</strong>). Default: <strong>{orgHsCode}</strong>
                 </p>
               </div>
             )}

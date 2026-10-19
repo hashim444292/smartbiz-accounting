@@ -803,7 +803,14 @@ export function buildFbrPayload(
     const totalLineValue = round2(lineSubtotal + taxAmountVal).toNumber();
 
     return {
-      hsCode: formatHsCode(item.hsCode || fbrMeta?.hsCode || item.product?.hsCode || scenarioDef?.hsCode || business?.defaultHsCode),
+      hsCode: formatHsCode(
+        item.hsCode ||
+        (Array.isArray(fbrMeta?.itemsHsCode) ? fbrMeta.itemsHsCode[idx] : null) ||
+        fbrMeta?.hsCode ||
+        item.product?.hsCode ||
+        scenarioDef?.hsCode ||
+        business?.defaultHsCode
+      ),
       productDescription: item.productName || item.product?.name || scenarioDef?.productDescription || "Retail Merchandise",
       rate: isExemptOrZero ? "0%" : `${taxRateVal}%`,
       uoM: formatFbrUom(
@@ -881,6 +888,15 @@ export function buildFbrPosPayload(
   options: { invoiceType?: number; refUsin?: string; dateTime?: string } = {}
 ): FbrPosInvoicePayload {
   const posId = Number(config?.posId || 200871);
+  let fbrMeta: any = null;
+  if (sale.notes) {
+    try {
+      if (typeof sale.notes === "string" && sale.notes.trim().startsWith("{")) {
+        const parsed = JSON.parse(sale.notes);
+        fbrMeta = parsed.fbrMeta || parsed;
+      }
+    } catch {}
+  }
   const customer = sale.customer || null;
   const buyerName = sale.customerName || customer?.name || "Walk-in Customer";
   const buyerCnic = customer?.cnic || "";
@@ -925,7 +941,12 @@ export function buildFbrPosPayload(
       Discount: round2(discount).toNumber(),
       FurtherTax: 0,
       InvoiceType: invoiceType,
-      PCTCode: formatHsCode(item.hsCode || item.product?.hsCode || business?.defaultHsCode).replace(/\./g, ""),
+      PCTCode: formatHsCode(
+        item.hsCode ||
+        (Array.isArray(fbrMeta?.itemsHsCode) ? fbrMeta.itemsHsCode[idx] : null) ||
+        item.product?.hsCode ||
+        business?.defaultHsCode
+      ).replace(/\./g, ""),
     };
   });
 
