@@ -631,6 +631,79 @@ export function formatFbrDate(dateInput?: string | Date): string {
   return `${year}-${month}-${day}`;
 }
 
+// ── FORMAT FBR UOM (Official PRAL Dictionary) ──────────────────────────────
+export function formatFbrUom(raw?: string | null): string {
+  if (!raw || !raw.trim()) return "Numbers, pieces, units";
+  const normalized = raw.trim().toUpperCase();
+  switch (normalized) {
+    case "KG":
+    case "KGS":
+    case "KILOGRAM":
+    case "KILOGRAMS":
+      return "KG";
+    case "MTR":
+    case "METER":
+    case "METERS":
+    case "METRE":
+    case "METRES":
+      return "Meter";
+    case "TON":
+    case "TONS":
+    case "MT":
+    case "METRIC TON":
+    case "METRIC TONS":
+      return "MT";
+    case "LTR":
+    case "LITER":
+    case "LITRE":
+    case "LITERS":
+    case "LITRES":
+      return "Litre";
+    case "GRAM":
+    case "GRAMS":
+    case "GM":
+    case "GMS":
+      return "Gram";
+    case "BAG":
+    case "BAGS":
+    case "BORI":
+      return "Bag";
+    case "BOX":
+    case "BOXES":
+    case "CARTON":
+    case "CARTONS":
+      return "Carton";
+    case "PACK":
+    case "PACKET":
+    case "PACKETS":
+    case "PACKS":
+      return "Packet";
+    case "ROLL":
+    case "ROLLS":
+    case "THAAN":
+      return "Roll";
+    case "PAIR":
+    case "PAIRS":
+      return "Pair";
+    case "DOZEN":
+    case "DOZENS":
+      return "Dozen";
+    case "SQM":
+    case "SQ METER":
+    case "SQUARE METRE":
+    case "SQUARE METER":
+      return "Square Metre";
+    case "PCS":
+    case "PC":
+    case "PIECE":
+    case "PIECES":
+    case "UNIT":
+    case "UNITS":
+    default:
+      return "Numbers, pieces, units";
+  }
+}
+
 // ── BUILD OFFICIAL FBR PAYLOAD (DIGITAL INVOICING) ──────────────────────────
 export function buildFbrPayload(
   sale: any,
@@ -733,7 +806,14 @@ export function buildFbrPayload(
       hsCode: formatHsCode(item.hsCode || fbrMeta?.hsCode || item.product?.hsCode || scenarioDef?.hsCode || business?.defaultHsCode),
       productDescription: item.productName || item.product?.name || scenarioDef?.productDescription || "Retail Merchandise",
       rate: isExemptOrZero ? "0%" : `${taxRateVal}%`,
-      uoM: item.uom || fbrMeta?.uom || scenarioDef?.uoM || "Numbers, pieces, units",
+      uoM: formatFbrUom(
+        item.uom ||
+        item.product?.uom ||
+        item.product?.unit ||
+        (Array.isArray(fbrMeta?.itemsUom) ? fbrMeta.itemsUom[idx] : null) ||
+        fbrMeta?.uom ||
+        scenarioDef?.uoM
+      ),
       quantity: qty,
       totalValues: totalLineValue,
       valueSalesExcludingST: round2(lineSubtotal).toNumber(),
@@ -758,7 +838,7 @@ export function buildFbrPayload(
       hsCode: formatHsCode(business?.defaultHsCode),
       productDescription: "General Merchandise Sale",
       rate: "18%",
-      uoM: "Numbers, pieces, units",
+      uoM: formatFbrUom(business?.defaultUom || "Numbers, pieces, units"),
       quantity: 1,
       totalValues: round2(sub + st).toNumber(),
       valueSalesExcludingST: round2(sub).toNumber(),

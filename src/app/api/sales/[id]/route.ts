@@ -14,7 +14,17 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 
     const sale = await prisma.sale.findFirst({
       where: { id, businessId },
-      include: { customer: true, items: true, branch: true },
+      include: {
+        customer: true,
+        items: {
+          include: {
+            product: {
+              select: { id: true, name: true, sku: true, uom: true, unit: true },
+            },
+          },
+        },
+        branch: true,
+      },
     });
 
     if (!sale) {

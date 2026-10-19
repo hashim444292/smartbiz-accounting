@@ -43,6 +43,7 @@ interface PurchaseItem {
   newSellingPrice: number;
   updateCatalogPrice: boolean;
   lineTotal: number;
+  uom?: string;
 }
 
 export default function CreatePurchasePage() {
@@ -256,6 +257,7 @@ export default function CreatePurchasePage() {
           newSellingPrice: sellPrice,
           updateCatalogPrice: true,
           lineTotal: cost,
+          uom: (targetProd.uom || targetProd.unit || "PCS").toUpperCase(),
         },
       ]);
     }
@@ -344,6 +346,7 @@ export default function CreatePurchasePage() {
             newSellingPrice: price,
             updateCatalogPrice: true,
             lineTotal: cost,
+            uom: (newProdUom || "PCS").toUpperCase(),
           },
         ]);
         setShowAddProductModal(false);
@@ -948,10 +951,10 @@ export default function CreatePurchasePage() {
                         {/* New Batch Margin */}
                         <div className="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 text-[11px] dark:bg-slate-900 dark:border-slate-700">
                           <span className="text-slate-500">
-                            New Batch Margin ({item.quantity} pcs @ Rs {item.unitCost.toLocaleString()}):
+                            New Batch Margin ({item.quantity} {item.uom || "units"} @ Rs {item.unitCost.toLocaleString()}):
                           </span>
                           <span className="font-mono font-bold text-slate-900 dark:text-white">
-                            Rs {analysis.newProfit.toLocaleString()} / pc ({analysis.newMarginPct.toFixed(1)}%)
+                            Rs {analysis.newProfit.toLocaleString()} / {item.uom || "unit"} ({analysis.newMarginPct.toFixed(1)}%)
                           </span>
                         </div>
 
@@ -967,10 +970,10 @@ export default function CreatePurchasePage() {
                             {analysis.hasOldStock && analysis.costIncreased && (
                               <Sparkles className="h-3 w-3 text-emerald-600" />
                             )}
-                            Old Stock Margin ({item.currentStock} pcs @ Rs {item.previousCost.toLocaleString()}):
+                            Old Stock Margin ({item.currentStock} {item.uom || "units"} @ Rs {item.previousCost.toLocaleString()}):
                           </span>
                           <span className="font-mono font-bold">
-                            Rs {analysis.oldStockProfit.toLocaleString()} / pc ({analysis.oldStockMarginPct.toFixed(1)}%)
+                            Rs {analysis.oldStockProfit.toLocaleString()} / {item.uom || "unit"} ({analysis.oldStockMarginPct.toFixed(1)}%)
                           </span>
                         </div>
                       </div>
@@ -980,7 +983,7 @@ export default function CreatePurchasePage() {
                         <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-emerald-100/60 border border-emerald-300 text-[11px] text-emerald-900 dark:bg-emerald-950/60 dark:border-emerald-800 dark:text-emerald-200 font-sans">
                           <Info className="h-3.5 w-3.5 text-emerald-700 shrink-0" />
                           <span>
-                            <strong>Old Stock Advantage:</strong> Because you already own {item.currentStock} pcs purchased at Rs {item.previousCost.toLocaleString()}, selling them at the new market rate (Rs {item.newSellingPrice.toLocaleString()}) earns you an extra <strong>Rs {analysis.extraProfitPerUnit.toLocaleString()} profit per phone</strong> (+Rs {analysis.totalOldStockExtra.toLocaleString()} total windfall) compared to the newly purchased batch!
+                            <strong>Old Stock Advantage:</strong> Because you already own {item.currentStock} {item.uom || "units"} purchased at Rs {item.previousCost.toLocaleString()}, selling them at the new market rate (Rs {item.newSellingPrice.toLocaleString()}) earns you an extra <strong>Rs {analysis.extraProfitPerUnit.toLocaleString()} profit per {item.uom || "unit"}</strong> (+Rs {analysis.totalOldStockExtra.toLocaleString()} total windfall) compared to the newly purchased batch!
                           </span>
                         </div>
                       )}

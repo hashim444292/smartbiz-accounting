@@ -684,7 +684,7 @@ export default function SalesPage() {
       s.invoiceNumber,
       new Date(s.date).toLocaleDateString(),
       `"${(s.customerName || "").replace(/"/g, '""')}"`,
-      `"${(s.items?.map((it) => `${it.productName} (x${it.quantity})`).join("; ") || "").replace(/"/g, '""')}"`,
+      `"${(s.items?.map((it: any) => `${it.productName} (${it.quantity} ${(it.uom || it.product?.uom || it.product?.unit || "").toUpperCase() || "PCS"})`).join("; ") || "").replace(/"/g, '""')}"`,
       Number(s.totalAmount || 0).toFixed(2),
       Number(s.paidAmount || 0).toFixed(2),
       Number(s.remainingAmount || 0).toFixed(2),
@@ -1403,16 +1403,19 @@ export default function SalesPage() {
                     <td className="px-4 py-3 min-w-[180px]">
                       {sale.items && sale.items.length > 0 ? (
                         <div className="flex flex-col gap-1">
-                          {sale.items.map((item, i) => (
-                            <div key={i} className="flex items-center gap-1.5 text-xs">
-                              <span className="font-bold text-slate-900 dark:text-white">
-                                {item.productName || "Product"}
-                              </span>
-                              <span className="rounded bg-emerald-50 border border-emerald-200/60 px-1.5 py-0.2 text-[10px] font-bold text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800 shrink-0">
-                                {Number(item.quantity || 1)} pcs
-                              </span>
-                            </div>
-                          ))}
+                          {sale.items.map((item: any, i: number) => {
+                            const uomDisplay = (item.uom || item.product?.uom || item.product?.unit || "").toUpperCase() || "PCS";
+                            return (
+                              <div key={i} className="flex items-center gap-1.5 text-xs">
+                                <span className="font-bold text-slate-900 dark:text-white">
+                                  {item.productName || "Product"}
+                                </span>
+                                <span className="rounded bg-emerald-50 border border-emerald-200/60 px-1.5 py-0.2 text-[10px] font-bold text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800 shrink-0">
+                                  {Number(item.quantity || 1)} {uomDisplay}
+                                </span>
+                              </div>
+                            );
+                          })}
                         </div>
                       ) : (
                         <span className="text-slate-400 text-xs italic">—</span>
@@ -1671,7 +1674,7 @@ export default function SalesPage() {
                   </td>
                   <td className="py-1.5 px-2 text-slate-700 max-w-[200px]">
                     {sale.items && sale.items.length > 0
-                      ? sale.items.map((it) => `${it.productName || "Product"} (${Number(it.quantity || 1)})`).join(", ")
+                      ? sale.items.map((it: any) => `${it.productName || "Product"} (${Number(it.quantity || 1)} ${(it.uom || it.product?.uom || it.product?.unit || "").toUpperCase() || "PCS"})`).join(", ")
                       : "—"}
                   </td>
                   <td className="py-1.5 px-2 text-right font-black text-slate-900 tabular-nums whitespace-nowrap">

@@ -28,7 +28,23 @@ export async function GET(req: NextRequest) {
 
     const sales = await prisma.sale.findMany({
       where: whereClause,
-      include: { customer: true, items: true, branch: true },
+      include: {
+        customer: true,
+        items: {
+          include: {
+            product: {
+              select: {
+                id: true,
+                name: true,
+                sku: true,
+                uom: true,
+                unit: true,
+              },
+            },
+          },
+        },
+        branch: true,
+      },
       orderBy: { date: "desc" },
     });
     return NextResponse.json({ success: true, data: sales, branchId, isLockedToBranch });
@@ -144,6 +160,7 @@ export async function POST(req: NextRequest) {
               productId: it.productId,
               productName: prod?.name || "Merchandise",
               quantity: q,
+              uom: (it.uom || prod?.uom || prod?.unit || "PCS").toUpperCase(),
               unitPrice: p,
               lineTotal: lt,
               costPrice: prod?.averageCost || 0,
@@ -212,6 +229,7 @@ export async function POST(req: NextRequest) {
           productId: it.productId,
           productName: prod?.name || "Merchandise",
           quantity: q,
+          uom: (it.uom || prod?.uom || prod?.unit || "PCS").toUpperCase(),
           unitPrice: p,
           lineTotal: lt,
           costPrice: prod?.averageCost || 0,

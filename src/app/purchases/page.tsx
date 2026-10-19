@@ -716,16 +716,19 @@ export default function PurchasesPage() {
                     <td className="px-4 py-3 min-w-[180px]">
                       {p.items && p.items.length > 0 ? (
                         <div className="flex flex-col gap-1">
-                          {p.items.map((item: any, i: number) => (
-                            <div key={i} className="flex items-center gap-1.5 text-xs">
-                              <span className="font-bold text-slate-900 dark:text-white">
-                                {item.productName || item.name || "Item"}
-                              </span>
-                              <span className="rounded bg-indigo-50 border border-indigo-200/60 px-1.5 py-0.2 text-[10px] font-bold text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 dark:border-indigo-800 shrink-0">
-                                {Number(item.quantity || 1)} pcs
-                              </span>
-                            </div>
-                          ))}
+                          {p.items.map((item: any, i: number) => {
+                            const uomDisplay = (item.uom || item.product?.uom || item.product?.unit || "").toUpperCase() || "PCS";
+                            return (
+                              <div key={i} className="flex items-center gap-1.5 text-xs">
+                                <span className="font-bold text-slate-900 dark:text-white">
+                                  {item.productName || item.name || "Item"}
+                                </span>
+                                <span className="rounded bg-indigo-50 border border-indigo-200/60 px-1.5 py-0.2 text-[10px] font-bold text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 dark:border-indigo-800 shrink-0">
+                                  {Number(item.quantity || 1)} {uomDisplay}
+                                </span>
+                              </div>
+                            );
+                          })}
                         </div>
                       ) : (
                         <span className="text-slate-400 text-xs italic">—</span>

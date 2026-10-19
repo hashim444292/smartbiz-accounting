@@ -856,9 +856,15 @@ export default function CreateSalePage() {
       return;
     }
 
-    // When client has entered multiple pieces (totalPieces > 1):
-    // Prompt the user to confirm whether they want 1 single consolidated invoice or separate per-piece invoices
-    if (totalPieces > 1) {
+    // Digital Invoicing (FBR DI / B2B) ALWAYS generates a single consolidated invoice.
+    // Multi-piece split invoicing is strictly for Retail POS (TIER1_POS) where items are sold in discrete pieces (PCS).
+    const isDigitalInvoice = fbrInvoiceType === "DIGITAL_INVOICING" || activeCompany?.packageType === "FBR_INVOICING_ONLY";
+    const isDiscretePieceUnit = items.every((it) => {
+      const u = (it.uom || "").toUpperCase();
+      return u === "PCS" || u === "PIECE" || u === "PIECES" || u === "UNIT" || u === "UNITS" || !u;
+    });
+
+    if (!isDigitalInvoice && isDiscretePieceUnit && totalPieces > 1) {
       setIsSplitDecisionModalOpen(true);
       return;
     }
@@ -905,6 +911,7 @@ export default function CreateSalePage() {
             productId: it.productId || (products[0]?.id ?? "prod-default"),
             productName: it.productName,
             quantity: it.quantity,
+            uom: it.uom || "PCS",
             unitPrice: it.unitPrice,
             discount: it.discountAmount,
             taxRate: it.taxRate,
@@ -1027,6 +1034,7 @@ export default function CreateSalePage() {
                   productId: it.productId || (products[0]?.id ?? "prod-default"),
                   productName: it.productName,
                   quantity: 1,
+                  uom: it.uom || "PCS",
                   unitPrice: it.unitPrice,
                   discount: itemDiscPerPiece,
                   taxRate: it.taxRate,
@@ -1679,12 +1687,20 @@ export default function CreateSalePage() {
                           onChange={(e) => handleItemFieldChange(idx, "uom", e.target.value)}
                           className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-center text-xs font-semibold text-slate-800 focus:border-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
                         >
-                          <option value="PCS">PCS</option>
-                          <option value="KG">KG</option>
-                          <option value="BOX">BOX</option>
-                          <option value="PACK">PACK</option>
-                          <option value="MTR">MTR</option>
-                          <option value="UNIT">UNIT</option>
+                          <option value="PCS">PCS (Pieces / Units)</option>
+                          <option value="KG">KG (Kilograms)</option>
+                          <option value="MTR">MTR (Meters)</option>
+                          <option value="LTR">LTR (Liters)</option>
+                          <option value="BOX">BOX (Boxes / Cartons)</option>
+                          <option value="PACK">PACK (Packets)</option>
+                          <option value="TON">TON (Metric Tons)</option>
+                          <option value="BAG">BAG (Bags / Bori)</option>
+                          <option value="DOZEN">DOZEN (12 Units)</option>
+                          <option value="GRAM">GRAM (Grams)</option>
+                          <option value="PAIR">PAIR (Pairs)</option>
+                          <option value="ROLL">ROLL (Rolls / Thaan)</option>
+                          <option value="SQM">SQM (Square Meters)</option>
+                          <option value="UNIT">UNIT (Numbers)</option>
                         </select>
                       </td>
 
@@ -2481,12 +2497,20 @@ export default function CreateSalePage() {
                 onChange={(e) => setNewProductForm({ ...newProductForm, uom: e.target.value })}
                 className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-800 focus:border-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
               >
-                <option value="PCS">PCS</option>
-                <option value="KG">KG</option>
-                <option value="BOX">BOX</option>
-                <option value="PACK">PACK</option>
-                <option value="MTR">MTR</option>
-                <option value="UNIT">UNIT</option>
+                <option value="PCS">PCS (Pieces / Units)</option>
+                <option value="KG">KG (Kilograms)</option>
+                <option value="MTR">MTR (Meters)</option>
+                <option value="LTR">LTR (Liters)</option>
+                <option value="BOX">BOX (Boxes / Cartons)</option>
+                <option value="PACK">PACK (Packets)</option>
+                <option value="TON">TON (Metric Tons)</option>
+                <option value="BAG">BAG (Bags / Bori)</option>
+                <option value="DOZEN">DOZEN (12 Units)</option>
+                <option value="GRAM">GRAM (Grams)</option>
+                <option value="PAIR">PAIR (Pairs)</option>
+                <option value="ROLL">ROLL (Rolls / Thaan)</option>
+                <option value="SQM">SQM (Square Meters)</option>
+                <option value="UNIT">UNIT (Numbers)</option>
               </select>
             </div>
 
@@ -2726,12 +2750,12 @@ export default function CreateSalePage() {
         </form>
       </Modal>
 
-      {/* MULTI-PIECE INVOICING DECISION ASK MODAL */}
+      {/* MULTI-ITEM INVOICING DECISION ASK MODAL (POS ONLY) */}
       <Modal
         isOpen={isSplitDecisionModalOpen}
         onClose={() => setIsSplitDecisionModalOpen(false)}
-        title={t("Select Invoicing Mode for Multi-Piece Sale", "انوائس جنریشن کا طریقہ منتخب کریں")}
-        description={t("Choose whether to create a single invoice or separate invoices per piece", "ایک مشترکہ بل یا ہر پیس کا الگ بل منتخب کریں")}
+        title={t("Select Invoicing Mode for Multi-Item Sale", "انوائس جنریشن کا طریقہ منتخب کریں")}
+        description={t(`Choose whether to create a single invoice or separate invoices per ${(items[0]?.uom || "PCS").toUpperCase() === "PCS" ? "piece" : "unit"}`, `ایک مشترکہ بل یا ہر ${(items[0]?.uom || "PCS").toUpperCase()} کا الگ بل منتخب کریں`)}
         maxWidth="lg"
       >
         <div className="space-y-4">
@@ -2740,14 +2764,14 @@ export default function CreateSalePage() {
             <div className="space-y-1">
               <p className="font-bold text-sm">
                 {language === "ur"
-                  ? `کل تعداد: ${totalPieces} پیسز | کل رقم: PKR ${totalPayable.toLocaleString("en-PK", { minimumFractionDigits: 2 })}`
-                  : `Total Items: ${totalPieces} Pieces | Total Amount: PKR ${totalPayable.toLocaleString("en-PK", { minimumFractionDigits: 2 })}`}
+                  ? `کل تعداد: ${totalPieces} ${(items[0]?.uom || "PCS").toUpperCase()} | کل رقم: PKR ${totalPayable.toLocaleString("en-PK", { minimumFractionDigits: 2 })}`
+                  : `Total Quantity: ${totalPieces} ${(items[0]?.uom || "PCS").toUpperCase()} | Total Amount: PKR ${totalPayable.toLocaleString("en-PK", { minimumFractionDigits: 2 })}`}
               </p>
               <p className="text-[11px] text-indigo-800/90 dark:text-indigo-300 leading-relaxed">
                 {language === "ur" ? (
-                  <>آپ کے بل میں کل <strong>{totalPieces} پیسز</strong> شامل ہیں۔ کیا آپ ان تمام کا ایک ہی مشترکہ بل بنانا چاہتے ہیں یا ہر پیس کا الگ الگ انوائس جنریٹ کرنا چاہتے ہیں؟</>
+                  <>آپ کے بل میں کل <strong>{totalPieces} {(items[0]?.uom || "PCS").toUpperCase()}</strong> شامل ہیں۔ کیا آپ ان تمام کا ایک ہی مشترکہ بل بنانا چاہتے ہیں یا ہر یونٹ کا الگ الگ انوائس جنریٹ کرنا چاہتے ہیں؟</>
                 ) : (
-                  <>Your sale contains <strong>{totalPieces} pieces</strong>. Would you like to create 1 single consolidated bill or generate separate invoices for each piece?</>
+                  <>Your sale contains <strong>{totalPieces} {(items[0]?.uom || "PCS").toUpperCase()}</strong>. Would you like to create 1 single consolidated bill or generate separate invoices for each unit?</>
                 )}
               </p>
             </div>
@@ -2769,7 +2793,7 @@ export default function CreateSalePage() {
               </span>
               <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-2 leading-relaxed">
                 {language === "ur"
-                  ? <>تمام {totalPieces} پیسز کا صرف <strong>1 مشترکہ بل</strong> بنے گا۔</>
+                  ? <>تمام {totalPieces} {(items[0]?.uom || "PCS").toUpperCase()} کا صرف <strong>1 مشترکہ بل</strong> بنے گا۔</>
                   : <>Only <strong>1 combined invoice</strong> will be created for all {totalPieces} items.</>}
               </p>
               {!isAccountingOnly && postToFbr && fbrInvoiceType === "TIER1_POS" && (
@@ -2787,14 +2811,14 @@ export default function CreateSalePage() {
             >
               <div className="flex items-center gap-2 font-bold text-sm text-indigo-950 dark:text-indigo-200">
                 <Layers className="h-5 w-5 text-indigo-600 shrink-0" />
-                <span>{t("Separate Invoice Per Piece", "ہر پیس کا الگ بل بنائیں")}</span>
+                <span>{t(`Separate Invoice Per ${(items[0]?.uom || "PCS").toUpperCase() === "PCS" ? "Piece" : "Unit"}`, `ہر ${(items[0]?.uom || "PCS").toUpperCase()} کا الگ بل بنائیں`)}</span>
               </div>
               <span className="text-[11px] font-bold text-indigo-700 dark:text-indigo-300 mt-0.5">
                 {t(`(${totalPieces} Separate Invoices)`, `(${totalPieces} الگ الگ انوائسز)`)}
               </span>
               <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-2 leading-relaxed">
                 {language === "ur"
-                  ? <>ہر پیس کا الگ بل بنے گا (کل <strong>{totalPieces} انوائسز</strong> بنیں گی {!isAccountingOnly && postToFbr ? "اور FBR میں الگ الگ شوٹ ہوں گی" : "اور کھاتے میں درج ہوں گی"})۔</>
+                  ? <>ہر یونٹ کا الگ بل بنے گا (کل <strong>{totalPieces} انوائسز</strong> بنیں گی {!isAccountingOnly && postToFbr ? "اور FBR میں الگ الگ شوٹ ہوں گی" : "اور کھاتے میں درج ہوں گی"})۔</>
                   : <>Each item will generate its own invoice (total <strong>{totalPieces} invoices</strong>{!isAccountingOnly && postToFbr ? " sent individually to FBR" : " logged in ledger"}).</>}
               </p>
               {!isAccountingOnly && postToFbr && fbrInvoiceType === "TIER1_POS" && (

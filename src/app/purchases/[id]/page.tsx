@@ -233,7 +233,8 @@ export default function PurchaseDetailPage() {
                       {item.sku && <p className="text-[10px] text-slate-400">SKU: {item.sku}</p>}
                     </td>
                     <td className="py-3 px-2 text-center font-bold text-slate-900 dark:text-white tabular-nums">
-                      {Number(item.quantity || 0).toLocaleString()}
+                      <span>{Number(item.quantity || 0).toLocaleString()}</span>{" "}
+                      <span className="text-[10px] text-slate-500 font-semibold uppercase">{item.product?.uom || item.product?.unit || item.uom || "PCS"}</span>
                     </td>
                     <td className="py-3 px-2 text-right tabular-nums text-slate-600 dark:text-slate-300">
                       {formatMoney(item.unitCost)}

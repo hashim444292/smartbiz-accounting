@@ -229,22 +229,39 @@ export default function SaleDetailPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                {sale.items?.map((item: any, i: number) => (
-                  <tr key={i}>
-                    <td className="py-3 pr-2">
-                      <p className="font-semibold text-slate-800 dark:text-slate-200">{item.productName}</p>
-                      {item.sku && <p className="text-[10px] text-slate-400">SKU: {item.sku}</p>}
-                    </td>
-                    <td className="py-3 px-2 text-center text-[10px] font-mono text-slate-500">
-                      {item.hsCode || "8517.1390"}
-                    </td>
-                    <td className="py-3 px-2 text-center tabular-nums">{item.quantity}</td>
-                    <td className="py-3 px-2 text-right tabular-nums">{formatMoney(item.unitPrice)}</td>
-                    <td className="py-3 pl-2 text-right font-bold text-slate-900 dark:text-white tabular-nums">
-                      {formatMoney(item.lineTotal)}
-                    </td>
-                  </tr>
-                ))}
+                {sale.items?.map((item: any, i: number) => {
+                  const effectiveUom = (
+                    item.uom ||
+                    item.product?.uom ||
+                    item.product?.unit ||
+                    (Array.isArray(fbrMeta?.itemsUom) ? fbrMeta.itemsUom[i] : null) ||
+                    fbrMeta?.uom ||
+                    "PCS"
+                  ).toUpperCase();
+
+                  return (
+                    <tr key={i}>
+                      <td className="py-3 pr-2">
+                        <p className="font-semibold text-slate-800 dark:text-slate-200">{item.productName}</p>
+                        {item.sku && <p className="text-[10px] text-slate-400">SKU: {item.sku}</p>}
+                      </td>
+                      <td className="py-3 px-2 text-center text-[10px] font-mono text-slate-500">
+                        <div>{item.hsCode || "8517.1390"}</div>
+                        <span className="inline-block mt-0.5 px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-800 text-[9px] font-bold text-slate-700 dark:text-slate-300">
+                          {effectiveUom}
+                        </span>
+                      </td>
+                      <td className="py-3 px-2 text-center tabular-nums">
+                        <span className="font-bold text-slate-900 dark:text-white">{item.quantity}</span>{" "}
+                        <span className="text-[10px] text-slate-500 font-semibold">{effectiveUom}</span>
+                      </td>
+                      <td className="py-3 px-2 text-right tabular-nums">{formatMoney(item.unitPrice)}</td>
+                      <td className="py-3 pl-2 text-right font-bold text-slate-900 dark:text-white tabular-nums">
+                        {formatMoney(item.lineTotal)}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

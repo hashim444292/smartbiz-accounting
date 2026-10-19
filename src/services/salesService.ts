@@ -231,6 +231,18 @@ export async function createAndPostSale(input: CreateSaleInput) {
             hsCode: item.hsCode || "8517.1390",
           },
         });
+      } else if (item.uom && item.uom.toUpperCase() !== "PCS" && (product.uom === "pcs" || product.unit === "pcs" || !product.uom)) {
+        try {
+          await tx.product.update({
+            where: { id: product.id },
+            data: {
+              uom: item.uom.toUpperCase(),
+              unit: item.uom.toUpperCase(),
+            },
+          });
+          product.uom = item.uom.toUpperCase();
+          product.unit = item.uom.toUpperCase();
+        } catch {}
       }
 
       const q = round4(item.quantity);
@@ -327,7 +339,8 @@ export async function createAndPostSale(input: CreateSaleInput) {
 
     // Merge FBR / extra tax metadata into notes
     let notesToSave = notes || null;
-    if (input.fbrMeta || input.scenario || input.customerNtn || input.customerCnic || input.advanceIncomeTax) {
+    const hasItemUoms = items.some((it) => it.uom);
+    if (input.fbrMeta || input.scenario || input.customerNtn || input.customerCnic || input.advanceIncomeTax || hasItemUoms) {
       const metaObj = {
         ...(typeof input.fbrMeta === "object" ? input.fbrMeta : {}),
         scenario: input.scenario || input.fbrMeta?.scenario || "SN001",
@@ -335,6 +348,7 @@ export async function createAndPostSale(input: CreateSaleInput) {
         customerCnic: input.customerCnic || input.fbrMeta?.customerCnic,
         advanceIncomeTax: input.advanceIncomeTax ? Number(input.advanceIncomeTax) : 0,
         extraTax: extraTaxVal.toNumber(),
+        itemsUom: items.map((it) => (it.uom || "PCS").toUpperCase()),
       };
       notesToSave = JSON.stringify({ fbrMeta: metaObj, remarks: notes || "" });
     }
