@@ -33,6 +33,7 @@ import {
   Loader2,
   Calendar,
   Globe,
+  Search,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useLanguage } from "@/context/LanguageContext";
@@ -166,6 +167,14 @@ export default function CreateSalePage() {
     hsCode: "8517.13",
   });
 
+  // Manage & Delete Catalog Products State
+  const [isManageProductsModalOpen, setIsManageProductsModalOpen] = useState<boolean>(false);
+  const [manageProductSearch, setManageProductSearch] = useState<string>("");
+  const [isDeleteProductConfirmOpen, setIsDeleteProductConfirmOpen] = useState<boolean>(false);
+  const [productToDelete, setProductToDelete] = useState<{ id: string; name: string } | null>(null);
+  const [isDeletingProduct, setIsDeletingProduct] = useState<boolean>(false);
+  const [productDeleteMessage, setProductDeleteMessage] = useState<string | null>(null);
+
   // Quick Add Customer Modal State
   const [isAddCustomerModalOpen, setIsAddCustomerModalOpen] = useState<boolean>(false);
   const [isSavingCustomer, setIsSavingCustomer] = useState<boolean>(false);
@@ -249,7 +258,7 @@ export default function CreateSalePage() {
 
         const [metaJson, prodJson, custJson, fbrJson] = await Promise.all([
           smartFetch("/api/products?meta=true", { headers, ttlMs: 60000 }).catch(() => ({})),
-          smartFetch("/api/products?limit=100", { headers, ttlMs: 25000 }).catch(() => ({})),
+          smartFetch("/api/products?limit=100&status=ACTIVE", { headers, ttlMs: 25000 }).catch(() => ({})),
           smartFetch("/api/customers", { headers, ttlMs: 0, skipCache: true }).catch(() => ({})),
           fetchFbr,
         ]);
@@ -287,8 +296,10 @@ export default function CreateSalePage() {
           setCategories(metaJson.data.categories);
         }
 
-        // 2. Products
-        const prodList: ProductOption[] = prodJson.products || prodJson.data || [];
+        // 2. Products (active only)
+        const prodList: ProductOption[] = (prodJson.products || prodJson.data || []).filter(
+          (p: any) => p.status !== "ARCHIVED" && p.isActive !== false
+        );
         setProducts(prodList);
 
         // 3. Customers
@@ -399,6 +410,24 @@ export default function CreateSalePage() {
       return;
     }
 
+    if (selectedValue === "__MANAGE_PRODUCTS__") {
+      setIsManageProductsModalOpen(true);
+      return;
+    }
+
+    if (!selectedValue) {
+      setItems((prev) => {
+        const next = [...prev];
+        next[index] = {
+          ...next[index],
+          productId: "",
+          availableStock: 0,
+        };
+        return next;
+      });
+      return;
+    }
+
     const prod = products.find((p) => p.id === selectedValue);
     if (!prod) return;
 
@@ -422,6 +451,63 @@ export default function CreateSalePage() {
       );
       return next;
     });
+  };
+
+  // Filter products for the Manage Products modal
+  const filteredManageProducts = useMemo(() => {
+    if (!manageProductSearch.trim()) return products;
+    const q = manageProductSearch.toLowerCase().trim();
+    return products.filter(
+      (p) =>
+        p.name.toLowerCase().includes(q) ||
+        (p.sku && p.sku.toLowerCase().includes(q)) ||
+        (p.hsCode && p.hsCode.toLowerCase().includes(q))
+    );
+  }, [products, manageProductSearch]);
+
+  // Execute Product Deletion from Catalog
+  const handleConfirmDeleteProduct = async () => {
+    if (!productToDelete) return;
+    setIsDeletingProduct(true);
+    try {
+      const headers: Record<string, string> = {};
+      if (activeCompany?.id) headers["x-business-id"] = activeCompany.id;
+
+      const res = await fetch(`/api/products/${productToDelete.id}`, {
+        method: "DELETE",
+        headers,
+      });
+      const data = await res.json();
+      if (data.success) {
+        invalidateCache("/api/products");
+        // Remove from local products list
+        setProducts((prev) => prev.filter((p) => p.id !== productToDelete.id));
+
+        // Clear selection in any line items that were using this product
+        setItems((prev) =>
+          prev.map((it) =>
+            it.productId === productToDelete.id
+              ? { ...it, productId: "", availableStock: 0 }
+              : it
+          )
+        );
+
+        setProductDeleteMessage(
+          language === "ur"
+            ? `پروڈکٹ '${productToDelete.name}' کیٹلاگ سے کامیابی کے ساتھ ہٹا دی گئی ہے۔`
+            : `Product '${productToDelete.name}' removed from catalog.`
+        );
+        setTimeout(() => setProductDeleteMessage(null), 3500);
+      } else {
+        alert(data.error || "Failed to delete product.");
+      }
+    } catch (err: any) {
+      alert(err.message || "Network error deleting product.");
+    } finally {
+      setIsDeletingProduct(false);
+      setIsDeleteProductConfirmOpen(false);
+      setProductToDelete(null);
+    }
   };
 
   // Update Line Item Fields
@@ -680,9 +766,11 @@ export default function CreateSalePage() {
 
     try {
       setIsSavingProduct(true);
+      const prodHeaders: Record<string, string> = { "Content-Type": "application/json" };
+      if (activeCompany?.id) prodHeaders["x-business-id"] = activeCompany.id;
       const res = await fetch("/api/products", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: prodHeaders,
         body: JSON.stringify({
           name: newProductForm.name.trim(),
           sku: newProductForm.sku.trim() || null,
@@ -1185,6 +1273,23 @@ export default function CreateSalePage() {
           </div>
         )}
 
+        {/* Product Catalog Action Notification Banner */}
+        {productDeleteMessage && (
+          <div className="flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs font-semibold text-emerald-900 shadow-sm dark:border-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-200 animate-in fade-in duration-200">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+              <span>{productDeleteMessage}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setProductDeleteMessage(null)}
+              className="text-emerald-600 hover:text-emerald-800 dark:text-emerald-400 text-xs font-bold"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
         <form onSubmit={handleSubmitInvoice} className="space-y-6 pb-20 lg:pb-0">
           {/* Top Card: Invoice Number, Date, Customer (Buyer), Buyer Tax Status */}
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-6">
@@ -1630,7 +1735,7 @@ export default function CreateSalePage() {
                           </p>
                         )}
 
-                        {/* Product Dropdown Selector with Quick Add */}
+                        {/* Product Dropdown Selector with Quick Add & Delete */}
                         <div className="flex items-center gap-1.5">
                           <select
                             value={it.productId}
@@ -1645,6 +1750,9 @@ export default function CreateSalePage() {
                             ))}
                             <option value="__ADD_NEW__" className="font-bold text-blue-600">
                               ➕ {t("+ Create New Product", "+ نیا پروڈکٹ بنائیں")}
+                            </option>
+                            <option value="__MANAGE_PRODUCTS__" className="font-bold text-rose-600 dark:text-rose-400">
+                              🗑️ {t("Manage / Delete Catalog Products...", "پروڈکٹس مینیج یا ڈیلیٹ کریں...")}
                             </option>
                           </select>
 
@@ -1666,10 +1774,28 @@ export default function CreateSalePage() {
                               setProductSaveError(null);
                               setIsAddProductModalOpen(true);
                             }}
-                            className="rounded-md border border-blue-200 bg-blue-50 p-1 text-blue-600 hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-300"
+                            className="rounded-md border border-blue-200 bg-blue-50 p-1 text-blue-600 hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-300 shrink-0"
                           >
                             <Plus className="h-3.5 w-3.5" />
                           </button>
+
+                          {it.productId && it.productId !== "" && (
+                            <button
+                              type="button"
+                              title={t("Delete this product from catalog", "اس پروڈکٹ کو کیٹلاگ سے حذف کریں")}
+                              onClick={() => {
+                                const found = products.find((p) => p.id === it.productId);
+                                setProductToDelete({
+                                  id: it.productId,
+                                  name: found?.name || it.productName || "Product",
+                                });
+                                setIsDeleteProductConfirmOpen(true);
+                              }}
+                              className="rounded-md border border-rose-200 bg-rose-50 p-1 text-rose-600 hover:bg-rose-100 hover:text-rose-700 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-400 shrink-0 transition"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          )}
                         </div>
 
                         {it.availableStock > 0 && (
@@ -2570,6 +2696,159 @@ export default function CreateSalePage() {
             </Button>
           </div>
         </form>
+      </Modal>
+
+      {/* MANAGE / DELETE CATALOG PRODUCTS MODAL */}
+      <Modal
+        isOpen={isManageProductsModalOpen}
+        onClose={() => {
+          setIsManageProductsModalOpen(false);
+          setManageProductSearch("");
+        }}
+        title={t("Manage Catalog Products", "کیٹلاگ پروڈکٹس مینیج / ڈیلیٹ کریں")}
+        description={t(
+          "Delete or remove unwanted/test products so your sales catalog stays clean and unbloated.",
+          "غیر ضروری یا ٹیسٹ پروڈکٹس کو یہاں سے ڈیلیٹ کریں تاکہ لسٹ صاف رہے۔"
+        )}
+        maxWidth="lg"
+      >
+        <div className="space-y-4">
+          {productDeleteMessage && (
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs font-semibold text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300">
+              {productDeleteMessage}
+            </div>
+          )}
+
+          {/* Search bar */}
+          <div className="relative">
+            <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+            <input
+              type="text"
+              value={manageProductSearch}
+              onChange={(e) => setManageProductSearch(e.target.value)}
+              placeholder={t("Filter catalog products by name or SKU...", "نام یا SKU سے پروڈکٹ تلاش کریں...")}
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 py-2 text-xs text-slate-800 focus:border-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+            />
+          </div>
+
+          {/* Products List */}
+          <div className="max-h-[360px] overflow-y-auto divide-y divide-slate-100 rounded-xl border border-slate-200 dark:divide-slate-800 dark:border-slate-800">
+            {filteredManageProducts.length === 0 ? (
+              <div className="py-8 text-center text-xs text-slate-400">
+                {manageProductSearch.trim() ? "No products matching your search." : "No products in catalog."}
+              </div>
+            ) : (
+              filteredManageProducts.map((p) => (
+                <div key={p.id} className="flex items-center justify-between p-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition">
+                  <div className="min-w-0 pr-3">
+                    <p className="font-bold text-xs text-slate-900 dark:text-white truncate">{p.name}</p>
+                    <div className="flex items-center gap-2 text-[10px] text-slate-400 mt-0.5">
+                      {p.sku && <span>SKU: {p.sku}</span>}
+                      <span>•</span>
+                      <span>Rs. {Number(p.sellingPrice || 0).toLocaleString()}</span>
+                      <span>•</span>
+                      <span>{p.currentStock ?? 0} {(p.uom || p.unit || "PCS").toUpperCase()}</span>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    disabled={isDeletingProduct}
+                    onClick={() => {
+                      setProductToDelete({ id: p.id, name: p.name });
+                      setIsDeleteProductConfirmOpen(true);
+                    }}
+                    className="inline-flex items-center gap-1 rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1 text-xs font-bold text-rose-600 hover:bg-rose-100 dark:border-rose-900 dark:bg-rose-950/60 dark:text-rose-400 shrink-0 transition"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    <span>{t("Delete", "حذف کریں")}</span>
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+
+          <div className="flex justify-end pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setIsManageProductsModalOpen(false);
+                setManageProductSearch("");
+              }}
+            >
+              {t("Done", "مکمل")}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* DELETE PRODUCT CONFIRMATION MODAL */}
+      <Modal
+        isOpen={isDeleteProductConfirmOpen}
+        onClose={() => {
+          if (!isDeletingProduct) {
+            setIsDeleteProductConfirmOpen(false);
+            setProductToDelete(null);
+          }
+        }}
+        title={t("Confirm Delete Product", "پروڈکٹ ڈیلیٹ کرنے کی تصدیق")}
+        maxWidth="md"
+      >
+        <div className="space-y-4">
+          <div className="flex items-start gap-3 rounded-xl border border-rose-200 bg-rose-50/70 p-3.5 text-xs text-rose-900 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-200">
+            <AlertCircle className="h-5 w-5 shrink-0 text-rose-600 mt-0.5" />
+            <div className="space-y-1">
+              <p className="font-bold">
+                {t(
+                  `Are you sure you want to delete "${productToDelete?.name}"?`,
+                  `کیا آپ واقعی "${productToDelete?.name}" کو ڈیلیٹ کرنا چاہتے ہیں؟`
+                )}
+              </p>
+              <p className="text-[11px] text-rose-800/90 dark:text-rose-300 leading-relaxed">
+                {t(
+                  "This will remove the product from your catalog and sales dropdowns so it doesn't take up unnecessary space.",
+                  "یہ پروڈکٹ کیٹلاگ اور لسٹ سے ہٹا دی جائے گی تاکہ لسٹ میں غیر ضروری جگہ نہ لے۔"
+                )}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={isDeletingProduct}
+              onClick={() => {
+                setIsDeleteProductConfirmOpen(false);
+                setProductToDelete(null);
+              }}
+            >
+              {t("Cancel", "منسوخ")}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              disabled={isDeletingProduct}
+              onClick={handleConfirmDeleteProduct}
+              className="bg-rose-600 text-white hover:bg-rose-700"
+            >
+              {isDeletingProduct ? (
+                <span className="flex items-center gap-1.5">
+                  <span className="h-3.5 w-3.5 border-2 border-white border-t-transparent animate-spin rounded-full" />
+                  {t("Deleting...", "حذف ہو رہا ہے...")}
+                </span>
+              ) : (
+                <span className="flex items-center gap-1.5">
+                  <Trash2 className="h-3.5 w-3.5" />
+                  {t("Yes, Delete Product", "ہاں، ڈیلیٹ کریں")}
+                </span>
+              )}
+            </Button>
+          </div>
+        </div>
       </Modal>
 
       {/* QUICK ADD CUSTOMER MODAL */}
