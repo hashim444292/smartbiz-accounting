@@ -1727,14 +1727,25 @@ export default function FbrCompliancePage() {
                           </button>
 
                           {actionVis.showViewQr && (
-                            <button
-                              type="button"
-                              onClick={() => setSelectedReceiptInvoice(inv)}
-                              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-indigo-600 hover:bg-indigo-50 shadow-2xs"
-                            >
-                              <QrCode className="h-3.5 w-3.5" />
-                              <span>View QR</span>
-                            </button>
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => setSelectedReceiptInvoice(inv)}
+                                className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-indigo-600 hover:bg-indigo-50 shadow-2xs"
+                              >
+                                <QrCode className="h-3.5 w-3.5" />
+                                <span>View QR</span>
+                              </button>
+                              <Link
+                                href={`/sales/${inv.id}`}
+                                target="_blank"
+                                className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 hover:text-indigo-600 hover:bg-slate-50 shadow-2xs"
+                                title="View, Print & Download Statutory FBR Tax Invoice PDF"
+                              >
+                                <Printer className="h-3 w-3 text-slate-500" />
+                                <span>Print / PDF</span>
+                              </Link>
+                            </>
                           )}
 
                           {actionVis.showCreditNote && (
@@ -2144,13 +2155,21 @@ export default function FbrCompliancePage() {
                 Close
               </Button>
               <div className="flex items-center gap-2">
+                <Link
+                  href={`/sales/${selectedReceiptInvoice.id}`}
+                  target="_blank"
+                  className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 rounded-xl transition shadow-2xs"
+                >
+                  <Printer className="h-4 w-4" />
+                  <span>Tax Invoice (Print / PDF)</span>
+                </Link>
                 <Button
                   type="button"
                   variant="secondary"
                   onClick={() => window.print()}
                 >
                   <Printer className="h-4 w-4 mr-1.5" />
-                  Print Stamped Invoice
+                  Print Stamped Slip
                 </Button>
                 <Button
                   type="button"

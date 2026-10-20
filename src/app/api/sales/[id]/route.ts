@@ -16,6 +16,22 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
       where: { id, businessId },
       include: {
         customer: true,
+        business: {
+          select: {
+            id: true,
+            name: true,
+            ownerName: true,
+            ntn: true,
+            strn: true,
+            phone: true,
+            email: true,
+            address: true,
+            city: true,
+            country: true,
+            defaultHsCode: true,
+            defaultUom: true,
+          },
+        },
         items: {
           include: {
             product: {
@@ -40,7 +56,8 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
       return NextResponse.json({ success: false, error: "Invoice not found" }, { status: 404 });
     }
 
-    return NextResponse.json({ success: true, data: sale, fallback: true });
+    const business = fallbackStore.companies.find((c) => c.id === businessId);
+    return NextResponse.json({ success: true, data: { ...sale, business }, fallback: true });
   }
 }
 
