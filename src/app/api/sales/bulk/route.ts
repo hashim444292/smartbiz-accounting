@@ -147,10 +147,15 @@ function parseSafeDate(input?: string): Date {
   return isNaN(d.getTime()) ? new Date() : d;
 }
 
+    let autoGroupIdx = 0;
+    let lastBuyerSignature = "";
+
     rawInvoices.forEach((row, idx) => {
       // If row already has grouped items, treat it as a pre-grouped invoice
       if (row.items && Array.isArray(row.items) && row.items.length > 0) {
-        const invKey = row.invoiceNumber || `row-idx-${idx}`;
+        const rawInv = (row.invoiceNumber || "").trim();
+        const isAuto = !rawInv || rawInv.startsWith("AUTO-") || rawInv.startsWith("row-") || rawInv.startsWith("ROW-");
+        const invKey = isAuto ? (rawInv.startsWith("AUTO-") ? rawInv : `AUTO-${idx + 1}`) : rawInv;
         const date = parseSafeDate(row.date);
         const custName = (row.buyerLegalName || row.buyerName || row.customerName || "Walk-in Customer").trim();
         const custNtn = (row.buyerNtn || row.customerNtn || "").trim() || undefined;
@@ -160,7 +165,7 @@ function parseSafeDate(input?: string): Date {
         const address = (row.buyerAddress || row.address || "").trim() || undefined;
 
         groupedMap.set(invKey, {
-          invoiceNumber: row.invoiceNumber,
+          invoiceNumber: isAuto ? undefined : rawInv,
           date,
           scenario: row.scenario || (custNtn ? "SN001" : "SN002"),
           saleType: (row.saleType || "").trim() || undefined,
@@ -187,9 +192,27 @@ function parseSafeDate(input?: string): Date {
       }
 
       // Flat row grouping:
-      const invKey = row.invoiceNumber && row.invoiceNumber.trim() !== ""
-        ? row.invoiceNumber.trim()
-        : `row-${idx}`;
+      const rawInv = (row.invoiceNumber || "").trim();
+      let invKey: string;
+      const isAuto = !rawInv || rawInv.startsWith("AUTO-") || rawInv.startsWith("row-") || rawInv.startsWith("ROW-");
+
+      if (!isAuto) {
+        invKey = rawInv;
+      } else if (rawInv.startsWith("AUTO-")) {
+        // Group key already determined by frontend CSV parser
+        invKey = rawInv;
+      } else {
+        // Auto-group contiguous rows with matching date + buyer + NTN/CNIC
+        const dateStr = String(row.date || "").trim();
+        const buyerName = (row.buyerLegalName || row.buyerName || row.customerName || "").trim().toLowerCase();
+        const taxId = (row.customerNtn || row.buyerNtn || row.customerCnic || row.buyerCnic || "").trim();
+        const buyerSig = `${dateStr}_${buyerName}_${taxId}`;
+        if (buyerSig !== lastBuyerSignature || !buyerSig) {
+          autoGroupIdx++;
+          lastBuyerSignature = buyerSig;
+        }
+        invKey = `AUTO-${String(autoGroupIdx).padStart(3, "0")}`;
+      }
 
       const date = parseSafeDate(row.date);
       const customerName = (row.buyerLegalName || row.buyerName || row.customerName || "Walk-in Customer").trim();
@@ -236,7 +259,7 @@ function parseSafeDate(input?: string): Date {
 
       if (!groupedMap.has(invKey)) {
         groupedMap.set(invKey, {
-          invoiceNumber: row.invoiceNumber && row.invoiceNumber.trim() !== "" ? row.invoiceNumber.trim() : undefined,
+          invoiceNumber: isAuto ? undefined : rawInv,
           date,
           scenario,
           saleType,
@@ -423,7 +446,7 @@ function parseSafeDate(input?: string): Date {
         try {
           createdSale = await createAndPostSale({
             businessId,
-            invoiceNumber: inv.invoiceNumber,
+            invoiceNumber: inv.invoiceNumber && !inv.invoiceNumber.startsWith("AUTO-") && !inv.invoiceNumber.startsWith("row-") && !inv.invoiceNumber.startsWith("ROW-") ? inv.invoiceNumber : undefined,
             date: inv.date,
             customerId: validCustomerId,
             customerName: inv.customerName,
@@ -469,7 +492,9 @@ function parseSafeDate(input?: string): Date {
 
           // Fallback Store
           const saleId = `sale-${Date.now()}-${processedIndex}`;
-          const invNum = inv.invoiceNumber || `INV-2026-${String(fallbackStore.sales.length + 1).padStart(5, "0")}`;
+          const invNum = inv.invoiceNumber && !inv.invoiceNumber.startsWith("AUTO-") && !inv.invoiceNumber.startsWith("row-") && !inv.invoiceNumber.startsWith("ROW-")
+            ? inv.invoiceNumber
+            : `INV-2026-${String(fallbackStore.sales.length + 1).padStart(5, "0")}`;
 
           const processedItems = inv.items.map((it: any, itemIdx: number) => {
             const prod = fallbackStore.products.find(

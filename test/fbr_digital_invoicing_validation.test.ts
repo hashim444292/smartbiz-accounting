@@ -12,10 +12,9 @@ describe("FBR Digital Invoicing (B2B) Bulk Import & Template Validation Suite", 
     if (!fallbackStore.customers) fallbackStore.customers = [];
   });
 
-  it("should validate all 29 official statutory columns for FBR Digital Invoicing", () => {
+  it("should validate all 28 official statutory columns for FBR Digital Invoicing (Invoice Number is auto-generated)", () => {
     const officialHeaders = [
       "Invoice Date",
-      "Invoice Number",
       "Scenario",
       "Sale Type",
       "Buyer Legal Name",
@@ -49,6 +48,7 @@ describe("FBR Digital Invoicing (B2B) Bulk Import & Template Validation Suite", 
       "Remarks / Notes",
     ];
 
+    expect(officialHeaders).not.toContain("Invoice Number");
     expect(officialHeaders).toContain("Buyer Legal Name");
     expect(officialHeaders).toContain("Buyer NTN");
     expect(officialHeaders).toContain("Buyer CNIC");
@@ -214,5 +214,109 @@ describe("FBR Digital Invoicing (B2B) Bulk Import & Template Validation Suite", 
     expect(createdSale.totalAmount).toBe(48400);
     expect(createdSale.fbrMeta?.buyerRegistrationType).toBe("Unregistered");
     expect(createdSale.fbrMeta?.customerCnic).toBe(unregCnic);
+  });
+
+  it("should auto-generate invoice numbers and group contiguous rows when invoiceNumber is omitted", async () => {
+    const buyer1 = "Lucky Textile Mills Ltd";
+    const ntn1 = "1234567";
+    const buyer2 = "Gul Ahmed Fabric Div";
+    const ntn2 = "2345678";
+
+    // 3 rows: first 2 for buyer1 (same date), 3rd for buyer2
+    const payload = {
+      mode: "DIGITAL_INVOICING",
+      invoices: [
+        {
+          date: "2026-10-21",
+          // invoiceNumber omitted
+          scenario: "SN001",
+          saleType: "Goods at standard rate",
+          customerName: buyer1,
+          buyerLegalName: buyer1,
+          buyerRegistrationType: "Registered",
+          customerNtn: ntn1,
+          buyerProvince: "Sindh",
+          productName: "Cotton Twill 20x16",
+          hsCode: "5208.1100",
+          uom: "MTR",
+          quantity: 500,
+          rate: 300,
+          exclusiveValue: 150000,
+          taxRate: 18,
+          taxValue: 27000,
+          totalAmount: 177000,
+        },
+        {
+          date: "2026-10-21",
+          // invoiceNumber omitted, same buyer & date (multi-item line 2)
+          scenario: "SN001",
+          saleType: "Goods at standard rate",
+          customerName: buyer1,
+          buyerLegalName: buyer1,
+          buyerRegistrationType: "Registered",
+          customerNtn: ntn1,
+          buyerProvince: "Sindh",
+          productName: "Yarn Dye Fabric",
+          hsCode: "5208.3100",
+          uom: "MTR",
+          quantity: 200,
+          rate: 400,
+          exclusiveValue: 80000,
+          taxRate: 18,
+          taxValue: 14400,
+          totalAmount: 94400,
+        },
+        {
+          date: "2026-10-21",
+          // invoiceNumber omitted, different buyer -> separate invoice
+          scenario: "SN001",
+          saleType: "Goods at standard rate",
+          customerName: buyer2,
+          buyerLegalName: buyer2,
+          buyerRegistrationType: "Registered",
+          customerNtn: ntn2,
+          buyerProvince: "Sindh",
+          productName: "Finished Grey Fabric",
+          hsCode: "5208.1200",
+          uom: "MTR",
+          quantity: 1000,
+          rate: 220,
+          exclusiveValue: 220000,
+          taxRate: 18,
+          taxValue: 39600,
+          totalAmount: 259600,
+        },
+      ],
+    };
+
+    const req = new NextRequest("http://localhost:3000/api/sales/bulk", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-business-id": businessId,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const res = await bulkSaleRoute(req);
+    const json = await res.json();
+
+    expect(json.success).toBe(true);
+    expect(json.importedCount).toBe(2); // 3 rows grouped into 2 distinct invoices
+
+    const sale1 = json.results[0];
+    const sale2 = json.results[1];
+
+    expect(sale1.customerName).toBe(buyer1);
+    expect(sale1.items).toHaveLength(2);
+    expect(sale1.invoiceNumber).toBeDefined();
+    expect(sale1.invoiceNumber).not.toMatch(/^AUTO-/); // Must NOT be raw AUTO- key
+    expect(sale1.subtotal).toBe(230000); // 150000 + 80000
+
+    expect(sale2.customerName).toBe(buyer2);
+    expect(sale2.items).toHaveLength(1);
+    expect(sale2.invoiceNumber).toBeDefined();
+    expect(sale2.invoiceNumber).not.toMatch(/^AUTO-/);
+    expect(sale2.invoiceNumber).not.toBe(sale1.invoiceNumber); // Distinct invoice numbers
   });
 });

@@ -184,7 +184,6 @@ export default function BulkSalesImportPage() {
     const todayStr = new Date().toISOString().slice(0, 10);
 
     const headers = [
-      "Invoice Number",
       "Invoice Date",
       "Buyer Legal Name",
       "Buyer Registration Type",
@@ -217,7 +216,6 @@ export default function BulkSalesImportPage() {
 
     const sampleRows = [
       [
-        "INV-2026-0001",
         todayStr,
         "Gama Lux Oleo Chemical Limited",
         "Registered",
@@ -248,7 +246,6 @@ export default function BulkSalesImportPage() {
         "Batch #TX-202 / B2B Commercial Delivery",
       ],
       [
-        "INV-2026-0001",
         todayStr,
         "Gama Lux Oleo Chemical Limited",
         "Registered",
@@ -279,7 +276,6 @@ export default function BulkSalesImportPage() {
         "Batch #YR-105 (Multi-item line 2 on same invoice)",
       ],
       [
-        "INV-2026-0002",
         todayStr,
         "Al-Rehman Textiles & Garments",
         "Unregistered",
@@ -310,7 +306,6 @@ export default function BulkSalesImportPage() {
         "Challan #CR-554 / Unregistered Buyer 3% Further Tax",
       ],
       [
-        "INV-2026-0003",
         todayStr,
         "National Industrial Solutions",
         "Registered",
@@ -591,6 +586,8 @@ export default function BulkSalesImportPage() {
     }
 
     const rows: Parsed27Row[] = [];
+    let autoInvoiceCounter = 0;
+    let lastBuyerSignature = "";
 
     for (let i = 1; i < lines.length; i++) {
       const values = parseLine(lines[i]);
@@ -608,7 +605,7 @@ export default function BulkSalesImportPage() {
 
       const rawDate = getVal(["invoicedate", "date", "invdate"]);
       const date = normalizeDate(rawDate);
-      const invoiceNumber = getVal(["invoicenumber", "invoicenum", "invoice#", "invoiceno", "inv#", "bill#", "document#"]);
+      const rawInvoiceNumber = getVal(["invoicenumber", "invoicenum", "invoice#", "invoiceno", "inv#", "bill#", "document#"]);
 
       // Buyer / Customer Information
       const rawCustomerName = getVal(["buyerlegalname", "buyerbusinessname", "buyername", "customername", "customer", "buyer"]);
@@ -620,6 +617,18 @@ export default function BulkSalesImportPage() {
 
       const customerNtn = rawCustomerNtn ? rawCustomerNtn.trim() : undefined;
       const customerCnic = rawCustomerCnic ? rawCustomerCnic.trim() : undefined;
+
+      // When invoice number is omitted from Excel (auto-generated mode):
+      // Group contiguous line items with identical date, buyer, and NTN/CNIC into the same invoice
+      let invoiceNumber = rawInvoiceNumber;
+      if (!invoiceNumber) {
+        const sig = `${date}_${(customerName || "").toLowerCase().trim()}_${(customerNtn || customerCnic || "").trim()}`;
+        if (sig !== lastBuyerSignature || !sig) {
+          autoInvoiceCounter++;
+          lastBuyerSignature = sig;
+        }
+        invoiceNumber = `AUTO-${String(autoInvoiceCounter).padStart(3, "0")}`;
+      }
 
       const buyerRegistrationType: "Registered" | "Unregistered" =
         rawBuyerRegType?.toLowerCase().includes("unreg") || (!customerNtn && Boolean(customerCnic))
@@ -935,7 +944,7 @@ export default function BulkSalesImportPage() {
               <span className="text-slate-300">•</span>
               <span className="text-[11px] font-mono text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200">
                 {isFbrInvoicingOnly || importMode === "DIGITAL_INVOICING"
-                  ? "29 Statutory Columns"
+                  ? "28 Statutory Columns (Auto Inv #)"
                   : "26 POS Columns"}
               </span>
               <span className="text-slate-300">•</span>
@@ -956,7 +965,7 @@ export default function BulkSalesImportPage() {
             </h1>
             <p className="text-xs text-slate-500 mt-0.5">
               {isFbrInvoicingOnly || importMode === "DIGITAL_INVOICING"
-                ? "Upload spreadsheets with official 29 FBR Digital Invoicing parameters (Scenario, Buyer NTN/CNIC, Province, HS Code, Trade UOM, 18% Sales Tax, 3% Further Tax, SRO)."
+                ? "Upload spreadsheets with official 28 FBR Digital Invoicing parameters (Scenario, Buyer NTN/CNIC, Province, HS Code, Trade UOM, 18% Sales Tax, 3% Further Tax, SRO). Invoice numbers are auto-generated."
                 : "Upload spreadsheets with full FBR parameters (Scenario, NTN, CNIC, HS Code, UOM, Tax, Extra Tax, Advance Income Tax, SRO)."}
             </p>
           </div>
@@ -970,9 +979,9 @@ export default function BulkSalesImportPage() {
             <FileSpreadsheet className={`h-3.5 w-3.5 ${isFbrInvoicingOnly || importMode === "DIGITAL_INVOICING" ? "text-indigo-600" : "text-emerald-600"}`} />
             <span>
               {isFbrInvoicingOnly
-                ? "Download Official B2B Template (29 Cols)"
+                ? "Download Official B2B Template (28 Cols)"
                 : importMode === "DIGITAL_INVOICING"
-                ? "Download Digital Invoicing Template (29 Cols)"
+                ? "Download Digital Invoicing Template (28 Cols)"
                 : "Download Retail POS Template (26 Cols)"}
             </span>
           </button>
@@ -1005,7 +1014,7 @@ export default function BulkSalesImportPage() {
               className="inline-flex items-center gap-1.5 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 px-3.5 py-2 rounded-xl transition shadow-2xs"
             >
               <FileSpreadsheet className="h-3.5 w-3.5 text-indigo-600" />
-              Download Official B2B Template (29 Cols)
+              Download Official B2B Template (28 Cols)
             </button>
           </div>
         </div>
@@ -1048,7 +1057,7 @@ export default function BulkSalesImportPage() {
                 className="inline-flex items-center gap-1.5 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 px-3 py-1.5 rounded-xl transition"
               >
                 <FileSpreadsheet className="h-3.5 w-3.5 text-indigo-600" />
-                Download B2B Template (29 Cols)
+                Download B2B Template (28 Cols)
               </button>
             ) : (
               <button
@@ -1084,7 +1093,7 @@ export default function BulkSalesImportPage() {
           </span>
           <p className="leading-relaxed">
             {importMode === "DIGITAL_INVOICING"
-              ? "Under FBR Digital Invoicing, multi-item invoices are grouped by 'Invoice Number'. Each invoice requires a registered buyer legal name, valid 7-digit NTN (or 13-digit CNIC for unregistered buyers), Province, 4-to-8 digit customs HS code (e.g. 5208.1100), Trade UOM (e.g. MTR, KG, PCS), and standard 18% Sales Tax (+ 3% Further Tax for unregistered buyers). Walk-in counter customers are strictly rejected by PRAL."
+              ? "Under FBR Digital Invoicing, multi-item invoices are automatically grouped by Date and Buyer, and official invoice numbers are sequentially generated. Each invoice requires a registered buyer legal name, valid 7-digit NTN (or 13-digit CNIC for unregistered buyers), Province, 4-to-8 digit customs HS code (e.g. 5208.1100), Trade UOM (e.g. MTR, KG, PCS), and standard 18% Sales Tax (+ 3% Further Tax for unregistered buyers). Walk-in counter customers are strictly rejected by PRAL."
               : isFbrInvoicingOnly
               ? "In this edition, stock management is disabled. You can import any products freely without registering them in advance. All invoices are stored and queued for FBR compliance."
               : "In this edition, stock and inventory are fully managed. Every product in the uploaded spreadsheet MUST already exist in your Inventory Catalog (by Name or SKU) to deduct stock and prevent negative discrepancies. Unregistered products will be flagged with an error."}
@@ -1163,7 +1172,7 @@ export default function BulkSalesImportPage() {
         </h3>
         <p className="text-xs text-slate-500 max-w-xl mx-auto mt-1">
           {isFbrInvoicingOnly || importMode === "DIGITAL_INVOICING"
-            ? "Supports official 29 FBR Digital Invoicing columns: Invoice #, Date, Buyer Legal Name, Registration Type, NTN, CNIC, Province, HS Code, UOM, Qty, Unit Price, 18% Sales Tax, 3% Further Tax, and SRO details."
+            ? "Supports official 28 FBR Digital Invoicing columns: Date, Buyer Legal Name, Registration Type, NTN, CNIC, Province, HS Code, UOM, Qty, Unit Price, 18% Sales Tax, 3% Further Tax, and SRO details (Invoice numbers are auto-generated)."
             : "Supports official 26 columns: Date, Scenario, Customer Name, NTN, CNIC, HS Code, Product Description, Remarks, UOM, Quantity, Rate, Taxes, Discounts, Advance Tax, and SRO details."}
         </p>
 
@@ -1186,7 +1195,7 @@ export default function BulkSalesImportPage() {
           >
             <FileSpreadsheet className={`h-4 w-4 mr-1.5 ${isFbrInvoicingOnly || importMode === "DIGITAL_INVOICING" ? "text-indigo-600" : "text-emerald-600"}`} />
             {isFbrInvoicingOnly || importMode === "DIGITAL_INVOICING"
-              ? "Download Official B2B Template (29 Cols)"
+              ? "Download Official B2B Template (28 Cols)"
               : "Download Sample CSV"}
           </Button>
         </div>
@@ -1372,10 +1381,16 @@ export default function BulkSalesImportPage() {
                         {isDi ? (
                           <>
                             <td className="py-2.5 px-3 whitespace-nowrap">
-                              <div className="font-bold font-mono text-indigo-700">
-                                {row.invoiceNumber || "AUTO-NEW"}
-                              </div>
-                              <div className="text-[10px] text-slate-500">{row.date}</div>
+                              {row.invoiceNumber && !row.invoiceNumber.startsWith("AUTO-") ? (
+                                <div className="font-bold font-mono text-indigo-700">
+                                  {row.invoiceNumber}
+                                </div>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 text-[10px] bg-indigo-50 border border-indigo-200 text-indigo-700 px-1.5 py-0.5 rounded font-mono font-semibold">
+                                  Auto-Gen ({row.invoiceNumber ? row.invoiceNumber.replace("AUTO-", "Inv #") : "New"})
+                                </span>
+                              )}
+                              <div className="text-[10px] text-slate-500 mt-0.5">{row.date}</div>
                             </td>
                             <td className="py-2.5 px-3">
                               <div className="font-semibold text-slate-900">{row.customerName}</div>
