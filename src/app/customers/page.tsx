@@ -8,7 +8,7 @@ import { Modal } from "@/components/ui/modal";
 import { Plus, Search, Phone, ArrowRight } from "lucide-react";
 
 import { useAuth } from "@/context/AuthContext";
-import { invalidateCache } from "@/lib/clientCache";
+import { invalidateCache, useAutoSync } from "@/lib/clientCache";
 
 export default function CustomersPage() {
   const { activeCompany } = useAuth();
@@ -57,6 +57,11 @@ export default function CustomersPage() {
       }
     }
   }, [activeCompany?.id]);
+
+  // Real-time auto-sync for customers / receivables
+  useAutoSync(() => {
+    fetchCustomers();
+  });
 
   const handleCreateCustomer = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthContext";
+import { invalidateCache } from "@/lib/clientCache";
 
 interface Parsed27Row {
   date: string;
@@ -889,6 +890,8 @@ export default function BulkSalesImportPage() {
       if (!res.ok && !json.success) {
         throw new Error(json.error || json.message || "Failed to import sales invoices");
       }
+
+      invalidateCache();
 
       setImportResult({
         importedCount: json.importedCount || 0,

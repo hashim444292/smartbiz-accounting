@@ -19,6 +19,7 @@ import {
   Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { invalidateCache } from "@/lib/clientCache";
 
 interface ParsedPurchaseRow {
   date: string;
@@ -296,6 +297,7 @@ export default function BulkPurchasesImportPage() {
 
       const data = await res.json();
       if (data.success) {
+        invalidateCache();
         setImportResult({
           importedCount: data.importedCount,
           errorCount: data.errorCount,

@@ -10,7 +10,7 @@ import { ArrowDownLeft, ArrowUpRight, ArrowLeftRight, Search, ShieldCheck, Build
 import { TableRowsSkeleton } from "@/components/ui/loader";
 import { useAuth } from "@/context/AuthContext";
 import { useLanguage } from "@/context/LanguageContext";
-import { smartFetch, invalidateCache } from "@/lib/clientCache";
+import { smartFetch, invalidateCache, useAutoSync } from "@/lib/clientCache";
 
 export default function PaymentsPage() {
   const { user, activeCompany, branches, selectedBranch, activeBranchId, isBranchLocked } = useAuth();
@@ -146,6 +146,11 @@ export default function PaymentsPage() {
     const branchToUse = isBranchLocked ? (user?.branchId || "") : (selectedBranch?.id || activeBranchId || (branches[0]?.id || ""));
     setPaymentBranchId(branchToUse);
   }, [activeCompany?.id, activeBranchId, isBranchLocked, user?.branchId, selectedBranch?.id]);
+
+  // Real-time auto-sync for payments / ledger
+  useAutoSync(() => {
+    fetchPayments();
+  });
 
   const openReceiptModal = async () => {
     const branchToUse = isBranchLocked ? (user?.branchId || "") : (selectedBranch?.id || activeBranchId || (branches[0]?.id || ""));

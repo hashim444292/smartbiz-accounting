@@ -8,7 +8,7 @@ import { Modal } from "@/components/ui/modal";
 import { Plus, Search, Phone, ArrowRight } from "lucide-react";
 import { TableRowsSkeleton } from "@/components/ui/loader";
 import { useAuth } from "@/context/AuthContext";
-import { invalidateCache } from "@/lib/clientCache";
+import { invalidateCache, useAutoSync } from "@/lib/clientCache";
 
 export default function SuppliersPage() {
   const { activeCompany } = useAuth();
@@ -45,6 +45,11 @@ export default function SuppliersPage() {
   useEffect(() => {
     fetchSuppliers();
   }, [activeCompany?.id]);
+
+  // Real-time auto-sync for payables/suppliers
+  useAutoSync(() => {
+    fetchSuppliers();
+  });
 
   const handleCreateSupplier = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -24,6 +24,7 @@ import {
 import { TableRowsSkeleton } from "@/components/ui/loader";
 import { useAuth } from "@/context/AuthContext";
 import { CategoryManagerModal } from "@/components/CategoryManagerModal";
+import { useAutoSync } from "@/lib/clientCache";
 
 export default function ProductsListPage() {
   const router = useRouter();
@@ -89,6 +90,11 @@ export default function ProductsListPage() {
   useEffect(() => {
     loadProducts();
   }, [page, search, selectedCategory, selectedStatus, activeCompany?.id]);
+
+  // Real-time auto-sync for products catalog
+  useAutoSync(() => {
+    loadProducts();
+  });
 
   const handleArchive = async (id: string, currentlyArchived: boolean) => {
     setActionError(null);

@@ -10,7 +10,7 @@ import { Search, AlertTriangle, ArrowUpDown, Download, Package, Plus } from "luc
 import { useAuth } from "@/context/AuthContext";
 import { useLanguage } from "@/context/LanguageContext";
 import { TableRowsSkeleton } from "@/components/ui/loader";
-import { smartFetch, invalidateCache } from "@/lib/clientCache";
+import { smartFetch, invalidateCache, useAutoSync } from "@/lib/clientCache";
 
 export default function InventoryPage() {
   const { user, activeCompany, branches, selectedBranch, activeBranchId, isBranchLocked } = useAuth();
@@ -23,7 +23,7 @@ export default function InventoryPage() {
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState<"PRODUCTS" | "ALERTS" | "MOVEMENTS">("PRODUCTS");
 
-  const fetchProducts = async () => {
+  const fetchProducts = async (skipCache = false) => {
     setLoading(true);
     try {
       const headers: Record<string, string> = {};
@@ -31,7 +31,11 @@ export default function InventoryPage() {
       const branchToPass = isBranchLocked ? user?.branchId : activeBranchId;
       if (branchToPass) headers["x-branch-id"] = branchToPass;
 
-      const json = await smartFetch("/api/products?limit=1000", { headers, ttlMs: 20000 });
+      const json = await smartFetch("/api/products?limit=1000", {
+        headers,
+        ttlMs: skipCache ? 0 : 5000,
+        skipCache,
+      });
       const list = json.products || json.data || [];
       setProducts(Array.isArray(list) ? list : []);
     } catch (e) {
@@ -42,7 +46,7 @@ export default function InventoryPage() {
     }
   };
 
-  const fetchTransactions = async () => {
+  const fetchTransactions = async (skipCache = false) => {
     setTxLoading(true);
     try {
       const headers: Record<string, string> = {};
@@ -50,7 +54,11 @@ export default function InventoryPage() {
       const branchToPass = isBranchLocked ? user?.branchId : activeBranchId;
       if (branchToPass) headers["x-branch-id"] = branchToPass;
 
-      const json = await smartFetch("/api/inventory/transactions", { headers, ttlMs: 20000 });
+      const json = await smartFetch("/api/inventory/transactions", {
+        headers,
+        ttlMs: skipCache ? 0 : 5000,
+        skipCache,
+      });
       setTransactions(Array.isArray(json.data) ? json.data : []);
     } catch (e) {
       console.error("Failed to load inventory transactions:", e);
@@ -63,11 +71,15 @@ export default function InventoryPage() {
   const [totalReceivables, setTotalReceivables] = useState<number>(0);
   const [totalPayables, setTotalPayables] = useState<number>(0);
 
-  const fetchAccountsSummary = async () => {
+  const fetchAccountsSummary = async (skipCache = false) => {
     try {
       const headers: Record<string, string> = {};
       if (activeCompany?.id) headers["x-business-id"] = activeCompany.id;
-      const res = await smartFetch("/api/dashboard", { headers, ttlMs: 30000 });
+      const res = await smartFetch("/api/dashboard", {
+        headers,
+        ttlMs: skipCache ? 0 : 5000,
+        skipCache,
+      });
       if (res?.success && res?.data) {
         setTotalReceivables(Number(res.data.totalReceivables || 0));
         setTotalPayables(Number(res.data.totalPayables || 0));
@@ -76,14 +88,23 @@ export default function InventoryPage() {
   };
 
   useEffect(() => {
-    fetchProducts();
-    fetchAccountsSummary();
+    fetchProducts(true);
+    fetchAccountsSummary(true);
   }, [activeCompany?.id, activeBranchId, isBranchLocked, user?.branchId]);
+
+  // Real-time auto-sync across tabs & mutations: immediately update inventory & payables on purchase/sale
+  useAutoSync(() => {
+    fetchProducts(true);
+    fetchAccountsSummary(true);
+    if (activeTab === "MOVEMENTS") {
+      fetchTransactions(true);
+    }
+  });
 
   // SMART LAZY LOAD: Only hit transactions endpoint when user opens the MOVEMENTS tab
   useEffect(() => {
     if (activeTab === "MOVEMENTS") {
-      fetchTransactions();
+      fetchTransactions(true);
     }
   }, [activeTab, activeCompany?.id, activeBranchId]);
 

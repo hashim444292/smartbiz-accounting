@@ -38,7 +38,7 @@ import {
 import { Modal } from "@/components/ui/modal";
 import { useAuth } from "@/context/AuthContext";
 import { useLanguage } from "@/context/LanguageContext";
-import { smartFetch, invalidateCache } from "@/lib/clientCache";
+import { smartFetch, invalidateCache, useAutoSync } from "@/lib/clientCache";
 
 interface SaleRecord {
   id: string;
@@ -163,6 +163,11 @@ export default function SalesPage() {
       }
     }
   }, [activeCompany?.id, effectiveBranch]);
+
+  // Real-time auto-sync for sales list
+  useAutoSync(() => {
+    fetchSales();
+  });
 
   const handleReverse = async (id: string, invoiceNumber: string) => {
     if (!confirm(`Are you sure you want to reverse sale invoice #${invoiceNumber}? This will restock items and rebalance receivables.`)) {

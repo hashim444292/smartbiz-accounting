@@ -18,6 +18,7 @@ import {
 import { useAuth } from "@/context/AuthContext";
 import { CategoryManagerModal } from "@/components/CategoryManagerModal";
 import { BrandPageLoader } from "@/components/ui/loader";
+import { invalidateCache } from "@/lib/clientCache";
 
 export default function CreateProductPage() {
   const router = useRouter();
@@ -207,6 +208,8 @@ export default function CreateProductPage() {
       if (!res.ok || !json.success) {
         throw new Error(json.error || "Failed to save product");
       }
+
+      invalidateCache();
 
       setSaveSuccess(`Product '${json.data.name}' saved with HS Code ${json.data.hsCode}`);
       setTimeout(() => {

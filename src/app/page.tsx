@@ -47,7 +47,7 @@ import {
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
 import { useLanguage } from "@/context/LanguageContext";
-import { smartFetch, invalidateCache } from "@/lib/clientCache";
+import { smartFetch, invalidateCache, useAutoSync } from "@/lib/clientCache";
 import {
   BrandPageLoader,
   CardSkeleton,
@@ -109,7 +109,7 @@ export default function DashboardPage() {
     }
   }, [user, isInspectingClient, isLoading, router]);
 
-  const fetchMetrics = async () => {
+  const fetchMetrics = async (skipCache = false) => {
     setLoading(true);
     try {
       const start = range.startDate.toISOString();
@@ -117,7 +117,11 @@ export default function DashboardPage() {
       const headers: Record<string, string> = {};
       if (activeCompany?.id) headers["x-business-id"] = activeCompany.id;
 
-      const json = await smartFetch(`/api/dashboard?start=${start}&end=${end}`, { headers, ttlMs: 15000 });
+      const json = await smartFetch(`/api/dashboard?start=${start}&end=${end}`, {
+        headers,
+        ttlMs: skipCache ? 0 : 5000,
+        skipCache,
+      });
       if (json.success) {
         setData(json.data);
       }
@@ -129,8 +133,13 @@ export default function DashboardPage() {
   };
 
   useEffect(() => {
-    fetchMetrics();
+    fetchMetrics(true);
   }, [range.startDate, range.endDate, activeCompany?.id]);
+
+  // Real-time auto-sync for dashboard metrics across tabs and mutations
+  useAutoSync(() => {
+    fetchMetrics(true);
+  });
 
   const handleRetryFbr = async (invoiceId: string) => {
     setRetryingId(invoiceId);
@@ -355,7 +364,7 @@ export default function DashboardPage() {
           </button>
 
           <button
-            onClick={fetchMetrics}
+            onClick={() => fetchMetrics(true)}
             disabled={loading}
             className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 shadow-2xs transition disabled:opacity-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
             title={t("Refresh live metrics", "تازہ ترین ڈیٹا لائیں")}

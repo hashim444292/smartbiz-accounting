@@ -34,7 +34,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useLanguage } from "@/context/LanguageContext";
-import { smartFetch } from "@/lib/clientCache";
+import { smartFetch, useAutoSync } from "@/lib/clientCache";
 
 interface NavItem {
   name: string;
@@ -176,28 +176,35 @@ export function Sidebar({
     payables: number;
   } | null>(null);
 
-  useEffect(() => {
+  const fetchTotals = async (skipCache = false) => {
     if (isPlatformMode || isFbrInvoicingOnly) return;
-    let mounted = true;
-    const fetchTotals = async () => {
-      try {
-        const headers: Record<string, string> = {};
-        if (activeCompany?.id) headers["x-business-id"] = activeCompany.id;
-        const res = await smartFetch("/api/dashboard", { headers, ttlMs: 60000 });
-        if (mounted && res?.success && res?.data) {
-          setStockTotals({
-            inventory: Number(res.data.totalInventoryValue || 0),
-            receivables: Number(res.data.totalReceivables || 0),
-            payables: Number(res.data.totalPayables || 0),
-          });
-        }
-      } catch {}
-    };
-    fetchTotals();
-    return () => {
-      mounted = false;
-    };
-  }, [activeCompany?.id, isPlatformMode, isFbrInvoicingOnly]);
+    try {
+      const headers: Record<string, string> = {};
+      if (activeCompany?.id) headers["x-business-id"] = activeCompany.id;
+      const res = await smartFetch("/api/dashboard", {
+        headers,
+        ttlMs: skipCache ? 0 : 5000,
+        skipCache,
+      });
+      if (res?.success && res?.data) {
+        setStockTotals({
+          inventory: Number(res.data.totalInventoryValue || 0),
+          receivables: Number(res.data.totalReceivables || 0),
+          payables: Number(res.data.totalPayables || 0),
+        });
+      }
+    } catch {}
+  };
+
+  // Re-fetch whenever company changes or route changes
+  useEffect(() => {
+    fetchTotals(true);
+  }, [activeCompany?.id, pathname, isPlatformMode, isFbrInvoicingOnly]);
+
+  // Real-time auto-sync: fires on mutations (purchases, sales, payments, expenses) across tabs + focus + heartbeat
+  useAutoSync(() => {
+    fetchTotals(true);
+  }, !isPlatformMode && !isFbrInvoicingOnly);
 
   const formatShortCurrency = (val: number) => {
     if (!val || isNaN(val)) return "0";

@@ -27,7 +27,7 @@ import { Modal } from "@/components/ui/modal";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/context/AuthContext";
 import { useLanguage } from "@/context/LanguageContext";
-import { smartFetch, invalidateCache } from "@/lib/clientCache";
+import { smartFetch, invalidateCache, useAutoSync } from "@/lib/clientCache";
 
 export default function PurchasesPage() {
   const { user, activeCompany, branches, selectedBranch, activeBranchId, isBranchLocked } = useAuth();
@@ -256,6 +256,11 @@ export default function PurchasesPage() {
   useEffect(() => {
     fetchPurchases();
   }, [activeCompany?.id, effectiveBranch]);
+
+  // Real-time auto-sync for purchases list
+  useAutoSync(() => {
+    fetchPurchases();
+  });
 
   const openEditModal = (purchase: any) => {
     setEditingPurchase(purchase);

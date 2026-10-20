@@ -25,7 +25,7 @@ import {
   UserCheck,
 } from "lucide-react";
 import { BrandPageLoader, TableSkeleton } from "@/components/ui/loader";
-import { smartFetch, invalidateCache } from "@/lib/clientCache";
+import { smartFetch, invalidateCache, useAutoSync } from "@/lib/clientCache";
 import { useAuth } from "@/context/AuthContext";
 import { useLanguage } from "@/context/LanguageContext";
 
@@ -123,6 +123,11 @@ function AccountingContent() {
   useEffect(() => {
     fetchData();
   }, []);
+
+  // Real-time auto-sync for general ledger & trial balance
+  useAutoSync(() => {
+    fetchData();
+  });
 
   // When ledgerType changes, auto-select first entity if current doesn't match
   useEffect(() => {
