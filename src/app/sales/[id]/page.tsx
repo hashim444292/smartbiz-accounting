@@ -99,6 +99,7 @@ export default function SaleDetailPage() {
         image: { type: "jpeg", quality: 0.98 },
         html2canvas: { scale: 2, useCORS: true, logging: false },
         jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
+        pagebreak: { mode: ["avoid-all", "css", "legacy"] },
       };
 
       await html2pdf().set(opt).from(element).save();
@@ -153,7 +154,7 @@ export default function SaleDetailPage() {
         @media print {
           @page {
             size: A4 portrait;
-            margin: 8mm 10mm;
+            margin: 6mm 8mm;
           }
           body {
             background: #ffffff !important;
@@ -164,6 +165,9 @@ export default function SaleDetailPage() {
           header,
           aside,
           nav,
+          footer,
+          button,
+          [data-no-print],
           .print\\:hidden {
             display: none !important;
           }
@@ -174,11 +178,13 @@ export default function SaleDetailPage() {
             margin: 0 auto !important;
             width: 100% !important;
             max-width: 100% !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
           }
         }
       `}</style>
 
-      <div className="max-w-4xl mx-auto space-y-5 pb-12">
+      <div className="max-w-4xl mx-auto space-y-5 pb-12 print:max-w-none print:space-y-0 print:pb-0 print:m-0">
         {/* Top Controls (Hidden on Print) */}
         <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
           <Link
@@ -262,13 +268,14 @@ export default function SaleDetailPage() {
         <div
           ref={invoiceRef}
           id="invoice-printable-area"
-          className="bg-white text-slate-900 border border-slate-200 rounded-2xl p-6 sm:p-10 shadow-sm font-sans"
+          style={{ pageBreakInside: "avoid", breakInside: "avoid" }}
+          className="bg-white text-slate-900 border border-slate-200 rounded-2xl p-6 sm:p-10 print:p-2 print:border-none print:shadow-none print:rounded-none shadow-sm font-sans"
         >
           {/* Header Block: Seller Info (Left) & Tax Invoice Meta (Right) */}
-          <div className="flex flex-col sm:flex-row items-start justify-between gap-4">
+          <div className="flex flex-col sm:flex-row items-start justify-between gap-3">
             {/* Seller Details */}
             <div className="space-y-0.5">
-              <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight leading-tight">
+              <h1 className="text-xl sm:text-2xl print:text-lg font-black text-slate-900 tracking-tight leading-tight">
                 {sellerName}
               </h1>
               <p className="text-xs text-slate-600 leading-snug">{sellerAddress}</p>
@@ -293,7 +300,7 @@ export default function SaleDetailPage() {
 
             {/* Tax Invoice Title & Reference Meta */}
             <div className="text-left sm:text-right space-y-0.5 shrink-0">
-              <h2 className="text-2xl sm:text-3xl font-black text-[#D32F2F] tracking-wide uppercase">
+              <h2 className="text-2xl sm:text-3xl print:text-xl font-black text-[#D32F2F] tracking-wide uppercase">
                 TAX INVOICE
               </h2>
               <p className="text-xs text-slate-600">
@@ -317,10 +324,10 @@ export default function SaleDetailPage() {
           </div>
 
           {/* Full-Width Divider Line */}
-          <div className="w-full border-t border-slate-300 my-5" />
+          <div className="w-full border-t border-slate-300 my-4 print:my-2" />
 
           {/* Bill To Block */}
-          <div className="space-y-0.5 mb-6 text-left">
+          <div className="space-y-0.5 mb-4 print:mb-2 text-left">
             <p className="text-xs font-bold text-slate-900 uppercase tracking-wider">Bill To:</p>
             <p className="text-sm font-black text-slate-900">{buyerName}</p>
             <p className="text-xs text-slate-600 leading-snug">{buyerAddress}</p>
@@ -331,19 +338,19 @@ export default function SaleDetailPage() {
           </div>
 
           {/* Line Items Table (9 Statutory Columns) */}
-          <div className="overflow-x-auto mb-6">
-            <table className="w-full text-left text-xs border border-slate-200 divide-y divide-slate-200">
+          <div className="overflow-x-auto mb-4 print:mb-2">
+            <table className="w-full text-left text-xs border border-slate-200 divide-y divide-slate-200 print:text-[11px]">
               <thead className="bg-slate-50 text-[11px] font-bold text-slate-800 uppercase tracking-wider">
                 <tr>
-                  <th className="p-2.5 text-center border-r border-slate-200 w-10">#</th>
-                  <th className="p-2.5 border-r border-slate-200">Description</th>
-                  <th className="p-2.5 text-center border-r border-slate-200 w-24">HS Code</th>
-                  <th className="p-2.5 text-center border-r border-slate-200 w-16">UOM</th>
-                  <th className="p-2.5 text-center border-r border-slate-200 w-16">Qty</th>
-                  <th className="p-2.5 text-right border-r border-slate-200 w-28">Unit Price</th>
-                  <th className="p-2.5 text-center border-r border-slate-200 w-20">Tax Rate</th>
-                  <th className="p-2.5 text-right border-r border-slate-200 w-28">Tax Amount</th>
-                  <th className="p-2.5 text-right w-28">Total</th>
+                  <th className="p-2 sm:p-2.5 print:py-1 print:px-1.5 text-center border-r border-slate-200 w-10">#</th>
+                  <th className="p-2 sm:p-2.5 print:py-1 print:px-1.5 border-r border-slate-200">Description</th>
+                  <th className="p-2 sm:p-2.5 print:py-1 print:px-1.5 text-center border-r border-slate-200 w-24">HS Code</th>
+                  <th className="p-2 sm:p-2.5 print:py-1 print:px-1.5 text-center border-r border-slate-200 w-16">UOM</th>
+                  <th className="p-2 sm:p-2.5 print:py-1 print:px-1.5 text-center border-r border-slate-200 w-16">Qty</th>
+                  <th className="p-2 sm:p-2.5 print:py-1 print:px-1.5 text-right border-r border-slate-200 w-28">Unit Price</th>
+                  <th className="p-2 sm:p-2.5 print:py-1 print:px-1.5 text-center border-r border-slate-200 w-20">Tax Rate</th>
+                  <th className="p-2 sm:p-2.5 print:py-1 print:px-1.5 text-right border-r border-slate-200 w-28">Tax Amount</th>
+                  <th className="p-2 sm:p-2.5 print:py-1 print:px-1.5 text-right w-28">Total</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 text-slate-800 font-sans">
@@ -377,10 +384,10 @@ export default function SaleDetailPage() {
 
                   return (
                     <tr key={item.id || i} className="hover:bg-slate-50/50">
-                      <td className="p-2.5 text-center font-bold text-slate-500 border-r border-slate-200">
+                      <td className="p-2 sm:p-2.5 print:py-1 print:px-1.5 text-center font-bold text-slate-500 border-r border-slate-200">
                         {i + 1}
                       </td>
-                      <td className="p-2.5 border-r border-slate-200">
+                      <td className="p-2 sm:p-2.5 print:py-1 print:px-1.5 border-r border-slate-200">
                         <span className="font-bold text-slate-900 block">{item.productName}</span>
                         {item.sku && (
                           <span className="text-[10px] text-slate-500 font-mono block">
@@ -388,25 +395,25 @@ export default function SaleDetailPage() {
                           </span>
                         )}
                       </td>
-                      <td className="p-2.5 text-center font-mono font-semibold text-slate-800 border-r border-slate-200 text-[11px]">
+                      <td className="p-2 sm:p-2.5 print:py-1 print:px-1.5 text-center font-mono font-semibold text-slate-800 border-r border-slate-200 text-[11px]">
                         {hsCode}
                       </td>
-                      <td className="p-2.5 text-center font-bold text-slate-700 border-r border-slate-200">
+                      <td className="p-2 sm:p-2.5 print:py-1 print:px-1.5 text-center font-bold text-slate-700 border-r border-slate-200">
                         {effectiveUom}
                       </td>
-                      <td className="p-2.5 text-center font-bold text-slate-900 border-r border-slate-200 tabular-nums">
+                      <td className="p-2 sm:p-2.5 print:py-1 print:px-1.5 text-center font-bold text-slate-900 border-r border-slate-200 tabular-nums">
                         {qty.toLocaleString()}
                       </td>
-                      <td className="p-2.5 text-right font-medium text-slate-800 border-r border-slate-200 tabular-nums">
+                      <td className="p-2 sm:p-2.5 print:py-1 print:px-1.5 text-right font-medium text-slate-800 border-r border-slate-200 tabular-nums">
                         Rs. {unitPrice.toFixed(2)}
                       </td>
-                      <td className="p-2.5 text-center font-mono font-medium text-slate-700 border-r border-slate-200">
+                      <td className="p-2 sm:p-2.5 print:py-1 print:px-1.5 text-center font-mono font-medium text-slate-700 border-r border-slate-200">
                         {taxRate.toFixed(2)}%
                       </td>
-                      <td className="p-2.5 text-right font-medium text-slate-800 border-r border-slate-200 tabular-nums">
+                      <td className="p-2 sm:p-2.5 print:py-1 print:px-1.5 text-right font-medium text-slate-800 border-r border-slate-200 tabular-nums">
                         Rs. {itemTax.toFixed(2)}
                       </td>
-                      <td className="p-2.5 text-right font-bold text-slate-900 tabular-nums">
+                      <td className="p-2 sm:p-2.5 print:py-1 print:px-1.5 text-right font-bold text-slate-900 tabular-nums">
                         Rs. {lineTotal.toFixed(2)}
                       </td>
                     </tr>
@@ -417,8 +424,8 @@ export default function SaleDetailPage() {
           </div>
 
           {/* Subtotals & Financial Summary (Right-Aligned) */}
-          <div className="flex justify-end mb-6">
-            <div className="w-full max-w-xs space-y-1 text-xs text-slate-700">
+          <div className="flex justify-end mb-4 print:mb-2">
+            <div className="w-full max-w-xs space-y-1 print:space-y-0.5 text-xs text-slate-700">
               <div className="flex justify-between py-0.5">
                 <span className="text-slate-600 font-medium">Subtotal:</span>
                 <span className="font-bold text-slate-900 tabular-nums font-mono">
@@ -469,7 +476,7 @@ export default function SaleDetailPage() {
               )}
 
               {/* Total Double-Lined Box Matching PDF */}
-              <div className="flex justify-between py-2 border-t border-b-2 border-slate-900 text-sm font-black text-[#D32F2F] mt-2">
+              <div className="flex justify-between py-1.5 print:py-1 border-t border-b-2 border-slate-900 text-sm font-black text-[#D32F2F] mt-1">
                 <span className="uppercase tracking-wider">TOTAL:</span>
                 <span className="tabular-nums font-mono text-base font-black">
                   Rs. {Number(sale.totalAmount).toFixed(2)}
@@ -477,7 +484,7 @@ export default function SaleDetailPage() {
               </div>
 
               {Number(sale.paidAmount) > 0 && (
-                <div className="flex justify-between pt-1 text-[11px] text-emerald-700 font-semibold">
+                <div className="flex justify-between pt-0.5 text-[11px] text-emerald-700 font-semibold">
                   <span>Amount Paid ({sale.paymentMethod || "CASH"}):</span>
                   <span className="font-mono">Rs. {Number(sale.paidAmount).toFixed(2)}</span>
                 </div>
@@ -492,20 +499,20 @@ export default function SaleDetailPage() {
           </div>
 
           {/* Statutory FBR Invoice Verification Box (Exact Red Rounded Box Layout) */}
-          <div className="border-2 border-[#E53935] rounded-2xl p-4 sm:p-5 bg-white mb-6 shadow-2xs">
-            <div className="text-center font-bold text-[#E53935] text-sm mb-3 uppercase tracking-wider">
+          <div className="border-2 border-[#E53935] rounded-xl sm:rounded-2xl p-3 sm:p-4 print:p-2.5 bg-white mb-4 print:mb-2 shadow-2xs">
+            <div className="text-center font-bold text-[#E53935] text-xs sm:text-sm mb-2 print:mb-1 uppercase tracking-wider">
               FBR Invoice Verification
             </div>
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
               {/* Left Column: Reference & Verification Bullet Points */}
-              <div className="text-left space-y-1.5 flex-1">
+              <div className="text-left space-y-1 flex-1">
                 <p className="text-xs font-bold text-slate-800">FBR Reference Number:</p>
-                <p className="text-base sm:text-lg font-black text-[#D32F2F] font-mono tracking-wider break-all leading-tight">
+                <p className="text-sm sm:text-base font-black text-[#D32F2F] font-mono tracking-wider break-all leading-tight">
                   {sale.fbrInvoiceNumber ||
                     fbrMeta?.fbrInvoiceNumber ||
                     "4130335232913DIB0LHR8628064"}
                 </p>
-                <ul className="text-[11px] text-slate-600 space-y-0.5 mt-2.5">
+                <ul className="text-[10px] sm:text-[11px] text-slate-600 space-y-0.5 mt-1.5 print:mt-1">
                   <li className="flex items-center gap-1.5">
                     <span className="text-[#D32F2F] font-bold">•</span>
                     <span>Verify this invoice through FBR TaxAsaan Mobile App</span>
@@ -522,17 +529,17 @@ export default function SaleDetailPage() {
               </div>
 
               {/* Right Column: Statutory FBR POS Badge & High-Resolution QR Code */}
-              <div className="flex items-center gap-3 shrink-0">
+              <div className="flex items-center gap-2.5 shrink-0">
                 {/* Official FBR Invoicing POS Emblem */}
-                <div className="flex flex-col items-center justify-center border-2 border-blue-800 rounded-lg p-1.5 w-24 bg-white shadow-2xs">
-                  <div className="flex items-center gap-0.5 text-[10px] font-black text-blue-900 tracking-wider">
-                    <span className="text-xs">🏛️</span>
+                <div className="flex flex-col items-center justify-center border-2 border-blue-800 rounded-lg p-1 w-20 bg-white shadow-2xs">
+                  <div className="flex items-center gap-0.5 text-[9px] font-black text-blue-900 tracking-wider">
+                    <span className="text-[10px]">🏛️</span>
                     <span>FBR</span>
                   </div>
-                  <div className="text-base font-black text-blue-700 tracking-tighter leading-none my-0.5">
+                  <div className="text-sm font-black text-blue-700 tracking-tighter leading-none my-0.5">
                     POS
                   </div>
-                  <div className="w-full bg-blue-800 text-white text-[7.5px] font-black uppercase py-0.5 text-center rounded-xs tracking-tight">
+                  <div className="w-full bg-blue-800 text-white text-[7px] font-black uppercase py-0.5 text-center rounded-xs tracking-tight">
                     INVOICING SYSTEM
                   </div>
                 </div>
@@ -541,7 +548,7 @@ export default function SaleDetailPage() {
                 <div className="p-1 bg-white border border-slate-300 rounded-lg shadow-2xs">
                   <FbrQrCode
                     value={sale.fbrInvoiceNumber || sale.invoiceNumber}
-                    size={84}
+                    size={76}
                   />
                 </div>
               </div>
@@ -549,13 +556,13 @@ export default function SaleDetailPage() {
           </div>
 
           {/* Document Footer (Thank You, Sign-Off & Platform Notice) */}
-          <div className="text-center pt-4 border-t border-slate-200 text-xs text-slate-500 space-y-1">
-            <p className="font-bold text-slate-800 text-sm">Thank you for your business!</p>
+          <div className="text-center pt-3 print:pt-2 border-t border-slate-200 text-xs text-slate-500 space-y-0.5 print:text-[10px]">
+            <p className="font-bold text-slate-800 text-xs sm:text-sm">Thank you for your business!</p>
             <p>For any queries, please contact us at {sellerPhone}.</p>
-            <p className="text-[11px] text-slate-400">
+            <p className="text-[10px] text-slate-400">
               This is a computer-generated invoice and does not require a signature.
             </p>
-            <div className="w-full border-t border-slate-100 mt-3 pt-2 text-[10px] text-slate-400">
+            <div className="w-full border-t border-slate-100 mt-2 pt-1 text-[9px] text-slate-400">
               SmartBiz Powered By Accounts360 | Verify invoice authenticity via FBR TaxAsaan App
             </div>
           </div>

@@ -240,7 +240,9 @@ export function Sidebar({
       )}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex flex-col border-r border-slate-200/90 bg-white text-slate-700 shadow-subtle transition-all duration-300 ease-in-out dark:border-slate-800/90 dark:bg-[#111827] dark:text-slate-300 lg:static lg:z-30 lg:h-screen lg:sticky lg:top-0 lg:shrink-0 lg:translate-x-0 ${
+        aria-label="Sidebar Navigation"
+        data-no-print
+        className={`print:hidden fixed inset-y-0 left-0 z-50 flex flex-col border-r border-slate-200/90 bg-white text-slate-700 shadow-subtle transition-all duration-300 ease-in-out dark:border-slate-800/90 dark:bg-[#111827] dark:text-slate-300 lg:static lg:z-30 lg:h-screen lg:sticky lg:top-0 lg:shrink-0 lg:translate-x-0 ${
           isOpen ? "translate-x-0" : "-translate-x-full"
         } ${isCollapsed ? "w-20" : "w-64"}`}
       >

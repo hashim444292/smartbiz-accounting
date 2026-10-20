@@ -42,7 +42,8 @@ export function BottomNav({ onOpenMenu }: BottomNavProps) {
   return (
     <nav
       aria-label="Mobile Navigation"
-      className="fixed bottom-0 left-0 right-0 z-40 flex h-16 items-center justify-around border-t border-slate-200/90 bg-white/95 px-2 backdrop-blur-md shadow-[0_-4px_16px_rgba(0,0,0,0.06)] dark:border-slate-800 dark:bg-[#111827]/95 lg:hidden pb-[env(safe-area-inset-bottom)]"
+      data-no-print
+      className="print:hidden fixed bottom-0 left-0 right-0 z-40 flex h-16 items-center justify-around border-t border-slate-200/90 bg-white/95 px-2 backdrop-blur-md shadow-[0_-4px_16px_rgba(0,0,0,0.06)] dark:border-slate-800 dark:bg-[#111827]/95 lg:hidden pb-[env(safe-area-inset-bottom)]"
     >
       {/* 1. Dashboard / Home / Admin */}
       <Link

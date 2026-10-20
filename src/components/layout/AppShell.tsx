@@ -50,7 +50,7 @@ function ShellContent({ children }: { children: React.ReactNode }) {
       <div className="flex-1 flex flex-col min-h-screen min-w-0 w-full overflow-x-hidden">
         {/* Active Super Admin User Session Switching Banner */}
         {user && user.role !== "SUPER_ADMIN" && user.isSwitched && (
-          <div className="bg-gradient-to-r from-purple-800 via-indigo-800 to-indigo-900 text-white px-4 py-2 text-xs flex items-center justify-between shadow-xs z-30 border-b border-indigo-700/50">
+          <div data-no-print className="print:hidden bg-gradient-to-r from-purple-800 via-indigo-800 to-indigo-900 text-white px-4 py-2 text-xs flex items-center justify-between shadow-xs z-30 border-b border-indigo-700/50">
             <div className="flex items-center gap-2">
               <span className="font-semibold text-purple-200">Active User Session:</span>
               <span className="font-bold underline">{user.name}</span>
@@ -69,7 +69,7 @@ function ShellContent({ children }: { children: React.ReactNode }) {
 
         {/* Super Admin / Platform Admin Client Inspection Banner */}
         {(user?.role === "SUPER_ADMIN" || user?.role === "ADMIN") && isInspectingClient && (
-          <div className="bg-gradient-to-r from-amber-700 via-amber-600 to-amber-700 text-white px-4 py-2 text-xs flex items-center justify-between shadow-xs z-30 border-b border-amber-600/60">
+          <div data-no-print className="print:hidden bg-gradient-to-r from-amber-700 via-amber-600 to-amber-700 text-white px-4 py-2 text-xs flex items-center justify-between shadow-xs z-30 border-b border-amber-600/60">
             <div className="flex items-center gap-2">
               <span className="bg-white/20 text-white px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider">
                 🛡️ Client Inspection Mode
@@ -92,7 +92,7 @@ function ShellContent({ children }: { children: React.ReactNode }) {
         )}
 
         <Header onMenuClick={() => setSidebarOpen(true)} />
-        <main className="flex-1 p-3.5 sm:p-5 lg:p-6 pb-24 lg:pb-8 max-w-7xl w-full mx-auto overflow-x-hidden">{children}</main>
+        <main className="flex-1 p-3.5 sm:p-5 lg:p-6 pb-24 lg:pb-8 max-w-7xl w-full mx-auto overflow-x-hidden print:p-0 print:m-0 print:max-w-none print:w-full print:overflow-visible">{children}</main>
         <BottomNav onOpenMenu={() => setSidebarOpen(true)} />
       </div>
     </div>
