@@ -225,7 +225,7 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
 
   return (
     <>
-      <header className="sticky top-0 z-30 flex h-16 w-full max-w-full items-center justify-between border-b border-slate-200/80 bg-white/95 px-3 sm:px-6 backdrop-blur-md dark:border-slate-800/90 dark:bg-[#111827]/95 transition-colors duration-150 overflow-hidden">
+      <header className="sticky top-0 z-40 flex h-16 w-full max-w-full items-center justify-between border-b border-slate-200/80 bg-white/95 px-3 sm:px-6 backdrop-blur-md dark:border-slate-800/90 dark:bg-[#111827]/95 transition-colors duration-150">
         <div className="flex items-center gap-2 sm:gap-3 shrink-0 min-w-0">
           <button
             onClick={onMenuClick}

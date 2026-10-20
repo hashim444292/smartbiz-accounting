@@ -301,7 +301,7 @@ export default function DashboardPage() {
     <div className="space-y-5 sm:space-y-6 pb-12 transition-colors duration-150">
       {/* Background Fetching Notification Banner */}
       {loading && data && (
-        <div className="sticky top-16 z-30 mb-4 rounded-xl border border-indigo-200/90 bg-indigo-50/95 px-3.5 py-2.5 backdrop-blur-md dark:border-indigo-900/60 dark:bg-indigo-950/90 text-xs font-semibold text-indigo-700 dark:text-indigo-300 flex items-center justify-between shadow-xs animate-in fade-in slide-in-from-top-1 duration-150">
+        <div className="sticky top-16 z-20 mb-4 rounded-xl border border-indigo-200/90 bg-indigo-50/95 px-3.5 py-2.5 backdrop-blur-md dark:border-indigo-900/60 dark:bg-indigo-950/90 text-xs font-semibold text-indigo-700 dark:text-indigo-300 flex items-center justify-between shadow-xs animate-in fade-in slide-in-from-top-1 duration-150">
           <div className="flex items-center gap-2.5">
             <LoadingSpinner size="sm" />
             <span>Updating real-time financial metrics for the selected period...</span>

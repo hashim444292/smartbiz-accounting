@@ -39,7 +39,7 @@ export function DateRangeSelector() {
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 z-40 mt-1.5 w-48 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xl dark:border-slate-800 dark:bg-[#111827] animate-in fade-in zoom-in-95 duration-100">
+        <div className="absolute right-0 z-50 mt-1.5 w-48 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xl dark:border-slate-800 dark:bg-[#111827] animate-in fade-in zoom-in-95 duration-100">
           <div className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
             Select Range
           </div>
