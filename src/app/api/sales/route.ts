@@ -11,8 +11,17 @@ export async function GET(req: NextRequest) {
   try {
     const businessId = await getActiveBusinessId(req);
     const { branchId, isLockedToBranch } = await getActiveBranchId(req);
+    const { searchParams } = new URL(req.url);
+    const customerId = searchParams.get("customerId");
+    const paymentStatus = searchParams.get("paymentStatus");
 
     const whereClause: any = { businessId };
+    if (customerId) whereClause.customerId = customerId;
+    if (paymentStatus) {
+      const statuses = paymentStatus.split(",").map((s) => s.trim().toUpperCase());
+      whereClause.paymentStatus = { in: statuses };
+    }
+
     if (branchId) {
       const branch = await prisma.branch.findUnique({
         where: { id: branchId },
@@ -52,7 +61,16 @@ export async function GET(req: NextRequest) {
   } catch (err) {
     const businessId = await getActiveBusinessId(req);
     const { branchId, isLockedToBranch } = await getActiveBranchId(req);
+    const { searchParams } = new URL(req.url);
+    const customerId = searchParams.get("customerId");
+    const paymentStatus = searchParams.get("paymentStatus");
+
     let filtered = fallbackStore.sales.filter((s) => s.businessId === businessId);
+    if (customerId) filtered = filtered.filter((s) => s.customerId === customerId);
+    if (paymentStatus) {
+      const statuses = paymentStatus.split(",").map((s) => s.trim().toUpperCase());
+      filtered = filtered.filter((s) => statuses.includes(s.paymentStatus));
+    }
     if (branchId) {
       filtered = filtered.filter((s) => s.branchId === branchId || !s.branchId);
     }

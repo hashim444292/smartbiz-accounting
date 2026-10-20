@@ -3195,6 +3195,45 @@ export function storeAddPayment(
       sup.currentBalance = Math.max(0, sup.currentBalance - amt);
       partyName = sup.name;
     }
+
+    // Allocate cash across purchases (Bill Settlement)
+    let cashToAllocate = amt;
+    if (data.purchaseId) {
+      const p = fallbackStore.purchases.find((purch) => purch.id === data.purchaseId && purch.businessId === businessId);
+      if (p) {
+        const rem = Number(p.remainingAmount !== undefined ? p.remainingAmount : (Number(p.totalAmount) - Number(p.paidAmount || 0)));
+        const payThis = Math.min(cashToAllocate, rem);
+        p.paidAmount = Number(p.paidAmount || 0) + payThis;
+        p.remainingAmount = Math.max(0, rem - payThis);
+        p.paymentStatus = p.remainingAmount === 0 ? "PAID" : "PARTIAL";
+        cashToAllocate -= payThis;
+      }
+    } else if (data.allocations && data.allocations.length > 0) {
+      for (const alloc of data.allocations) {
+        const p = fallbackStore.purchases.find((purch) => purch.id === alloc.purchaseId && purch.businessId === businessId);
+        if (p) {
+          const a = Number(alloc.amount || 0);
+          p.paidAmount = Number(p.paidAmount || 0) + a;
+          p.remainingAmount = Math.max(0, Number(p.remainingAmount || 0) - a);
+          p.paymentStatus = p.remainingAmount === 0 ? "PAID" : "PARTIAL";
+        }
+      }
+    } else {
+      const supplierPendingPurchases = fallbackStore.purchases
+        .filter((p) => p.supplierId === data.supplierId && p.businessId === businessId && p.paymentStatus !== "PAID")
+        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+      for (const p of supplierPendingPurchases) {
+        if (cashToAllocate <= 0) break;
+        const rem = Number(p.remainingAmount !== undefined ? p.remainingAmount : (Number(p.totalAmount) - Number(p.paidAmount || 0)));
+        if (rem <= 0) continue;
+        const payThis = Math.min(cashToAllocate, rem);
+        p.paidAmount = Number(p.paidAmount || 0) + payThis;
+        p.remainingAmount = Math.max(0, rem - payThis);
+        p.paymentStatus = p.remainingAmount === 0 ? "PAID" : "PARTIAL";
+        cashToAllocate -= payThis;
+      }
+    }
   }
 
   // Adjust Cash/Bank account balance

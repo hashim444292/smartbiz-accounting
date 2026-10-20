@@ -66,6 +66,9 @@ export default function PaymentsPage() {
 
   const [loadingCustomers, setLoadingCustomers] = useState(false);
   const [loadingSuppliers, setLoadingSuppliers] = useState(false);
+  const [pendingBills, setPendingBills] = useState<any[]>([]);
+  const [loadingBills, setLoadingBills] = useState(false);
+  const [selectedBillId, setSelectedBillId] = useState<string>("ALL");
 
   const fetchPayments = async () => {
     setLoading(true);
@@ -141,6 +144,35 @@ export default function PaymentsPage() {
     return [];
   };
 
+  const fetchPartyPendingBills = async (type: "SUPPLIER" | "CUSTOMER", id: string) => {
+    if (!id) {
+      setPendingBills([]);
+      setSelectedBillId("ALL");
+      return;
+    }
+    setLoadingBills(true);
+    try {
+      const headers: Record<string, string> = {};
+      if (activeCompany?.id) headers["x-business-id"] = activeCompany.id;
+      const endpoint =
+        type === "SUPPLIER"
+          ? `/api/purchases?supplierId=${id}&paymentStatus=UNPAID,PARTIAL`
+          : `/api/sales?customerId=${id}&paymentStatus=UNPAID,PARTIAL`;
+
+      const res = await smartFetch(endpoint, { headers, ttlMs: 0, skipCache: true });
+      if (res && res.success && Array.isArray(res.data)) {
+        setPendingBills(res.data);
+      } else {
+        setPendingBills([]);
+      }
+    } catch (err) {
+      console.error("Failed to fetch pending bills:", err);
+      setPendingBills([]);
+    } finally {
+      setLoadingBills(false);
+    }
+  };
+
   useEffect(() => {
     fetchPayments();
     const branchToUse = isBranchLocked ? (user?.branchId || "") : (selectedBranch?.id || activeBranchId || (branches[0]?.id || ""));
@@ -156,11 +188,14 @@ export default function PaymentsPage() {
     const branchToUse = isBranchLocked ? (user?.branchId || "") : (selectedBranch?.id || activeBranchId || (branches[0]?.id || ""));
     setPaymentBranchId(branchToUse);
     setShowReceiptModal(true);
+    setSelectedBillId("ALL");
+    setPendingBills([]);
     const custList = await ensureCustomersLoaded(true);
     if (custList.length > 0) {
       const withBal = custList.find((c: any) => Number(c.currentBalance || 0) > 0);
       const chosen = withBal || custList[0];
       setPartyId(chosen.id);
+      fetchPartyPendingBills("CUSTOMER", chosen.id);
       if (Number(chosen.currentBalance || 0) > 0) {
         setAmount(Number(chosen.currentBalance));
       } else {
@@ -173,11 +208,14 @@ export default function PaymentsPage() {
     const branchToUse = isBranchLocked ? (user?.branchId || "") : (selectedBranch?.id || activeBranchId || (branches[0]?.id || ""));
     setPaymentBranchId(branchToUse);
     setShowDisburseModal(true);
+    setSelectedBillId("ALL");
+    setPendingBills([]);
     const supList = await ensureSuppliersLoaded(true);
     if (supList.length > 0) {
       const withBal = supList.find((s: any) => Number(s.currentBalance || 0) > 0);
       const chosen = withBal || supList[0];
       setPartyId(chosen.id);
+      fetchPartyPendingBills("SUPPLIER", chosen.id);
       if (Number(chosen.currentBalance || 0) > 0) {
         setAmount(Number(chosen.currentBalance));
       } else {
@@ -202,25 +240,34 @@ export default function PaymentsPage() {
 
       const effectiveCreateBranch = isBranchLocked ? user?.branchId : (paymentBranchId || effectiveBranch || null);
 
+      const payload: any = {
+        type: "RECEIPT",
+        customerId: partyId,
+        amount,
+        accountId,
+        referenceNumber,
+        notes,
+        branchId: effectiveCreateBranch,
+        createdById: user?.userId,
+        createdByName: user?.name,
+      };
+
+      if (selectedBillId && selectedBillId !== "ALL") {
+        payload.saleId = selectedBillId;
+        payload.allocations = [{ saleId: selectedBillId, amount }];
+      }
+
       const res = await fetch("/api/payments", {
         method: "POST",
         headers,
-        body: JSON.stringify({
-          type: "RECEIPT",
-          customerId: partyId,
-          amount,
-          accountId,
-          referenceNumber,
-          notes,
-          branchId: effectiveCreateBranch,
-          createdById: user?.userId,
-          createdByName: user?.name,
-        }),
+        body: JSON.stringify(payload),
       });
       const json = await res.json();
       if (json.success) {
         setShowReceiptModal(false);
         setAmount(0);
+        setSelectedBillId("ALL");
+        setPendingBills([]);
         invalidateCache();
         await Promise.all([
           fetchPayments(),
@@ -246,25 +293,34 @@ export default function PaymentsPage() {
 
       const effectiveCreateBranch = isBranchLocked ? user?.branchId : (paymentBranchId || effectiveBranch || null);
 
+      const payload: any = {
+        type: "DISBURSEMENT",
+        supplierId: partyId,
+        amount,
+        accountId,
+        referenceNumber,
+        notes,
+        branchId: effectiveCreateBranch,
+        createdById: user?.userId,
+        createdByName: user?.name,
+      };
+
+      if (selectedBillId && selectedBillId !== "ALL") {
+        payload.purchaseId = selectedBillId;
+        payload.allocations = [{ purchaseId: selectedBillId, amount }];
+      }
+
       const res = await fetch("/api/payments", {
         method: "POST",
         headers,
-        body: JSON.stringify({
-          type: "DISBURSEMENT",
-          supplierId: partyId,
-          amount,
-          accountId,
-          referenceNumber,
-          notes,
-          branchId: effectiveCreateBranch,
-          createdById: user?.userId,
-          createdByName: user?.name,
-        }),
+        body: JSON.stringify(payload),
       });
       const json = await res.json();
       if (json.success) {
         setShowDisburseModal(false);
         setAmount(0);
+        setSelectedBillId("ALL");
+        setPendingBills([]);
         invalidateCache();
         await Promise.all([
           fetchPayments(),
@@ -537,7 +593,15 @@ export default function PaymentsPage() {
       </div>
 
       {/* Record Receipt Modal */}
-      <Modal isOpen={showReceiptModal} onClose={() => setShowReceiptModal(false)} title="Record Customer Receipt">
+      <Modal
+        isOpen={showReceiptModal}
+        onClose={() => {
+          setShowReceiptModal(false);
+          setSelectedBillId("ALL");
+          setPendingBills([]);
+        }}
+        title="Record Customer Receipt"
+      >
         <form onSubmit={handleCreateReceipt} className="space-y-4">
           <div className="rounded-xl border border-indigo-100 bg-indigo-50/70 p-3 text-xs text-indigo-950 dark:border-indigo-900/60 dark:bg-indigo-950/40 dark:text-indigo-200">
             <div className="flex items-center justify-between">
@@ -597,6 +661,8 @@ export default function PaymentsPage() {
               onChange={(e) => {
                 const newPartyId = e.target.value;
                 setPartyId(newPartyId);
+                setSelectedBillId("ALL");
+                fetchPartyPendingBills("CUSTOMER", newPartyId);
                 const c = customers.find((cust) => cust.id === newPartyId);
                 if (c && Number(c.currentBalance || 0) > 0) {
                   setAmount(Number(c.currentBalance));
@@ -651,12 +717,79 @@ export default function PaymentsPage() {
                   {due > 0 && (
                     <button
                       type="button"
-                      onClick={() => setAmount(due)}
+                      onClick={() => {
+                        setSelectedBillId("ALL");
+                        setAmount(due);
+                      }}
                       className="rounded-md bg-amber-600 px-2 py-1 text-[11px] font-bold text-white shadow-xs hover:bg-amber-700"
                     >
                       Receive Full Due ({formatMoney(due)})
                     </button>
                   )}
+                </div>
+              );
+            })()}
+          </div>
+
+          {/* Specific Sales Invoice / Bill Selector */}
+          <div className="space-y-1.5 rounded-xl border border-indigo-100 bg-indigo-50/50 p-3 dark:border-indigo-950 dark:bg-indigo-950/20">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                <span>📑 Clear Specific Sales Invoice / Bill</span>
+                {loadingBills && <span className="animate-spin text-xs">⏳</span>}
+              </label>
+              <span className="text-[11px] font-medium text-slate-500">
+                {pendingBills.length > 0
+                  ? `${pendingBills.length} unpaid / partial invoice${pendingBills.length > 1 ? "s" : ""}`
+                  : "No pending invoices found"}
+              </span>
+            </div>
+
+            <select
+              value={selectedBillId}
+              onChange={(e) => {
+                const val = e.target.value;
+                setSelectedBillId(val);
+                if (val !== "ALL") {
+                  const bill = pendingBills.find((b) => b.id === val);
+                  if (bill) {
+                    const due = Number(bill.remainingAmount !== undefined ? bill.remainingAmount : (Number(bill.totalAmount || 0) - Number(bill.paidAmount || 0)));
+                    if (due > 0) {
+                      setAmount(due);
+                    }
+                  }
+                } else {
+                  const c = customers.find((cust) => cust.id === partyId);
+                  if (c && Number(c.currentBalance || 0) > 0) {
+                    setAmount(Number(c.currentBalance));
+                  }
+                }
+              }}
+              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-800 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+            >
+              <option value="ALL">
+                ⚡ All Pending Invoices / On-Account (FIFO Auto-Clear Oldest)
+              </option>
+              {pendingBills.map((bill) => {
+                const due = Number(bill.remainingAmount !== undefined ? bill.remainingAmount : (Number(bill.totalAmount || 0) - Number(bill.paidAmount || 0)));
+                const docNo = bill.invoiceNumber || bill.invoiceNo || bill.id.slice(0, 8);
+                const billDate = bill.date ? new Date(bill.date).toLocaleDateString() : "";
+                return (
+                  <option key={bill.id} value={bill.id}>
+                    📄 Invoice #{docNo} ({billDate}) — Due: {formatMoney(due)} (Total: {formatMoney(bill.totalAmount)}) [{bill.paymentStatus}]
+                  </option>
+                );
+              })}
+            </select>
+
+            {selectedBillId !== "ALL" && (() => {
+              const bill = pendingBills.find((b) => b.id === selectedBillId);
+              if (!bill) return null;
+              const due = Number(bill.remainingAmount !== undefined ? bill.remainingAmount : (Number(bill.totalAmount || 0) - Number(bill.paidAmount || 0)));
+              return (
+                <div className="flex items-center justify-between rounded-lg bg-white/90 dark:bg-slate-800/90 px-2.5 py-1.5 text-[11px] text-indigo-900 dark:text-indigo-200 border border-indigo-200/60 dark:border-indigo-900/60">
+                  <span>Targeting Invoice: <strong>#{bill.invoiceNumber || bill.invoiceNo || bill.id.slice(0, 8)}</strong></span>
+                  <span className="font-bold">Remaining Due: {formatMoney(due)}</span>
                 </div>
               );
             })()}
@@ -690,7 +823,15 @@ export default function PaymentsPage() {
       </Modal>
 
       {/* Record Disbursement Modal */}
-      <Modal isOpen={showDisburseModal} onClose={() => setShowDisburseModal(false)} title="Record Supplier Disbursement">
+      <Modal
+        isOpen={showDisburseModal}
+        onClose={() => {
+          setShowDisburseModal(false);
+          setSelectedBillId("ALL");
+          setPendingBills([]);
+        }}
+        title="Record Supplier Disbursement"
+      >
         <form onSubmit={handleCreateDisburse} className="space-y-4">
           <div className="rounded-xl border border-rose-100 bg-rose-50/70 p-3 text-xs text-rose-950 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-200">
             <div className="flex items-center justify-between">
@@ -750,6 +891,8 @@ export default function PaymentsPage() {
               onChange={(e) => {
                 const newPartyId = e.target.value;
                 setPartyId(newPartyId);
+                setSelectedBillId("ALL");
+                fetchPartyPendingBills("SUPPLIER", newPartyId);
                 const s = suppliers.find((sup) => sup.id === newPartyId);
                 if (s && Number(s.currentBalance || 0) > 0) {
                   setAmount(Number(s.currentBalance));
@@ -804,12 +947,79 @@ export default function PaymentsPage() {
                   {due > 0 && (
                     <button
                       type="button"
-                      onClick={() => setAmount(due)}
+                      onClick={() => {
+                        setSelectedBillId("ALL");
+                        setAmount(due);
+                      }}
                       className="rounded-md bg-amber-600 px-2 py-1 text-[11px] font-bold text-white shadow-xs hover:bg-amber-700"
                     >
                       Pay Full Due ({formatMoney(due)})
                     </button>
                   )}
+                </div>
+              );
+            })()}
+          </div>
+
+          {/* Specific Purchase Bill Selector */}
+          <div className="space-y-1.5 rounded-xl border border-rose-100 bg-rose-50/50 p-3 dark:border-rose-950 dark:bg-rose-950/20">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                <span>📑 Clear Specific Purchase Bill</span>
+                {loadingBills && <span className="animate-spin text-xs">⏳</span>}
+              </label>
+              <span className="text-[11px] font-medium text-slate-500">
+                {pendingBills.length > 0
+                  ? `${pendingBills.length} unpaid / partial bill${pendingBills.length > 1 ? "s" : ""}`
+                  : "No pending purchase bills found"}
+              </span>
+            </div>
+
+            <select
+              value={selectedBillId}
+              onChange={(e) => {
+                const val = e.target.value;
+                setSelectedBillId(val);
+                if (val !== "ALL") {
+                  const bill = pendingBills.find((b) => b.id === val);
+                  if (bill) {
+                    const due = Number(bill.remainingAmount !== undefined ? bill.remainingAmount : (Number(bill.totalAmount || 0) - Number(bill.paidAmount || 0)));
+                    if (due > 0) {
+                      setAmount(due);
+                    }
+                  }
+                } else {
+                  const s = suppliers.find((sup) => sup.id === partyId);
+                  if (s && Number(s.currentBalance || 0) > 0) {
+                    setAmount(Number(s.currentBalance));
+                  }
+                }
+              }}
+              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-800 focus:border-rose-500 focus:outline-none focus:ring-1 focus:ring-rose-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+            >
+              <option value="ALL">
+                ⚡ All Pending Bills / On-Account (FIFO Auto-Clear Oldest)
+              </option>
+              {pendingBills.map((bill) => {
+                const due = Number(bill.remainingAmount !== undefined ? bill.remainingAmount : (Number(bill.totalAmount || 0) - Number(bill.paidAmount || 0)));
+                const docNo = bill.invoiceNumber || bill.billNumber || bill.id.slice(0, 8);
+                const billDate = bill.date ? new Date(bill.date).toLocaleDateString() : "";
+                return (
+                  <option key={bill.id} value={bill.id}>
+                    📄 Bill #{docNo} ({billDate}) — Due: {formatMoney(due)} (Total: {formatMoney(bill.totalAmount)}) [{bill.paymentStatus}]
+                  </option>
+                );
+              })}
+            </select>
+
+            {selectedBillId !== "ALL" && (() => {
+              const bill = pendingBills.find((b) => b.id === selectedBillId);
+              if (!bill) return null;
+              const due = Number(bill.remainingAmount !== undefined ? bill.remainingAmount : (Number(bill.totalAmount || 0) - Number(bill.paidAmount || 0)));
+              return (
+                <div className="flex items-center justify-between rounded-lg bg-white/90 dark:bg-slate-800/90 px-2.5 py-1.5 text-[11px] text-rose-900 dark:text-rose-200 border border-rose-200/60 dark:border-rose-900/60">
+                  <span>Targeting Purchase Bill: <strong>#{bill.invoiceNumber || bill.billNumber || bill.id.slice(0, 8)}</strong></span>
+                  <span className="font-bold">Remaining Due: {formatMoney(due)}</span>
                 </div>
               );
             })()}

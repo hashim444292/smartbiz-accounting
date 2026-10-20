@@ -29,6 +29,7 @@ export interface RecordSupplierPaymentInput {
   accountId: string;
   referenceNumber?: string;
   notes?: string;
+  purchaseId?: string;
   allocations?: Array<{ purchaseId: string; amount: Decimal.Value }>;
   createdById?: string;
   createdByName?: string;
@@ -268,31 +269,35 @@ export async function recordSupplierPayment(input: RecordSupplierPaymentInput) {
       },
     });
 
-    // 2. Handle purchase invoice allocations (Explicit or FIFO Auto-Allocation)
+    // 2. Handle purchase invoice allocations (Explicit, Single Purchase, or FIFO Auto-Allocation)
     let allocationsToProcess: Array<{ purchaseId: string; amount: Decimal.Value }> = input.allocations
       ? [...input.allocations]
       : [];
 
     if (allocationsToProcess.length === 0) {
-      // Automatically allocate payment to oldest unpaid / partial purchases (FIFO)
-      const openPurchases = await tx.purchase.findMany({
-        where: {
-          supplierId,
-          businessId,
-          paymentStatus: { in: ["UNPAID", "PARTIAL"] },
-          remainingAmount: { gt: 0 },
-        },
-        orderBy: { date: "asc" },
-      });
+      if (input.purchaseId) {
+        allocationsToProcess.push({ purchaseId: input.purchaseId, amount: paymentAmount });
+      } else {
+        // Automatically allocate payment to oldest unpaid / partial purchases (FIFO)
+        const openPurchases = await tx.purchase.findMany({
+          where: {
+            supplierId,
+            businessId,
+            paymentStatus: { in: ["UNPAID", "PARTIAL"] },
+            remainingAmount: { gt: 0 },
+          },
+          orderBy: { date: "asc" },
+        });
 
-      let availableCash = paymentAmount;
-      for (const p of openPurchases) {
-        if (availableCash.lte(0)) break;
-        const rem = toDecimal(p.remainingAmount);
-        if (rem.lte(0)) continue;
-        const allocAmt = Decimal.min(availableCash, rem);
-        allocationsToProcess.push({ purchaseId: p.id, amount: allocAmt });
-        availableCash = availableCash.sub(allocAmt);
+        let availableCash = paymentAmount;
+        for (const p of openPurchases) {
+          if (availableCash.lte(0)) break;
+          const rem = toDecimal(p.remainingAmount);
+          if (rem.lte(0)) continue;
+          const allocAmt = Decimal.min(availableCash, rem);
+          allocationsToProcess.push({ purchaseId: p.id, amount: allocAmt });
+          availableCash = availableCash.sub(allocAmt);
+        }
       }
     }
 

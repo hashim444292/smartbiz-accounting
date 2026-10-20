@@ -89,6 +89,7 @@ export async function POST(req: NextRequest) {
         accountId: body.accountId,
         referenceNumber: body.referenceNumber,
         notes: body.notes,
+        purchaseId: body.purchaseId,
         allocations: body.allocations,
         createdById,
         createdByName,
@@ -99,7 +100,13 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true, data: result });
   } catch (error: any) {
-    if (error.message?.includes("Can't reach database server") || error.code === "P1001" || !process.env.DATABASE_URL) {
+    if (
+      error.message?.includes("Can't reach database server") ||
+      error.message?.includes("does not exist on the database server") ||
+      error.code === "P1001" ||
+      error.code === "P1003" ||
+      !process.env.DATABASE_URL
+    ) {
       const session = await getSession();
       const businessId = await getActiveBusinessId(req);
       const { branchId: activeBranchId, isLockedToBranch } = await getActiveBranchId(req);
