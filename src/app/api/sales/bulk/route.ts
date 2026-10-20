@@ -10,9 +10,19 @@ interface BulkRowItem {
   date?: string;
   invoiceNumber?: string;
   scenario?: string;
+  saleType?: string;
   customerName?: string;
   customerNtn?: string;
   customerCnic?: string;
+  buyerName?: string;
+  buyerLegalName?: string;
+  buyerRegistrationType?: string;
+  buyerNtn?: string;
+  buyerCnic?: string;
+  buyerProvince?: string;
+  buyerAddress?: string;
+  province?: string;
+  address?: string;
   hsCode?: string;
   productName?: string;
   productRemarks?: string;
@@ -23,14 +33,19 @@ interface BulkRowItem {
   taxRate?: number;
   taxAmount?: number;
   taxValue?: number;
+  furtherTaxRate?: number;
+  furtherTaxAmount?: number;
+  furtherTax?: number;
   extraTax?: number;
   extraTaxValue?: number;
   exclusiveValue?: number;
   subtotal?: number;
+  discount?: number;
   discountRate?: number;
   discountValue?: number;
   discount2Rate?: number;
   discount2Value?: number;
+  fedPayable?: number;
   advanceIncomeTaxRate?: number;
   totalIncomeTax?: number;
   totalAmount?: number;
@@ -68,16 +83,21 @@ export async function POST(req: NextRequest) {
       business = fallbackStore.companies.find((c) => c.id === businessId) || { packageType: "FULL_SUITE" };
     }
 
-    const isFbrInvoicingOnly = business?.packageType === "FBR_INVOICING_ONLY";
+    const isFbrInvoicingOnly =
+      business?.packageType === "FBR_INVOICING_ONLY" || body.mode === "DIGITAL_INVOICING";
 
     // 2. Group rows into invoices (by invoiceNumber if provided, or process individually)
     interface GroupedInvoice {
       invoiceNumber?: string;
       date: Date;
       scenario: string;
+      saleType?: string;
       customerName: string;
+      buyerRegistrationType?: string;
       customerNtn?: string;
       customerCnic?: string;
+      buyerProvince?: string;
+      buyerAddress?: string;
       sroSchedule?: string;
       sroItem?: string;
       aboveRemarks?: string;
@@ -87,6 +107,7 @@ export async function POST(req: NextRequest) {
       notes?: string;
       items: any[];
       advanceIncomeTaxTotal: number;
+      furtherTaxTotal: number;
       extraTaxTotal: number;
       grandTotalExpected?: number;
     }
@@ -131,13 +152,24 @@ function parseSafeDate(input?: string): Date {
       if (row.items && Array.isArray(row.items) && row.items.length > 0) {
         const invKey = row.invoiceNumber || `row-idx-${idx}`;
         const date = parseSafeDate(row.date);
+        const custName = (row.buyerLegalName || row.buyerName || row.customerName || "Walk-in Customer").trim();
+        const custNtn = (row.buyerNtn || row.customerNtn || "").trim() || undefined;
+        const custCnic = (row.buyerCnic || row.customerCnic || "").trim() || undefined;
+        const regType = (row.buyerRegistrationType || (custNtn ? "Registered" : "Unregistered")).trim();
+        const province = (row.buyerProvince || row.province || business?.province || "Sindh").trim();
+        const address = (row.buyerAddress || row.address || "").trim() || undefined;
+
         groupedMap.set(invKey, {
           invoiceNumber: row.invoiceNumber,
           date,
-          scenario: row.scenario || "SN001",
-          customerName: (row.customerName || "Walk-in Customer").trim(),
-          customerNtn: (row.customerNtn || "").trim() || undefined,
-          customerCnic: (row.customerCnic || "").trim() || undefined,
+          scenario: row.scenario || (custNtn ? "SN001" : "SN002"),
+          saleType: (row.saleType || "").trim() || undefined,
+          customerName: custName,
+          buyerRegistrationType: regType,
+          customerNtn: custNtn,
+          customerCnic: custCnic,
+          buyerProvince: province,
+          buyerAddress: address,
           sroSchedule: (row.sroSchedule || "").trim() || undefined,
           sroItem: (row.sroItem || "").trim() || undefined,
           aboveRemarks: (row.aboveRemarks || row.notes || "").trim() || undefined,
@@ -147,44 +179,54 @@ function parseSafeDate(input?: string): Date {
           notes: row.notes || row.aboveRemarks,
           items: row.items,
           advanceIncomeTaxTotal: Number(row.totalIncomeTax || 0),
-          extraTaxTotal: Number(row.extraTaxValue || 0),
+          furtherTaxTotal: Number(row.furtherTaxAmount || row.furtherTax || 0),
+          extraTaxTotal: Number(row.extraTaxValue || row.extraTax || 0),
           grandTotalExpected: row.totalAmount ? Number(row.totalAmount) : undefined,
         });
         return;
       }
 
-      // Flat 26-column row grouping:
+      // Flat row grouping:
       const invKey = row.invoiceNumber && row.invoiceNumber.trim() !== ""
         ? row.invoiceNumber.trim()
         : `row-${idx}`;
 
       const date = parseSafeDate(row.date);
-      const customerName = (row.customerName || "Walk-in Customer").trim();
-      const customerNtn = (row.customerNtn || "").trim() || undefined;
-      const customerCnic = (row.customerCnic || "").trim() || undefined;
+      const customerName = (row.buyerLegalName || row.buyerName || row.customerName || "Walk-in Customer").trim();
+      const customerNtn = (row.buyerNtn || row.customerNtn || "").trim() || undefined;
+      const customerCnic = (row.buyerCnic || row.customerCnic || "").trim() || undefined;
+      const buyerRegistrationType = (row.buyerRegistrationType || (customerNtn ? "Registered" : "Unregistered")).trim();
+      const buyerProvince = (row.buyerProvince || row.province || business?.province || "Sindh").trim();
+      const buyerAddress = (row.buyerAddress || row.address || "").trim() || undefined;
       const scenario = (row.scenario || (customerNtn ? "SN001" : "SN002")).trim();
+      const saleType = (row.saleType || "").trim() || undefined;
 
       const prodName = (row.productName || "General Merchandise").trim();
       const qty = Math.max(1, Number(row.quantity || 1));
       const rate = Number(row.rate !== undefined ? row.rate : (row.unitPrice || 0));
       const taxRate = Number(row.taxRate !== undefined ? row.taxRate : 18.0);
-      const discountVal = Number(row.discountValue || 0);
+      const discountVal = Number(row.discount !== undefined ? row.discount : (row.discountValue || 0));
       const discount2Val = Number(row.discount2Value || 0);
       const extraTax = Number(row.extraTaxValue || row.extraTax || 0);
       const advanceTax = Number(row.totalIncomeTax || 0);
 
-      const lineExclusive = row.exclusiveValue !== undefined ? Number(row.exclusiveValue) : (qty * rate);
+      const lineExclusive = row.exclusiveValue !== undefined ? Number(row.exclusiveValue) : Math.max(0, qty * rate - discountVal);
       const lineTax = row.taxValue !== undefined ? Number(row.taxValue) : (lineExclusive * (taxRate / 100));
+
+      const furtherTaxRate = Number(row.furtherTaxRate !== undefined ? row.furtherTaxRate : (scenario === "SN002" ? 3 : 0));
+      const furtherTaxVal = Number(row.furtherTaxAmount !== undefined ? row.furtherTaxAmount : (row.furtherTax !== undefined ? row.furtherTax : (lineExclusive * (furtherTaxRate / 100))));
 
       const lineItem = {
         productName: prodName,
-        hsCode: (row.hsCode || business?.defaultHsCode || "8517.1390").trim(),
-        uom: (row.uom || "Numbers, pieces, units").trim(),
+        hsCode: (row.hsCode || business?.defaultHsCode || "5201.0090").trim(),
+        uom: (row.uom || "PCS").trim(),
         productRemarks: (row.productRemarks || "").trim() || undefined,
         quantity: qty,
         unitPrice: rate,
         taxRate,
         taxAmount: lineTax,
+        furtherTaxRate,
+        furtherTax: furtherTaxVal,
         discount: discountVal,
         discount2: discount2Val,
         extraTax,
@@ -197,9 +239,13 @@ function parseSafeDate(input?: string): Date {
           invoiceNumber: row.invoiceNumber && row.invoiceNumber.trim() !== "" ? row.invoiceNumber.trim() : undefined,
           date,
           scenario,
+          saleType,
           customerName,
+          buyerRegistrationType,
           customerNtn,
           customerCnic,
+          buyerProvince,
+          buyerAddress,
           sroSchedule: (row.sroSchedule || "").trim() || undefined,
           sroItem: (row.sroItem || "").trim() || undefined,
           aboveRemarks: (row.aboveRemarks || row.notes || "").trim() || undefined,
@@ -209,6 +255,7 @@ function parseSafeDate(input?: string): Date {
           notes: row.aboveRemarks || row.notes,
           items: [lineItem],
           advanceIncomeTaxTotal: advanceTax,
+          furtherTaxTotal: furtherTaxVal,
           extraTaxTotal: extraTax,
           grandTotalExpected: row.totalAmount ? Number(row.totalAmount) : undefined,
         });
@@ -216,6 +263,7 @@ function parseSafeDate(input?: string): Date {
         const existing = groupedMap.get(invKey)!;
         existing.items.push(lineItem);
         existing.advanceIncomeTaxTotal += advanceTax;
+        existing.furtherTaxTotal += furtherTaxVal;
         existing.extraTaxTotal += extraTax;
         if (row.totalAmount) {
           existing.grandTotalExpected = (existing.grandTotalExpected || 0) + Number(row.totalAmount);
@@ -283,7 +331,7 @@ function parseSafeDate(input?: string): Date {
 
         const calculatedGrandTotal = Math.max(
           0,
-          subtotal - totalDiscount + taxAmount + totalExtraTax + inv.advanceIncomeTaxTotal
+          subtotal - totalDiscount + taxAmount + inv.furtherTaxTotal + totalExtraTax + inv.advanceIncomeTaxTotal
         );
         const finalGrandTotal = inv.grandTotalExpected !== undefined && inv.grandTotalExpected > 0
           ? inv.grandTotalExpected
@@ -292,15 +340,83 @@ function parseSafeDate(input?: string): Date {
         let paid = Number(inv.paidAmount !== undefined ? inv.paidAmount : (inv.paymentStatus === "UNPAID" ? 0 : finalGrandTotal));
         if (paid > finalGrandTotal) paid = finalGrandTotal;
 
+        // Auto-link or auto-create Customer with statutory NTN/CNIC/Province profile
+        let validCustomerId: string | null = null;
+        let resolvedCustomerName = (inv.customerName || "").trim();
+        if (resolvedCustomerName && resolvedCustomerName.toLowerCase() !== "walk-in customer") {
+          let cust: any = null;
+          try {
+            cust = await prisma.customer.findFirst({
+              where: { businessId, name: { equals: resolvedCustomerName, mode: "insensitive" } },
+            });
+          } catch {
+            cust = fallbackStore.customers.find(
+              (c) => c.businessId === businessId && c.name.toLowerCase() === resolvedCustomerName.toLowerCase()
+            );
+          }
+
+          const isRegistered = Boolean(inv.customerNtn || inv.buyerRegistrationType === "Registered");
+          const taxProfile = {
+            ntn: inv.customerNtn || null,
+            cnic: inv.customerCnic || null,
+            province: inv.buyerProvince || "Sindh",
+            taxStatus: isRegistered ? "REGISTERED" : "UNREGISTERED",
+            address: inv.buyerAddress || null,
+          };
+          const notesJson = JSON.stringify(taxProfile);
+
+          if (!cust) {
+            try {
+              cust = await prisma.customer.create({
+                data: {
+                  businessId,
+                  name: resolvedCustomerName,
+                  address: inv.buyerAddress || null,
+                  notes: notesJson,
+                },
+              });
+            } catch {
+              cust = {
+                id: `cust-${Date.now()}-${processedIndex}`,
+                businessId,
+                name: resolvedCustomerName,
+                address: inv.buyerAddress || null,
+                notes: notesJson,
+              };
+              fallbackStore.customers.push(cust);
+            }
+          } else if (inv.buyerAddress || inv.customerNtn || inv.customerCnic) {
+            try {
+              await prisma.customer.update({
+                where: { id: cust.id },
+                data: {
+                  address: cust.address || inv.buyerAddress || null,
+                  notes: notesJson,
+                },
+              });
+            } catch {}
+          }
+          if (cust) {
+            validCustomerId = cust.id;
+          }
+        }
+
         const fbrMeta = {
           scenario: inv.scenario,
+          saleType: inv.saleType,
           customerNtn: inv.customerNtn,
           customerCnic: inv.customerCnic,
+          buyerRegistrationType: inv.buyerRegistrationType,
+          buyerProvince: inv.buyerProvince,
+          buyerAddress: inv.buyerAddress,
           advanceIncomeTax: inv.advanceIncomeTaxTotal,
+          furtherTax: inv.furtherTaxTotal,
           extraTax: totalExtraTax,
           sroSchedule: inv.sroSchedule,
           sroItem: inv.sroItem,
           aboveRemarks: inv.aboveRemarks,
+          itemsUom: inv.items.map((it: any) => it.uom),
+          itemsHsCode: inv.items.map((it: any) => it.hsCode),
         };
 
         let createdSale: any = null;
@@ -309,6 +425,7 @@ function parseSafeDate(input?: string): Date {
             businessId,
             invoiceNumber: inv.invoiceNumber,
             date: inv.date,
+            customerId: validCustomerId,
             customerName: inv.customerName,
             customerNtn: inv.customerNtn,
             customerCnic: inv.customerCnic,
@@ -330,11 +447,12 @@ function parseSafeDate(input?: string): Date {
             })),
             overallDiscount: totalDiscount,
             salesTax: taxAmount,
+            furtherTax: inv.furtherTaxTotal,
             extraTax: totalExtraTax,
             advanceIncomeTax: inv.advanceIncomeTaxTotal,
             posFee: 0,
             paidAmount: paid,
-            paymentMethod: inv.paymentMethod || (paid > 0 ? "CASH" : "CREDIT"),
+            paymentMethod: inv.paymentMethod || (paid > 0 ? "BANK_TRANSFER" : "CREDIT"),
             notes: inv.aboveRemarks || inv.notes || "Bulk imported invoice",
             fbrMeta,
             fbrStatus: "PENDING",
@@ -372,6 +490,7 @@ function parseSafeDate(input?: string): Date {
               lineTotal: q * p,
               costPrice: prod?.averageCost || 0,
               hsCode: it.hsCode,
+              uom: it.uom,
             };
           });
 
@@ -382,23 +501,25 @@ function parseSafeDate(input?: string): Date {
             id: saleId,
             invoiceNumber: invNum,
             date: inv.date.toISOString(),
+            customerId: validCustomerId,
             customerName: inv.customerName,
             subtotal,
             discountAmount: totalDiscount,
             taxAmount,
             salesTax: taxAmount,
-            furtherTax: 0,
+            furtherTax: inv.furtherTaxTotal,
             extraTax: totalExtraTax,
             posFee: 0,
             totalAmount: finalGrandTotal,
             paidAmount: paid,
             remainingAmount: remaining,
             paymentStatus,
-            paymentMethod: inv.paymentMethod || (paid > 0 ? "CASH" : "CREDIT"),
+            paymentMethod: inv.paymentMethod || (paid > 0 ? "BANK_TRANSFER" : "CREDIT"),
             status: "POSTED",
             fbrStatus: "PENDING",
             fbrInvoiceNumber: null,
             fbrQrCode: null,
+            fbrMeta,
             notes: JSON.stringify({ fbrMeta, remarks: inv.aboveRemarks || "" }),
             items: processedItems,
           };
@@ -422,6 +543,7 @@ function parseSafeDate(input?: string): Date {
       success: isSuccess,
       importedCount: createdInvoices.length,
       errorCount: errors.length,
+      results: createdInvoices,
       errors: errors.length > 0 ? errors : undefined,
       message: errors.length === 0
         ? `Successfully imported ${createdInvoices.length} sales invoices.`

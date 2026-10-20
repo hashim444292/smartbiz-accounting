@@ -70,14 +70,19 @@ export async function POST(req: NextRequest) {
     let effectiveBranchId = isLockedToBranch ? activeBranchId : (body.branchId || activeBranchId || null);
 
     if (!effectiveBranchId) {
-      const mainBranch = await prisma.branch.findFirst({
-        where: { businessId, code: "MAIN" },
-        select: { id: true },
-      }) || await prisma.branch.findFirst({
-        where: { businessId },
-        select: { id: true },
-      });
-      if (mainBranch) effectiveBranchId = mainBranch.id;
+      try {
+        const mainBranch = await prisma.branch.findFirst({
+          where: { businessId, code: "MAIN" },
+          select: { id: true },
+        }) || await prisma.branch.findFirst({
+          where: { businessId },
+          select: { id: true },
+        });
+        if (mainBranch) effectiveBranchId = mainBranch.id;
+      } catch {
+        const fbBranch = (fallbackStore as any).branches?.find((b: any) => b.businessId === businessId);
+        effectiveBranchId = fbBranch?.id || "branch-1";
+      }
     }
 
     const createdById = session?.userId || body.createdById || "usr-2";
@@ -132,8 +137,14 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true, data: sale });
   } catch (error: any) {
-    // If PostgreSQL server is offline, apply the exact accounting & stock rules to fallbackStore
-    if (error.message?.includes("Can't reach database server") || error.code === "P1001" || !process.env.DATABASE_URL) {
+    // If PostgreSQL server is offline or database does not exist, apply the exact accounting & stock rules to fallbackStore
+    if (
+      error.message?.includes("Can't reach database server") ||
+      error.message?.includes("does not exist on the database server") ||
+      error.code === "P1001" ||
+      error.code === "P1003" ||
+      !process.env.DATABASE_URL
+    ) {
       const businessId = await getActiveBusinessId(req);
       const { branchId: activeBranchId, isLockedToBranch } = await getActiveBranchId(req);
       const effectiveBranchId = isLockedToBranch ? activeBranchId : (body.branchId || activeBranchId || null);
