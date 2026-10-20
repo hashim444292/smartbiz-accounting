@@ -933,8 +933,10 @@ export default function BulkSalesImportPage() {
                 Bulk Invoicing Engine
               </span>
               <span className="text-slate-300">•</span>
-              <span className="text-[11px] font-mono text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                26 FBR Compliant Columns
+              <span className="text-[11px] font-mono text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200">
+                {isFbrInvoicingOnly || importMode === "DIGITAL_INVOICING"
+                  ? "29 Statutory Columns"
+                  : "26 POS Columns"}
               </span>
               <span className="text-slate-300">•</span>
               <span
@@ -953,7 +955,9 @@ export default function BulkSalesImportPage() {
               Bulk Upload & Download Sales Invoices
             </h1>
             <p className="text-xs text-slate-500 mt-0.5">
-              Upload spreadsheets with full FBR parameters (Scenario, NTN, CNIC, HS Code, UOM, Tax, Extra Tax, Advance Income Tax, SRO).
+              {isFbrInvoicingOnly || importMode === "DIGITAL_INVOICING"
+                ? "Upload spreadsheets with official 29 FBR Digital Invoicing parameters (Scenario, Buyer NTN/CNIC, Province, HS Code, Trade UOM, 18% Sales Tax, 3% Further Tax, SRO)."
+                : "Upload spreadsheets with full FBR parameters (Scenario, NTN, CNIC, HS Code, UOM, Tax, Extra Tax, Advance Income Tax, SRO)."}
             </p>
           </div>
         </div>
@@ -963,9 +967,11 @@ export default function BulkSalesImportPage() {
             onClick={downloadSampleTemplate}
             className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 shadow-2xs transition"
           >
-            <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-600" />
+            <FileSpreadsheet className={`h-3.5 w-3.5 ${isFbrInvoicingOnly || importMode === "DIGITAL_INVOICING" ? "text-indigo-600" : "text-emerald-600"}`} />
             <span>
-              {importMode === "DIGITAL_INVOICING"
+              {isFbrInvoicingOnly
+                ? "Download Official B2B Template (29 Cols)"
+                : importMode === "DIGITAL_INVOICING"
                 ? "Download Digital Invoicing Template (29 Cols)"
                 : "Download Retail POS Template (26 Cols)"}
             </span>
@@ -982,57 +988,80 @@ export default function BulkSalesImportPage() {
       </div>
 
       {/* Mode Selector & Quick Actions */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3.5 bg-white rounded-2xl border border-slate-200 shadow-2xs">
-        <div className="flex flex-wrap items-center gap-2.5">
-          <span className="text-xs font-bold text-slate-700 uppercase tracking-wide">
-            Mode:
-          </span>
-          <div className="inline-flex rounded-xl bg-slate-100 p-1 border border-slate-200">
+      {isFbrInvoicingOnly ? (
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3.5 bg-white rounded-2xl border border-indigo-100 shadow-2xs">
+          <div className="flex items-center gap-2.5">
+            <span className="text-xs font-bold text-slate-700 uppercase tracking-wide">
+              Package:
+            </span>
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-50 border border-indigo-200 text-xs font-bold text-indigo-700">
+              🛡️ FBR Digital Invoicing (B2B Tax Invoicing)
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2">
             <button
-              type="button"
-              onClick={() => setImportMode("DIGITAL_INVOICING")}
-              className={`px-3.5 py-1.5 text-xs font-bold rounded-lg transition ${
-                importMode === "DIGITAL_INVOICING"
-                  ? "bg-indigo-600 text-white shadow-xs"
-                  : "text-slate-600 hover:text-slate-900"
-              }`}
+              onClick={downloadDigitalInvoicingTemplate}
+              className="inline-flex items-center gap-1.5 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 px-3.5 py-2 rounded-xl transition shadow-2xs"
             >
-              🛡️ FBR Digital Invoicing (B2B Tax Invoice)
-            </button>
-            <button
-              type="button"
-              onClick={() => setImportMode("RETAIL_POS")}
-              className={`px-3.5 py-1.5 text-xs font-bold rounded-lg transition ${
-                importMode === "RETAIL_POS"
-                  ? "bg-slate-900 text-white shadow-xs"
-                  : "text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              🛒 Retail POS (Tier-1 POS Sales)
+              <FileSpreadsheet className="h-3.5 w-3.5 text-indigo-600" />
+              Download Official B2B Template (29 Cols)
             </button>
           </div>
         </div>
+      ) : (
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3.5 bg-white rounded-2xl border border-slate-200 shadow-2xs">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <span className="text-xs font-bold text-slate-700 uppercase tracking-wide">
+              Mode:
+            </span>
+            <div className="inline-flex rounded-xl bg-slate-100 p-1 border border-slate-200">
+              <button
+                type="button"
+                onClick={() => setImportMode("DIGITAL_INVOICING")}
+                className={`px-3.5 py-1.5 text-xs font-bold rounded-lg transition ${
+                  importMode === "DIGITAL_INVOICING"
+                    ? "bg-indigo-600 text-white shadow-xs"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                🛡️ FBR Digital Invoicing (B2B Tax Invoice)
+              </button>
+              <button
+                type="button"
+                onClick={() => setImportMode("RETAIL_POS")}
+                className={`px-3.5 py-1.5 text-xs font-bold rounded-lg transition ${
+                  importMode === "RETAIL_POS"
+                    ? "bg-slate-900 text-white shadow-xs"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                🛒 Retail POS (Tier-1 POS Sales)
+              </button>
+            </div>
+          </div>
 
-        <div className="flex items-center gap-2">
-          {importMode === "DIGITAL_INVOICING" ? (
-            <button
-              onClick={downloadDigitalInvoicingTemplate}
-              className="inline-flex items-center gap-1.5 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 px-3 py-1.5 rounded-xl transition"
-            >
-              <FileSpreadsheet className="h-3.5 w-3.5 text-indigo-600" />
-              Download B2B Template (29 Cols)
-            </button>
-          ) : (
-            <button
-              onClick={downloadRetailPosTemplate}
-              className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-3 py-1.5 rounded-xl transition"
-            >
-              <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-600" />
-              Download POS Template (26 Cols)
-            </button>
-          )}
+          <div className="flex items-center gap-2">
+            {importMode === "DIGITAL_INVOICING" ? (
+              <button
+                onClick={downloadDigitalInvoicingTemplate}
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 px-3 py-1.5 rounded-xl transition"
+              >
+                <FileSpreadsheet className="h-3.5 w-3.5 text-indigo-600" />
+                Download B2B Template (29 Cols)
+              </button>
+            ) : (
+              <button
+                onClick={downloadRetailPosTemplate}
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-3 py-1.5 rounded-xl transition"
+              >
+                <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-600" />
+                Download POS Template (26 Cols)
+              </button>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Package Rule Banner */}
       <div
@@ -1126,10 +1155,16 @@ export default function BulkSalesImportPage() {
         </div>
 
         <h3 className="text-base font-bold text-slate-900">
-          {fileName ? fileName : "Upload CSV / Excel Sales Invoices"}
+          {fileName
+            ? fileName
+            : isFbrInvoicingOnly || importMode === "DIGITAL_INVOICING"
+            ? "Upload FBR Digital Invoicing Spreadsheets (CSV / Excel)"
+            : "Upload CSV / Excel Sales Invoices"}
         </h3>
         <p className="text-xs text-slate-500 max-w-xl mx-auto mt-1">
-          Supports official 26 columns: Date, Scenario, Customer Name, NTN, CNIC, HS Code, Product Description, Remarks, UOM, Quantity, Rate, Taxes, Discounts, Advance Tax, and SRO details.
+          {isFbrInvoicingOnly || importMode === "DIGITAL_INVOICING"
+            ? "Supports official 29 FBR Digital Invoicing columns: Invoice #, Date, Buyer Legal Name, Registration Type, NTN, CNIC, Province, HS Code, UOM, Qty, Unit Price, 18% Sales Tax, 3% Further Tax, and SRO details."
+            : "Supports official 26 columns: Date, Scenario, Customer Name, NTN, CNIC, HS Code, Product Description, Remarks, UOM, Quantity, Rate, Taxes, Discounts, Advance Tax, and SRO details."}
         </p>
 
         <div className="mt-5 flex items-center justify-center gap-3">
@@ -1149,8 +1184,10 @@ export default function BulkSalesImportPage() {
             onClick={downloadSampleTemplate}
             className="text-xs px-3.5 py-2"
           >
-            <FileSpreadsheet className="h-4 w-4 mr-1.5 text-emerald-600" />
-            Download Sample CSV
+            <FileSpreadsheet className={`h-4 w-4 mr-1.5 ${isFbrInvoicingOnly || importMode === "DIGITAL_INVOICING" ? "text-indigo-600" : "text-emerald-600"}`} />
+            {isFbrInvoicingOnly || importMode === "DIGITAL_INVOICING"
+              ? "Download Official B2B Template (29 Cols)"
+              : "Download Sample CSV"}
           </Button>
         </div>
       </div>
