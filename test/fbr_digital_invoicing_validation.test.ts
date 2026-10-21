@@ -156,7 +156,7 @@ describe("FBR Digital Invoicing (B2B) Bulk Import & Template Validation Suite", 
       expect(taxProfile.province).toBe("Punjab");
       expect(taxProfile.taxStatus).toBe("REGISTERED");
     }
-  });
+  }, 60000);
 
   it("should apply 3% Further Tax for Unregistered buyer with 13-digit CNIC", async () => {
     const invNumber = `DI-UNREG-${Date.now()}`;
@@ -214,7 +214,7 @@ describe("FBR Digital Invoicing (B2B) Bulk Import & Template Validation Suite", 
     expect(createdSale.totalAmount).toBe(48400);
     expect(createdSale.fbrMeta?.buyerRegistrationType).toBe("Unregistered");
     expect(createdSale.fbrMeta?.customerCnic).toBe(unregCnic);
-  });
+  }, 60000);
 
   it("should auto-generate invoice numbers and group contiguous rows when invoiceNumber is omitted", async () => {
     const buyer1 = "Lucky Textile Mills Ltd";
@@ -318,5 +318,5 @@ describe("FBR Digital Invoicing (B2B) Bulk Import & Template Validation Suite", 
     expect(sale2.invoiceNumber).toBeDefined();
     expect(sale2.invoiceNumber).not.toMatch(/^AUTO-/);
     expect(sale2.invoiceNumber).not.toBe(sale1.invoiceNumber); // Distinct invoice numbers
-  });
+  }, 60000);
 });

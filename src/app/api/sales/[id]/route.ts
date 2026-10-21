@@ -4,6 +4,7 @@ import { getActiveBusinessId } from "@/lib/businessHelper";
 import { fallbackStore, storeUpdateSale } from "@/lib/fallbackStore";
 import { getSession } from "@/lib/auth";
 import { createSafeAuditLog } from "@/lib/auditHelper";
+import { enrichCustomer } from "@/lib/customerHelper";
 
 export const dynamic = "force-dynamic";
 
@@ -47,7 +48,64 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
       return NextResponse.json({ success: false, error: "Invoice not found" }, { status: 404 });
     }
 
-    return NextResponse.json({ success: true, data: sale });
+    let customer = sale.customer ? enrichCustomer(sale.customer) : null;
+    if (!customer && (sale.customerId || sale.customerName)) {
+      if (sale.customerId) {
+        try {
+          const found = await prisma.customer.findUnique({ where: { id: sale.customerId } });
+          if (found) customer = enrichCustomer(found);
+        } catch {}
+      }
+      if (!customer && sale.customerName && sale.customerName !== "Walk-in Retail Customer") {
+        try {
+          const found = await prisma.customer.findFirst({
+            where: { businessId, name: { equals: sale.customerName, mode: "insensitive" } },
+          });
+          if (found) customer = enrichCustomer(found);
+        } catch {}
+      }
+    }
+
+    // Inspect sale.notes for fbrMeta
+    let fbrMeta: any = null;
+    if (sale.notes && typeof sale.notes === "string" && sale.notes.trim().startsWith("{")) {
+      try {
+        const parsed = JSON.parse(sale.notes);
+        fbrMeta = parsed.fbrMeta || parsed;
+      } catch {}
+    }
+
+    if (customer && fbrMeta) {
+      const metaNtn = fbrMeta.customerNtn || fbrMeta.buyerNTN || fbrMeta.buyerNtn || fbrMeta.ntn;
+      const metaCnic = fbrMeta.customerCnic || fbrMeta.buyerCNIC || fbrMeta.buyerCnic || fbrMeta.cnic;
+      const metaStrn = fbrMeta.customerStrn || fbrMeta.buyerSTRN || fbrMeta.buyerStrn || fbrMeta.strn;
+      if (!customer.ntn && metaNtn) {
+        customer.ntn = metaNtn;
+        customer.taxStatus = "REGISTERED";
+      }
+      if (!customer.cnic && metaCnic) {
+        customer.cnic = metaCnic;
+      }
+      if (!customer.strn && metaStrn) {
+        customer.strn = metaStrn;
+      }
+    } else if (!customer && fbrMeta) {
+      const metaNtn = fbrMeta.customerNtn || fbrMeta.buyerNTN || fbrMeta.buyerNtn || fbrMeta.ntn;
+      const metaCnic = fbrMeta.customerCnic || fbrMeta.buyerCNIC || fbrMeta.buyerCnic || fbrMeta.cnic;
+      const metaStrn = fbrMeta.customerStrn || fbrMeta.buyerSTRN || fbrMeta.buyerStrn || fbrMeta.strn;
+      if (metaNtn || metaCnic || fbrMeta.buyerAddress) {
+        customer = {
+          name: sale.customerName,
+          address: fbrMeta.buyerAddress || fbrMeta.customerAddress || null,
+          ntn: metaNtn || "",
+          cnic: metaCnic || "",
+          strn: metaStrn || "",
+          taxStatus: metaNtn || fbrMeta.buyerRegistrationType === "Registered" ? "REGISTERED" : "UNREGISTERED",
+        };
+      }
+    }
+
+    return NextResponse.json({ success: true, data: { ...sale, customer } });
   } catch {
     const businessId = await getActiveBusinessId(req);
     const sale = fallbackStore.sales.find((s) => s.id === id && s.businessId === businessId);
@@ -56,8 +114,40 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
       return NextResponse.json({ success: false, error: "Invoice not found" }, { status: 404 });
     }
 
+    let customer = sale.customer ? enrichCustomer(sale.customer) : null;
+    if (!customer && (sale.customerId || sale.customerName)) {
+      const found = fallbackStore.customers.find(
+        (c) => (sale.customerId && c.id === sale.customerId) || (c.businessId === businessId && c.name?.toLowerCase() === sale.customerName?.toLowerCase())
+      );
+      if (found) customer = enrichCustomer(found);
+    }
+
+    let fbrMeta: any = null;
+    if (sale.notes && typeof sale.notes === "string" && sale.notes.trim().startsWith("{")) {
+      try {
+        const parsed = JSON.parse(sale.notes);
+        fbrMeta = parsed.fbrMeta || parsed;
+      } catch {}
+    }
+
+    if (customer && fbrMeta) {
+      const metaNtn = fbrMeta.customerNtn || fbrMeta.buyerNTN || fbrMeta.buyerNtn || fbrMeta.ntn;
+      const metaCnic = fbrMeta.customerCnic || fbrMeta.buyerCNIC || fbrMeta.buyerCnic || fbrMeta.cnic;
+      const metaStrn = fbrMeta.customerStrn || fbrMeta.buyerSTRN || fbrMeta.buyerStrn || fbrMeta.strn;
+      if (!customer.ntn && metaNtn) {
+        customer.ntn = metaNtn;
+        customer.taxStatus = "REGISTERED";
+      }
+      if (!customer.cnic && metaCnic) {
+        customer.cnic = metaCnic;
+      }
+      if (!customer.strn && metaStrn) {
+        customer.strn = metaStrn;
+      }
+    }
+
     const business = fallbackStore.companies.find((c) => c.id === businessId);
-    return NextResponse.json({ success: true, data: { ...sale, business }, fallback: true });
+    return NextResponse.json({ success: true, data: { ...sale, customer, business }, fallback: true });
   }
 }
 

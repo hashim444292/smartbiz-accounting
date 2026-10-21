@@ -2,43 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getActiveBusinessId } from "@/lib/businessHelper";
 import { fallbackStore } from "@/lib/fallbackStore";
+import { enrichCustomer } from "@/lib/customerHelper";
 
 export const dynamic = "force-dynamic";
-
-function enrichCustomer(c: any) {
-  let ntn = c.ntn || "";
-  let cnic = c.cnic || "";
-  let province = c.province || "Sindh";
-  let taxStatus = c.taxStatus || "UNREGISTERED";
-
-  if (c.notes) {
-    try {
-      if (typeof c.notes === "string" && c.notes.trim().startsWith("{")) {
-        const meta = JSON.parse(c.notes);
-        if (meta.ntn) ntn = meta.ntn;
-        if (meta.cnic) cnic = meta.cnic;
-        if (meta.province) province = meta.province;
-        if (meta.taxStatus) taxStatus = meta.taxStatus;
-      } else if (typeof c.notes === "string") {
-        const ntnMatch = c.notes.match(/NTN:\s*([A-Za-z0-9-]+)/i);
-        const cnicMatch = c.notes.match(/CNIC:\s*([0-9-]+)/i);
-        const provMatch = c.notes.match(/Province:\s*([A-Za-z\s]+)/i);
-        if (ntnMatch) ntn = ntnMatch[1].trim();
-        if (cnicMatch) cnic = cnicMatch[1].trim();
-        if (provMatch) province = provMatch[1].trim();
-        if (ntn) taxStatus = "REGISTERED";
-      }
-    } catch {}
-  }
-
-  return {
-    ...c,
-    ntn,
-    cnic,
-    province,
-    taxStatus: taxStatus || (ntn ? "REGISTERED" : "UNREGISTERED"),
-  };
-}
 
 export async function GET(req: NextRequest) {
   try {

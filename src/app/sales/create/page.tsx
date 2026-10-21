@@ -1074,6 +1074,8 @@ export default function CreateSalePage() {
           customerId: customerId || null,
           customerName: finalCustomerName,
           customerPhone: !customerId && remaining > 0 && walkInPhone.trim() ? walkInPhone.trim() : undefined,
+          customerNtn: selectedCustomer?.ntn || (selectedCustomer as any)?.taxProfile?.ntn || undefined,
+          customerCnic: (selectedCustomer as any)?.cnic || (selectedCustomer as any)?.taxProfile?.cnic || undefined,
           buyerTaxStatus,
           items: items.map((it) => ({
             productId: it.productId || (products[0]?.id ?? "prod-default"),
@@ -1196,6 +1198,8 @@ export default function CreateSalePage() {
               customerId: customerId || null,
               customerName: finalCustomerName,
               customerPhone: !customerId && remaining > 0 && walkInPhone.trim() ? walkInPhone.trim() : undefined,
+              customerNtn: selectedCustomer?.ntn || (selectedCustomer as any)?.taxProfile?.ntn || undefined,
+              customerCnic: (selectedCustomer as any)?.cnic || (selectedCustomer as any)?.taxProfile?.cnic || undefined,
               buyerTaxStatus,
               items: [
                 {

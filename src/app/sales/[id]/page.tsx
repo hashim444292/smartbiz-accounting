@@ -123,18 +123,76 @@ export default function SaleDetailPage() {
   const sellerNtn = sale.business?.ntn || (activeCompany as any)?.ntn || "A424558";
   const sellerStrn = sale.business?.strn || (activeCompany as any)?.strn || "";
 
+  // Deep extraction of buyer tax profile from customer object, notes, or fbrMeta
+  let rawCustNotes = (sale.customer as any)?.notes;
+  let parsedCustNotes: any = null;
+  if (rawCustNotes) {
+    if (typeof rawCustNotes === "object") {
+      parsedCustNotes = rawCustNotes;
+    } else if (typeof rawCustNotes === "string" && rawCustNotes.trim().startsWith("{")) {
+      try {
+        parsedCustNotes = JSON.parse(rawCustNotes);
+      } catch {}
+    }
+  }
+
   const buyerName = sale.customer?.name || sale.customerName || "Gama Lux Oleo Chemical Limited";
   const buyerAddress =
     sale.customer?.address ||
+    parsedCustNotes?.address ||
+    fbrMeta?.buyerAddress ||
     fbrMeta?.customerAddress ||
     (sale.customer?.city ? `${sale.customer.city}, Pakistan` : "Office 603 604,Sixth Floor Block No5,K D A, Scheme Clifton Karachi");
-  const buyerNtn = sale.customer?.ntn || fbrMeta?.customerNtn;
-  const buyerCnic = sale.customer?.cnic || fbrMeta?.customerCnic;
-  const buyerTaxId = buyerNtn
-    ? `NTN/CNIC: ${buyerNtn}`
-    : buyerCnic
-    ? `NTN/CNIC: ${buyerCnic}`
-    : "NTN/CNIC: Unregistered";
+
+  const buyerNtn =
+    sale.customer?.ntn ||
+    parsedCustNotes?.ntn ||
+    fbrMeta?.customerNtn ||
+    fbrMeta?.buyerNTN ||
+    fbrMeta?.buyerNtn ||
+    fbrMeta?.ntn ||
+    (typeof rawCustNotes === "string" ? rawCustNotes.match(/NTN:\s*([A-Za-z0-9-]+)/i)?.[1] : null);
+
+  const buyerCnic =
+    sale.customer?.cnic ||
+    parsedCustNotes?.cnic ||
+    fbrMeta?.customerCnic ||
+    fbrMeta?.buyerCNIC ||
+    fbrMeta?.buyerCnic ||
+    fbrMeta?.cnic ||
+    (typeof rawCustNotes === "string" ? rawCustNotes.match(/CNIC:\s*([0-9-]+)/i)?.[1] : null);
+
+  const buyerStrn =
+    (sale.customer as any)?.strn ||
+    parsedCustNotes?.strn ||
+    fbrMeta?.buyerSTRN ||
+    fbrMeta?.buyerStrn ||
+    fbrMeta?.customerStrn ||
+    fbrMeta?.strn ||
+    (typeof rawCustNotes === "string" ? rawCustNotes.match(/STRN:\s*([A-Za-z0-9-]+)/i)?.[1] : null);
+
+  const isBuyerRegistered = Boolean(
+    buyerNtn ||
+    (sale.customer as any)?.taxStatus === "REGISTERED" ||
+    parsedCustNotes?.taxStatus === "REGISTERED" ||
+    fbrMeta?.buyerRegistrationType === "Registered" ||
+    fbrMeta?.taxStatus === "REGISTERED"
+  );
+
+  let buyerTaxId = "NTN/CNIC: Unregistered";
+  if (buyerNtn) {
+    if (buyerStrn) {
+      buyerTaxId = `NTN: ${buyerNtn} • STRN: ${buyerStrn} (Registered)`;
+    } else {
+      buyerTaxId = `NTN: ${buyerNtn} (Registered)`;
+    }
+  } else if (buyerCnic) {
+    buyerTaxId = `CNIC: ${buyerCnic} (Unregistered)`;
+  } else if (isBuyerRegistered) {
+    buyerTaxId = "Status: Registered Taxpayer";
+  } else {
+    buyerTaxId = "NTN/CNIC: Unregistered";
+  }
 
   const formattedDate = new Date(sale.date).toLocaleDateString("en-US", {
     month: "short",

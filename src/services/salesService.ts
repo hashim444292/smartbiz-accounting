@@ -321,6 +321,20 @@ export async function createAndPostSale(input: CreateSaleInput) {
         if (!resolvedCustomerName) {
           resolvedCustomerName = custExists.name;
         }
+        if (custExists.notes) {
+          try {
+            if (typeof custExists.notes === "string" && custExists.notes.trim().startsWith("{")) {
+              const cMeta = JSON.parse(custExists.notes);
+              if (!input.customerNtn && cMeta.ntn) input.customerNtn = cMeta.ntn;
+              if (!input.customerCnic && cMeta.cnic) input.customerCnic = cMeta.cnic;
+            } else if (typeof custExists.notes === "string") {
+              const ntnM = custExists.notes.match(/NTN:\s*([A-Za-z0-9-]+)/i);
+              const cnicM = custExists.notes.match(/CNIC:\s*([0-9-]+)/i);
+              if (!input.customerNtn && ntnM) input.customerNtn = ntnM[1].trim();
+              if (!input.customerCnic && cnicM) input.customerCnic = cnicM[1].trim();
+            }
+          } catch {}
+        }
       }
     }
     if (!validCustomerId && resolvedCustomerName && resolvedCustomerName !== "Walk-in Retail Customer") {
@@ -337,13 +351,27 @@ export async function createAndPostSale(input: CreateSaleInput) {
             phone: input.customerPhone || null,
           },
         });
-      } else if (custNote && !cust.notes) {
-        await tx.customer.update({
-          where: { id: cust.id },
-          data: {
-            notes: custNote,
-          },
-        });
+      } else {
+        if (custNote && !cust.notes) {
+          await tx.customer.update({
+            where: { id: cust.id },
+            data: { notes: custNote },
+          });
+        }
+        if (cust.notes) {
+          try {
+            if (typeof cust.notes === "string" && cust.notes.trim().startsWith("{")) {
+              const cMeta = JSON.parse(cust.notes);
+              if (!input.customerNtn && cMeta.ntn) input.customerNtn = cMeta.ntn;
+              if (!input.customerCnic && cMeta.cnic) input.customerCnic = cMeta.cnic;
+            } else if (typeof cust.notes === "string") {
+              const ntnM = cust.notes.match(/NTN:\s*([A-Za-z0-9-]+)/i);
+              const cnicM = cust.notes.match(/CNIC:\s*([0-9-]+)/i);
+              if (!input.customerNtn && ntnM) input.customerNtn = ntnM[1].trim();
+              if (!input.customerCnic && cnicM) input.customerCnic = cnicM[1].trim();
+            }
+          } catch {}
+        }
       }
       validCustomerId = cust.id;
     }

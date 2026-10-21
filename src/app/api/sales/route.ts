@@ -4,6 +4,7 @@ import { createAndPostSale } from "@/services/salesService";
 import { getActiveBusinessId, getActiveBranchId } from "@/lib/businessHelper";
 import { fallbackStore } from "@/lib/fallbackStore";
 import { getSession } from "@/lib/auth";
+import { enrichCustomer } from "@/lib/customerHelper";
 
 export const dynamic = "force-dynamic";
 
@@ -57,7 +58,11 @@ export async function GET(req: NextRequest) {
       },
       orderBy: { date: "desc" },
     });
-    return NextResponse.json({ success: true, data: sales, branchId, isLockedToBranch });
+    const parsedSales = sales.map((s) => ({
+      ...s,
+      customer: s.customer ? enrichCustomer(s.customer) : null,
+    }));
+    return NextResponse.json({ success: true, data: parsedSales, branchId, isLockedToBranch });
   } catch (err) {
     const businessId = await getActiveBusinessId(req);
     const { branchId, isLockedToBranch } = await getActiveBranchId(req);
@@ -74,7 +79,17 @@ export async function GET(req: NextRequest) {
     if (branchId) {
       filtered = filtered.filter((s) => s.branchId === branchId || !s.branchId);
     }
-    return NextResponse.json({ success: true, data: filtered, branchId, isLockedToBranch, fallback: true });
+    const parsedFiltered = filtered.map((s) => {
+      let cust = s.customer;
+      if (!cust && s.customerId) {
+        cust = fallbackStore.customers.find((c) => c.id === s.customerId);
+      }
+      return {
+        ...s,
+        customer: cust ? enrichCustomer(cust) : null,
+      };
+    });
+    return NextResponse.json({ success: true, data: parsedFiltered, branchId, isLockedToBranch, fallback: true });
   }
 }
 
