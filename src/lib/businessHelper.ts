@@ -12,11 +12,11 @@ export async function getActiveBusinessId(req?: NextRequest): Promise<string> {
 
   // 1. Try to read from explicit NextRequest headers or cookies if passed
   if (req) {
-    candidate = req.headers.get("x-business-id") ||
-                req.cookies.get(ACTIVE_BIZ_COOKIE)?.value ||
+    candidate = req.headers?.get?.("x-business-id") ||
+                req.cookies?.get?.(ACTIVE_BIZ_COOKIE)?.value ||
                 null;
     if (!candidate) {
-      const token = req.cookies.get(TOKEN_NAME)?.value;
+      const token = req.cookies?.get?.(TOKEN_NAME)?.value;
       if (token) {
         const session = verifySessionToken(token);
         if (session?.businessId) candidate = session.businessId;
@@ -90,7 +90,7 @@ export async function getActiveBranchId(
     try {
       let token: string | undefined;
       if (req) {
-        token = req.cookies.get(TOKEN_NAME)?.value;
+        token = req.cookies?.get?.(TOKEN_NAME)?.value;
       }
       if (!token) {
         const cookieStore = cookies();

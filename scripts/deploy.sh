@@ -77,6 +77,12 @@ docker run --rm --network contract-genie_app_network -v "${APP_DIR}":/app -w /ap
     echo "ℹ️ Seeding skipped or already populated."
 }
 
+# 7. Execute fresh start cleanup for Adeel Textile transactions
+echo "🧹 Executing Adeel Textile transactional data cleanup..."
+docker run --rm --network contract-genie_app_network -v "${APP_DIR}":/app -w /app --env-file "${APP_DIR}/.env.production" node:20-alpine sh -c "node scripts/clean_adeel_textile_data.mjs" || {
+    echo "ℹ️ Fresh start cleanup skipped or completed."
+}
+
 echo "================================================================="
 echo "🎉 DEPLOYMENT SUCCESSFUL!"
 echo " Container: ${CONTAINER_NAME} is running on 127.0.0.1:3001"
