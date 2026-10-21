@@ -70,14 +70,24 @@ export default function CustomersPage() {
     const cleanNtn = ntn.trim().replace(/[^0-9]/g, "");
     const cleanCnic = cnic.trim().replace(/[^0-9]/g, "");
 
-    if (taxStatus === "REGISTERED" && cleanNtn.length < 7) {
-      setFormError("Registered taxpayers require a valid 7 or 8-digit NTN (e.g. 1234567-8).");
-      return;
+    if (taxStatus === "REGISTERED" || cleanNtn.length >= 7) {
+      if (cleanNtn.length < 7) {
+        setFormError("Registered taxpayers require a valid 7 or 8-digit NTN (e.g. 1234567-8).");
+        return;
+      }
+    } else {
+      // Unregistered customer: NTN is not mandatory, but CNIC / NIC is MANDATORY!
+      if (!cleanCnic) {
+        setFormError("Customer does not have an NTN, so providing a 13-digit CNIC / NIC is mandatory.");
+        return;
+      }
+      if (cleanCnic.length !== 13) {
+        setFormError("CNIC / NIC must be exactly 13 digits (e.g. 42101-1234567-1).");
+        return;
+      }
     }
-    if (cnic.trim() && cleanCnic.length !== 13) {
-      setFormError("CNIC must be exactly 13 digits without dashes (e.g. 42101-1234567-1).");
-      return;
-    }
+
+    const formattedCnic = cleanCnic.length === 13 ? `${cleanCnic.slice(0, 5)}-${cleanCnic.slice(5, 12)}-${cleanCnic.slice(12)}` : null;
 
     setSubmitting(true);
     try {
@@ -93,9 +103,9 @@ export default function CustomersPage() {
           email: email.trim() || null,
           address: address.trim() || null,
           province,
-          ntn: ntn.trim() || null,
-          cnic: cleanCnic || null,
-          taxStatus,
+          ntn: cleanNtn.length >= 7 ? ntn.trim() : null,
+          cnic: formattedCnic || (cleanCnic ? cleanCnic : null),
+          taxStatus: cleanNtn.length >= 7 || taxStatus === "REGISTERED" ? "REGISTERED" : "UNREGISTERED",
           openingBalance,
           creditLimit,
         }),
@@ -308,11 +318,12 @@ export default function CustomersPage() {
               required={taxStatus === "REGISTERED"}
             />
             <Input
-              label={taxStatus === "UNREGISTERED" ? "CNIC (13 digits without dashes) *" : "CNIC (Optional)"}
+              label={taxStatus === "REGISTERED" && ntn.trim().replace(/[^0-9]/g, "").length >= 7 ? "CNIC / NIC (Optional)" : "CNIC / NIC (13 digits) *"}
               value={cnic}
               onChange={(e) => setCnic(e.target.value)}
-              placeholder="e.g. 4210112345671"
+              placeholder="e.g. 42101-1234567-1"
               maxLength={15}
+              required={taxStatus !== "REGISTERED" || ntn.trim().replace(/[^0-9]/g, "").length < 7}
             />
           </div>
 

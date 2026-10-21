@@ -107,4 +107,75 @@ describe("Customer Tax Profile & Registered Status Extraction", () => {
     });
     expect(formatBuyerTaxId(cust4)).toBe("NTN/CNIC: Unregistered");
   });
+
+  describe("Customer Tax Credentials Validation Rules", () => {
+    // Validation function matching the app & API rules
+    const validateCustomerTaxCredentials = (input: {
+      name: string;
+      taxStatus?: "REGISTERED" | "UNREGISTERED";
+      ntn?: string;
+      cnic?: string;
+    }) => {
+      const cleanNtn = (input.ntn || "").trim().replace(/[^0-9]/g, "");
+      const cleanCnic = (input.cnic || "").trim().replace(/[^0-9]/g, "");
+      const isRegistered = input.taxStatus === "REGISTERED" || cleanNtn.length >= 7;
+
+      if (isRegistered) {
+        if (cleanNtn.length < 7) {
+          return { valid: false, error: "Registered taxpayers require a valid 7 or 8-digit NTN." };
+        }
+        return { valid: true, cleanNtn, cleanCnic: cleanCnic || null };
+      } else {
+        // Unregistered customer: NTN is not mandatory, but CNIC / NIC IS MANDATORY!
+        if (!cleanCnic) {
+          return { valid: false, error: "Customer does not have an NTN, so providing a 13-digit CNIC / NIC is mandatory." };
+        }
+        if (cleanCnic.length !== 13) {
+          return { valid: false, error: "CNIC / NIC must be exactly 13 digits (e.g. 42101-1234567-1)." };
+        }
+        return { valid: true, cleanNtn: null, cleanCnic };
+      }
+    };
+
+    it("should allow registered customer with valid 7-digit NTN without CNIC", () => {
+      const result = validateCustomerTaxCredentials({
+        name: "Textile Mills Ltd",
+        taxStatus: "REGISTERED",
+        ntn: "7654321-0",
+      });
+      expect(result.valid).toBe(true);
+      expect(result.cleanNtn).toBe("76543210");
+    });
+
+    it("should allow unregistered customer with valid 13-digit CNIC when NTN is absent", () => {
+      const result = validateCustomerTaxCredentials({
+        name: "Local Shopkeeper",
+        taxStatus: "UNREGISTERED",
+        cnic: "42101-1234567-1",
+      });
+      expect(result.valid).toBe(true);
+      expect(result.cleanCnic).toBe("4210112345671");
+    });
+
+    it("should reject unregistered customer when BOTH NTN and CNIC are absent", () => {
+      const result = validateCustomerTaxCredentials({
+        name: "Anonymous Buyer",
+        taxStatus: "UNREGISTERED",
+        ntn: "",
+        cnic: "",
+      });
+      expect(result.valid).toBe(false);
+      expect(result.error).toContain("Customer does not have an NTN, so providing a 13-digit CNIC / NIC is mandatory.");
+    });
+
+    it("should reject unregistered customer when CNIC has invalid length", () => {
+      const result = validateCustomerTaxCredentials({
+        name: "Local Trader",
+        taxStatus: "UNREGISTERED",
+        cnic: "421011234", // Only 9 digits
+      });
+      expect(result.valid).toBe(false);
+      expect(result.error).toContain("CNIC / NIC must be exactly 13 digits");
+    });
+  });
 });

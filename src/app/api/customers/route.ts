@@ -32,11 +32,46 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const body = await req.json();
 
+  const name = body.name ? String(body.name).trim() : "";
+  if (!name) {
+    return NextResponse.json({ success: false, error: "Customer name is required" }, { status: 400 });
+  }
+
+  const cleanNtn = body.ntn ? String(body.ntn).trim().replace(/[^0-9]/g, "") : "";
+  const cleanCnic = body.cnic ? String(body.cnic).trim().replace(/[^0-9]/g, "") : "";
+  const requestedStatus = body.taxStatus || (cleanNtn.length >= 7 ? "REGISTERED" : "UNREGISTERED");
+
+  // Statutory requirement: If Registered -> 7-8 digit NTN required.
+  // If Unregistered (no NTN) -> 13-digit CNIC is MANDATORY.
+  if (requestedStatus === "REGISTERED" || cleanNtn.length >= 7) {
+    if (cleanNtn.length < 7) {
+      return NextResponse.json(
+        { success: false, error: "Registered taxpayers require a valid 7 or 8-digit NTN (e.g. 1234567-8)." },
+        { status: 400 }
+      );
+    }
+  } else {
+    if (!cleanCnic) {
+      return NextResponse.json(
+        { success: false, error: "Customer does not have an NTN, so providing a 13-digit CNIC / NIC is mandatory." },
+        { status: 400 }
+      );
+    }
+    if (cleanCnic.length !== 13) {
+      return NextResponse.json(
+        { success: false, error: "CNIC / NIC must be exactly 13 digits (e.g. 42101-1234567-1)." },
+        { status: 400 }
+      );
+    }
+  }
+
+  const formattedCnic = cleanCnic.length === 13 ? `${cleanCnic.slice(0, 5)}-${cleanCnic.slice(5, 12)}-${cleanCnic.slice(12)}` : null;
+
   const taxProfile = {
-    ntn: body.ntn ? String(body.ntn).trim() : null,
-    cnic: body.cnic ? String(body.cnic).trim().replace(/[^0-9]/g, "") : null,
+    ntn: cleanNtn.length >= 7 ? (body.ntn ? String(body.ntn).trim() : cleanNtn) : null,
+    cnic: formattedCnic || (cleanCnic ? cleanCnic : null),
     province: body.province ? String(body.province).trim() : "Sindh",
-    taxStatus: body.taxStatus || (body.ntn ? "REGISTERED" : "UNREGISTERED"),
+    taxStatus: (cleanNtn.length >= 7 || requestedStatus === "REGISTERED") ? "REGISTERED" : "UNREGISTERED",
     userNotes: body.notes || null,
   };
   const notesJson = JSON.stringify(taxProfile);

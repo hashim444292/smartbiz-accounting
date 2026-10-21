@@ -753,19 +753,24 @@ export default function CreateSalePage() {
     const cleanNtn = newCustomerForm.ntn.trim().replace(/[^0-9]/g, "");
     const cleanCnic = newCustomerForm.cnic.trim().replace(/[^0-9]/g, "");
 
-    if (fbrInvoiceType === "DIGITAL_INVOICING") {
-      if (newCustomerForm.taxStatus === "REGISTERED") {
-        if (!cleanNtn || cleanNtn.length < 7) {
-          setCustomerSaveError("Valid 7-8 digit NTN is required for Registered Taxpayer in Digital Invoicing.");
-          return;
-        }
-      } else {
-        if (cleanCnic.length !== 13 && cleanNtn.length < 7) {
-          setCustomerSaveError("Valid 13-digit CNIC (or 7-8 digit NTN) is required for Digital Invoicing.");
-          return;
-        }
+    if (newCustomerForm.taxStatus === "REGISTERED" || cleanNtn.length >= 7) {
+      if (cleanNtn.length < 7) {
+        setCustomerSaveError("Registered taxpayers require a valid 7 or 8-digit NTN (e.g. 1234567-8).");
+        return;
+      }
+    } else {
+      // Unregistered customer: NTN is not mandatory, but CNIC / NIC is MANDATORY!
+      if (!cleanCnic) {
+        setCustomerSaveError("Customer does not have an NTN, so providing a 13-digit CNIC / NIC is mandatory.");
+        return;
+      }
+      if (cleanCnic.length !== 13) {
+        setCustomerSaveError("CNIC / NIC must be exactly 13 digits (e.g. 42101-1234567-1).");
+        return;
       }
     }
+
+    const formattedCnic = cleanCnic.length === 13 ? `${cleanCnic.slice(0, 5)}-${cleanCnic.slice(5, 12)}-${cleanCnic.slice(12)}` : null;
 
     try {
       setIsSavingCustomer(true);
@@ -778,10 +783,10 @@ export default function CreateSalePage() {
           phone: newCustomerForm.phone.trim() || null,
           email: newCustomerForm.email.trim() || null,
           address: newCustomerForm.address.trim() || null,
-          ntn: cleanNtn || null,
-          cnic: cleanCnic || null,
+          ntn: cleanNtn.length >= 7 ? newCustomerForm.ntn.trim() : null,
+          cnic: formattedCnic || (cleanCnic ? cleanCnic : null),
           province: newCustomerForm.province || "Sindh",
-          taxStatus: newCustomerForm.taxStatus,
+          taxStatus: cleanNtn.length >= 7 || newCustomerForm.taxStatus === "REGISTERED" ? "REGISTERED" : "UNREGISTERED",
           openingBalance: 0,
         }),
       });
@@ -937,8 +942,8 @@ export default function CreateSalePage() {
         const cleanCnic = ((cust as any)?.cnic || "").replace(/[^0-9]/g, "");
         if (cleanNtn.length < 7 && cleanCnic.length !== 13) {
           errors["customer"] = t(
-            `Customer "${cust?.name || ""}" must have a valid 7-8 digit NTN or 13-digit CNIC for FBR Digital Invoicing.`,
-            `ڈیجیٹل انوائسنگ کے لیے کسٹمر کا درست 7-8 ہندسوں پر مشتمل NTN یا 13 ہندسوں کا CNIC ہونا لازمی ہے۔`
+            `Customer "${cust?.name || ""}" has no NTN, so providing a valid 13-digit CNIC / NIC is mandatory.`,
+            `گاہک "${cust?.name || ""}" کا NTN نہیں ہے، لہٰذا 13 ہندسوں کا درست شناختی کارڈ (CNIC / NIC) ہونا لازمی ہے۔`
           );
         }
       }
@@ -3078,15 +3083,15 @@ export default function CreateSalePage() {
 
             <div>
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-                {newCustomerForm.taxStatus === "UNREGISTERED" && fbrInvoiceType === "DIGITAL_INVOICING"
-                  ? "CNIC (13 digits without dashes) *"
-                  : "CNIC (13 digits without dashes)"}
+                {newCustomerForm.ntn.trim().replace(/[^0-9]/g, "").length >= 7
+                  ? "CNIC / NIC (Optional)"
+                  : "CNIC / NIC (13 digits) *"}
               </label>
               <input
                 type="text"
                 value={newCustomerForm.cnic}
                 onChange={(e) => setNewCustomerForm({ ...newCustomerForm, cnic: e.target.value })}
-                placeholder="e.g. 4210112345671"
+                placeholder="e.g. 42101-1234567-1"
                 maxLength={15}
                 className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-800 focus:border-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
               />
