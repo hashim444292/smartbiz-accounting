@@ -90,10 +90,10 @@ function AccountingContent() {
     }
   }, [searchParams]);
 
-  const fetchData = async () => {
-    setLoading(true);
+  const fetchData = async (isSilent = false) => {
+    if (!isSilent) setLoading(true);
     try {
-      const json = await smartFetch("/api/accounting", { ttlMs: 15000 });
+      const json = await smartFetch("/api/accounting", { ttlMs: isSilent ? 0 : 15000, skipCache: isSilent });
       if (json.success && json.data) {
         setAccounts(json.data.accounts || []);
         setJournals(json.data.journals || []);
@@ -116,7 +116,7 @@ function AccountingContent() {
     } catch (err) {
       console.error("Failed to load accounting data:", err);
     } finally {
-      setLoading(false);
+      if (!isSilent) setLoading(false);
     }
   };
 
@@ -124,9 +124,9 @@ function AccountingContent() {
     fetchData();
   }, []);
 
-  // Real-time auto-sync for general ledger & trial balance
-  useAutoSync(() => {
-    fetchData();
+  // Real-time silent auto-sync for general ledger & trial balance
+  useAutoSync((opts) => {
+    fetchData(opts?.silent ?? true);
   });
 
   // When ledgerType changes, auto-select first entity if current doesn't match

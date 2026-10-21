@@ -23,8 +23,8 @@ export default function InventoryPage() {
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState<"PRODUCTS" | "ALERTS" | "MOVEMENTS">("PRODUCTS");
 
-  const fetchProducts = async (skipCache = false) => {
-    setLoading(true);
+  const fetchProducts = async (skipCache = false, isSilent = false) => {
+    if (!isSilent) setLoading(true);
     try {
       const headers: Record<string, string> = {};
       if (activeCompany?.id) headers["x-business-id"] = activeCompany.id;
@@ -42,12 +42,12 @@ export default function InventoryPage() {
       console.error("Failed to load products:", e);
       setProducts([]);
     } finally {
-      setLoading(false);
+      if (!isSilent) setLoading(false);
     }
   };
 
-  const fetchTransactions = async (skipCache = false) => {
-    setTxLoading(true);
+  const fetchTransactions = async (skipCache = false, isSilent = false) => {
+    if (!isSilent) setTxLoading(true);
     try {
       const headers: Record<string, string> = {};
       if (activeCompany?.id) headers["x-business-id"] = activeCompany.id;
@@ -64,7 +64,7 @@ export default function InventoryPage() {
       console.error("Failed to load inventory transactions:", e);
       setTransactions([]);
     } finally {
-      setTxLoading(false);
+      if (!isSilent) setTxLoading(false);
     }
   };
 
@@ -92,12 +92,13 @@ export default function InventoryPage() {
     fetchAccountsSummary(true);
   }, [activeCompany?.id, activeBranchId, isBranchLocked, user?.branchId]);
 
-  // Real-time auto-sync across tabs & mutations: immediately update inventory & payables on purchase/sale
-  useAutoSync(() => {
-    fetchProducts(true);
+  // Real-time silent auto-sync across tabs & mutations: immediately update inventory & payables on purchase/sale
+  useAutoSync((opts) => {
+    const isSilent = opts?.silent ?? true;
+    fetchProducts(true, isSilent);
     fetchAccountsSummary(true);
     if (activeTab === "MOVEMENTS") {
-      fetchTransactions(true);
+      fetchTransactions(true, isSilent);
     }
   });
 

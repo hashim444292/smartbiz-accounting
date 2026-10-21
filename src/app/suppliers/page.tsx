@@ -27,8 +27,8 @@ export default function SuppliersPage() {
   const [openingBalance, setOpeningBalance] = useState(0);
   const [submitting, setSubmitting] = useState(false);
 
-  const fetchSuppliers = async () => {
-    setLoading(true);
+  const fetchSuppliers = async (isSilent = false) => {
+    if (!isSilent) setLoading(true);
     try {
       const headers: Record<string, string> = {};
       if (activeCompany?.id) headers["x-business-id"] = activeCompany.id;
@@ -38,7 +38,7 @@ export default function SuppliersPage() {
     } catch (err) {
       console.error(err);
     } finally {
-      setLoading(false);
+      if (!isSilent) setLoading(false);
     }
   };
 
@@ -46,9 +46,9 @@ export default function SuppliersPage() {
     fetchSuppliers();
   }, [activeCompany?.id]);
 
-  // Real-time auto-sync for payables/suppliers
-  useAutoSync(() => {
-    fetchSuppliers();
+  // Real-time silent auto-sync for payables/suppliers
+  useAutoSync((opts) => {
+    fetchSuppliers(opts?.silent ?? true);
   });
 
   const handleCreateSupplier = async (e: React.FormEvent) => {

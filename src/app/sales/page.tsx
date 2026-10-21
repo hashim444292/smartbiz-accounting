@@ -134,22 +134,22 @@ export default function SalesPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10); // 10 or 15 default entries
 
-  const fetchSales = async () => {
-    setLoading(true);
+  const fetchSales = async (isSilent = false) => {
+    if (!isSilent) setLoading(true);
     try {
       const headers: Record<string, string> = {};
       if (activeCompany?.id) headers["x-business-id"] = activeCompany.id;
       if (effectiveBranch) headers["x-branch-id"] = effectiveBranch;
       const query = effectiveBranch ? `?branchId=${effectiveBranch}` : "?branchId=all";
 
-      const json = await smartFetch(`/api/sales${query}`, { headers, ttlMs: 2000 });
+      const json = await smartFetch(`/api/sales${query}`, { headers, ttlMs: isSilent ? 0 : 2000, skipCache: isSilent });
       if (json.success) {
         setSales(json.data);
       }
     } catch (err) {
       console.error("Failed to load sales:", err);
     } finally {
-      setLoading(false);
+      if (!isSilent) setLoading(false);
     }
   };
 
@@ -164,9 +164,9 @@ export default function SalesPage() {
     }
   }, [activeCompany?.id, effectiveBranch]);
 
-  // Real-time auto-sync for sales list
-  useAutoSync(() => {
-    fetchSales();
+  // Real-time silent auto-sync for sales list
+  useAutoSync((opts) => {
+    fetchSales(opts?.silent ?? true);
   });
 
   const handleReverse = async (id: string, invoiceNumber: string) => {

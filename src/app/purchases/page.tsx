@@ -231,8 +231,8 @@ export default function PurchasesPage() {
     printWindow.document.close();
   };
 
-  const fetchPurchases = async () => {
-    setLoading(true);
+  const fetchPurchases = async (isSilent = false) => {
+    if (!isSilent) setLoading(true);
     try {
       const headers: Record<string, string> = {};
       if (activeCompany?.id) headers["x-business-id"] = activeCompany.id;
@@ -249,7 +249,7 @@ export default function PurchasesPage() {
     } catch (err) {
       console.error("Failed to load purchases / suppliers:", err);
     } finally {
-      setLoading(false);
+      if (!isSilent) setLoading(false);
     }
   };
 
@@ -257,9 +257,9 @@ export default function PurchasesPage() {
     fetchPurchases();
   }, [activeCompany?.id, effectiveBranch]);
 
-  // Real-time auto-sync for purchases list
-  useAutoSync(() => {
-    fetchPurchases();
+  // Real-time silent auto-sync for purchases list
+  useAutoSync((opts) => {
+    fetchPurchases(opts?.silent ?? true);
   });
 
   const openEditModal = (purchase: any) => {

@@ -33,8 +33,8 @@ export default function CustomersPage() {
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
-  const fetchCustomers = async () => {
-    setLoading(true);
+  const fetchCustomers = async (isSilent = false) => {
+    if (!isSilent) setLoading(true);
     try {
       const headers: Record<string, string> = {};
       if (activeCompany?.id) headers["x-business-id"] = activeCompany.id;
@@ -44,7 +44,7 @@ export default function CustomersPage() {
     } catch (err) {
       console.error(err);
     } finally {
-      setLoading(false);
+      if (!isSilent) setLoading(false);
     }
   };
 
@@ -58,9 +58,9 @@ export default function CustomersPage() {
     }
   }, [activeCompany?.id]);
 
-  // Real-time auto-sync for customers / receivables
-  useAutoSync(() => {
-    fetchCustomers();
+  // Real-time silent auto-sync for customers / receivables
+  useAutoSync((opts) => {
+    fetchCustomers(opts?.silent ?? true);
   });
 
   const handleCreateCustomer = async (e: React.FormEvent) => {

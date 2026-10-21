@@ -151,13 +151,15 @@ export function invalidateCache(urlPrefix?: string) {
   }
 }
 
+export type AutoSyncCallback = (options?: { silent?: boolean }) => void | Promise<void>;
+
 /**
  * React hook to auto-sync component data:
  * - Immediately re-fetches when any accounting data mutation occurs (locally or in other tabs)
- * - Revalidates when user switches back to this browser tab (focus / visibility)
- * - Runs a gentle background heartbeat (every 20s when visible)
+ * - Revalidates silently when user returns to this browser tab (guarded by 15s threshold to prevent jitter)
+ * - Runs a gentle background heartbeat (every 60s when visible) with zero UI flicker
  */
-export function useAutoSync(onSync: () => void | Promise<void>, enabled: boolean = true) {
+export function useAutoSync(onSync: AutoSyncCallback, enabled: boolean = true) {
   const syncRef = useRef(onSync);
   syncRef.current = onSync;
 
@@ -165,39 +167,39 @@ export function useAutoSync(onSync: () => void | Promise<void>, enabled: boolean
     if (!enabled || typeof window === "undefined") return;
 
     let isThrottled = false;
-    const trigger = () => {
+    let lastSyncTime = Date.now();
+
+    const trigger = (isSilent = true) => {
       if (isThrottled) return;
       isThrottled = true;
       setTimeout(() => {
         isThrottled = false;
-      }, 300); // 300ms debounce
-      syncRef.current();
+      }, 400);
+      lastSyncTime = Date.now();
+      syncRef.current({ silent: isSilent });
     };
 
-    // 1. Listen for internal and cross-tab data update events
-    window.addEventListener("sb_data_updated", trigger);
+    // 1. Listen for internal and cross-tab data update events (instant silent sync)
+    const handleDataUpdate = () => trigger(true);
+    window.addEventListener("sb_data_updated", handleDataUpdate);
 
-    // 2. Revalidate when user switches back to this tab
-    window.addEventListener("focus", trigger);
-
-    // 3. Revalidate when tab becomes visible
+    // 2. Revalidate when tab becomes visible (only if 15s elapsed since last sync to avoid focus jitter)
     const handleVisibility = () => {
-      if (document.visibilityState === "visible") {
-        trigger();
+      if (document.visibilityState === "visible" && Date.now() - lastSyncTime > 15000) {
+        trigger(true);
       }
     };
     document.addEventListener("visibilitychange", handleVisibility);
 
-    // 4. Gentle background polling every 20 seconds when visible
+    // 3. Gentle background polling every 60s when visible
     const interval = setInterval(() => {
       if (document.visibilityState === "visible") {
-        syncRef.current();
+        trigger(true);
       }
-    }, 20000);
+    }, 60000);
 
     return () => {
-      window.removeEventListener("sb_data_updated", trigger);
-      window.removeEventListener("focus", trigger);
+      window.removeEventListener("sb_data_updated", handleDataUpdate);
       document.removeEventListener("visibilitychange", handleVisibility);
       clearInterval(interval);
     };

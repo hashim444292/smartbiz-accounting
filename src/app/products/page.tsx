@@ -46,8 +46,8 @@ export default function ProductsListPage() {
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
 
-  const loadProducts = async () => {
-    setLoading(true);
+  const loadProducts = async (isSilent = false) => {
+    if (!isSilent) setLoading(true);
     try {
       const qParams = new URLSearchParams({
         page: String(page),
@@ -67,7 +67,7 @@ export default function ProductsListPage() {
     } catch (err) {
       console.error("Failed to load products:", err);
     } finally {
-      setLoading(false);
+      if (!isSilent) setLoading(false);
     }
   };
 
@@ -91,9 +91,9 @@ export default function ProductsListPage() {
     loadProducts();
   }, [page, search, selectedCategory, selectedStatus, activeCompany?.id]);
 
-  // Real-time auto-sync for products catalog
-  useAutoSync(() => {
-    loadProducts();
+  // Real-time silent auto-sync for products catalog
+  useAutoSync((opts) => {
+    loadProducts(opts?.silent ?? true);
   });
 
   const handleArchive = async (id: string, currentlyArchived: boolean) => {

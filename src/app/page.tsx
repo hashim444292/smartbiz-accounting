@@ -109,8 +109,8 @@ export default function DashboardPage() {
     }
   }, [user, isInspectingClient, isLoading, router]);
 
-  const fetchMetrics = async (skipCache = false) => {
-    setLoading(true);
+  const fetchMetrics = async (skipCache = false, isSilent = false) => {
+    if (!isSilent) setLoading(true);
     try {
       const start = range.startDate.toISOString();
       const end = range.endDate.toISOString();
@@ -128,7 +128,7 @@ export default function DashboardPage() {
     } catch (err) {
       console.error("Failed to load dashboard metrics:", err);
     } finally {
-      setLoading(false);
+      if (!isSilent) setLoading(false);
     }
   };
 
@@ -136,9 +136,9 @@ export default function DashboardPage() {
     fetchMetrics(true);
   }, [range.startDate, range.endDate, activeCompany?.id]);
 
-  // Real-time auto-sync for dashboard metrics across tabs and mutations
-  useAutoSync(() => {
-    fetchMetrics(true);
+  // Real-time silent auto-sync for dashboard metrics across tabs and mutations
+  useAutoSync((opts) => {
+    fetchMetrics(true, opts?.silent ?? true);
   });
 
   const handleRetryFbr = async (invoiceId: string) => {
@@ -308,17 +308,6 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-5 sm:space-y-6 pb-12 transition-colors duration-150">
-      {/* Background Fetching Notification Banner */}
-      {loading && data && (
-        <div className="sticky top-16 z-20 mb-4 rounded-xl border border-indigo-200/90 bg-indigo-50/95 px-3.5 py-2.5 backdrop-blur-md dark:border-indigo-900/60 dark:bg-indigo-950/90 text-xs font-semibold text-indigo-700 dark:text-indigo-300 flex items-center justify-between shadow-xs animate-in fade-in slide-in-from-top-1 duration-150">
-          <div className="flex items-center gap-2.5">
-            <LoadingSpinner size="sm" />
-            <span>Updating real-time financial metrics for the selected period...</span>
-          </div>
-          <span className="text-[10px] text-indigo-500 dark:text-indigo-400 font-mono font-medium">Syncing</span>
-        </div>
-      )}
-
       {/* Top Header & Fast Action Area */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>

@@ -66,28 +66,28 @@ export default function ExpensesPage() {
   const [editReason, setEditReason] = useState("");
   const [editSaving, setEditSaving] = useState(false);
 
-  const fetchExpenses = async () => {
-    setLoading(true);
+  const fetchExpenses = async (isSilent = false) => {
+    if (!isSilent) setLoading(true);
     try {
       const headers: Record<string, string> = {};
       if (activeCompany?.id) headers["x-business-id"] = activeCompany.id;
       if (effectiveBranch) headers["x-branch-id"] = effectiveBranch;
       const query = effectiveBranch ? `?branchId=${effectiveBranch}` : "?branchId=all";
 
-      const json = await smartFetch(`/api/expenses${query}`, { headers, ttlMs: 20000 });
+      const json = await smartFetch(`/api/expenses${query}`, { headers, ttlMs: isSilent ? 0 : 20000, skipCache: isSilent });
       if (json.success) {
         setExpenses(json.data.expenses);
         setCategories(json.data.categories);
         setAccounts(json.data.accounts || []);
-        if (json.data.categories.length > 0) setCategoryId(json.data.categories[0].id);
+        if (!categoryId && json.data.categories.length > 0) setCategoryId(json.data.categories[0].id);
         const branchForAcc = isBranchLocked ? user?.branchId : (expenseBranchId || effectiveBranch);
         const validAccounts = (json.data.accounts || []).filter((a: any) => !branchForAcc || !a.branchId || a.branchId === branchForAcc);
-        if (validAccounts.length > 0) setAccountId(validAccounts[0].id);
+        if (!accountId && validAccounts.length > 0) setAccountId(validAccounts[0].id);
       }
     } catch (err) {
       console.error("Failed to load expenses:", err);
     } finally {
-      setLoading(false);
+      if (!isSilent) setLoading(false);
     }
   };
 
@@ -97,9 +97,9 @@ export default function ExpensesPage() {
     setExpenseBranchId(branchToUse);
   }, [activeCompany?.id, activeBranchId, isBranchLocked, user?.branchId, selectedBranch?.id]);
 
-  // Real-time auto-sync for expenses
-  useAutoSync(() => {
-    fetchExpenses();
+  // Real-time silent auto-sync for expenses
+  useAutoSync((opts) => {
+    fetchExpenses(opts?.silent ?? true);
   });
 
   const openAddModal = () => {

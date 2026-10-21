@@ -70,8 +70,8 @@ export default function PaymentsPage() {
   const [loadingBills, setLoadingBills] = useState(false);
   const [selectedBillId, setSelectedBillId] = useState<string>("ALL");
 
-  const fetchPayments = async () => {
-    setLoading(true);
+  const fetchPayments = async (isSilent = false) => {
+    if (!isSilent) setLoading(true);
     try {
       const headers: Record<string, string> = {};
       if (activeCompany?.id) headers["x-business-id"] = activeCompany.id;
@@ -100,7 +100,7 @@ export default function PaymentsPage() {
     } catch (e) {
       console.error("Failed to load payments:", e);
     } finally {
-      setLoading(false);
+      if (!isSilent) setLoading(false);
     }
   };
 
@@ -179,9 +179,9 @@ export default function PaymentsPage() {
     setPaymentBranchId(branchToUse);
   }, [activeCompany?.id, activeBranchId, isBranchLocked, user?.branchId, selectedBranch?.id]);
 
-  // Real-time auto-sync for payments / ledger
-  useAutoSync(() => {
-    fetchPayments();
+  // Real-time silent auto-sync for payments / ledger
+  useAutoSync((opts) => {
+    fetchPayments(opts?.silent ?? true);
   });
 
   const openReceiptModal = async () => {
