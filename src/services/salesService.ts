@@ -264,7 +264,10 @@ export async function createAndPostSale(input: CreateSaleInput) {
       const tr = round2(item.taxRate || 0);
 
       const calc = calculateLineTotal(q, p, d, tr);
-      const costPrice = toDecimal(product.averageCost);
+      const avg = toDecimal(product.averageCost || 0);
+      const purchase = toDecimal(product.purchasePrice || 0);
+      const opening = toDecimal(product.openingCost || 0);
+      const costPrice = avg.gt(0) ? avg : (purchase.gt(0) ? purchase : (opening.gt(0) ? opening : new Decimal(0)));
       const lineCost = round2(q.mul(costPrice));
 
       subtotal = subtotal.add(calc.subtotal);

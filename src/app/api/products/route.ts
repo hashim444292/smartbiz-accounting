@@ -64,6 +64,20 @@ export async function GET(req: NextRequest) {
     const categoryId = searchParams.get("categoryId") || "";
     const status = searchParams.get("status") || "ALL";
 
+    // Auto-heal existing products where averageCost is 0 or null, but purchasePrice > 0
+    try {
+      await prisma.$executeRawUnsafe(
+        `UPDATE "Product" SET "averageCost" = "purchasePrice" WHERE "businessId" = $1 AND ("averageCost" = 0 OR "averageCost" IS NULL) AND "purchasePrice" > 0`,
+        businessId
+      );
+    } catch {
+      fallbackStore.products
+        .filter((p) => p.businessId === businessId && Number(p.averageCost || 0) <= 0 && Number(p.purchasePrice || 0) > 0)
+        .forEach((p) => {
+          p.averageCost = Number(p.purchasePrice);
+        });
+    }
+
     const result = await listProducts({
       businessId,
       page,

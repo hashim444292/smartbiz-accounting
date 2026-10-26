@@ -2537,7 +2537,7 @@ export function storeAddProduct(data: any) {
     retailPrice: Number(data.retailPrice ?? data.sellingPrice ?? 0),
     sellingPrice: Number(data.sellingPrice ?? data.retailPrice ?? 0),
     openingQuantity: Number(data.openingQuantity ?? 0),
-    openingCost: Number(data.openingCost ?? 0),
+    openingCost: Number(data.openingCost ?? data.purchasePrice ?? 0),
     currentStock: Number(data.currentStock ?? data.openingQuantity ?? 0),
     averageCost: Number(data.averageCost ?? data.purchasePrice ?? 0),
     minStockLevel: Number(data.minStockLevel ?? 1),
@@ -2556,9 +2556,15 @@ export function storeUpdateProduct(id: string, updates: any) {
   const idx = fallbackStore.products.findIndex((p) => p.id === id);
   if (idx === -1) return null;
   const existing = fallbackStore.products[idx];
+  const autoAvgCost =
+    updates.purchasePrice !== undefined && Number(existing.averageCost || 0) === 0
+      ? Number(updates.purchasePrice)
+      : undefined;
+
   fallbackStore.products[idx] = {
     ...existing,
     ...updates,
+    ...(autoAvgCost !== undefined && { averageCost: autoAvgCost }),
     updatedAt: new Date().toISOString(),
   };
   return fallbackStore.products[idx];

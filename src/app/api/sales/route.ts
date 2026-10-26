@@ -208,7 +208,7 @@ export async function POST(req: NextRequest) {
               uom: (it.uom || prod?.uom || prod?.unit || "PCS").toUpperCase(),
               unitPrice: p,
               lineTotal: lt,
-              costPrice: prod?.averageCost || 0,
+              costPrice: Number(prod?.averageCost || 0) > 0 ? Number(prod?.averageCost) : Number(prod?.purchasePrice || prod?.openingCost || 0),
             };
           });
           const totalTax = Number(inv.taxAmount || (Number(inv.salesTax || 0) + Number(inv.furtherTax || 0) + Number(inv.extraTax || 0)));
@@ -277,7 +277,7 @@ export async function POST(req: NextRequest) {
           uom: (it.uom || prod?.uom || prod?.unit || "PCS").toUpperCase(),
           unitPrice: p,
           lineTotal: lt,
-          costPrice: prod?.averageCost || 0,
+          costPrice: Number(prod?.averageCost || 0) > 0 ? Number(prod?.averageCost) : Number(prod?.purchasePrice || prod?.openingCost || 0),
           hsCode: it.hsCode ? it.hsCode.trim() : (prod?.hsCode || "5201.0090"),
         };
       });

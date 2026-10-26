@@ -193,6 +193,8 @@ export default function CreateProductPage() {
         retailPrice: Number(formData.retailPrice || 0),
         wholesalePrice: Number(formData.wholesalePrice || formData.retailPrice || 0),
         purchasePrice: Number(formData.purchasePrice || 0),
+        averageCost: Number(formData.purchasePrice || 0),
+        openingCost: Number(formData.purchasePrice || 0),
         salesTax: Number(formData.salesTax || 18),
         furtherTax: Number(formData.furtherTax || 0),
         extraTax: Number(formData.extraTax || 0),

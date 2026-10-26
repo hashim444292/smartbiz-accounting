@@ -11,6 +11,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useLanguage } from "@/context/LanguageContext";
 import { TableRowsSkeleton } from "@/components/ui/loader";
 import { smartFetch, invalidateCache, useAutoSync } from "@/lib/clientCache";
+import { getProductEffectiveCost } from "@/lib/accountingConstants";
 
 export default function InventoryPage() {
   const { user, activeCompany, branches, selectedBranch, activeBranchId, isBranchLocked } = useAuth();
@@ -130,7 +131,7 @@ export default function InventoryPage() {
   const totalValuation = useMemo(
     () =>
       safeProducts.reduce(
-        (acc, p) => acc + Number(p?.currentStock || 0) * Number(p?.averageCost || p?.purchasePrice || 0),
+        (acc, p) => acc + Number(p?.currentStock || 0) * getProductEffectiveCost(p),
         0
       ),
     [safeProducts]
@@ -152,12 +153,13 @@ export default function InventoryPage() {
   const exportCSV = () => {
     const headers = "Product Name,SKU,Barcode,Current Stock,Unit,Average Cost,Selling Price,Total Valuation\n";
     const rows = safeProducts
-      .map(
-        (p) =>
-          `"${p.name || ""}","${p.sku || ""}","${p.barcode || ""}",${p.currentStock || 0},"${p.unit || p.uom || "pcs"}",${p.averageCost || p.purchasePrice || 0},${p.sellingPrice || 0},${
-            Number(p.currentStock || 0) * Number(p.averageCost || p.purchasePrice || 0)
-          }`
-      )
+      .map((p) => {
+        const unitCost = getProductEffectiveCost(p);
+        const currentStockNum = Number(p.currentStock || 0);
+        return `"${p.name || ""}","${p.sku || ""}","${p.barcode || ""}",${currentStockNum},"${p.unit || p.uom || "pcs"}",${unitCost},${p.sellingPrice || 0},${
+          currentStockNum * unitCost
+        }`;
+      })
       .join("\n");
     const blob = new Blob([headers + rows], { type: "text/csv" });
     const url = window.URL.createObjectURL(blob);
@@ -415,7 +417,7 @@ export default function InventoryPage() {
                     const currentStockNum = Number(p.currentStock || 0);
                     const minStockNum = Number(p.minStockLevel || 0);
                     const isLow = currentStockNum <= minStockNum;
-                    const unitCost = Number(p.averageCost || p.purchasePrice || 0);
+                    const unitCost = getProductEffectiveCost(p);
 
                     return (
                       <tr key={p.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40">

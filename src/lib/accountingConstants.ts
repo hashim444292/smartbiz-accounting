@@ -97,3 +97,34 @@ export const COMMON_SUBTYPES: Record<string, string[]> = {
   COGS: ["Direct Cost", "Stock Loss"],
   EXPENSE: ["Occupancy", "Payroll", "Utilities", "Logistics", "Maintenance", "Admin", "Sales", "Financial", "Professional", "General"],
 };
+
+/**
+ * Safely extracts the effective unit cost of a product for inventory valuation,
+ * reporting, and COGS calculations.
+ * 
+ * Order of precedence:
+ * 1. averageCost (if > 0)
+ * 2. purchasePrice (if > 0)
+ * 3. openingCost (if > 0)
+ * 4. costPrice (if > 0)
+ * 5. 0
+ * 
+ * Guards against non-empty string decimals like "0.00" being treated as truthy in JavaScript.
+ */
+export function getProductEffectiveCost(product: any): number {
+  if (!product) return 0;
+  const avg = Number(product.averageCost);
+  if (!isNaN(avg) && avg > 0) return avg;
+
+  const purchase = Number(product.purchasePrice);
+  if (!isNaN(purchase) && purchase > 0) return purchase;
+
+  const opening = Number(product.openingCost);
+  if (!isNaN(opening) && opening > 0) return opening;
+
+  const cost = Number(product.costPrice);
+  if (!isNaN(cost) && cost > 0) return cost;
+
+  return 0;
+}
+

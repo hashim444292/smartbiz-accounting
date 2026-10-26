@@ -513,7 +513,7 @@ function parseSafeDate(input?: string): Date {
               quantity: q,
               unitPrice: p,
               lineTotal: q * p,
-              costPrice: prod?.averageCost || 0,
+              costPrice: Number(prod?.averageCost || 0) > 0 ? Number(prod?.averageCost) : Number(prod?.purchasePrice || prod?.openingCost || 0),
               hsCode: it.hsCode,
               uom: it.uom,
             };

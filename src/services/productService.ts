@@ -151,8 +151,21 @@ export async function listProducts(params: ListProductsParams) {
       prisma.product.count({ where }),
     ]);
 
+    const mappedProducts = products.map((p: any) => {
+      const avg = Number(p.averageCost || 0);
+      const purchase = Number(p.purchasePrice || 0);
+      const opening = Number(p.openingCost || 0);
+      const effectiveCost = avg > 0 ? avg : (purchase > 0 ? purchase : (opening > 0 ? opening : 0));
+      return {
+        ...p,
+        averageCost: effectiveCost,
+        purchasePrice: purchase,
+        openingCost: opening > 0 ? opening : purchase,
+      };
+    });
+
     return {
-      products,
+      products: mappedProducts,
       total,
       page,
       limit,
@@ -185,8 +198,15 @@ export async function listProducts(params: ListProductsParams) {
     const total = items.length;
     const paginated = items.slice(skip, skip + limit).map((p) => {
       const cat = fallbackStore.categories.find((c) => c.id === p.categoryId);
+      const avg = Number(p.averageCost || 0);
+      const purchase = Number(p.purchasePrice || 0);
+      const opening = Number(p.openingCost || 0);
+      const effectiveCost = avg > 0 ? avg : (purchase > 0 ? purchase : (opening > 0 ? opening : 0));
       return {
         ...p,
+        averageCost: effectiveCost,
+        purchasePrice: purchase,
+        openingCost: opening > 0 ? opening : purchase,
         category: cat ? { id: cat.id, name: cat.name, defaultHsCode: cat.defaultHsCode } : null,
       };
     });
@@ -219,6 +239,8 @@ export interface CreateProductInput {
   retailPrice?: number;
   wholesalePrice?: number;
   purchasePrice?: number;
+  averageCost?: number;
+  openingCost?: number;
   sellingPrice?: number;
   openingQuantity?: number;
   minStockLevel?: number;
@@ -252,6 +274,8 @@ export async function createProduct(input: CreateProductInput) {
   const retailPrice = Number(input.retailPrice ?? input.sellingPrice ?? 0);
   const wholesalePrice = Number(input.wholesalePrice ?? input.purchasePrice ?? 0);
   const purchasePrice = Number(input.purchasePrice ?? 0);
+  const averageCost = Number(input.averageCost ?? input.purchasePrice ?? 0);
+  const openingCost = Number(input.openingCost ?? input.purchasePrice ?? 0);
 
   const productData = {
     businessId: input.businessId,
@@ -273,6 +297,8 @@ export async function createProduct(input: CreateProductInput) {
     sellingPrice: retailPrice,
     wholesalePrice,
     purchasePrice,
+    averageCost,
+    openingCost,
     openingQuantity: Number(input.openingQuantity ?? 0),
     currentStock: Number(input.openingQuantity ?? 0),
     minStockLevel: Number(input.minStockLevel ?? 1),
@@ -388,7 +414,12 @@ export async function updateProduct(
         ...(updates.extraTax !== undefined && { extraTax: Number(updates.extraTax) }),
         ...(updates.retailPrice !== undefined && { retailPrice: Number(updates.retailPrice), sellingPrice: Number(updates.retailPrice) }),
         ...(updates.wholesalePrice !== undefined && { wholesalePrice: Number(updates.wholesalePrice) }),
-        ...(updates.purchasePrice !== undefined && { purchasePrice: Number(updates.purchasePrice) }),
+        ...(updates.purchasePrice !== undefined && {
+          purchasePrice: Number(updates.purchasePrice),
+          ...(existingProduct && Number(existingProduct.averageCost || 0) === 0 ? { averageCost: Number(updates.purchasePrice) } : {}),
+        }),
+        ...(updates.averageCost !== undefined && { averageCost: Number(updates.averageCost) }),
+        ...(updates.openingCost !== undefined && { openingCost: Number(updates.openingCost) }),
         ...(updates.status && { status: updates.status, isActive: updates.status !== "ARCHIVED" }),
       } as any,
       include: { category: true },

@@ -4,6 +4,7 @@ import { getFbrComplianceOverview } from "@/services/fbrService";
 import { fallbackStore, storeGetBranches } from "@/lib/fallbackStore";
 import { prisma } from "@/lib/prisma";
 import { round2 } from "@/lib/decimal";
+import { getProductEffectiveCost } from "@/lib/accountingConstants";
 
 export const dynamic = "force-dynamic";
 
@@ -53,7 +54,7 @@ export async function GET(req: NextRequest) {
     // Build quick product cost lookup map for calculating accurate Cost of Goods Sold (COGS)
     const productCostMap = new Map<string, number>();
     for (const p of products) {
-      const cost = Number(p.averageCost || p.purchasePrice || p.costPrice || 0);
+      const cost = getProductEffectiveCost(p);
       productCostMap.set(p.id, cost);
     }
 
@@ -115,7 +116,7 @@ export async function GET(req: NextRequest) {
     const netProfit = grossProfit - totalExpenses;
     const totalReceivables = customers.reduce((acc, c) => acc + Number(c.currentBalance || 0), 0);
     const totalPayables = suppliers.reduce((acc, s) => acc + Number(s.currentBalance || 0), 0);
-    const totalInventoryValue = products.reduce((acc, p) => acc + Number(p.currentStock || 0) * Number(p.averageCost || p.purchasePrice || 0), 0);
+    const totalInventoryValue = products.reduce((acc, p) => acc + Number(p.currentStock || 0) * getProductEffectiveCost(p), 0);
 
     // Calculate Cash Flow: Real receipts (Customer receipts + direct cash sales) and disbursements (Vendor disbursements + direct purchases)
     const paymentReceipts = payments

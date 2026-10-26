@@ -18,6 +18,7 @@ import {
   Percent,
 } from "lucide-react";
 import { BrandPageLoader } from "@/components/ui/loader";
+import { getProductEffectiveCost } from "@/lib/accountingConstants";
 
 export default function ProductDetailsPage() {
   const params = useParams();
@@ -221,7 +222,7 @@ export default function ProductDetailsPage() {
             {Number(product.currentStock || 0)} {product.uom || product.unit || "pcs"}
           </p>
           <span className="text-[10px] text-slate-400 mt-1 block">
-            Avg Cost: Rs {Number(product.averageCost || product.purchasePrice || 0).toLocaleString()}
+            Avg Cost: Rs {getProductEffectiveCost(product).toLocaleString()}
           </span>
         </div>
       </div>
