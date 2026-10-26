@@ -30,6 +30,7 @@ import {
   ExternalLink,
   Plus,
   KeyRound,
+  Scale,
   X,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
@@ -83,6 +84,7 @@ const TENANT_NAVIGATION_GROUPS: NavGroup[] = [
       { name: "Add Inventory", nameUrdu: "نئی انونٹری اندراج", href: "/products/create", icon: Plus, moduleKey: "inventory", userPermKey: "products" },
       { name: "Customers Ledger", nameUrdu: "کسٹمرز لیجر (وصولیاں)", href: "/customers", icon: Users, moduleKey: "sales", userPermKey: "customers" },
       { name: "Suppliers (Payables)", nameUrdu: "سپلائرز کھاتہ (واجبات)", href: "/suppliers", icon: Truck, moduleKey: "purchases", userPermKey: "suppliers" },
+      { name: "Opening Balances", nameUrdu: "ابتدائی کھاتہ و کیپیٹل", href: "/accounting/opening-balances", icon: Scale, roles: ["SUPER_ADMIN", "ADMIN", "OWNER_ADMIN", "ACCOUNTANT"], moduleKey: "accounting", userPermKey: "accounting" },
       { name: "Products & Rates", nameUrdu: "پروڈکٹس اور ریٹس", href: "/products", icon: Package, moduleKey: "inventory", userPermKey: "products" },
     ],
   },

@@ -2,11 +2,13 @@
 
 import React, { useEffect, useState, useMemo, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { formatMoney } from "@/lib/decimal";
 import { Badge } from "@/components/ui/badge";
 import {
   BookOpen,
   Scale,
+  Landmark,
   FileText,
   CheckCircle2,
   Users,
@@ -938,6 +940,14 @@ function AccountingContent() {
           <Scale className="h-4 w-4" />
           <span>{t("Trial Balance", "میزان پرتال")}</span>
         </button>
+
+        <Link
+          href="/accounting/opening-balances"
+          className="flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-bold transition whitespace-nowrap text-emerald-700 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-900/40 border border-emerald-200 dark:border-emerald-800"
+        >
+          <Landmark className="h-4 w-4" />
+          <span>{t("Opening Balances & Capital", "ابتدائی کھاتہ و کیپیٹل")}</span>
+        </Link>
       </div>
 
       {/* ========================================================================= */}
