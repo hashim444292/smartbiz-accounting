@@ -86,6 +86,27 @@ export default function SaleDetailPage() {
     } catch {}
   }
 
+  const baseTax = Number(sale.salesTax || sale.taxAmount || 0);
+  const extraTax = Number(sale.extraTax || 0);
+  const furtherTax = Number(sale.furtherTax || 0);
+  const totalTax = baseTax + extraTax + furtherTax;
+
+  const itemsTax = (sale.items || []).reduce((sum: number, it: any) => {
+    const q = Number(it.quantity || 0);
+    const p = Number(it.unitPrice || 0);
+    const tr = Number(it.taxRate || 0);
+    const tAmt = Number(
+      it.taxAmount !== undefined && it.taxAmount !== null
+        ? it.taxAmount
+        : q * p * (tr / 100)
+    );
+    return sum + tAmt;
+  }, 0);
+
+  // An invoice is considered a Tax Invoice only if statutory tax is actually charged
+  const isTaxInvoice = totalTax > 0 || itemsTax > 0;
+  const realFbrInvoiceNumber = sale.fbrInvoiceNumber || fbrMeta?.fbrInvoiceNumber || null;
+
   const handleDownloadPdf = async () => {
     if (!invoiceRef.current || isDownloading) return;
     try {
@@ -95,7 +116,7 @@ export default function SaleDetailPage() {
 
       const opt: any = {
         margin: [6, 8, 6, 8],
-        filename: `Tax_Invoice_${sale.fbrInvoiceNumber || sale.invoiceNumber}.pdf`,
+        filename: `${isTaxInvoice ? "Tax" : "Sales"}_Invoice_${realFbrInvoiceNumber || sale.invoiceNumber}.pdf`,
         image: { type: "jpeg", quality: 0.98 },
         html2canvas: { scale: 2, useCORS: true, logging: false },
         jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
@@ -111,6 +132,7 @@ export default function SaleDetailPage() {
       setIsDownloading(false);
     }
   };
+
 
   const sellerName = sale.business?.name || activeCompany?.name || "SmartBiz Trading & Distribution";
   const sellerAddress =
@@ -199,11 +221,6 @@ export default function SaleDetailPage() {
     day: "2-digit",
     year: "numeric",
   });
-
-  const baseTax = Number(sale.salesTax || sale.taxAmount || 0);
-  const extraTax = Number(sale.extraTax || 0);
-  const furtherTax = Number(sale.furtherTax || 0);
-  const totalTax = baseTax + extraTax + furtherTax;
 
   return (
     <>
@@ -356,10 +373,14 @@ export default function SaleDetailPage() {
               </p>
             </div>
 
-            {/* Tax Invoice Title & Reference Meta */}
+            {/* Tax / Sales Invoice Title & Reference Meta */}
             <div className="text-left sm:text-right space-y-0.5 shrink-0">
-              <h2 className="text-2xl sm:text-3xl print:text-xl font-black text-[#D32F2F] tracking-wide uppercase">
-                TAX INVOICE
+              <h2
+                className={`text-2xl sm:text-3xl print:text-xl font-black tracking-wide uppercase ${
+                  isTaxInvoice ? "text-[#D32F2F]" : "text-slate-900"
+                }`}
+              >
+                {isTaxInvoice ? "TAX INVOICE" : "SALES INVOICE"}
               </h2>
               <p className="text-xs text-slate-600">
                 Document #:{" "}
@@ -368,16 +389,16 @@ export default function SaleDetailPage() {
               <p className="text-xs text-slate-600">
                 Date: <span className="font-medium text-slate-800">{formattedDate}</span>
               </p>
-              {sale.fbrInvoiceNumber ? (
+              {realFbrInvoiceNumber ? (
                 <p className="text-xs text-slate-600 font-mono">
                   FBR Ref:{" "}
-                  <span className="font-bold text-slate-900">{sale.fbrInvoiceNumber}</span>
+                  <span className="font-bold text-slate-900">{realFbrInvoiceNumber}</span>
                 </p>
-              ) : (
+              ) : isTaxInvoice ? (
                 <p className="text-xs text-amber-700 font-mono font-medium">
                   FBR Ref: <span>Pending Transmission</span>
                 </p>
-              )}
+              ) : null}
             </div>
           </div>
 
@@ -406,8 +427,12 @@ export default function SaleDetailPage() {
                   <th className="p-2 sm:p-2.5 print:py-1 print:px-1.5 text-center border-r border-slate-200 w-16">UOM</th>
                   <th className="p-2 sm:p-2.5 print:py-1 print:px-1.5 text-center border-r border-slate-200 w-16">Qty</th>
                   <th className="p-2 sm:p-2.5 print:py-1 print:px-1.5 text-right border-r border-slate-200 w-28">Unit Price</th>
-                  <th className="p-2 sm:p-2.5 print:py-1 print:px-1.5 text-center border-r border-slate-200 w-20">Tax Rate</th>
-                  <th className="p-2 sm:p-2.5 print:py-1 print:px-1.5 text-right border-r border-slate-200 w-28">Tax Amount</th>
+                  {isTaxInvoice && (
+                    <>
+                      <th className="p-2 sm:p-2.5 print:py-1 print:px-1.5 text-center border-r border-slate-200 w-20">Tax Rate</th>
+                      <th className="p-2 sm:p-2.5 print:py-1 print:px-1.5 text-right border-r border-slate-200 w-28">Tax Amount</th>
+                    </>
+                  )}
                   <th className="p-2 sm:p-2.5 print:py-1 print:px-1.5 text-right w-28">Total</th>
                 </tr>
               </thead>
@@ -465,12 +490,16 @@ export default function SaleDetailPage() {
                       <td className="p-2 sm:p-2.5 print:py-1 print:px-1.5 text-right font-medium text-slate-800 border-r border-slate-200 tabular-nums">
                         Rs. {unitPrice.toFixed(2)}
                       </td>
-                      <td className="p-2 sm:p-2.5 print:py-1 print:px-1.5 text-center font-mono font-medium text-slate-700 border-r border-slate-200">
-                        {taxRate.toFixed(2)}%
-                      </td>
-                      <td className="p-2 sm:p-2.5 print:py-1 print:px-1.5 text-right font-medium text-slate-800 border-r border-slate-200 tabular-nums">
-                        Rs. {itemTax.toFixed(2)}
-                      </td>
+                      {isTaxInvoice && (
+                        <>
+                          <td className="p-2 sm:p-2.5 print:py-1 print:px-1.5 text-center font-mono font-medium text-slate-700 border-r border-slate-200">
+                            {taxRate.toFixed(2)}%
+                          </td>
+                          <td className="p-2 sm:p-2.5 print:py-1 print:px-1.5 text-right font-medium text-slate-800 border-r border-slate-200 tabular-nums">
+                            Rs. {itemTax.toFixed(2)}
+                          </td>
+                        </>
+                      )}
                       <td className="p-2 sm:p-2.5 print:py-1 print:px-1.5 text-right font-bold text-slate-900 tabular-nums">
                         Rs. {lineTotal.toFixed(2)}
                       </td>
@@ -490,40 +519,38 @@ export default function SaleDetailPage() {
                   Rs. {Number(sale.subtotal).toFixed(2)}
                 </span>
               </div>
-              <div className="flex justify-between py-0.5">
-                <span className="text-slate-600 font-medium">Base Tax:</span>
-                <span className="font-bold text-slate-900 tabular-nums font-mono">
-                  Rs. {baseTax.toFixed(2)}
-                </span>
-              </div>
-              <div className="flex justify-between py-0.5">
-                <span className="text-slate-600 font-medium">Sales Tax:</span>
-                <span className="font-bold text-slate-900 tabular-nums font-mono">
-                  Rs. {baseTax.toFixed(2)}
-                </span>
-              </div>
-              {extraTax > 0 && (
-                <div className="flex justify-between py-0.5">
-                  <span className="text-slate-600 font-medium">Extra Tax:</span>
-                  <span className="font-bold text-slate-900 tabular-nums font-mono">
-                    Rs. {extraTax.toFixed(2)}
-                  </span>
-                </div>
+              {isTaxInvoice && (
+                <>
+                  <div className="flex justify-between py-0.5">
+                    <span className="text-slate-600 font-medium">Sales Tax:</span>
+                    <span className="font-bold text-slate-900 tabular-nums font-mono">
+                      Rs. {baseTax.toFixed(2)}
+                    </span>
+                  </div>
+                  {extraTax > 0 && (
+                    <div className="flex justify-between py-0.5">
+                      <span className="text-slate-600 font-medium">Extra Tax:</span>
+                      <span className="font-bold text-slate-900 tabular-nums font-mono">
+                        Rs. {extraTax.toFixed(2)}
+                      </span>
+                    </div>
+                  )}
+                  {furtherTax > 0 && (
+                    <div className="flex justify-between py-0.5">
+                      <span className="text-slate-600 font-medium">Further Tax:</span>
+                      <span className="font-bold text-slate-900 tabular-nums font-mono">
+                        Rs. {furtherTax.toFixed(2)}
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex justify-between py-0.5">
+                    <span className="text-slate-600 font-medium">Total Tax:</span>
+                    <span className="font-bold text-slate-900 tabular-nums font-mono">
+                      Rs. {totalTax.toFixed(2)}
+                    </span>
+                  </div>
+                </>
               )}
-              {furtherTax > 0 && (
-                <div className="flex justify-between py-0.5">
-                  <span className="text-slate-600 font-medium">Further Tax:</span>
-                  <span className="font-bold text-slate-900 tabular-nums font-mono">
-                    Rs. {furtherTax.toFixed(2)}
-                  </span>
-                </div>
-              )}
-              <div className="flex justify-between py-0.5">
-                <span className="text-slate-600 font-medium">Total Tax:</span>
-                <span className="font-bold text-slate-900 tabular-nums font-mono">
-                  Rs. {totalTax.toFixed(2)}
-                </span>
-              </div>
               {Number(sale.discountAmount) > 0 && (
                 <div className="flex justify-between py-0.5 text-rose-600 font-semibold">
                   <span>Discount:</span>
@@ -534,7 +561,11 @@ export default function SaleDetailPage() {
               )}
 
               {/* Total Double-Lined Box Matching PDF */}
-              <div className="flex justify-between py-1.5 print:py-1 border-t border-b-2 border-slate-900 text-sm font-black text-[#D32F2F] mt-1">
+              <div
+                className={`flex justify-between py-1.5 print:py-1 border-t border-b-2 border-slate-900 text-sm font-black mt-1 ${
+                  isTaxInvoice ? "text-[#D32F2F]" : "text-slate-900"
+                }`}
+              >
                 <span className="uppercase tracking-wider">TOTAL:</span>
                 <span className="tabular-nums font-mono text-base font-black">
                   Rs. {Number(sale.totalAmount).toFixed(2)}
@@ -556,62 +587,62 @@ export default function SaleDetailPage() {
             </div>
           </div>
 
-          {/* Statutory FBR Invoice Verification Box (Exact Red Rounded Box Layout) */}
-          <div className="border-2 border-[#E53935] rounded-xl sm:rounded-2xl p-3 sm:p-4 print:p-2.5 bg-white mb-4 print:mb-2 shadow-2xs">
-            <div className="text-center font-bold text-[#E53935] text-xs sm:text-sm mb-2 print:mb-1 uppercase tracking-wider">
-              FBR Invoice Verification
-            </div>
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-              {/* Left Column: Reference & Verification Bullet Points */}
-              <div className="text-left space-y-1 flex-1">
-                <p className="text-xs font-bold text-slate-800">FBR Reference Number:</p>
-                <p className="text-sm sm:text-base font-black text-[#D32F2F] font-mono tracking-wider break-all leading-tight">
-                  {sale.fbrInvoiceNumber ||
-                    fbrMeta?.fbrInvoiceNumber ||
-                    "4130335232913DIB0LHR8628064"}
-                </p>
-                <ul className="text-[10px] sm:text-[11px] text-slate-600 space-y-0.5 mt-1.5 print:mt-1">
-                  <li className="flex items-center gap-1.5">
-                    <span className="text-[#D32F2F] font-bold">•</span>
-                    <span>Verify this invoice through FBR TaxAsaan Mobile App</span>
-                  </li>
-                  <li className="flex items-center gap-1.5">
-                    <span className="text-[#D32F2F] font-bold">•</span>
-                    <span>Send SMS to 9966 for verification</span>
-                  </li>
-                  <li className="flex items-center gap-1.5">
-                    <span className="text-[#D32F2F] font-bold">•</span>
-                    <span>Participate in exciting prize draws</span>
-                  </li>
-                </ul>
+          {/* Statutory FBR Invoice Verification Box (Shown only for Tax Invoices or FBR-transferred sales) */}
+          {(isTaxInvoice || realFbrInvoiceNumber) && (
+            <div className="border-2 border-[#E53935] rounded-xl sm:rounded-2xl p-3 sm:p-4 print:p-2.5 bg-white mb-4 print:mb-2 shadow-2xs">
+              <div className="text-center font-bold text-[#E53935] text-xs sm:text-sm mb-2 print:mb-1 uppercase tracking-wider">
+                FBR Invoice Verification
               </div>
-
-              {/* Right Column: Statutory FBR POS Badge & High-Resolution QR Code */}
-              <div className="flex items-center gap-2.5 shrink-0">
-                {/* Official FBR Invoicing POS Emblem */}
-                <div className="flex flex-col items-center justify-center border-2 border-blue-800 rounded-lg p-1 w-20 bg-white shadow-2xs">
-                  <div className="flex items-center gap-0.5 text-[9px] font-black text-blue-900 tracking-wider">
-                    <span className="text-[10px]">🏛️</span>
-                    <span>FBR</span>
-                  </div>
-                  <div className="text-sm font-black text-blue-700 tracking-tighter leading-none my-0.5">
-                    POS
-                  </div>
-                  <div className="w-full bg-blue-800 text-white text-[7px] font-black uppercase py-0.5 text-center rounded-xs tracking-tight">
-                    INVOICING SYSTEM
-                  </div>
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+                {/* Left Column: Reference & Verification Bullet Points */}
+                <div className="text-left space-y-1 flex-1">
+                  <p className="text-xs font-bold text-slate-800">FBR Reference Number:</p>
+                  <p className="text-sm sm:text-base font-black text-[#D32F2F] font-mono tracking-wider break-all leading-tight">
+                    {realFbrInvoiceNumber || "Pending FBR Transmission"}
+                  </p>
+                  <ul className="text-[10px] sm:text-[11px] text-slate-600 space-y-0.5 mt-1.5 print:mt-1">
+                    <li className="flex items-center gap-1.5">
+                      <span className="text-[#D32F2F] font-bold">•</span>
+                      <span>Verify this invoice through FBR TaxAsaan Mobile App</span>
+                    </li>
+                    <li className="flex items-center gap-1.5">
+                      <span className="text-[#D32F2F] font-bold">•</span>
+                      <span>Send SMS to 9966 for verification</span>
+                    </li>
+                    <li className="flex items-center gap-1.5">
+                      <span className="text-[#D32F2F] font-bold">•</span>
+                      <span>Participate in exciting prize draws</span>
+                    </li>
+                  </ul>
                 </div>
 
-                {/* Verifiable QR Code */}
-                <div className="p-1 bg-white border border-slate-300 rounded-lg shadow-2xs">
-                  <FbrQrCode
-                    value={sale.fbrInvoiceNumber || sale.invoiceNumber}
-                    size={76}
-                  />
+                {/* Right Column: Statutory FBR POS Badge & High-Resolution QR Code */}
+                <div className="flex items-center gap-2.5 shrink-0">
+                  {/* Official FBR Invoicing POS Emblem */}
+                  <div className="flex flex-col items-center justify-center border-2 border-blue-800 rounded-lg p-1 w-20 bg-white shadow-2xs">
+                    <div className="flex items-center gap-0.5 text-[9px] font-black text-blue-900 tracking-wider">
+                      <span className="text-[10px]">🏛️</span>
+                      <span>FBR</span>
+                    </div>
+                    <div className="text-sm font-black text-blue-700 tracking-tighter leading-none my-0.5">
+                      POS
+                    </div>
+                    <div className="w-full bg-blue-800 text-white text-[7px] font-black uppercase py-0.5 text-center rounded-xs tracking-tight">
+                      INVOICING SYSTEM
+                    </div>
+                  </div>
+
+                  {/* Verifiable QR Code */}
+                  <div className="p-1 bg-white border border-slate-300 rounded-lg shadow-2xs">
+                    <FbrQrCode
+                      value={realFbrInvoiceNumber || sale.invoiceNumber}
+                      size={76}
+                    />
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
+          )}
 
           {/* Document Footer (Thank You, Sign-Off & Platform Notice) */}
           <div className="text-center pt-3 print:pt-2 border-t border-slate-200 text-xs text-slate-500 space-y-0.5 print:text-[10px]">
@@ -621,7 +652,9 @@ export default function SaleDetailPage() {
               This is a computer-generated invoice and does not require a signature.
             </p>
             <div className="w-full border-t border-slate-100 mt-2 pt-1 text-[9px] text-slate-400">
-              SmartBiz Powered By Accounts360 | Verify invoice authenticity via FBR TaxAsaan App
+              {isTaxInvoice || realFbrInvoiceNumber
+                ? "SmartBiz Powered By Accounts360 | Verify invoice authenticity via FBR TaxAsaan App"
+                : "SmartBiz Powered By Accounts360 | Computer-Generated Commercial Sales Invoice"}
             </div>
           </div>
         </div>
