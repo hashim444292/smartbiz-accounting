@@ -6,11 +6,12 @@ import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
 import { Badge } from "@/components/ui/badge";
-import { ArrowDownLeft, ArrowUpRight, ArrowLeftRight, Search, ShieldCheck, Building2, UserCheck, TrendingUp, TrendingDown, Wallet } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, ArrowLeftRight, Search, ShieldCheck, Building2, UserCheck, TrendingUp, TrendingDown, Wallet, Landmark, Printer, FileText, CheckCircle2 } from "lucide-react";
 import { TableRowsSkeleton } from "@/components/ui/loader";
 import { useAuth } from "@/context/AuthContext";
 import { useLanguage } from "@/context/LanguageContext";
 import { smartFetch, invalidateCache, useAutoSync } from "@/lib/clientCache";
+import { JournalVoucherModal, JournalVoucherData } from "@/components/vouchers/JournalVoucherModal";
 
 export default function PaymentsPage() {
   const { user, activeCompany, branches, selectedBranch, activeBranchId, isBranchLocked } = useAuth();
@@ -28,6 +29,18 @@ export default function PaymentsPage() {
   const [showReceiptModal, setShowReceiptModal] = useState(false);
   const [showDisburseModal, setShowDisburseModal] = useState(false);
   const [showTransferModal, setShowTransferModal] = useState(false);
+  const [showCashDepositModal, setShowCashDepositModal] = useState(false);
+  const [showVoucherModal, setShowVoucherModal] = useState(false);
+  const [selectedVoucher, setSelectedVoucher] = useState<JournalVoucherData | null>(null);
+
+  // Cash deposit specific states
+  const [depositCashAccountId, setDepositCashAccountId] = useState("");
+  const [depositBankAccountId, setDepositBankAccountId] = useState("");
+  const [depositAmount, setDepositAmount] = useState<number>(0);
+  const [depositRef, setDepositRef] = useState("");
+  const [depositorName, setDepositorName] = useState("");
+  const [depositDate, setDepositDate] = useState(new Date().toISOString().split("T")[0]);
+  const [depositNotes, setDepositNotes] = useState("");
 
   // Form State
   const [partyId, setPartyId] = useState("");
@@ -228,6 +241,161 @@ export default function PaymentsPage() {
     const branchToUse = isBranchLocked ? (user?.branchId || "") : (selectedBranch?.id || activeBranchId || (branches[0]?.id || ""));
     setPaymentBranchId(branchToUse);
     setShowTransferModal(true);
+  };
+
+  const openCashDepositModal = () => {
+    const branchToUse = isBranchLocked ? (user?.branchId || "") : (selectedBranch?.id || activeBranchId || (branches[0]?.id || ""));
+    setPaymentBranchId(branchToUse);
+    const availableCash = modalAccounts.filter((a) => a.type === "CASH");
+    const availableBanks = modalAccounts.filter((a) => a.type === "BANK");
+    if (availableCash.length > 0) setDepositCashAccountId(availableCash[0].id);
+    if (availableBanks.length > 0) setDepositBankAccountId(availableBanks[0].id);
+    setDepositAmount(0);
+    setDepositRef("");
+    setDepositorName(user?.name || "");
+    setDepositDate(new Date().toISOString().split("T")[0]);
+    setDepositNotes("Daily cash sales collection deposited into bank");
+    setShowCashDepositModal(true);
+  };
+
+  const openVoucherForPayment = (p: any) => {
+    const fromAccName = p.account?.name || (accounts.find((a) => a.id === p.accountId)?.name) || "Cash Account";
+    const toAccName = p.targetAccount?.name || (accounts.find((a) => a.id === p.targetAccountId)?.name) || "Bank Account";
+    const fromAccCode = p.account?.type === "BANK" ? "1020" : "1010";
+    const toAccCode = p.targetAccount?.type === "BANK" ? "1020" : "1010";
+    const amt = Number(p.amount || 0);
+
+    const voucherData: JournalVoucherData = p.journalEntry || {
+      id: p.id,
+      entryNumber: p.journalEntry?.entryNumber || (p.referenceNumber?.startsWith("CV") || p.referenceNumber?.startsWith("JV") ? p.referenceNumber : `CV-${new Date(p.date || Date.now()).getFullYear()}-${p.id.slice(-4).toUpperCase()}`),
+      date: p.date,
+      referenceType: p.paymentMethod === "CASH_DEPOSIT" ? "CONTRA" : "TRANSFER",
+      referenceId: p.id,
+      referenceNumber: p.referenceNumber,
+      description: p.notes || (p.paymentMethod === "CASH_DEPOSIT" ? `Cash sales deposited into ${toAccName}` : `Transfer from ${fromAccName} to ${toAccName}`),
+      depositorName: p.createdByName || user?.name,
+      fromAccountName: fromAccName,
+      toAccountName: toAccName,
+      isBalanced: true,
+      status: "POSTED",
+      lines: [
+        {
+          id: "l-1",
+          accountCode: toAccCode,
+          accountName: toAccName,
+          account: { code: toAccCode, name: toAccName },
+          debit: amt,
+          credit: 0,
+          description: `Deposit into ${toAccName}`,
+        },
+        {
+          id: "l-2",
+          accountCode: fromAccCode,
+          accountName: fromAccName,
+          account: { code: fromAccCode, name: fromAccName },
+          debit: 0,
+          credit: amt,
+          description: `Deposit out of ${fromAccName}`,
+        },
+      ],
+    };
+
+    setSelectedVoucher(voucherData);
+    setShowVoucherModal(true);
+  };
+
+  const handleCreateCashDeposit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (depositAmount <= 0) {
+      alert("Deposit amount must be greater than zero.");
+      return;
+    }
+    if (!depositCashAccountId || !depositBankAccountId) {
+      alert("Please select both source cash drawer and destination bank account.");
+      return;
+    }
+    if (depositCashAccountId === depositBankAccountId) {
+      alert("Source cash account and destination bank account must be different.");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (activeCompany?.id) headers["x-business-id"] = activeCompany.id;
+      if (effectiveBranch) headers["x-branch-id"] = effectiveBranch;
+
+      const effectiveCreateBranch = isBranchLocked ? user?.branchId : (paymentBranchId || effectiveBranch || null);
+
+      const res = await fetch("/api/payments/transfer", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          fromAccountId: depositCashAccountId,
+          toAccountId: depositBankAccountId,
+          amount: depositAmount,
+          referenceNumber: depositRef || undefined,
+          notes: depositNotes,
+          transferType: "CASH_DEPOSIT",
+          description: depositNotes || "Cash sales deposited into bank",
+          depositorName: depositorName || user?.name,
+          date: depositDate,
+          branchId: effectiveCreateBranch,
+          createdById: user?.userId,
+          createdByName: user?.name,
+        }),
+      });
+
+      const json = await res.json();
+      if (json.success) {
+        setShowCashDepositModal(false);
+        invalidateCache("/api/payments");
+        invalidateCache("/api/accounting");
+        fetchPayments();
+
+        if (json.data?.journalEntry) {
+          setSelectedVoucher(json.data.journalEntry);
+        } else {
+          const fromAcc = accounts.find((a) => a.id === depositCashAccountId);
+          const toAcc = accounts.find((a) => a.id === depositBankAccountId);
+          setSelectedVoucher({
+            entryNumber: json.data?.referenceNumber || `CV-${new Date().getFullYear()}-${Date.now().toString().slice(-4)}`,
+            date: depositDate,
+            referenceType: "CONTRA",
+            referenceNumber: depositRef,
+            description: depositNotes,
+            depositorName: depositorName || user?.name,
+            fromAccountName: fromAcc?.name || "Cash Drawer",
+            toAccountName: toAcc?.name || "Bank Account",
+            isBalanced: true,
+            status: "POSTED",
+            lines: [
+              {
+                accountCode: "1020",
+                accountName: toAcc?.name || "Bank Account",
+                debit: depositAmount,
+                credit: 0,
+                description: `Cash sales deposited into ${toAcc?.name || "Bank Account"}`,
+              },
+              {
+                accountCode: "1010",
+                accountName: fromAcc?.name || "Cash in Hand",
+                debit: 0,
+                credit: depositAmount,
+                description: `Cash sales deposited out of ${fromAcc?.name || "Cash in Hand"}`,
+              },
+            ],
+          });
+        }
+        setShowVoucherModal(true);
+      } else {
+        alert(json.error || "Failed to record cash deposit.");
+      }
+    } catch (err: any) {
+      alert(err.message || "Failed to record cash deposit.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleCreateReceipt = async (e: React.FormEvent) => {
@@ -438,6 +606,13 @@ export default function PaymentsPage() {
           >
             <ArrowLeftRight className="h-4 w-4 mr-1" /> Transfer Funds
           </Button>
+          <button
+            type="button"
+            onClick={openCashDepositModal}
+            className="flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-emerald-700 transition"
+          >
+            <Landmark className="h-4 w-4 mr-1" /> {t("Deposit Cash to Bank", "کیش بینک میں جمع کروائیں")}
+          </button>
         </div>
       </div>
 
@@ -525,14 +700,15 @@ export default function PaymentsPage() {
                 <th className="px-4 py-3">{t("Handled By", "کس نے کیا")}</th>
                 <th className="px-4 py-3">Ref / Memo</th>
                 <th className="px-4 py-3 text-right">Amount</th>
+                <th className="px-4 py-3 text-center">Voucher</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {loading ? (
-                <TableRowsSkeleton rows={6} cols={8} />
+                <TableRowsSkeleton rows={6} cols={9} />
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="py-8 text-center text-xs text-slate-400">
+                  <td colSpan={9} className="py-8 text-center text-xs text-slate-400">
                     No payment records found matching criteria.
                   </td>
                 </tr>
@@ -582,6 +758,17 @@ export default function PaymentsPage() {
                       >
                         {isReceipt ? "+" : isDisburse ? "-" : ""}
                         {formatMoney(p.amount)}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <button
+                          type="button"
+                          onClick={() => openVoucherForPayment(p)}
+                          className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 hover:text-blue-600 shadow-2xs transition dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:text-blue-400"
+                          title="View / Print Voucher"
+                        >
+                          <Printer className="h-3 w-3" />
+                          <span>{t("Voucher", "واؤچر")}</span>
+                        </button>
                       </td>
                     </tr>
                   );
@@ -1132,6 +1319,156 @@ export default function PaymentsPage() {
           </div>
         </form>
       </Modal>
+
+      {/* Cash Deposit into Bank Modal */}
+      <Modal
+        isOpen={showCashDepositModal}
+        onClose={() => setShowCashDepositModal(false)}
+        title={t("Deposit Cash Sales into Bank", "نقد سیلز بینک میں جمع کروائیں")}
+        description={t(
+          "Move cash sales proceeds into company bank account and automatically generate Contra / Journal Voucher",
+          "روزانہ نقد سیلز رقم کو بینک اکاؤنٹ میں جمع کروائیں اور خودکار کاؤنٹرا / جرنل واؤچر بنائیں"
+        )}
+        maxWidth="lg"
+      >
+        <form onSubmit={handleCreateCashDeposit} className="space-y-4">
+          <div className="rounded-xl border border-emerald-100 bg-emerald-50/70 p-3 text-xs text-emerald-950 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-200">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-600 text-[11px] font-bold text-white uppercase">
+                  {user?.name?.charAt(0) || "U"}
+                </span>
+                <div>
+                  <span className="font-bold">{user?.name || "Logged User"}</span>
+                  <span className="text-[11px] text-emerald-600 dark:text-emerald-400 ml-1.5 font-medium">({user?.role?.replace("_", " ") || "Admin"})</span>
+                  <div className="text-[10px] text-emerald-700/80 dark:text-emerald-300">Cash Handler / Depositor</div>
+                </div>
+              </div>
+              <span className="rounded-md bg-white/80 dark:bg-slate-800 px-2 py-0.5 text-[11px] font-medium border border-emerald-200 dark:border-emerald-800">
+                🏢 {branches.find((b) => b.id === paymentBranchId)?.name || selectedBranch?.name || user?.branchName || "Main Branch"}
+              </span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Select
+              label={t("Source Cash Account (کیش دراز)", "Source Cash Drawer")}
+              value={depositCashAccountId}
+              onChange={(e) => setDepositCashAccountId(e.target.value)}
+              required
+            >
+              <option value="">{t("-- Select Cash Drawer --", "-- کیش اکاؤنٹ منتخب کریں --")}</option>
+              {modalAccounts
+                .filter((a) => a.type === "CASH")
+                .map((a) => (
+                  <option key={a.id} value={a.id}>
+                    💵 {a.name} (Balance: {formatMoney(a.balance)})
+                  </option>
+                ))}
+            </Select>
+
+            <Select
+              label={t("Destination Bank Account (بینک کھاتہ)", "Destination Bank")}
+              value={depositBankAccountId}
+              onChange={(e) => setDepositBankAccountId(e.target.value)}
+              required
+            >
+              <option value="">{t("-- Select Bank Account --", "-- بینک اکاؤنٹ منتخب کریں --")}</option>
+              {accounts
+                .filter((a) => a.type === "BANK")
+                .map((a) => (
+                  <option key={a.id} value={a.id}>
+                    🏦 {a.name} {a.accountNumber ? `(${a.accountNumber})` : ""} (Bal: {formatMoney(a.balance)})
+                  </option>
+                ))}
+            </Select>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Input
+              label={t("Deposit Amount (Rs) *", "جمع رقم (روپے) *")}
+              type="number"
+              step="0.01"
+              value={depositAmount || ""}
+              onChange={(e) => setDepositAmount(parseFloat(e.target.value) || 0)}
+              placeholder="e.g. 50000"
+              required
+            />
+            <Input
+              label={t("Deposit Date (تاریخ)", "Deposit Date")}
+              type="date"
+              value={depositDate}
+              onChange={(e) => setDepositDate(e.target.value)}
+              required
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Input
+              label={t("Bank Deposit Slip # / Cheque Ref", "ڈپازٹ سلپ / بینک حوالہ نمبر")}
+              value={depositRef}
+              onChange={(e) => setDepositRef(e.target.value)}
+              placeholder="e.g. SLIP-98421"
+            />
+            <Input
+              label={t("Depositor Name (کس نے جمع کروایا)", "Depositor Name")}
+              value={depositorName}
+              onChange={(e) => setDepositorName(e.target.value)}
+              placeholder="e.g. Muhammad Hanif"
+            />
+          </div>
+
+          <Input
+            label={t("Narration / Description (تفصیل)", "Narration / Description")}
+            value={depositNotes}
+            onChange={(e) => setDepositNotes(e.target.value)}
+            placeholder="e.g. Daily cash sales collection deposited into Meezan Bank"
+          />
+
+          {/* Double-Entry Contra Voucher Preview Box */}
+          <div className="rounded-xl border border-blue-200 bg-blue-50/60 p-3 text-xs dark:border-blue-900/40 dark:bg-blue-950/30">
+            <div className="flex items-center justify-between pb-1.5 border-b border-blue-200/60 dark:border-blue-900/40">
+              <span className="font-bold text-blue-900 dark:text-blue-300">
+                ⚡ {t("Automatic Contra Journal Voucher", "خودکار کاؤنٹرا جرنل واؤچر")}
+              </span>
+              <span className="font-mono font-bold text-blue-700 dark:text-blue-400">
+                Rs. {formatMoney(depositAmount)}
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-2 pt-2 text-[11px]">
+              <div>
+                <span className="text-emerald-700 dark:text-emerald-400 font-bold">DEBIT (+) [1020]:</span>
+                <p className="text-slate-700 dark:text-slate-300">
+                  {accounts.find((a) => a.id === depositBankAccountId)?.name || "Destination Bank Account"}
+                </p>
+              </div>
+              <div>
+                <span className="text-rose-700 dark:text-rose-400 font-bold">CREDIT (-) [1010]:</span>
+                <p className="text-slate-700 dark:text-slate-300">
+                  {modalAccounts.find((a) => a.id === depositCashAccountId)?.name || "Source Cash Drawer"}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="pt-2 flex justify-end gap-2">
+            <Button type="button" variant="secondary" onClick={() => setShowCashDepositModal(false)}>
+              {t("Cancel", "منسوخ")}
+            </Button>
+            <Button type="submit" variant="success" isLoading={submitting}>
+              {t("Deposit Cash & Generate Voucher", "کیش جمع کر کے واؤچر بنائیں")}
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Reusable Journal / Contra Voucher Modal */}
+      <JournalVoucherModal
+        isOpen={showVoucherModal}
+        onClose={() => setShowVoucherModal(false)}
+        voucher={selectedVoucher}
+        company={activeCompany}
+      />
     </div>
   );
 }

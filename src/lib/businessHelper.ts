@@ -132,7 +132,7 @@ export async function getActiveBranchId(
       };
     }
 
-    const cookieBranch = req.cookies.get(ACTIVE_BRANCH_COOKIE)?.value;
+    const cookieBranch = req.cookies?.get?.(ACTIVE_BRANCH_COOKIE)?.value;
     if (cookieBranch) {
       return {
         branchId: cookieBranch === "all" ? null : cookieBranch,

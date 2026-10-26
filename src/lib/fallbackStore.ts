@@ -3335,7 +3335,14 @@ export function storeTransferFunds(
   const createdById = sessionUser?.userId || data.createdById || "usr-2";
   const createdByName = sessionUser?.name || data.createdByName || "Muhammad Hanif";
 
-  const newTransfer = {
+  const isCashDeposit = data.transferType === "CASH_DEPOSIT";
+  const voucherRefType = isCashDeposit ? "CONTRA" : "TRANSFER";
+  const defaultDesc = isCashDeposit
+    ? `Cash sales deposited into ${toAcc?.name || "Bank"}${data.referenceNumber ? ` (Slip #${data.referenceNumber})` : ""}`
+    : `Transfer from ${fromAcc?.name || "Account"} to ${toAcc?.name || "Account"}`;
+  const description = data.description || defaultDesc;
+
+  const newTransfer: any = {
     id: data.id || `transfer-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
     businessId: data.businessId,
     branchId: data.branchId || null,
@@ -3346,15 +3353,67 @@ export function storeTransferFunds(
     toAccountId: data.toAccountId,
     account: fromAcc ? { name: fromAcc.name } : { name: "Source Account" },
     targetAccount: toAcc ? { name: toAcc.name } : { name: "Target Account" },
-    partyName: `Transfer: ${fromAcc?.name || "Account"} -> ${toAcc?.name || "Account"}`,
-    referenceNumber: data.referenceNumber || `TRF-${Date.now().toString().slice(-6)}`,
-    notes: data.notes,
+    partyName: isCashDeposit ? `Cash Deposit: ${fromAcc?.name || "Cash"} -> ${toAcc?.name || "Bank"}` : `Transfer: ${fromAcc?.name || "Account"} -> ${toAcc?.name || "Account"}`,
+    paymentMethod: isCashDeposit ? "CASH_DEPOSIT" : "TRANSFER",
+    referenceNumber: data.referenceNumber || (isCashDeposit ? `DEP-${Date.now().toString().slice(-6)}` : `TRF-${Date.now().toString().slice(-6)}`),
+    notes: data.notes || (isCashDeposit ? `Cash sales deposited into ${toAcc?.name || "Bank"}` : undefined),
     date: data.date || new Date().toISOString(),
     createdById,
     createdByName,
   };
 
   fallbackStore.payments.unshift(newTransfer);
+
+  // Create Journal Entry
+  if (!fallbackStore.journalEntries) fallbackStore.journalEntries = [];
+  const currentYear = new Date().getFullYear();
+  const entryCount = fallbackStore.journalEntries.length + 1;
+  const prefix = isCashDeposit ? "CV" : "JV";
+  const entryNumber = `${prefix}-${currentYear}-${String(entryCount).padStart(4, "0")}`;
+
+  const journalEntry = {
+    id: `je-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+    businessId: data.businessId,
+    entryNumber,
+    date: newTransfer.date,
+    description,
+    referenceType: voucherRefType,
+    referenceId: newTransfer.id,
+    referenceNumber: newTransfer.referenceNumber,
+    depositorName: data.depositorName || createdByName,
+    fromAccountName: fromAcc?.name,
+    toAccountName: toAcc?.name,
+    isBalanced: true,
+    status: "POSTED",
+    createdById,
+    lines: [
+      {
+        id: `jl-${Date.now()}-1`,
+        accountId: toAcc?.id || "acc-bank",
+        account: {
+          code: toAcc?.type === "BANK" ? "1020" : "1010",
+          name: toAcc?.name || "Main Bank Account",
+        },
+        debit: amt,
+        credit: 0,
+        description: isCashDeposit ? `Cash sales deposited into ${toAcc?.name || "Bank"}` : `Transfer into ${toAcc?.name || "Bank"}`,
+      },
+      {
+        id: `jl-${Date.now()}-2`,
+        accountId: fromAcc?.id || "acc-cash",
+        account: {
+          code: fromAcc?.type === "BANK" ? "1020" : "1010",
+          name: fromAcc?.name || "Cash in Hand",
+        },
+        debit: 0,
+        credit: amt,
+        description: isCashDeposit ? `Cash sales deposited out of ${fromAcc?.name || "Cash"}` : `Transfer out of ${fromAcc?.name || "Cash"}`,
+      },
+    ],
+  };
+
+  fallbackStore.journalEntries.unshift(journalEntry);
+  newTransfer.journalEntry = journalEntry;
 
   if (!fallbackStore.auditLogs) fallbackStore.auditLogs = [];
   fallbackStore.auditLogs.unshift({
@@ -3364,10 +3423,10 @@ export function storeTransferFunds(
     userName: createdByName,
     userEmail: sessionUser?.email,
     branchId: newTransfer.branchId,
-    action: "FUNDS_TRANSFER",
+    action: isCashDeposit ? "CASH_DEPOSIT" : "FUNDS_TRANSFER",
     entity: "Payment",
     entityId: newTransfer.id,
-    details: `Transferred Rs ${amt.toLocaleString()} from ${fromAcc?.name || "Source"} to ${toAcc?.name || "Destination"}${branchName ? ` (${branchName})` : ""}`,
+    details: `${isCashDeposit ? "Deposited cash sales of" : "Transferred"} Rs ${amt.toLocaleString()} from ${fromAcc?.name || "Source"} to ${toAcc?.name || "Destination"}${branchName ? ` (${branchName})` : ""}. Journal Voucher: ${entryNumber}`,
     createdAt: new Date().toISOString(),
   });
 

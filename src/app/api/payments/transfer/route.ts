@@ -25,6 +25,10 @@ export async function POST(req: NextRequest) {
       amount: body.amount,
       referenceNumber: body.referenceNumber,
       notes: body.notes,
+      transferType: body.transferType,
+      description: body.description,
+      depositorName: body.depositorName,
+      date: body.date ? new Date(body.date) : undefined,
       createdById,
       createdByName,
     });

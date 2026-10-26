@@ -47,6 +47,9 @@ export interface TransferFundsInput {
   createdById?: string;
   createdByName?: string;
   date?: Date;
+  transferType?: "TRANSFER" | "CASH_DEPOSIT";
+  description?: string;
+  depositorName?: string;
 }
 
 /**
@@ -447,6 +450,13 @@ export async function transferFunds(input: TransferFundsInput) {
       data: { balance: newToBal.toNumber() },
     });
 
+    const isCashDeposit = input.transferType === "CASH_DEPOSIT";
+    const voucherRefType = isCashDeposit ? "CONTRA" : "TRANSFER";
+    const defaultDesc = isCashDeposit
+      ? `Cash sales deposited into ${toAcc.name}${referenceNumber ? ` (Slip #${referenceNumber})` : ""}`
+      : `Transfer from ${fromAcc.name} to ${toAcc.name}`;
+    const entryDescription = input.description || defaultDesc;
+
     // Create payment transfer record
     const payment = await tx.payment.create({
       data: {
@@ -455,24 +465,24 @@ export async function transferFunds(input: TransferFundsInput) {
         type: "TRANSFER",
         date,
         partyType: "OTHER",
-        partyName: `Transfer: ${fromAcc.name} -> ${toAcc.name}`,
+        partyName: isCashDeposit ? `Cash Deposit: ${fromAcc.name} -> ${toAcc.name}` : `Transfer: ${fromAcc.name} -> ${toAcc.name}`,
         amount: amount.toNumber(),
-        paymentMethod: "TRANSFER",
+        paymentMethod: isCashDeposit ? "CASH_DEPOSIT" : "TRANSFER",
         accountId: fromAccountId,
         targetAccountId: toAccountId,
         referenceNumber,
-        notes,
+        notes: notes || (isCashDeposit ? `Cash sales deposited into ${toAcc.name}` : undefined),
         createdById,
         createdByName: input.createdByName || null,
       },
     });
 
     // Journal Entry: Debit Destination Account, Credit Source Account
-    await createJournalEntry(tx, {
+    const journalEntry = await createJournalEntry(tx, {
       businessId,
       date,
-      description: `Transfer from ${fromAcc.name} to ${toAcc.name}`,
-      referenceType: "TRANSFER",
+      description: entryDescription,
+      referenceType: voucherRefType,
       referenceId: payment.id,
       createdById,
       lines: [
@@ -480,24 +490,24 @@ export async function transferFunds(input: TransferFundsInput) {
           accountCode: toAcc.type === "BANK" ? "1020" : "1010",
           debit: amount,
           credit: new Decimal(0),
-          description: `Transfer into ${toAcc.name}`,
+          description: isCashDeposit ? `Cash sales deposited into ${toAcc.name}` : `Transfer into ${toAcc.name}`,
         },
         {
           accountCode: fromAcc.type === "BANK" ? "1020" : "1010",
           debit: new Decimal(0),
           credit: amount,
-          description: `Transfer out of ${fromAcc.name}`,
+          description: isCashDeposit ? `Cash sales deposited out of ${fromAcc.name}` : `Transfer out of ${fromAcc.name}`,
         },
       ],
     });
 
-    // Audit Log for Funds Transfer
+    // Audit Log for Funds Transfer / Cash Deposit
     await createSafeAuditLog(tx, {
       businessId,
       userId: createdById || null,
       userName: input.createdByName || null,
       branchId: input.branchId || null,
-      action: "FUNDS_TRANSFER",
+      action: isCashDeposit ? "CASH_DEPOSIT" : "FUNDS_TRANSFER",
       entity: "Payment",
       entityId: payment.id,
       details: JSON.stringify({
@@ -505,9 +515,51 @@ export async function transferFunds(input: TransferFundsInput) {
         toAccount: toAcc.name,
         amount: amount.toString(),
         referenceNumber: referenceNumber || null,
+        voucherNumber: journalEntry?.entryNumber || null,
+        depositorName: input.depositorName || input.createdByName || null,
       }),
     });
 
-    return payment;
+    return {
+      ...payment,
+      journalEntry: {
+        id: journalEntry.id,
+        entryNumber: journalEntry.entryNumber,
+        date: journalEntry.date,
+        description: journalEntry.description,
+        referenceType: journalEntry.referenceType,
+        referenceId: payment.id,
+        referenceNumber: referenceNumber || null,
+        depositorName: input.depositorName || input.createdByName || null,
+        fromAccountName: fromAcc.name,
+        toAccountName: toAcc.name,
+        isBalanced: journalEntry.isBalanced,
+        status: journalEntry.status,
+        lines: [
+          {
+            id: journalEntry.lines?.[0]?.id || "jl-1",
+            accountId: journalEntry.lines?.[0]?.accountId,
+            account: {
+              code: toAcc.type === "BANK" ? "1020" : "1010",
+              name: toAcc.name,
+            },
+            debit: amount.toNumber(),
+            credit: 0,
+            description: isCashDeposit ? `Cash sales deposited into ${toAcc.name}` : `Transfer into ${toAcc.name}`,
+          },
+          {
+            id: journalEntry.lines?.[1]?.id || "jl-2",
+            accountId: journalEntry.lines?.[1]?.accountId,
+            account: {
+              code: fromAcc.type === "BANK" ? "1020" : "1010",
+              name: fromAcc.name,
+            },
+            debit: 0,
+            credit: amount.toNumber(),
+            description: isCashDeposit ? `Cash sales deposited out of ${fromAcc.name}` : `Transfer out of ${fromAcc.name}`,
+          },
+        ],
+      },
+    };
   });
 }
