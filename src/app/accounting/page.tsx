@@ -25,6 +25,9 @@ import {
   Coins,
   Receipt,
   UserCheck,
+  PlusCircle,
+  Layers,
+  FolderPlus,
 } from "lucide-react";
 import { BrandPageLoader, TableSkeleton } from "@/components/ui/loader";
 import { smartFetch, invalidateCache, useAutoSync } from "@/lib/clientCache";
@@ -34,6 +37,7 @@ import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/input";
 import { JournalVoucherModal, JournalVoucherData } from "@/components/vouchers/JournalVoucherModal";
+import { ACCOUNT_URDU_NAMES, ACCOUNT_TYPE_CONFIG, COMMON_SUBTYPES } from "@/lib/accountingConstants";
 
 type TabType = "LEDGER" | "JOURNALS" | "ACCOUNTS" | "TRIAL_BALANCE";
 type LedgerType = "VENDOR" | "CUSTOMER" | "ACCOUNT";
@@ -84,6 +88,108 @@ function AccountingContent() {
   const [depositDate, setDepositDate] = useState(new Date().toISOString().split("T")[0]);
   const [depositNotes, setDepositNotes] = useState("");
   const [depositSubmitting, setDepositSubmitting] = useState(false);
+
+  // Chart of Accounts filter and modal states
+  const [accountSearch, setAccountSearch] = useState<string>("");
+  const [accountTypeFilter, setAccountTypeFilter] = useState<string>("ALL");
+  const [showAddAccountModal, setShowAddAccountModal] = useState(false);
+  const [newAccCode, setNewAccCode] = useState("");
+  const [newAccName, setNewAccName] = useState("");
+  const [newAccUrdu, setNewAccUrdu] = useState("");
+  const [newAccType, setNewAccType] = useState<string>("EXPENSE");
+  const [newAccSubType, setNewAccSubType] = useState("Operating");
+  const [newAccBalance, setNewAccBalance] = useState<number>(0);
+  const [newAccNotes, setNewAccNotes] = useState("");
+  const [addAccountLoading, setAddAccountLoading] = useState(false);
+  const [addAccountError, setAddAccountError] = useState("");
+  const [addAccountSuccess, setAddAccountSuccess] = useState("");
+
+  const openAddAccountModal = (defaultType = "EXPENSE") => {
+    setNewAccType(defaultType);
+    setNewAccSubType(COMMON_SUBTYPES[defaultType]?.[0] || "General");
+    setNewAccName("");
+    setNewAccUrdu("");
+    setNewAccBalance(0);
+    setNewAccNotes("");
+    setAddAccountError("");
+    setAddAccountSuccess("");
+
+    // Calculate suggested next code based on type
+    const rangeStart = defaultType === "ASSET" ? 1000 : defaultType === "LIABILITY" ? 2000 : defaultType === "EQUITY" ? 3000 : defaultType === "REVENUE" ? 4000 : defaultType === "COGS" ? 5000 : 6000;
+    const sameTypeCodes = accounts
+      .filter((a) => a.type === defaultType)
+      .map((a) => parseInt(a.code, 10))
+      .filter((n) => !isNaN(n) && n >= rangeStart && n < rangeStart + 1000);
+
+    const maxCode = sameTypeCodes.length > 0 ? Math.max(...sameTypeCodes) : rangeStart + 10;
+    const suggested = String(maxCode + (maxCode % 10 === 0 ? 10 : 1));
+    setNewAccCode(suggested);
+    setShowAddAccountModal(true);
+  };
+
+  const handleAccountTypeChange = (selectedType: string) => {
+    setNewAccType(selectedType);
+    setNewAccSubType(COMMON_SUBTYPES[selectedType]?.[0] || "General");
+    const rangeStart = selectedType === "ASSET" ? 1000 : selectedType === "LIABILITY" ? 2000 : selectedType === "EQUITY" ? 3000 : selectedType === "REVENUE" ? 4000 : selectedType === "COGS" ? 5000 : 6000;
+    const sameTypeCodes = accounts
+      .filter((a) => a.type === selectedType)
+      .map((a) => parseInt(a.code, 10))
+      .filter((n) => !isNaN(n) && n >= rangeStart && n < rangeStart + 1000);
+    const maxCode = sameTypeCodes.length > 0 ? Math.max(...sameTypeCodes) : rangeStart + 10;
+    setNewAccCode(String(maxCode + (maxCode % 10 === 0 ? 10 : 1)));
+  };
+
+  const handleCreateAccount = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAddAccountError("");
+    setAddAccountSuccess("");
+
+    if (!newAccCode.trim()) {
+      setAddAccountError("Account code is required (e.g. 1025, 6095).");
+      return;
+    }
+    if (!newAccName.trim()) {
+      setAddAccountError("Account name is required.");
+      return;
+    }
+
+    setAddAccountLoading(true);
+    try {
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (activeCompany?.id) headers["x-business-id"] = activeCompany.id;
+
+      const res = await fetch("/api/accounting/accounts", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          code: newAccCode.trim(),
+          name: newAccName.trim(),
+          type: newAccType,
+          subType: newAccSubType.trim() || undefined,
+          balance: Number(newAccBalance || 0),
+          notes: newAccNotes.trim() || (newAccUrdu.trim() ? newAccUrdu.trim() : undefined),
+        }),
+      });
+
+      const json = await res.json();
+      if (json.success) {
+        setAddAccountSuccess(`Account ${newAccCode} - ${newAccName} created successfully!`);
+        invalidateCache("/api/accounting");
+        invalidateCache("/api/payments");
+        await fetchData(true);
+        setTimeout(() => {
+          setShowAddAccountModal(false);
+          setAddAccountSuccess("");
+        }, 800);
+      } else {
+        setAddAccountError(json.error || "Failed to create account.");
+      }
+    } catch (err: any) {
+      setAddAccountError(err.message || "Failed to create account.");
+    } finally {
+      setAddAccountLoading(false);
+    }
+  };
 
   // Core Data
   const [accounts, setAccounts] = useState<any[]>([]);
@@ -1003,6 +1109,59 @@ function AccountingContent() {
     .filter((a) => ["LIABILITY", "EQUITY", "REVENUE"].includes(a.type))
     .reduce((acc, a) => acc + Number(a.balance), 0);
 
+  const filteredAccounts = useMemo(() => {
+    return accounts.filter((a) => {
+      if (accountTypeFilter !== "ALL" && a.type !== accountTypeFilter) {
+        return false;
+      }
+      if (accountSearch.trim()) {
+        const q = accountSearch.toLowerCase();
+        const urdu = ACCOUNT_URDU_NAMES[a.code] || "";
+        const codeMatch = (a.code || "").toLowerCase().includes(q);
+        const nameMatch = (a.name || "").toLowerCase().includes(q);
+        const subTypeMatch = (a.subType || "").toLowerCase().includes(q);
+        const urduMatch = urdu.toLowerCase().includes(q);
+        return codeMatch || nameMatch || subTypeMatch || urduMatch;
+      }
+      return true;
+    });
+  }, [accounts, accountTypeFilter, accountSearch]);
+
+  const accountStats = useMemo(() => {
+    let assets = 0;
+    let liabilities = 0;
+    let equity = 0;
+    let revenue = 0;
+    let cogs = 0;
+    let expenses = 0;
+
+    accounts.forEach((a) => {
+      const bal = Number(a.balance || 0);
+      if (a.type === "ASSET") assets += bal;
+      else if (a.type === "LIABILITY") liabilities += bal;
+      else if (a.type === "EQUITY") equity += bal;
+      else if (a.type === "REVENUE") revenue += bal;
+      else if (a.type === "COGS") cogs += bal;
+      else if (a.type === "EXPENSE") expenses += bal;
+    });
+
+    return {
+      total: accounts.length,
+      assetCount: accounts.filter((a) => a.type === "ASSET").length,
+      assets,
+      liabilityCount: accounts.filter((a) => a.type === "LIABILITY").length,
+      liabilities,
+      equityCount: accounts.filter((a) => a.type === "EQUITY").length,
+      equity,
+      revenueCount: accounts.filter((a) => a.type === "REVENUE").length,
+      revenue,
+      cogsCount: accounts.filter((a) => a.type === "COGS").length,
+      cogs,
+      expenseCount: accounts.filter((a) => a.type === "EXPENSE").length,
+      expenses,
+    };
+  }, [accounts]);
+
   if (loading) {
     return (
       <div className="space-y-6">
@@ -1680,60 +1839,228 @@ function AccountingContent() {
       {/* TAB 3: CHART OF ACCOUNTS */}
       {/* ========================================================================= */}
       {activeTab === "ACCOUNTS" && (
-        <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
-          <table className="w-full text-left text-xs text-slate-600 dark:text-slate-300">
-            <thead className="border-b border-slate-200 bg-slate-50/75 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:border-slate-800 dark:bg-slate-800/50">
-              <tr>
-                <th className="px-4 py-3">Code</th>
-                <th className="px-4 py-3">Account Name</th>
-                <th className="px-4 py-3">Type</th>
-                <th className="px-4 py-3">Sub-Type</th>
-                <th className="px-4 py-3 text-right">Running Balance</th>
-                <th className="px-4 py-3 text-center">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {accounts.map((a) => (
-                <tr key={a.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40">
-                  <td className="px-4 py-3 font-mono font-bold text-blue-600 dark:text-blue-400">{a.code}</td>
-                  <td className="px-4 py-3 font-semibold text-slate-900 dark:text-white">{a.name}</td>
-                  <td className="px-4 py-3">
-                    <Badge
-                      variant={
-                        a.type === "ASSET"
-                          ? "default"
-                          : a.type === "LIABILITY"
-                          ? "danger"
-                          : a.type === "REVENUE"
-                          ? "success"
-                          : a.type === "EXPENSE"
-                          ? "warning"
-                          : "secondary"
-                      }
-                    >
-                      {a.type}
-                    </Badge>
-                  </td>
-                  <td className="px-4 py-3 text-slate-500">{a.subType || "—"}</td>
-                  <td className="px-4 py-3 text-right font-bold tabular-nums text-slate-900 dark:text-white">
-                    {formatMoney(a.balance)}
-                  </td>
-                  <td className="px-4 py-3 text-center">
+        <div className="space-y-4">
+          {/* Summary KPIs */}
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+            <div className="rounded-2xl border border-slate-200/80 bg-white p-3.5 shadow-xs dark:border-slate-800 dark:bg-slate-900">
+              <span className="text-[11px] font-bold text-slate-500">{t("Total Heads", "کل کھاتے")}</span>
+              <p className="mt-1 text-lg font-black text-slate-900 dark:text-white">{accountStats.total}</p>
+              <span className="text-[10px] text-slate-400">{t("Double-entry active", "ڈبل انٹری فعال")}</span>
+            </div>
+            <div className="rounded-2xl border border-blue-200/80 bg-blue-50/50 p-3.5 shadow-xs dark:border-blue-900/40 dark:bg-blue-950/20">
+              <span className="text-[11px] font-bold text-blue-700 dark:text-blue-400">{t("Assets (1000s)", "اثاثے")}</span>
+              <p className="mt-1 text-lg font-black text-blue-900 dark:text-blue-200">{formatMoney(accountStats.assets)}</p>
+              <span className="text-[10px] text-blue-600 dark:text-blue-400">{accountStats.assetCount} {t("heads", "کھاتے")}</span>
+            </div>
+            <div className="rounded-2xl border border-rose-200/80 bg-rose-50/50 p-3.5 shadow-xs dark:border-rose-900/40 dark:bg-rose-950/20">
+              <span className="text-[11px] font-bold text-rose-700 dark:text-rose-400">{t("Liabilities (2000s)", "واجبات")}</span>
+              <p className="mt-1 text-lg font-black text-rose-900 dark:text-rose-200">{formatMoney(accountStats.liabilities)}</p>
+              <span className="text-[10px] text-rose-600 dark:text-rose-400">{accountStats.liabilityCount} {t("heads", "کھاتے")}</span>
+            </div>
+            <div className="rounded-2xl border border-purple-200/80 bg-purple-50/50 p-3.5 shadow-xs dark:border-purple-900/40 dark:bg-purple-950/20">
+              <span className="text-[11px] font-bold text-purple-700 dark:text-purple-400">{t("Capital & Equity (3000s)", "سرمایہ و کیپیٹل")}</span>
+              <p className="mt-1 text-lg font-black text-purple-900 dark:text-purple-200">{formatMoney(accountStats.equity)}</p>
+              <span className="text-[10px] text-purple-600 dark:text-purple-400">{accountStats.equityCount} {t("heads", "کھاتے")}</span>
+            </div>
+            <div className="rounded-2xl border border-emerald-200/80 bg-emerald-50/50 p-3.5 shadow-xs dark:border-emerald-900/40 dark:bg-emerald-950/20">
+              <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-400">{t("Revenue (4000s)", "سیلز آمدن")}</span>
+              <p className="mt-1 text-lg font-black text-emerald-900 dark:text-emerald-200">{formatMoney(accountStats.revenue)}</p>
+              <span className="text-[10px] text-emerald-600 dark:text-emerald-400">{accountStats.revenueCount} {t("heads", "کھاتے")}</span>
+            </div>
+            <div className="rounded-2xl border border-amber-200/80 bg-amber-50/50 p-3.5 shadow-xs dark:border-amber-900/40 dark:bg-amber-950/20">
+              <span className="text-[11px] font-bold text-amber-700 dark:text-amber-400">{t("Costs & Expenses (5-6000s)", "لاگت و اخراجات")}</span>
+              <p className="mt-1 text-lg font-black text-amber-900 dark:text-amber-200">{formatMoney(accountStats.cogs + accountStats.expenses)}</p>
+              <span className="text-[10px] text-amber-600 dark:text-amber-400">{accountStats.cogsCount + accountStats.expenseCount} {t("heads", "کھاتے")}</span>
+            </div>
+          </div>
+
+          {/* Action & Filter Toolbar */}
+          <div className="flex flex-col gap-3 rounded-2xl border border-slate-200/80 bg-white p-3.5 shadow-sm sm:flex-row sm:items-center sm:justify-between dark:border-slate-800 dark:bg-slate-900">
+            <div className="flex flex-1 flex-wrap items-center gap-2">
+              <div className="relative min-w-[220px] max-w-sm flex-1">
+                <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder={t("Search by code, title, or Urdu name...", "کوڈ، عنوان یا اردو نام سے تلاش کریں...")}
+                  value={accountSearch}
+                  onChange={(e) => setAccountSearch(e.target.value)}
+                  className="w-full rounded-xl border border-slate-300 bg-white pl-8 pr-3 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:border-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                />
+              </div>
+
+              {/* Type Category Pills */}
+              <div className="flex flex-wrap items-center gap-1">
+                {[
+                  { key: "ALL", label: t("All", "تمام"), count: accounts.length },
+                  { key: "ASSET", label: t("Assets", "اثاثے"), count: accountStats.assetCount },
+                  { key: "LIABILITY", label: t("Liabilities", "واجبات"), count: accountStats.liabilityCount },
+                  { key: "EQUITY", label: t("Equity / Capital", "سرمایہ"), count: accountStats.equityCount },
+                  { key: "REVENUE", label: t("Revenue", "آمدن"), count: accountStats.revenueCount },
+                  { key: "COGS", label: t("COGS", "لاگت"), count: accountStats.cogsCount },
+                  { key: "EXPENSE", label: t("Expenses", "اخراجات"), count: accountStats.expenseCount },
+                ].map((item) => (
+                  <button
+                    key={item.key}
+                    type="button"
+                    onClick={() => setAccountTypeFilter(item.key)}
+                    className={`rounded-lg px-2.5 py-1 text-[11px] font-bold transition ${
+                      accountTypeFilter === item.key
+                        ? "bg-slate-900 text-white shadow-xs dark:bg-blue-600"
+                        : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700"
+                    }`}
+                  >
+                    {item.label} ({item.count})
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              <Link
+                href="/accounting/opening-balances"
+                className="inline-flex items-center gap-1.5 rounded-xl border border-purple-200 bg-purple-50 px-3 py-1.5 text-xs font-bold text-purple-700 hover:bg-purple-100 transition dark:border-purple-800 dark:bg-purple-950/40 dark:text-purple-300"
+                title={t("Manage Opening Balances & Initial Capital", "ابتدائی کھاتہ اور کیپیٹل سیٹ اپ")}
+              >
+                <Scale className="h-3.5 w-3.5" />
+                <span>{t("Opening Balances & Capital", "ابتدائی کھاتہ و کیپیٹل")}</span>
+              </Link>
+
+              <button
+                type="button"
+                onClick={() => openAddAccountModal("EXPENSE")}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-3 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-blue-700 transition"
+              >
+                <PlusCircle className="h-3.5 w-3.5" />
+                <span>{t("+ Add Account", "+ نیا کھاتہ شامل کریں")}</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Accounts Table */}
+          <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            {filteredAccounts.length === 0 ? (
+              <div className="p-12 text-center">
+                <FolderPlus className="mx-auto h-10 w-10 text-slate-300 dark:text-slate-700" />
+                <h4 className="mt-2 text-sm font-bold text-slate-700 dark:text-slate-300">
+                  {t("No account heads found", "کوئی کھاتہ نہیں ملا")}
+                </h4>
+                <p className="mt-1 text-xs text-slate-400">
+                  {accountSearch
+                    ? t("No accounts matched your search keyword.", "آپ کی تلاش سے ملتا جلتا کوئی کھاتہ موجود نہیں ہے۔")
+                    : t("No accounts under this category.", "اس کیٹیگری میں کوئی کھاتہ موجود نہیں ہے۔")}
+                </p>
+                <div className="mt-4 flex justify-center gap-2">
+                  {accountSearch && (
                     <button
-                      onClick={() => {
-                        setLedgerType("ACCOUNT");
-                        setSelectedEntityId(a.id);
-                        setActiveTab("LEDGER");
-                      }}
-                      className="rounded-lg bg-blue-50 px-2 py-1 text-[11px] font-bold text-blue-700 hover:bg-blue-100 dark:bg-blue-900/40 dark:text-blue-300"
+                      type="button"
+                      onClick={() => setAccountSearch("")}
+                      className="rounded-lg border border-slate-300 px-3 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300"
                     >
-                      {t("View Ledger", "کھاتہ دیکھیں")}
+                      {t("Clear Search", "تلاش صاف کریں")}
                     </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => openAddAccountModal(accountTypeFilter !== "ALL" ? accountTypeFilter : "EXPENSE")}
+                    className="rounded-lg bg-blue-600 px-3 py-1 text-xs font-bold text-white hover:bg-blue-700"
+                  >
+                    {t("+ Add New Account", "+ نیا کھاتہ شامل کریں")}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <table className="w-full text-left text-xs text-slate-600 dark:text-slate-300">
+                <thead className="border-b border-slate-200 bg-slate-50/75 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:border-slate-800 dark:bg-slate-800/50">
+                  <tr>
+                    <th className="px-4 py-3 w-20">Code</th>
+                    <th className="px-4 py-3">Account Title / Ledger Head</th>
+                    <th className="px-4 py-3">Category</th>
+                    <th className="px-4 py-3">Sub-Type</th>
+                    <th className="px-4 py-3 text-right">Running Balance</th>
+                    <th className="px-4 py-3 text-center w-28">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {filteredAccounts.map((a) => {
+                    const typeCfg = ACCOUNT_TYPE_CONFIG[a.type] || {
+                      label: a.type,
+                      urduLabel: a.type,
+                      badgeColor: "bg-slate-100 text-slate-700 border-slate-200",
+                    };
+                    const urduName = ACCOUNT_URDU_NAMES[a.code];
+                    const isCapital = a.type === "EQUITY" || ["3010", "3020", "3100"].includes(a.code);
+
+                    return (
+                      <tr
+                        key={a.id}
+                        className={`hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition ${
+                          isCapital ? "bg-purple-50/20 dark:bg-purple-950/10" : ""
+                        }`}
+                      >
+                        <td className="px-4 py-3 font-mono font-bold text-blue-600 dark:text-blue-400">
+                          {a.code}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex flex-col">
+                            <span className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                              {a.name}
+                              {isCapital && (
+                                <span className="inline-flex items-center rounded-sm bg-purple-100 px-1.5 py-0.5 text-[9px] font-bold text-purple-700 dark:bg-purple-900/60 dark:text-purple-300">
+                                  Capital
+                                </span>
+                              )}
+                            </span>
+                            {urduName && (
+                              <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
+                                {urduName}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span
+                            className={`inline-flex items-center rounded-lg border px-2 py-0.5 text-[10px] font-extrabold ${typeCfg.badgeColor}`}
+                          >
+                            {typeCfg.label}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-slate-500 font-medium">
+                          <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] text-slate-600 dark:bg-slate-800 dark:text-slate-400">
+                            {a.subType || "General"}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-right font-bold tabular-nums text-slate-900 dark:text-white">
+                          <span
+                            className={
+                              Number(a.balance) < 0
+                                ? "text-rose-600 dark:text-rose-400"
+                                : Number(a.balance) > 0
+                                ? "text-slate-900 dark:text-slate-100"
+                                : "text-slate-400"
+                            }
+                          >
+                            Rs. {formatMoney(a.balance)}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <button
+                            onClick={() => {
+                              setLedgerType("ACCOUNT");
+                              setSelectedEntityId(a.id);
+                              setActiveTab("LEDGER");
+                            }}
+                            className="rounded-lg bg-blue-50 px-2.5 py-1 text-[11px] font-bold text-blue-700 hover:bg-blue-100 dark:bg-blue-900/40 dark:text-blue-300 transition"
+                          >
+                            {t("View Ledger", "کھاتہ دیکھیں")}
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+          </div>
         </div>
       )}
 
@@ -1938,6 +2265,174 @@ function AccountingContent() {
             </Button>
             <Button type="submit" variant="success" isLoading={depositSubmitting}>
               {t("Deposit Cash & Generate Voucher", "کیش جمع کر کے واؤچر بنائیں")}
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Add New Account Head Modal */}
+      <Modal
+        isOpen={showAddAccountModal}
+        onClose={() => setShowAddAccountModal(false)}
+        title={t("+ Add New Account Head", "+ نیا کھاتہ شامل کریں")}
+        description={t(
+          "Create a custom ledger account head for your Chart of Accounts (Bank, Cash, Expense, Asset, Capital, Liability)",
+          "اپنے چارٹ آف اکاؤنٹس میں نیا کھاتہ (بینک، کیش، خرچ، اثاثہ، سرمایہ، یا واجبات) شامل کریں"
+        )}
+        maxWidth="lg"
+      >
+        <form onSubmit={handleCreateAccount} className="space-y-4">
+          {addAccountError && (
+            <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-300">
+              {addAccountError}
+            </div>
+          )}
+
+          {addAccountSuccess && (
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-300">
+              {addAccountSuccess}
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <label className="mb-1 block text-xs font-bold text-slate-700 dark:text-slate-300">
+                {t("Account Category / Type *", "کھاتے کی قسم / کیٹیگری *")}
+              </label>
+              <select
+                value={newAccType}
+                onChange={(e) => handleAccountTypeChange(e.target.value)}
+                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+              >
+                <option value="ASSET">{t("ASSET (1000s) - Cash, Bank, Inventory, Fixed Assets", "اثاثے (1000s) - کیش، بینک، اسٹاک، فکسڈ اثاثہ")}</option>
+                <option value="LIABILITY">{t("LIABILITY (2000s) - Payables, Taxes, Borrowings", "واجبات (2000s) - سپلائرز کے واجبات، ٹیکس، قرض")}</option>
+                <option value="EQUITY">{t("EQUITY (3000s) - Capital, Drawings, Retained Earnings", "سرمایہ و کیپیٹل (3000s) - اوونر کیپیٹل، ڈرائنگز")}</option>
+                <option value="REVENUE">{t("REVENUE (4000s) - Sales Income, Discounts", "آمدن (4000s) - سیلز، منافع، دیگر آمدن")}</option>
+                <option value="COGS">{t("COGS (5000s) - Cost of Goods Sold, Freight", "مال کی لاگت (5000s) - سامان کی اصل لاگت، فریٹ")}</option>
+                <option value="EXPENSE">{t("EXPENSE (6000s) - Rent, Salaries, Utilities, Fuel", "اخراجات (6000s) - کرایہ، تنخواہیں، بلز، پٹرول")}</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-bold text-slate-700 dark:text-slate-300">
+                {t("Account Code *", "کھاتہ کوڈ نمبر *")}
+              </label>
+              <Input
+                value={newAccCode}
+                onChange={(e) => setNewAccCode(e.target.value)}
+                placeholder="e.g. 1025, 6095"
+                required
+              />
+              <span className="text-[10px] text-slate-400">
+                {t("Suggested standard code prefix:", "تجویز کردہ کوڈ:")} {ACCOUNT_TYPE_CONFIG[newAccType]?.codePrefix}
+              </span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <label className="mb-1 block text-xs font-bold text-slate-700 dark:text-slate-300">
+                {t("Account Title (English) *", "کھاتے کا عنوان (انگریزی) *")}
+              </label>
+              <Input
+                value={newAccName}
+                onChange={(e) => setNewAccName(e.target.value)}
+                placeholder="e.g. Meezan Bank Limited, Generator Fuel"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-bold text-slate-700 dark:text-slate-300">
+                {t("Account Title (Urdu / Local)", "کھاتے کا نام (اردو)")}
+              </label>
+              <Input
+                value={newAccUrdu}
+                onChange={(e) => setNewAccUrdu(e.target.value)}
+                placeholder="مثال: میزان بینک کھاتہ، جنریٹر ڈیزل و آئل"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <label className="mb-1 block text-xs font-bold text-slate-700 dark:text-slate-300">
+                {t("Sub-Type Classification", "ذیلی درجہ بندی (سب ٹائپ)")}
+              </label>
+              <div className="flex gap-1.5">
+                <Input
+                  value={newAccSubType}
+                  onChange={(e) => setNewAccSubType(e.target.value)}
+                  placeholder="e.g. Bank, Cash, Operating, Fixed Asset"
+                />
+                <select
+                  onChange={(e) => setNewAccSubType(e.target.value)}
+                  value=""
+                  className="rounded-xl border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                  title="Pick standard sub-type"
+                >
+                  <option value="">▼ {t("Suggestions", "تجاویز")}</option>
+                  {(COMMON_SUBTYPES[newAccType] || []).map((sub) => (
+                    <option key={sub} value={sub}>
+                      {sub}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-bold text-slate-700 dark:text-slate-300">
+                {t("Opening / Initial Balance (Rs)", "ابتدائی بیلنس (اختیاری)")}
+              </label>
+              <Input
+                type="number"
+                step="0.01"
+                value={newAccBalance}
+                onChange={(e) => setNewAccBalance(parseFloat(e.target.value) || 0)}
+                placeholder="0.00"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-bold text-slate-700 dark:text-slate-300">
+              {t("Notes / Description", "اضافی تفصیل یا وضاحت")}
+            </label>
+            <Input
+              value={newAccNotes}
+              onChange={(e) => setNewAccNotes(e.target.value)}
+              placeholder="e.g. Branch IBAN / account details or ledger purpose"
+            />
+          </div>
+
+          {/* Integration hint box */}
+          <div className="rounded-xl border border-blue-100 bg-blue-50/70 p-3 text-xs text-blue-950 dark:border-blue-900/40 dark:bg-blue-950/30 dark:text-blue-200">
+            <span className="font-bold flex items-center gap-1.5 text-blue-800 dark:text-blue-300">
+              💡 {t("Automatic Integration:", "خودکار شمولیت:")}
+            </span>
+            <p className="mt-1 text-[11px] text-blue-900/80 dark:text-blue-300/80">
+              {t(
+                "Accounts created here become immediately available across General Ledger statements, Journal Vouchers, and Trial Balance. Adding a Bank or Cash account will also enable it in Payments and Bank Deposits.",
+                "یہاں شامل کردہ کھاتے فوری طور پر جنرل لیجر اسٹیٹمنٹ، روزنامچہ اور میزان پرتال میں دستیاب ہوں گے۔ بینک یا کیش کھاتہ شامل کرنے پر وہ ادائیگیاں اور بینک ڈپازٹ میں بھی ظاہر ہوگا۔"
+              )}
+            </p>
+          </div>
+
+          <div className="pt-2 flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setShowAddAccountModal(false)}
+            >
+              {t("Cancel", "منسوخ")}
+            </Button>
+            <Button
+              type="submit"
+              variant="primary"
+              isLoading={addAccountLoading}
+            >
+              {t("Save Account Head", "کھاتہ محفوظ کریں")}
             </Button>
           </div>
         </form>

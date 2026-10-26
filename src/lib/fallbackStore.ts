@@ -25,6 +25,63 @@ export interface StoreState {
   branches: any[];
 }
 
+export const makeCompanyAccounts = (
+  bizId: string,
+  cashBal = 0,
+  bankBal = 0,
+  invBal = 0,
+  recBal = 0,
+  payBal = 0,
+  capBal = 0
+) => [
+  // Assets (1000 - 1999)
+  { id: `acc-1010-${bizId}`, businessId: bizId, code: "1010", name: "Cash in Hand", type: "ASSET", subType: "Cash", balance: cashBal },
+  { id: `acc-1020-${bizId}`, businessId: bizId, code: "1020", name: "Main Bank Account", type: "ASSET", subType: "Bank", balance: bankBal },
+  { id: `acc-1030-${bizId}`, businessId: bizId, code: "1030", name: "Petty Cash", type: "ASSET", subType: "Cash", balance: 0 },
+  { id: `acc-1100-${bizId}`, businessId: bizId, code: "1100", name: "Accounts Receivable", type: "ASSET", subType: "Receivable", balance: recBal },
+  { id: `acc-1200-${bizId}`, businessId: bizId, code: "1200", name: "Merchandise Inventory", type: "ASSET", subType: "Inventory", balance: invBal },
+  { id: `acc-1300-${bizId}`, businessId: bizId, code: "1300", name: "Other Current Assets", type: "ASSET", subType: "Current Asset", balance: 0 },
+  { id: `acc-1400-${bizId}`, businessId: bizId, code: "1400", name: "Prepaid Expenses & Advances", type: "ASSET", subType: "Prepaid", balance: 0 },
+  { id: `acc-1510-${bizId}`, businessId: bizId, code: "1510", name: "Furniture, Fixtures & Equipment", type: "ASSET", subType: "Fixed Asset", balance: 0 },
+  { id: `acc-1520-${bizId}`, businessId: bizId, code: "1520", name: "Vehicles & Transport Equipment", type: "ASSET", subType: "Fixed Asset", balance: 0 },
+
+  // Liabilities (2000 - 2999)
+  { id: `acc-2010-${bizId}`, businessId: bizId, code: "2010", name: "Accounts Payable", type: "LIABILITY", subType: "Payable", balance: payBal },
+  { id: `acc-2100-${bizId}`, businessId: bizId, code: "2100", name: "Tax / VAT Payable", type: "LIABILITY", subType: "Tax", balance: 0 },
+  { id: `acc-2200-${bizId}`, businessId: bizId, code: "2200", name: "Other Current Liabilities", type: "LIABILITY", subType: "Current Liability", balance: 0 },
+  { id: `acc-2300-${bizId}`, businessId: bizId, code: "2300", name: "Accrued Expenses & Salaries Payable", type: "LIABILITY", subType: "Accrued Liability", balance: 0 },
+  { id: `acc-2510-${bizId}`, businessId: bizId, code: "2510", name: "Bank Loan / Long-Term Borrowings", type: "LIABILITY", subType: "Long-Term Liability", balance: 0 },
+
+  // Equity / Capital (3000 - 3999)
+  { id: `acc-3010-${bizId}`, businessId: bizId, code: "3010", name: "Owner's Capital", type: "EQUITY", subType: "Capital", balance: capBal },
+  { id: `acc-3020-${bizId}`, businessId: bizId, code: "3020", name: "Owner's Drawings", type: "EQUITY", subType: "Drawings", balance: 0 },
+  { id: `acc-3100-${bizId}`, businessId: bizId, code: "3100", name: "Retained Earnings / Opening Capital", type: "EQUITY", subType: "Retained Earnings", balance: 0 },
+
+  // Revenue (4000 - 4999)
+  { id: `acc-4010-${bizId}`, businessId: bizId, code: "4010", name: "Sales Revenue", type: "REVENUE", subType: "Operating Revenue", balance: 0 },
+  { id: `acc-4020-${bizId}`, businessId: bizId, code: "4020", name: "Sales Returns & Allowances", type: "REVENUE", subType: "Contra Revenue", balance: 0 },
+  { id: `acc-4030-${bizId}`, businessId: bizId, code: "4030", name: "Sales Discounts Allowed", type: "REVENUE", subType: "Contra Revenue", balance: 0 },
+  { id: `acc-4100-${bizId}`, businessId: bizId, code: "4100", name: "Other Income / Discount Received", type: "REVENUE", subType: "Non-Operating Revenue", balance: 0 },
+
+  // Cost of Goods Sold (5000 - 5999)
+  { id: `acc-5010-${bizId}`, businessId: bizId, code: "5010", name: "Cost of Goods Sold (COGS)", type: "COGS", subType: "Direct Cost", balance: 0 },
+  { id: `acc-5020-${bizId}`, businessId: bizId, code: "5020", name: "Inventory Shrinkage & Loss", type: "COGS", subType: "Stock Loss", balance: 0 },
+  { id: `acc-5030-${bizId}`, businessId: bizId, code: "5030", name: "Freight & Delivery Inward", type: "COGS", subType: "Direct Cost", balance: 0 },
+
+  // Expenses (6000 - 6999)
+  { id: `acc-6010-${bizId}`, businessId: bizId, code: "6010", name: "Rent Expense", type: "EXPENSE", subType: "Occupancy", balance: 0 },
+  { id: `acc-6020-${bizId}`, businessId: bizId, code: "6020", name: "Salaries & Wages", type: "EXPENSE", subType: "Payroll", balance: 0 },
+  { id: `acc-6030-${bizId}`, businessId: bizId, code: "6030", name: "Electricity & Utilities", type: "EXPENSE", subType: "Utilities", balance: 0 },
+  { id: `acc-6040-${bizId}`, businessId: bizId, code: "6040", name: "Internet & Mobile", type: "EXPENSE", subType: "Utilities", balance: 0 },
+  { id: `acc-6050-${bizId}`, businessId: bizId, code: "6050", name: "Transport & Fuel", type: "EXPENSE", subType: "Logistics", balance: 0 },
+  { id: `acc-6060-${bizId}`, businessId: bizId, code: "6060", name: "Repairs & Maintenance", type: "EXPENSE", subType: "Maintenance", balance: 0 },
+  { id: `acc-6070-${bizId}`, businessId: bizId, code: "6070", name: "Office Supplies & Stationery", type: "EXPENSE", subType: "Admin", balance: 0 },
+  { id: `acc-6080-${bizId}`, businessId: bizId, code: "6080", name: "Marketing & Advertising", type: "EXPENSE", subType: "Sales", balance: 0 },
+  { id: `acc-6090-${bizId}`, businessId: bizId, code: "6090", name: "Bank Fees & Charges", type: "EXPENSE", subType: "Financial", balance: 0 },
+  { id: `acc-6100-${bizId}`, businessId: bizId, code: "6100", name: "Legal & Professional Fees", type: "EXPENSE", subType: "Professional", balance: 0 },
+  { id: `acc-6990-${bizId}`, businessId: bizId, code: "6990", name: "Miscellaneous Expenses", type: "EXPENSE", subType: "General", balance: 0 },
+];
+
 function initializeState(): StoreState {
   const now = new Date();
   const yesterday = new Date(Date.now() - 86400000);
@@ -1657,18 +1714,6 @@ function initializeState(): StoreState {
   ];
 
   // 12. Chart of Accounts per Company
-  const makeCompanyAccounts = (bizId: string, cashBal: number, bankBal: number, invBal: number, recBal: number, payBal: number, capBal: number) => [
-    { id: `acc-1010-${bizId}`, businessId: bizId, code: "1010", name: "Cash in Hand", type: "ASSET", subType: "Cash", balance: cashBal },
-    { id: `acc-1020-${bizId}`, businessId: bizId, code: "1020", name: "Bank Account", type: "ASSET", subType: "Bank", balance: bankBal },
-    { id: `acc-1100-${bizId}`, businessId: bizId, code: "1100", name: "Accounts Receivable", type: "ASSET", subType: "Receivable", balance: recBal },
-    { id: `acc-1200-${bizId}`, businessId: bizId, code: "1200", name: "Merchandise Inventory", type: "ASSET", subType: "Inventory", balance: invBal },
-    { id: `acc-2010-${bizId}`, businessId: bizId, code: "2010", name: "Accounts Payable", type: "LIABILITY", subType: "Payable", balance: payBal },
-    { id: `acc-3010-${bizId}`, businessId: bizId, code: "3010", name: "Owner's Capital", type: "EQUITY", subType: "Capital", balance: capBal },
-    { id: `acc-4010-${bizId}`, businessId: bizId, code: "4010", name: "Sales Revenue", type: "REVENUE", subType: "Operating Revenue", balance: 0 },
-    { id: `acc-5010-${bizId}`, businessId: bizId, code: "5010", name: "Cost of Goods Sold (COGS)", type: "COGS", subType: "Direct Cost", balance: 0 },
-    { id: `acc-6010-${bizId}`, businessId: bizId, code: "6010", name: "Operating Expenses", type: "EXPENSE", subType: "Operating", balance: 0 },
-  ];
-
   const accounts = [
     ...makeCompanyAccounts("biz-101", 0, 0, 0, 0, 0, 0),
     ...makeCompanyAccounts("biz-102", 0, 0, 0, 0, 0, 0),
@@ -2160,18 +2205,8 @@ export function storeAddCompany(data: any) {
 
   fallbackStore.companies.push(newCompany);
 
-  // Automatically provision isolated chart of accounts for the new company
-  const defaultAccounts = [
-    { id: `acc-1010-${compId}`, businessId: compId, code: "1010", name: "Cash in Hand", type: "ASSET", subType: "Cash", balance: 0 },
-    { id: `acc-1020-${compId}`, businessId: compId, code: "1020", name: "Bank Account", type: "ASSET", subType: "Bank", balance: 0 },
-    { id: `acc-1100-${compId}`, businessId: compId, code: "1100", name: "Accounts Receivable", type: "ASSET", subType: "Receivable", balance: 0 },
-    { id: `acc-1200-${compId}`, businessId: compId, code: "1200", name: "Merchandise Inventory", type: "ASSET", subType: "Inventory", balance: 0 },
-    { id: `acc-2010-${compId}`, businessId: compId, code: "2010", name: "Accounts Payable", type: "LIABILITY", subType: "Payable", balance: 0 },
-    { id: `acc-3010-${compId}`, businessId: compId, code: "3010", name: "Owner's Capital", type: "EQUITY", subType: "Capital", balance: 0 },
-    { id: `acc-4010-${compId}`, businessId: compId, code: "4010", name: "Sales Revenue", type: "REVENUE", subType: "Operating Revenue", balance: 0 },
-    { id: `acc-5010-${compId}`, businessId: compId, code: "5010", name: "Cost of Goods Sold (COGS)", type: "COGS", subType: "Direct Cost", balance: 0 },
-    { id: `acc-6010-${compId}`, businessId: compId, code: "6010", name: "Operating Expenses", type: "EXPENSE", subType: "Operating", balance: 0 },
-  ];
+  // Automatically provision complete isolated chart of accounts for the new company
+  const defaultAccounts = makeCompanyAccounts(compId, 0, 0, 0, 0, 0, 0);
   fallbackStore.accounts.push(...defaultAccounts);
 
   // Automatically provision isolated cash & bank accounts
@@ -2191,6 +2226,114 @@ export function storeAddCompany(data: any) {
 
   return newCompany;
 }
+
+export function storeEnsureStandardAccounts(businessId: string) {
+  const existingCodes = new Set(
+    fallbackStore.accounts
+      .filter((a) => a.businessId === businessId)
+      .map((a) => a.code)
+  );
+
+  const standardTemplate = makeCompanyAccounts(businessId, 0, 0, 0, 0, 0, 0);
+  for (const acc of standardTemplate) {
+    if (!existingCodes.has(acc.code)) {
+      fallbackStore.accounts.push(acc);
+      existingCodes.add(acc.code);
+    }
+  }
+
+  // Ensure default Cash & Bank exist in cashBankAccounts
+  const hasCash = fallbackStore.cashBankAccounts.some((cb) => cb.businessId === businessId && cb.type === "CASH");
+  const hasBank = fallbackStore.cashBankAccounts.some((cb) => cb.businessId === businessId && cb.type === "BANK");
+
+  if (!hasCash) {
+    fallbackStore.cashBankAccounts.push({
+      id: `cb-cash-${businessId}`,
+      businessId,
+      name: "Cash in Hand",
+      type: "CASH",
+      balance: 0,
+      isDefault: true,
+    });
+  }
+
+  if (!hasBank) {
+    fallbackStore.cashBankAccounts.push({
+      id: `cb-bank-${businessId}`,
+      businessId,
+      name: "Company Bank Account",
+      type: "BANK",
+      balance: 0,
+      isDefault: false,
+    });
+  }
+}
+
+export function storeCreateAccount(data: {
+  businessId: string;
+  code: string;
+  name: string;
+  type: string;
+  subType?: string;
+  balance?: number;
+  notes?: string;
+}) {
+  storeEnsureStandardAccounts(data.businessId);
+
+  const existing = fallbackStore.accounts.find(
+    (a) => a.businessId === data.businessId && a.code === data.code
+  );
+  if (existing) {
+    throw new Error(`Account code '${data.code}' already exists.`);
+  }
+
+  const newAcc = {
+    id: `acc-${data.code}-${data.businessId}-${Date.now()}`,
+    businessId: data.businessId,
+    code: data.code,
+    name: data.name,
+    type: data.type,
+    subType: data.subType || "General",
+    balance: Number(data.balance || 0),
+    isSystem: false,
+    isActive: true,
+    notes: data.notes || null,
+    createdAt: new Date().toISOString(),
+  };
+
+  fallbackStore.accounts.push(newAcc);
+
+  // If subType is Bank or Cash, link to cashBankAccounts
+  if (data.subType === "Bank") {
+    fallbackStore.cashBankAccounts.push({
+      id: `cb-b-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      businessId: data.businessId,
+      accountId: newAcc.id,
+      name: data.name,
+      type: "BANK",
+      balance: Number(data.balance || 0),
+      isDefault: false,
+      isActive: true,
+      bankName: data.name,
+      createdAt: new Date().toISOString(),
+    });
+  } else if (data.subType === "Cash") {
+    fallbackStore.cashBankAccounts.push({
+      id: `cb-c-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      businessId: data.businessId,
+      accountId: newAcc.id,
+      name: data.name,
+      type: "CASH",
+      balance: Number(data.balance || 0),
+      isDefault: false,
+      isActive: true,
+      createdAt: new Date().toISOString(),
+    });
+  }
+
+  return newAcc;
+}
+
 
 export function storeUpdateCompany(id: string, updates: any) {
   const idx = fallbackStore.companies.findIndex((c) => c.id === id);

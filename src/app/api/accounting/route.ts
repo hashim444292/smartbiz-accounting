@@ -3,6 +3,9 @@ import { prisma } from "@/lib/prisma";
 import { getActiveBusinessId } from "@/lib/businessHelper";
 import { fallbackStore } from "@/lib/fallbackStore";
 
+import { ensureStandardAccounts } from "@/services/accountingService";
+import { storeEnsureStandardAccounts } from "@/lib/fallbackStore";
+
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
@@ -10,6 +13,7 @@ export async function GET(req: NextRequest) {
     const businessId = await getActiveBusinessId(req);
 
     if (!process.env.DATABASE_URL) {
+      storeEnsureStandardAccounts(businessId);
       return NextResponse.json({
         success: true,
         data: {
@@ -22,6 +26,12 @@ export async function GET(req: NextRequest) {
         },
         fallback: true,
       });
+    }
+
+    try {
+      await ensureStandardAccounts(prisma, businessId);
+    } catch (seedErr) {
+      console.warn("Notice: ensureStandardAccounts error:", seedErr);
     }
 
     const [accounts, journals, suppliers, customers, purchases, payments] = await Promise.all([
@@ -81,6 +91,7 @@ export async function GET(req: NextRequest) {
   } catch (error: any) {
     console.error("Accounting route error:", error?.message || error);
     const businessId = await getActiveBusinessId(req);
+    storeEnsureStandardAccounts(businessId);
     return NextResponse.json({
       success: true,
       data: {

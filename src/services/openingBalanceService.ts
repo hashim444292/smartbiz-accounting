@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
-import { fallbackStore } from "@/lib/fallbackStore";
+import { fallbackStore, storeEnsureStandardAccounts } from "@/lib/fallbackStore";
 import { Decimal, round2, toDecimal } from "@/lib/decimal";
-import { STANDARD_ACCOUNTS } from "@/services/accountingService";
+import { STANDARD_ACCOUNTS, ensureStandardAccounts } from "@/services/accountingService";
 import { createSafeAuditLog } from "@/lib/auditHelper";
 
 export interface OpeningBalanceInput {
@@ -445,29 +445,8 @@ export async function saveOpeningBalances(
           }
         }
 
-        // E. Ensure Standard Accounts Exist
-        const accountCodes = ["1010", "1020", "1100", "1200", "2010", "3010"];
-        for (const code of accountCodes) {
-          const existing = await tx.account.findUnique({
-            where: { businessId_code: { businessId, code } },
-          });
-          if (!existing) {
-            const std = STANDARD_ACCOUNTS[code];
-            if (std) {
-              await tx.account.create({
-                data: {
-                  businessId,
-                  code,
-                  name: std.name,
-                  type: std.type,
-                  subType: std.subType,
-                  balance: 0,
-                  isSystem: true,
-                },
-              });
-            }
-          }
-        }
+        // E. Ensure Standard Accounts Exist (Assets, Liabilities, Capital, Revenue, Expenses)
+        await ensureStandardAccounts(tx, businessId);
 
         // F. Remove any prior Opening Balance Journal Entries to prevent duplicate postings
         const existingJournals = await tx.journalEntry.findMany({
@@ -622,6 +601,7 @@ export async function saveOpeningBalances(
   }
 
   // Fallback store update
+  storeEnsureStandardAccounts(businessId);
   let capitalAcc = fallbackStore.accounts.find((a) => a.businessId === businessId && a.code === "3010");
   if (capitalAcc) {
     capitalAcc.balance = capitalAmount;

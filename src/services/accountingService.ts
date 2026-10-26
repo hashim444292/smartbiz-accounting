@@ -102,33 +102,106 @@ export interface JournalLineInput {
   description?: string;
 }
 
-export const STANDARD_ACCOUNTS: Record<string, { name: string; type: any; subType: string }> = {
-  "1010": { name: "Cash in Hand", type: "ASSET", subType: "Cash" },
-  "1020": { name: "Main Bank Account", type: "ASSET", subType: "Bank" },
-  "1100": { name: "Accounts Receivable", type: "ASSET", subType: "Receivable" },
-  "1200": { name: "Merchandise Inventory", type: "ASSET", subType: "Inventory" },
-  "1300": { name: "Other Current Assets", type: "ASSET", subType: "Current Asset" },
-  "2010": { name: "Accounts Payable", type: "LIABILITY", subType: "Payable" },
-  "2100": { name: "Tax / VAT Payable", type: "LIABILITY", subType: "Tax" },
-  "2200": { name: "Other Current Liabilities", type: "LIABILITY", subType: "Current Liability" },
-  "3010": { name: "Owner's Capital", type: "EQUITY", subType: "Capital" },
-  "3020": { name: "Owner's Drawings", type: "EQUITY", subType: "Drawings" },
-  "3100": { name: "Retained Earnings", type: "EQUITY", subType: "Retained Earnings" },
-  "4010": { name: "Sales Revenue", type: "REVENUE", subType: "Operating Revenue" },
-  "4020": { name: "Sales Returns", type: "REVENUE", subType: "Contra Revenue" },
-  "4100": { name: "Other Income", type: "REVENUE", subType: "Non-Operating Revenue" },
-  "5010": { name: "Cost of Goods Sold (COGS)", type: "COGS", subType: "Direct Cost" },
-  "5020": { name: "Inventory Shrinkage & Loss", type: "COGS", subType: "Stock Loss" },
-  "6010": { name: "Rent Expense", type: "EXPENSE", subType: "Occupancy" },
-  "6020": { name: "Salaries & Wages", type: "EXPENSE", subType: "Payroll" },
-  "6030": { name: "Electricity & Utilities", type: "EXPENSE", subType: "Utilities" },
-  "6040": { name: "Internet & Mobile", type: "EXPENSE", subType: "Utilities" },
-  "6050": { name: "Transport & Fuel", type: "EXPENSE", subType: "Logistics" },
-  "6060": { name: "Repairs & Maintenance", type: "EXPENSE", subType: "Maintenance" },
-  "6070": { name: "Office Supplies", type: "EXPENSE", subType: "Admin" },
-  "6080": { name: "Marketing & Advertising", type: "EXPENSE", subType: "Sales" },
-  "6990": { name: "Miscellaneous Expenses", type: "EXPENSE", subType: "General" },
+export const STANDARD_ACCOUNTS: Record<string, { name: string; type: any; subType: string; urduName?: string; description?: string }> = {
+  // ASSETS (1000 - 1999)
+  "1010": { name: "Cash in Hand", type: "ASSET", subType: "Cash", urduName: "کیش ان ہینڈ (نقدی)" },
+  "1020": { name: "Main Bank Account", type: "ASSET", subType: "Bank", urduName: "مین بینک اکاؤنٹ" },
+  "1030": { name: "Petty Cash", type: "ASSET", subType: "Cash", urduName: "پیٹی کیش (چھوٹا کیش)" },
+  "1100": { name: "Accounts Receivable", type: "ASSET", subType: "Receivable", urduName: "اکاؤنٹس ریسیویبل (گاہکوں سے وصولیاں)" },
+  "1200": { name: "Merchandise Inventory", type: "ASSET", subType: "Inventory", urduName: "تجارتی مال و انوینٹری اسٹاک" },
+  "1300": { name: "Other Current Assets", type: "ASSET", subType: "Current Asset", urduName: "دیگر موجودہ اثاثے" },
+  "1400": { name: "Prepaid Expenses & Advances", type: "ASSET", subType: "Prepaid", urduName: "پیشگی ادائیگیاں و ایڈوانسز" },
+  "1510": { name: "Furniture, Fixtures & Equipment", type: "ASSET", subType: "Fixed Asset", urduName: "فرنیچر و دفتری سامان" },
+  "1520": { name: "Vehicles & Transport Equipment", type: "ASSET", subType: "Fixed Asset", urduName: "گاڑیاں و ٹرانسپورٹ" },
+
+  // LIABILITIES (2000 - 2999)
+  "2010": { name: "Accounts Payable", type: "LIABILITY", subType: "Payable", urduName: "اکاؤنٹس پی ایبل (سپلائرز کے واجبات)" },
+  "2100": { name: "Tax / VAT Payable", type: "LIABILITY", subType: "Tax", urduName: "سیلز ٹیکس / ایف بی آر واجب الادا" },
+  "2200": { name: "Other Current Liabilities", type: "LIABILITY", subType: "Current Liability", urduName: "دیگر قلیل مدتی واجبات" },
+  "2300": { name: "Accrued Expenses & Salaries Payable", type: "LIABILITY", subType: "Accrued Liability", urduName: "واجب الادا اخراجات و تنخواہیں" },
+  "2510": { name: "Bank Loan / Long-Term Borrowings", type: "LIABILITY", subType: "Long-Term Liability", urduName: "طویل مدتی قرضہ جات / بینک لون" },
+
+  // EQUITY / CAPITAL (3000 - 3999)
+  "3010": { name: "Owner's Capital", type: "EQUITY", subType: "Capital", urduName: "اوونرز کیپیٹل (ابتدائی سرمایہ)" },
+  "3020": { name: "Owner's Drawings", type: "EQUITY", subType: "Drawings", urduName: "اوونرز ڈرائنگز (ذاتی استعمال)" },
+  "3100": { name: "Retained Earnings / Opening Capital", type: "EQUITY", subType: "Retained Earnings", urduName: "گزشتہ سال کا منافع / ابتدائی کھاتہ" },
+
+  // REVENUE (4000 - 4999)
+  "4010": { name: "Sales Revenue", type: "REVENUE", subType: "Operating Revenue", urduName: "سیلز ریونیو (فروخت کی آمدن)" },
+  "4020": { name: "Sales Returns & Allowances", type: "REVENUE", subType: "Contra Revenue", urduName: "سیلز واپسی و رعایت" },
+  "4030": { name: "Sales Discounts Allowed", type: "REVENUE", subType: "Contra Revenue", urduName: "سیلز ڈسکاؤنٹ" },
+  "4100": { name: "Other Income / Discount Received", type: "REVENUE", subType: "Non-Operating Revenue", urduName: "دیگر آمدن / حاصل شدہ ڈسکاؤنٹ" },
+
+  // COST OF GOODS SOLD (5000 - 5999)
+  "5010": { name: "Cost of Goods Sold (COGS)", type: "COGS", subType: "Direct Cost", urduName: "فروخت شدہ مال کی لاگت (COGS)" },
+  "5020": { name: "Inventory Shrinkage & Loss", type: "COGS", subType: "Stock Loss", urduName: "اسٹاک نقصان و ضیاع" },
+  "5030": { name: "Freight & Delivery Inward", type: "COGS", subType: "Direct Cost", urduName: "مال لانے کا کرایہ / فریٹ" },
+
+  // EXPENSES (6000 - 6999)
+  "6010": { name: "Rent Expense", type: "EXPENSE", subType: "Occupancy", urduName: "کرایہ خرچ (دکان / گودام)" },
+  "6020": { name: "Salaries & Wages", type: "EXPENSE", subType: "Payroll", urduName: "تنخواہیں و اجرت" },
+  "6030": { name: "Electricity & Utilities", type: "EXPENSE", subType: "Utilities", urduName: "بجلی، گیس و یوٹیلیٹی بلز" },
+  "6040": { name: "Internet & Mobile", type: "EXPENSE", subType: "Utilities", urduName: "انٹرنیٹ، ٹیلیفون و موبائل" },
+  "6050": { name: "Transport & Fuel", type: "EXPENSE", subType: "Logistics", urduName: "ٹرانسپورٹ، پٹرول و فیول" },
+  "6060": { name: "Repairs & Maintenance", type: "EXPENSE", subType: "Maintenance", urduName: "مرمت و دیکھ بھال" },
+  "6070": { name: "Office Supplies & Stationery", type: "EXPENSE", subType: "Admin", urduName: "اسٹیشنری و دفتری سامان" },
+  "6080": { name: "Marketing & Advertising", type: "EXPENSE", subType: "Sales", urduName: "مارکیٹنگ و تشہیر" },
+  "6090": { name: "Bank Fees & Charges", type: "EXPENSE", subType: "Financial", urduName: "بینک فیس و چارجز" },
+  "6100": { name: "Legal & Professional Fees", type: "EXPENSE", subType: "Professional", urduName: "قانونی و پروفیشنل فیس" },
+  "6990": { name: "Miscellaneous Expenses", type: "EXPENSE", subType: "General", urduName: "متفرق اخراجات" },
 };
+
+export const ACCOUNT_URDU_NAMES: Record<string, string> = Object.fromEntries(
+  Object.entries(STANDARD_ACCOUNTS).map(([code, acc]) => [code, acc.urduName || acc.name])
+);
+
+/**
+ * Ensures all standard Pakistan double-entry accounting heads exist for a business.
+ * If any standard account is missing, creates it with balance 0.
+ */
+export async function ensureStandardAccounts(
+  txOrPrisma: Prisma.TransactionClient | typeof prisma,
+  businessId: string
+): Promise<void> {
+  const existing = await txOrPrisma.account.findMany({
+    where: { businessId },
+    select: { code: true },
+  });
+
+  const existingCodes = new Set(existing.map((a) => a.code));
+  const missingEntries = Object.entries(STANDARD_ACCOUNTS).filter(
+    ([code]) => !existingCodes.has(code)
+  );
+
+  if (missingEntries.length === 0) return;
+
+  const createPayload = missingEntries.map(([code, std]) => ({
+    businessId,
+    code,
+    name: std.name,
+    type: std.type,
+    subType: std.subType,
+    balance: 0,
+    isSystem: true,
+    isActive: true,
+  }));
+
+  try {
+    await (txOrPrisma.account as any).createMany({
+      data: createPayload,
+      skipDuplicates: true,
+    });
+  } catch {
+    // Fallback if createMany encounters conflict or unsupported driver
+    for (const item of createPayload) {
+      try {
+        await txOrPrisma.account.create({ data: item });
+      } catch {
+        // Ignore duplicate key collision
+      }
+    }
+  }
+}
 
 /**
  * Creates and posts a balanced double-entry Journal Entry within an active Prisma transaction.
