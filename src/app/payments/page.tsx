@@ -258,6 +258,15 @@ export default function PaymentsPage() {
     setShowCashDepositModal(true);
   };
 
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("action") === "deposit") {
+        openCashDepositModal();
+      }
+    }
+  }, [accounts]);
+
   const openVoucherForPayment = (p: any) => {
     const fromAccName = p.account?.name || (accounts.find((a) => a.id === p.accountId)?.name) || "Cash Account";
     const toAccName = p.targetAccount?.name || (accounts.find((a) => a.id === p.targetAccountId)?.name) || "Bank Account";
