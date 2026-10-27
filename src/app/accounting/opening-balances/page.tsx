@@ -406,120 +406,105 @@ export default function OpeningBalancesPage() {
         </div>
       )}
 
-      {/* Accounting Guidance Banner */}
-      <div className="rounded-2xl border border-blue-200 bg-blue-50/80 p-4 text-xs text-blue-900 dark:border-blue-900/50 dark:bg-blue-950/40 dark:text-blue-200 flex items-start gap-3 shadow-xs">
-        <div className="p-2 bg-blue-100 dark:bg-blue-900/60 rounded-xl text-blue-700 dark:text-blue-300 shrink-0">
-          <Scale className="h-5 w-5" />
-        </div>
-        <div className="space-y-1">
-          <p className="font-bold text-sm text-blue-950 dark:text-blue-100 flex items-center gap-2">
-            <span>{t("Standard Accounting Principle: Capital is Defined Once at Inception", "اسٹینڈرڈ اکاؤنٹنگ اصول: سرمایہ (Capital) صرف ایک بار شروع میں درج ہوتا ہے")}</span>
-            <Badge variant="outline" className="border-blue-300 text-blue-700 dark:border-blue-700 dark:text-blue-300 text-[10px] bg-white dark:bg-blue-900/40">
-              IFRS / Double-Entry
-            </Badge>
-          </p>
-          <p className="leading-relaxed text-blue-800/90 dark:text-blue-300">
-            {t(
-              "Owner's Capital is established once as of the opening cutoff date. Ongoing daily purchases of new inventory do NOT alter Capital; they are funded by Cash, Bank, or Accounts Payable (Suppliers). Regular stock purchases belong to Purchases & Bills, not Opening Balances.",
-              "مالک کا ابتدائی سرمایہ (Capital) صرف ایک بار بزنس شروع کرتے وقت یا سافٹ ویئر کٹ آف تاریخ پر مقرر ہوتا ہے۔ روزمرہ کی نئی خریداری (Purchases) کیپیٹل میں شامل نہیں ہوتی، بلکہ وہ کیش، بینک یا سپلائر کے کھاتے سے ادا ہوتی ہے۔ نیا مال خریدنے کے لیے 'Purchases & Bills' ماڈیول استعمال کریں۔"
-            )}
-          </p>
-        </div>
-      </div>
-
-      {/* Top Financial Health & Double-Entry Summary */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-        <div className="rounded-2xl border border-slate-200/80 bg-white p-3.5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-          <div className="flex items-center justify-between text-slate-500">
-            <span className="text-[11px] font-bold uppercase tracking-wider">{t("Owner's Capital", "سرمایہ")}</span>
-            <Coins className="h-4 w-4 text-amber-500" />
-          </div>
-          <p className="mt-1 text-base font-black text-slate-900 dark:text-white">
-            {formatMoney(capitalAmount)}
-          </p>
-          <span className="text-[10px] text-slate-400">{t("Account 3010 (Equity)", "ایکویٹی کھاتہ")}</span>
-        </div>
-
-        <div className="rounded-2xl border border-slate-200/80 bg-white p-3.5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-          <div className="flex items-center justify-between text-slate-500">
-            <span className="text-[11px] font-bold uppercase tracking-wider">{t("Cash & Bank", "نقد و بینک")}</span>
-            <Wallet className="h-4 w-4 text-blue-500" />
-          </div>
-          <p className="mt-1 text-base font-black text-slate-900 dark:text-white">
-            {formatMoney(totals.cashTotal + totals.bankTotal)}
-          </p>
-          <span className="text-[10px] text-slate-400">{cashBankList.length} {t("accounts", "اکاؤنٹس")}</span>
-        </div>
-
-        <div className="rounded-2xl border border-slate-200/80 bg-white p-3.5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-          <div className="flex items-center justify-between text-slate-500">
-            <span className="text-[11px] font-bold uppercase tracking-wider">{t("Stock Value", "اسٹاک ویلیو")}</span>
-            <Boxes className="h-4 w-4 text-purple-500" />
-          </div>
-          <p className="mt-1 text-base font-black text-slate-900 dark:text-white">
-            {formatMoney(totals.inventoryTotal)}
-          </p>
-          <span className="text-[10px] text-slate-400">{inventoryList.length} {t("products", "آئٹمز")}</span>
-        </div>
-
-        <div className="rounded-2xl border border-slate-200/80 bg-white p-3.5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-          <div className="flex items-center justify-between text-slate-500">
-            <span className="text-[11px] font-bold uppercase tracking-wider">{t("Receivables", "وصولیاں")}</span>
-            <Users className="h-4 w-4 text-emerald-500" />
-          </div>
-          <p className="mt-1 text-base font-black text-slate-900 dark:text-white">
-            {formatMoney(totals.receivablesTotal)}
-          </p>
-          <span className="text-[10px] text-slate-400">{customersList.length} {t("customers", "کسٹمرز")}</span>
-        </div>
-
-        <div className="rounded-2xl border border-slate-200/80 bg-white p-3.5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-          <div className="flex items-center justify-between text-slate-500">
-            <span className="text-[11px] font-bold uppercase tracking-wider">{t("Payables", "واجبات")}</span>
-            <Truck className="h-4 w-4 text-rose-500" />
-          </div>
-          <p className="mt-1 text-base font-black text-slate-900 dark:text-white">
-            {formatMoney(totals.payablesTotal)}
-          </p>
-          <span className="text-[10px] text-slate-400">{suppliersList.length} {t("suppliers", "سپلائرز")}</span>
-        </div>
-
-        <div className={`rounded-2xl border p-3.5 shadow-sm transition ${
-          totals.isBalanced
-            ? "border-emerald-200 bg-emerald-50/70 dark:border-emerald-900 dark:bg-emerald-950/40"
-            : "border-amber-200 bg-amber-50/70 dark:border-amber-900 dark:bg-amber-950/40"
-        }`}>
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
-              {t("Equation Status", "توازن کی حالت")}
-            </span>
-            <Scale className={`h-4 w-4 ${totals.isBalanced ? "text-emerald-600" : "text-amber-600"}`} />
-          </div>
-          {totals.isBalanced ? (
-            <div className="mt-1">
-              <span className="inline-flex items-center gap-1 rounded-md bg-emerald-600 px-2 py-0.5 text-xs font-bold text-white">
-                <CheckCircle2 className="h-3 w-3" />
-                <span>{t("Balanced ✓", "متوازن ہے ✓")}</span>
-              </span>
-              <p className="text-[10px] text-emerald-800 dark:text-emerald-300 mt-1">
-                Assets = Liab + Equity
+      {/* QuickBooks Style Opening Setup Status Hero */}
+      <div className={`rounded-2xl border p-5 shadow-sm transition ${
+        totals.isBalanced
+          ? "border-emerald-200 bg-linear-to-r from-emerald-50/80 to-white dark:border-emerald-900/60 dark:from-emerald-950/30 dark:to-slate-900"
+          : "border-amber-200 bg-linear-to-r from-amber-50/80 to-white dark:border-amber-900/60 dark:from-amber-950/30 dark:to-slate-900"
+      }`}>
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-200/60 dark:border-slate-800">
+          <div className="flex items-start gap-3.5">
+            <div className={`p-3 rounded-2xl shadow-xs shrink-0 ${
+              totals.isBalanced ? "bg-emerald-600 text-white" : "bg-amber-500 text-white"
+            }`}>
+              {totals.isBalanced ? <ShieldCheck className="h-6 w-6" /> : <AlertTriangle className="h-6 w-6" />}
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-base font-bold text-slate-900 dark:text-white">
+                  {totals.isBalanced
+                    ? t("Opening Setup Active & Balanced", "ابتدائی سیٹ اپ مکمل اور متوازن ہے")
+                    : t("Opening Balances Require Alignment", "ابتدائی کھاتوں میں فرق موجود ہے")}
+                </h2>
+                <Badge variant={totals.isBalanced ? "success" : "warning"} className="text-[10px] font-mono">
+                  {totals.isBalanced ? "Assets = Liab + Equity ✓" : `Diff: ${formatMoney(Math.abs(totals.difference))}`}
+                </Badge>
+              </div>
+              <p className="text-xs text-slate-600 dark:text-slate-300 mt-1 max-w-3xl leading-relaxed">
+                {totals.isBalanced
+                  ? t(
+                      "Your business starting baseline is active. Owner's Capital is established once as of opening cutoff. Day-to-day purchases and sales flow through Bills & Invoices automatically without modifying opening capital.",
+                      "آپ کا ابتدائی بزنس سیٹ اپ مکمل اور فعال ہے۔ کیپیٹل صرف ایک بار مقرر ہوتا ہے۔ روزمرہ کی خریداریاں اور سیلز انوائسز سے خودکار چلتی ہیں اور کیپیٹل پر اثرانداز نہیں ہوتیں۔"
+                    )
+                  : t(
+                      "Total Assets do not match Total Liabilities + Owner's Capital. Click 'Auto-Balance Capital' to automatically set Owner's Capital equal to net assets.",
+                      "مجموعی اثاثے اور واجبات برابر نہیں ہیں۔ کیپیٹل کو خودکار برابر کرنے کے لیے نیچے والا بٹن دبائیں۔"
+                    )}
               </p>
             </div>
-          ) : (
-            <div className="mt-1">
-              <span className="text-xs font-black text-amber-700 dark:text-amber-400">
-                Diff: {formatMoney(Math.abs(totals.difference))}
-              </span>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            {!totals.isBalanced && (
               <button
+                type="button"
                 onClick={handleAutoBalanceCapital}
-                className="mt-1.5 flex items-center gap-1 rounded-lg bg-amber-600 px-2 py-1 text-[10px] font-bold text-white shadow-xs hover:bg-amber-700 transition"
-                title="Automatically set Owner Capital = Total Assets - Total Liabilities"
+                className="inline-flex items-center gap-1.5 rounded-xl bg-amber-600 px-4 py-2 text-xs font-bold text-white shadow-md hover:bg-amber-700 transition"
               >
-                <Sparkles className="h-3 w-3" />
-                <span>{t("Auto-Balance Capital", "کیپیٹل متوازن کریں")}</span>
+                <Sparkles className="h-4 w-4" />
+                <span>{t("Auto-Balance Capital", "کیپیٹل خودکار متوازن کریں")}</span>
               </button>
-            </div>
-          )}
+            )}
+            <Link
+              href="/accounting"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold text-slate-700 shadow-xs hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-200"
+            >
+              <span>{t("Accounting Hub →", "اکاؤنٹنگ ہب →")}</span>
+            </Link>
+          </div>
+        </div>
+
+        {/* 5 Clean Metrics Pills */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 pt-4">
+          <div className="rounded-xl border border-slate-200/60 bg-white/80 p-3 dark:border-slate-800 dark:bg-slate-800/80">
+            <span className="text-[10px] font-bold uppercase text-slate-400">{t("Owner's Capital", "سرمایہ")}</span>
+            <p className="text-base font-black text-slate-900 dark:text-white mt-0.5 tabular-nums">
+              {formatMoney(capitalAmount)}
+            </p>
+            <span className="text-[10px] text-slate-400">Account 3010</span>
+          </div>
+
+          <div className="rounded-xl border border-slate-200/60 bg-white/80 p-3 dark:border-slate-800 dark:bg-slate-800/80">
+            <span className="text-[10px] font-bold uppercase text-slate-400">{t("Cash & Bank", "نقد و بینک")}</span>
+            <p className="text-base font-black text-slate-900 dark:text-white mt-0.5 tabular-nums">
+              {formatMoney(totals.cashTotal + totals.bankTotal)}
+            </p>
+            <span className="text-[10px] text-slate-400">{cashBankList.length} accounts</span>
+          </div>
+
+          <div className="rounded-xl border border-slate-200/60 bg-white/80 p-3 dark:border-slate-800 dark:bg-slate-800/80">
+            <span className="text-[10px] font-bold uppercase text-slate-400">{t("Opening Stock", "موجودہ اسٹاک")}</span>
+            <p className="text-base font-black text-purple-700 dark:text-purple-300 mt-0.5 tabular-nums">
+              {formatMoney(totals.inventoryTotal)}
+            </p>
+            <span className="text-[10px] text-slate-400">{inventoryList.length} items</span>
+          </div>
+
+          <div className="rounded-xl border border-slate-200/60 bg-white/80 p-3 dark:border-slate-800 dark:bg-slate-800/80">
+            <span className="text-[10px] font-bold uppercase text-slate-400">{t("Customer Receivables", "وصولیاں")}</span>
+            <p className="text-base font-black text-blue-600 dark:text-blue-400 mt-0.5 tabular-nums">
+              {formatMoney(totals.receivablesTotal)}
+            </p>
+            <span className="text-[10px] text-slate-400">{customersList.length} customers</span>
+          </div>
+
+          <div className="rounded-xl border border-slate-200/60 bg-white/80 p-3 dark:border-slate-800 dark:bg-slate-800/80">
+            <span className="text-[10px] font-bold uppercase text-slate-400">{t("Supplier Payables", "واجبات")}</span>
+            <p className="text-base font-black text-rose-600 dark:text-rose-400 mt-0.5 tabular-nums">
+              {formatMoney(totals.payablesTotal)}
+            </p>
+            <span className="text-[10px] text-slate-400">{suppliersList.length} vendors</span>
+          </div>
         </div>
       </div>
 

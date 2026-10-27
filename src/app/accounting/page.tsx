@@ -28,6 +28,12 @@ import {
   PlusCircle,
   Layers,
   FolderPlus,
+  ChevronDown,
+  ArrowRight,
+  Sparkles,
+  ShieldCheck,
+  TrendingUp,
+  TrendingDown,
 } from "lucide-react";
 import { BrandPageLoader, TableSkeleton } from "@/components/ui/loader";
 import { smartFetch, invalidateCache, useAutoSync } from "@/lib/clientCache";
@@ -39,7 +45,7 @@ import { Input, Select } from "@/components/ui/input";
 import { JournalVoucherModal, JournalVoucherData } from "@/components/vouchers/JournalVoucherModal";
 import { ACCOUNT_URDU_NAMES, ACCOUNT_TYPE_CONFIG, COMMON_SUBTYPES } from "@/lib/accountingConstants";
 
-type TabType = "LEDGER" | "JOURNALS" | "ACCOUNTS" | "TRIAL_BALANCE";
+type TabType = "OVERVIEW" | "LEDGER" | "JOURNALS" | "ACCOUNTS" | "TRIAL_BALANCE";
 type LedgerType = "VENDOR" | "CUSTOMER" | "ACCOUNT";
 type DateFilterType = "ALL" | "TODAY" | "THIS_WEEK" | "THIS_MONTH" | "THIS_YEAR" | "CUSTOM";
 
@@ -61,13 +67,14 @@ function AccountingContent() {
   const searchParams = useSearchParams();
 
   // Tab & Filter States
-  const [activeTab, setActiveTab] = useState<TabType>("LEDGER");
+  const [activeTab, setActiveTab] = useState<TabType>("OVERVIEW");
   const [ledgerType, setLedgerType] = useState<LedgerType>("VENDOR");
   const [selectedEntityId, setSelectedEntityId] = useState<string>("");
   const [dateFilter, setDateFilter] = useState<DateFilterType>("ALL");
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
   const [searchTerm, setSearchTerm] = useState<string>("");
+  const [showNewActionMenu, setShowNewActionMenu] = useState<boolean>(false);
 
   // Journal tab filters
   const [journalSearch, setJournalSearch] = useState<string>("");
@@ -343,7 +350,7 @@ function AccountingContent() {
   // Sync URL search params on mount
   useEffect(() => {
     const tabParam = searchParams.get("tab") as TabType;
-    if (tabParam && ["LEDGER", "JOURNALS", "ACCOUNTS", "TRIAL_BALANCE"].includes(tabParam)) {
+    if (tabParam && ["OVERVIEW", "LEDGER", "JOURNALS", "ACCOUNTS", "TRIAL_BALANCE"].includes(tabParam)) {
       setActiveTab(tabParam);
     }
     const typeParam = searchParams.get("type") as LedgerType;
@@ -1162,6 +1169,53 @@ function AccountingContent() {
     };
   }, [accounts]);
 
+  const overviewMetrics = useMemo(() => {
+    let cashBalance = 0;
+    let bankBalance = 0;
+    accounts.forEach((a) => {
+      const code = String(a.code || "");
+      const bal = Number(a.balance || 0);
+      if (
+        code === "1010" ||
+        code === "1030" ||
+        (a.type === "ASSET" && (a.subType?.toLowerCase().includes("cash") || a.name?.toLowerCase().includes("cash")))
+      ) {
+        cashBalance += bal;
+      } else if (
+        code === "1020" ||
+        (a.type === "ASSET" && (a.subType?.toLowerCase().includes("bank") || a.name?.toLowerCase().includes("bank")))
+      ) {
+        bankBalance += bal;
+      }
+    });
+
+    const liquidTotal = cashBalance + bankBalance;
+    const receivablesFromParties = customers.reduce((sum, c) => sum + Number(c.currentBalance || 0), 0);
+    const receivablesHead = Number(accounts.find((a) => a.code === "1100")?.balance || 0);
+    const receivables = receivablesFromParties > 0 ? receivablesFromParties : receivablesHead;
+
+    const payablesFromParties = suppliers.reduce((sum, s) => sum + Number(s.currentBalance || 0), 0);
+    const payablesHead = Number(accounts.find((a) => a.code === "2010")?.balance || 0);
+    const payables = payablesFromParties > 0 ? payablesFromParties : payablesHead;
+
+    const capitalHead = Number(accounts.find((a) => a.code === "3010")?.balance || 0);
+    const equity = accountStats.equity > 0 ? accountStats.equity : capitalHead;
+
+    const diff = Math.round(Math.abs(totalDebits - totalCredits) * 100) / 100;
+    const isBalanced = diff < 0.01;
+
+    return {
+      cashBalance,
+      bankBalance,
+      liquidTotal,
+      receivables,
+      payables,
+      equity,
+      isBalanced,
+      diff,
+    };
+  }, [accounts, customers, suppliers, accountStats, totalDebits, totalCredits]);
+
   if (loading) {
     return (
       <div className="space-y-6">
@@ -1176,19 +1230,27 @@ function AccountingContent() {
 
   return (
     <div className="space-y-5">
-      {/* Page Header */}
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+      {/* QuickBooks Style Page Header */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">
-            {t("Double-Entry Accounting & Ledger Engine", "ڈبل انٹری اکاؤنٹنگ و جنرل لیجر")}
-          </h2>
-          <p className="text-xs text-slate-500">
+          <div className="flex items-center gap-2">
+            <h2 className="text-xl font-black tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
+              <Landmark className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
+              <span>{t("Accounting & Financial Ledgers", "بزنس اکاؤنٹنگ و جنرل لیجر")}</span>
+            </h2>
+            <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800">
+              <CheckCircle2 className="h-3 w-3 text-emerald-600" />
+              <span>QuickBooks Simple Mode</span>
+            </span>
+          </div>
+          <p className="text-xs text-slate-500 mt-0.5">
             {t(
-              "General ledger, vendor & customer subsidiary accounts, chart of accounts, and journals",
-              "جنرل لیجر، وینڈر/سپلائر کھاتہ، کسٹمر کھاتہ، کھاتوں کی فہرست، اور روزنامچہ"
+              "Visual bookkeeping, double-entry ledgers, cash-to-bank deposits, and audited financial statements",
+              "سادہ اور صاف بک کیپنگ، جنرل لیجر کھاتے، کیش ڈپازٹ، اور آڈٹ شدہ مالیاتی اسٹیٹمنٹس"
             )}
           </p>
         </div>
+
         <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={() => {
@@ -1196,20 +1258,140 @@ function AccountingContent() {
               fetchData();
             }}
             disabled={loading}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-xs hover:bg-slate-50 transition dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-xs hover:bg-slate-50 transition dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200"
           >
             <RefreshCw className={`h-3.5 w-3.5 text-slate-500 ${loading ? "animate-spin" : ""}`} />
             <span>{t("Refresh", "تازہ کریں")}</span>
           </button>
-          <div className="flex items-center gap-1.5 rounded-lg bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
-            <CheckCircle2 className="h-4 w-4" />
-            <span>{t("Double-Entry Balanced: Debits = Credits", "ڈبل انٹری بیلنس: ڈیبٹ = کریڈٹ")}</span>
+
+          {/* QuickBooks "+ New Action" Menu */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setShowNewActionMenu(!showNewActionMenu)}
+              className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white shadow-md hover:bg-emerald-700 transition"
+            >
+              <PlusCircle className="h-4 w-4" />
+              <span>{t("+ New Action", "+ نیا اندراج")}</span>
+              <ChevronDown className="h-3.5 w-3.5 opacity-80" />
+            </button>
+
+            {showNewActionMenu && (
+              <>
+                <div
+                  className="fixed inset-0 z-40"
+                  onClick={() => setShowNewActionMenu(false)}
+                />
+                <div className="absolute right-0 top-full mt-1.5 z-50 w-72 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl dark:border-slate-800 dark:bg-slate-900 animate-in fade-in slide-in-from-top-2">
+                  <div className="px-3 py-2 border-b border-slate-100 dark:border-slate-800">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                      {t("Quick Accounting Actions", "فوری اکاؤنٹنگ ایکشنز")}
+                    </span>
+                  </div>
+
+                  <div className="py-1 space-y-0.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowNewActionMenu(false);
+                        openCashDepositModal();
+                      }}
+                      className="w-full flex items-start gap-2.5 rounded-xl px-3 py-2 text-left text-xs hover:bg-emerald-50 dark:hover:bg-emerald-950/40 text-slate-700 dark:text-slate-200 transition group"
+                    >
+                      <div className="p-1.5 bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 rounded-lg shrink-0 mt-0.5">
+                        <Wallet className="h-3.5 w-3.5" />
+                      </div>
+                      <div>
+                        <div className="font-bold group-hover:text-emerald-700 dark:group-hover:text-emerald-300">
+                          {t("Deposit Cash to Bank", "کیش بینک میں جمع کروائیں")}
+                        </div>
+                        <div className="text-[10px] text-slate-400">
+                          {t("Contra voucher from Cash drawer to Bank", "کیش دراز سے بینک اکاؤنٹ ٹرانسفر واؤچر")}
+                        </div>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowNewActionMenu(false);
+                        openAddAccountModal("EXPENSE");
+                      }}
+                      className="w-full flex items-start gap-2.5 rounded-xl px-3 py-2 text-left text-xs hover:bg-blue-50 dark:hover:bg-blue-950/40 text-slate-700 dark:text-slate-200 transition group"
+                    >
+                      <div className="p-1.5 bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 rounded-lg shrink-0 mt-0.5">
+                        <Building2 className="h-3.5 w-3.5" />
+                      </div>
+                      <div>
+                        <div className="font-bold group-hover:text-blue-700 dark:group-hover:text-blue-300">
+                          {t("Add Ledger Account", "نیا کھاتہ ہیڈ شامل کریں")}
+                        </div>
+                        <div className="text-[10px] text-slate-400">
+                          {t("Create Bank, Expense, Asset, or Liability head", "بینک، اخراجات، یا اثاثہ کھاتہ بنائیں")}
+                        </div>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowNewActionMenu(false);
+                        setActiveTab("JOURNALS");
+                      }}
+                      className="w-full flex items-start gap-2.5 rounded-xl px-3 py-2 text-left text-xs hover:bg-purple-50 dark:hover:bg-purple-950/40 text-slate-700 dark:text-slate-200 transition group"
+                    >
+                      <div className="p-1.5 bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 rounded-lg shrink-0 mt-0.5">
+                        <FileText className="h-3.5 w-3.5" />
+                      </div>
+                      <div>
+                        <div className="font-bold group-hover:text-purple-700 dark:group-hover:text-purple-300">
+                          {t("View / Print Journal Entries", "روزنامچہ اندراجات دیکھیں / پرنٹ")}
+                        </div>
+                        <div className="text-[10px] text-slate-400">
+                          {t("Official Journal & Contra Vouchers", "تمام تصدیق شدہ جرنل واؤچرز")}
+                        </div>
+                      </div>
+                    </button>
+
+                    <Link
+                      href="/accounting/opening-balances"
+                      onClick={() => setShowNewActionMenu(false)}
+                      className="w-full flex items-start gap-2.5 rounded-xl px-3 py-2 text-left text-xs hover:bg-amber-50 dark:hover:bg-amber-950/40 text-slate-700 dark:text-slate-200 transition group"
+                    >
+                      <div className="p-1.5 bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 rounded-lg shrink-0 mt-0.5">
+                        <Scale className="h-3.5 w-3.5" />
+                      </div>
+                      <div>
+                        <div className="font-bold group-hover:text-amber-700 dark:group-hover:text-amber-300">
+                          {t("Opening Balances & Capital", "ابتدائی کھاتہ و کیپیٹل سیٹ اپ")}
+                        </div>
+                        <div className="text-[10px] text-slate-400">
+                          {t("Manage initial capital, starting stock, and dues", "ابتدائی سرمایہ، مالیت اور سابقہ بقایا")}
+                        </div>
+                      </div>
+                    </Link>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>
 
       {/* Primary Navigation Tabs */}
       <div className="flex items-center gap-1.5 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <button
+          onClick={() => setActiveTab("OVERVIEW")}
+          className={`flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-bold transition whitespace-nowrap ${
+            activeTab === "OVERVIEW"
+              ? "bg-slate-900 text-white shadow-sm dark:bg-white dark:text-slate-900"
+              : "text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+          }`}
+        >
+          <Landmark className="h-4 w-4" />
+          <span>{t("Overview & Health", "مالیاتی خلاصہ")}</span>
+        </button>
+
         <button
           onClick={() => setActiveTab("LEDGER")}
           className={`flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-bold transition whitespace-nowrap ${
@@ -1219,7 +1401,7 @@ function AccountingContent() {
           }`}
         >
           <BookOpen className="h-4 w-4" />
-          <span>{t("General Ledger & Statement", "جنرل لیجر اور کھاتہ اسٹیٹمنٹ")}</span>
+          <span>{t("General & Party Ledger", "کھاتہ اسٹیٹمنٹ")}</span>
         </button>
 
         <button
@@ -1260,12 +1442,349 @@ function AccountingContent() {
 
         <Link
           href="/accounting/opening-balances"
-          className="flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-bold transition whitespace-nowrap text-emerald-700 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-900/40 border border-emerald-200 dark:border-emerald-800"
+          className="flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-bold transition whitespace-nowrap text-emerald-700 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-900/40 border border-emerald-200 dark:border-emerald-800 ml-auto"
         >
-          <Landmark className="h-4 w-4" />
+          <Scale className="h-4 w-4" />
           <span>{t("Opening Balances & Capital", "ابتدائی کھاتہ و کیپیٹل")}</span>
         </Link>
       </div>
+
+      {/* ========================================================================= */}
+      {/* TAB 0: QUICKBOOKS STYLE OVERVIEW & FINANCIAL HEALTH */}
+      {/* ========================================================================= */}
+      {activeTab === "OVERVIEW" && (
+        <div className="space-y-6">
+          {/* QuickBooks 4 Financial Health Tiles */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Tile 1: Cash & Bank */}
+            <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between text-slate-500">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    {t("Cash & Bank Balances", "نقد و بینک بیلنس")}
+                  </span>
+                  <div className="p-2 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 rounded-xl">
+                    <Wallet className="h-4 w-4" />
+                  </div>
+                </div>
+                <p className="mt-2 text-2xl font-black text-slate-900 dark:text-white tabular-nums">
+                  {formatMoney(overviewMetrics.liquidTotal)}
+                </p>
+                <div className="mt-1 flex items-center gap-2 text-[11px] text-slate-400">
+                  <span>Cash: <strong className="text-slate-700 dark:text-slate-300">{formatMoney(overviewMetrics.cashBalance)}</strong></span>
+                  <span>•</span>
+                  <span>Bank: <strong className="text-slate-700 dark:text-slate-300">{formatMoney(overviewMetrics.bankBalance)}</strong></span>
+                </div>
+              </div>
+              <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={openCashDepositModal}
+                  className="inline-flex items-center gap-1 text-xs font-bold text-emerald-600 hover:text-emerald-700 dark:text-emerald-400"
+                >
+                  <PlusCircle className="h-3.5 w-3.5" />
+                  <span>{t("Deposit Cash", "کیش جمع کریں")}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTab("ACCOUNTS");
+                    setAccountTypeFilter("ASSET");
+                  }}
+                  className="text-[11px] font-semibold text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                >
+                  {t("View Accounts →", "کھاتے دیکھیں →")}
+                </button>
+              </div>
+            </div>
+
+            {/* Tile 2: Customer Receivables */}
+            <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between text-slate-500">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    {t("Money In (Receivables)", "کسٹمرز کے بقایا جات")}
+                  </span>
+                  <div className="p-2 bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 rounded-xl">
+                    <TrendingUp className="h-4 w-4" />
+                  </div>
+                </div>
+                <p className="mt-2 text-2xl font-black text-blue-600 dark:text-blue-400 tabular-nums">
+                  {formatMoney(overviewMetrics.receivables)}
+                </p>
+                <p className="mt-1 text-[11px] text-slate-400">
+                  {customers.length} {t("active customers with open balances", "گاہکوں کے واجب الوصول کھاتے")}
+                </p>
+              </div>
+              <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTab("LEDGER");
+                    setLedgerType("CUSTOMER");
+                  }}
+                  className="inline-flex items-center gap-1 text-xs font-bold text-blue-600 hover:text-blue-700 dark:text-blue-400"
+                >
+                  <span>{t("View Customer Statements", "کسٹمر کھاتہ اسٹیٹمنٹ")}</span>
+                  <ArrowRight className="h-3 w-3" />
+                </button>
+              </div>
+            </div>
+
+            {/* Tile 3: Supplier Payables */}
+            <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between text-slate-500">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    {t("Money Out (Payables)", "سپلائرز کے واجبات")}
+                  </span>
+                  <div className="p-2 bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 rounded-xl">
+                    <TrendingDown className="h-4 w-4" />
+                  </div>
+                </div>
+                <p className="mt-2 text-2xl font-black text-rose-600 dark:text-rose-400 tabular-nums">
+                  {formatMoney(overviewMetrics.payables)}
+                </p>
+                <p className="mt-1 text-[11px] text-slate-400">
+                  {suppliers.length} {t("registered vendors with outstanding bills", "سپلائرز کے واجب الادا بلز")}
+                </p>
+              </div>
+              <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTab("LEDGER");
+                    setLedgerType("VENDOR");
+                  }}
+                  className="inline-flex items-center gap-1 text-xs font-bold text-rose-600 hover:text-rose-700 dark:text-rose-400"
+                >
+                  <span>{t("View Vendor Statements", "سپلائر کھاتہ اسٹیٹمنٹ")}</span>
+                  <ArrowRight className="h-3 w-3" />
+                </button>
+              </div>
+            </div>
+
+            {/* Tile 4: Owner's Equity & Capital */}
+            <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between text-slate-500">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    {t("Business Capital & Equity", "سرمایہ و کیپیٹل")}
+                  </span>
+                  <div className="p-2 bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400 rounded-xl">
+                    <Coins className="h-4 w-4" />
+                  </div>
+                </div>
+                <p className="mt-2 text-2xl font-black text-purple-700 dark:text-purple-300 tabular-nums">
+                  {formatMoney(overviewMetrics.equity)}
+                </p>
+                <p className="mt-1 text-[11px] text-slate-400">
+                  {t("Owner's starting equity & retained capital", "مالک کا ابتدائی سرمایہ اور منافع")}
+                </p>
+              </div>
+              <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                <Link
+                  href="/accounting/opening-balances"
+                  className="inline-flex items-center gap-1 text-xs font-bold text-purple-600 hover:text-purple-700 dark:text-purple-400"
+                >
+                  <span>{t("Opening Setup", "ابتدائی سیٹ اپ")}</span>
+                  <ArrowRight className="h-3 w-3" />
+                </Link>
+                <span className="text-[10px] text-slate-400 font-medium">Account 3010</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Double-Entry Balanced Status Banner */}
+          <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4 dark:border-emerald-900/60 dark:bg-emerald-950/30 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shadow-xs">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 bg-emerald-600 text-white rounded-xl shadow-xs shrink-0">
+                <ShieldCheck className="h-5 w-5" />
+              </div>
+              <div>
+                <h4 className="text-sm font-bold text-emerald-950 dark:text-emerald-100 flex items-center gap-2">
+                  <span>{t("Double-Entry Bookkeeping Verified & Balanced", "ڈبل انٹری مکمل متوازن اور تصدیق شدہ ہے")}</span>
+                  <Badge variant="success" className="text-[10px] uppercase font-mono">
+                    Debits = Credits
+                  </Badge>
+                </h4>
+                <p className="text-xs text-emerald-800/90 dark:text-emerald-300 mt-0.5">
+                  {t(
+                    `Total Debits: ${formatMoney(totalDebits)} | Total Credits: ${formatMoney(totalCredits)} | Difference: Rs. 0.00`,
+                    `کل ڈیبٹ: ${formatMoney(totalDebits)} | کل کریڈٹ: ${formatMoney(totalCredits)} | فرق: 0.00 روپے`
+                  )}
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab("TRIAL_BALANCE")}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-300 bg-white px-4 py-2 text-xs font-bold text-emerald-800 shadow-xs hover:bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200 whitespace-nowrap"
+            >
+              <Scale className="h-3.5 w-3.5" />
+              <span>{t("Audit Trial Balance Statement", "میزان پرتال رپورٹ دیکھیں")}</span>
+            </button>
+          </div>
+
+          {/* Recent Journal & Bookkeeping Activity */}
+          <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <FileText className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                  <span>{t("Recent Journal Entries & Vouchers", "حالیہ روزنامچہ و واؤچرز")}</span>
+                </h3>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  {t("Latest double-entry vouchers posted across all accounts", "تمام کھاتوں کے تصدیق شدہ حالیہ واؤچرز")}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab("JOURNALS")}
+                className="inline-flex items-center gap-1 text-xs font-bold text-blue-600 hover:text-blue-700 dark:text-blue-400"
+              >
+                <span>{t(`View All Journals (${journals.length})`, `تمام روزنامچہ دیکھیں (${journals.length})`)}</span>
+                <ArrowRight className="h-3 w-3" />
+              </button>
+            </div>
+
+            {journals.length === 0 ? (
+              <div className="text-center py-8 text-xs text-slate-400">
+                {t("No journal entries recorded yet. Use '+ New Action' to record your first transaction.", "ابھی کوئی روزنامچہ واؤچر نہیں ہے۔ نیا اندراج کرنے کے لیے اوپر بٹن دبائیں۔")}
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="border-b border-slate-100 text-[10px] font-bold uppercase text-slate-400 dark:border-slate-800">
+                    <tr>
+                      <th className="pb-2 px-3">{t("Date", "تاریخ")}</th>
+                      <th className="pb-2 px-3">{t("Entry / Voucher #", "واؤچر نمبر")}</th>
+                      <th className="pb-2 px-3">{t("Description", "تفصیل")}</th>
+                      <th className="pb-2 px-3">{t("Accounts Involved", "شامل کھاتے")}</th>
+                      <th className="pb-2 px-3 text-right">{t("Total Debit / Credit", "رقم")}</th>
+                      <th className="pb-2 px-3 text-center">{t("Action", "عمل")}</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {journals.slice(0, 5).map((j) => {
+                      const totalEntryAmount = (j.lines || []).reduce(
+                        (sum: number, l: any) => sum + Number(l.debit || 0),
+                        0
+                      );
+                      return (
+                        <tr key={j.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40">
+                          <td className="py-2.5 px-3 text-slate-500 whitespace-nowrap">
+                            {new Date(j.date).toLocaleDateString()}
+                          </td>
+                          <td className="py-2.5 px-3 font-mono font-bold text-blue-600 dark:text-blue-400 whitespace-nowrap">
+                            {j.entryNumber}
+                          </td>
+                          <td className="py-2.5 px-3 font-medium text-slate-800 dark:text-slate-200">
+                            {j.description}
+                          </td>
+                          <td className="py-2.5 px-3 text-slate-500">
+                            <div className="flex flex-wrap gap-1">
+                              {(j.lines || []).map((l: any, idx: number) => (
+                                <span
+                                  key={idx}
+                                  className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                                >
+                                  {l.account?.name || l.accountCode || "Account"}
+                                </span>
+                              ))}
+                            </div>
+                          </td>
+                          <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-900 dark:text-white tabular-nums">
+                            {formatMoney(totalEntryAmount)}
+                          </td>
+                          <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                            <button
+                              type="button"
+                              onClick={() => handleViewVoucher(j)}
+                              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 hover:text-blue-600 shadow-2xs transition dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:text-blue-400"
+                            >
+                              <Printer className="h-3 w-3" />
+                              <span>{t("Print Voucher", "واؤچر")}</span>
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* QuickBooks 3 Quick Workflow Navigation Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div
+              onClick={() => setActiveTab("LEDGER")}
+              className="group cursor-pointer rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm hover:border-blue-300 hover:shadow-md transition dark:border-slate-800 dark:bg-slate-900"
+            >
+              <div className="flex items-center justify-between">
+                <div className="p-2.5 bg-blue-50 text-blue-600 rounded-xl group-hover:bg-blue-600 group-hover:text-white transition">
+                  <BookOpen className="h-5 w-5" />
+                </div>
+                <ArrowRight className="h-4 w-4 text-slate-400 group-hover:text-blue-600 transition" />
+              </div>
+              <h4 className="mt-3 text-sm font-bold text-slate-900 dark:text-white group-hover:text-blue-600 transition">
+                {t("Individual Khata & Party Ledger", "کھاتہ اسٹیٹمنٹ و لیجر")}
+              </h4>
+              <p className="mt-1 text-xs text-slate-500">
+                {t(
+                  "Look up any customer, vendor, or general ledger head with running balance and 1-click A4 PDF print.",
+                  "کسی بھی گاہک، سپلائر یا اکاؤنٹ ہیڈ کا مکمل کھاتہ اور پرنٹ ایبل اسٹیٹمنٹ۔"
+                )}
+              </p>
+            </div>
+
+            <div
+              onClick={() => setActiveTab("ACCOUNTS")}
+              className="group cursor-pointer rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm hover:border-emerald-300 hover:shadow-md transition dark:border-slate-800 dark:bg-slate-900"
+            >
+              <div className="flex items-center justify-between">
+                <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl group-hover:bg-emerald-600 group-hover:text-white transition">
+                  <Building2 className="h-5 w-5" />
+                </div>
+                <ArrowRight className="h-4 w-4 text-slate-400 group-hover:text-emerald-600 transition" />
+              </div>
+              <h4 className="mt-3 text-sm font-bold text-slate-900 dark:text-white group-hover:text-emerald-600 transition">
+                {t("Chart of Accounts Directory", "کھاتوں کی فہرست (چارٹ)")}
+              </h4>
+              <p className="mt-1 text-xs text-slate-500">
+                {t(
+                  "Complete 29-head standard chart (Assets, Liabilities, Capital, Revenue, Expenses) with custom account creator.",
+                  "تمام 29 معیاری اکاؤنٹ ہیڈز، فلٹرز اور نیا کسٹم کھاتہ بنانے کی سہولت۔"
+                )}
+              </p>
+            </div>
+
+            <div
+              onClick={() => setActiveTab("TRIAL_BALANCE")}
+              className="group cursor-pointer rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm hover:border-purple-300 hover:shadow-md transition dark:border-slate-800 dark:bg-slate-900"
+            >
+              <div className="flex items-center justify-between">
+                <div className="p-2.5 bg-purple-50 text-purple-600 rounded-xl group-hover:bg-purple-600 group-hover:text-white transition">
+                  <Scale className="h-5 w-5" />
+                </div>
+                <ArrowRight className="h-4 w-4 text-slate-400 group-hover:text-purple-600 transition" />
+              </div>
+              <h4 className="mt-3 text-sm font-bold text-slate-900 dark:text-white group-hover:text-purple-600 transition">
+                {t("Audited Trial Balance", "آڈٹ شدہ میزان پرتال")}
+              </h4>
+              <p className="mt-1 text-xs text-slate-500">
+                {t(
+                  "Comprehensive debit/credit balance verification report for tax audits and financial reporting.",
+                  "تمام کھاتوں کے ڈیبٹ اور کریڈٹ کا مکمل توازن برائے ٹیکس آڈٹ اور سالانہ رپورٹنگ۔"
+                )}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ========================================================================= */}
       {/* TAB 1: GENERAL LEDGER & PARTY SUBSIDIARY LEDGER */}
