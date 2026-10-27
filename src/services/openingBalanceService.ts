@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { fallbackStore, storeEnsureStandardAccounts } from "@/lib/fallbackStore";
 import { Decimal, round2, toDecimal } from "@/lib/decimal";
 import { STANDARD_ACCOUNTS, ensureStandardAccounts } from "@/services/accountingService";
+import { getProductEffectiveCost } from "@/lib/accountingConstants";
 import { createSafeAuditLog } from "@/lib/auditHelper";
 
 export interface OpeningBalanceInput {
@@ -49,6 +50,36 @@ export interface OpeningBalanceInput {
 export async function getOpeningBalances(businessId: string) {
   if (process.env.DATABASE_URL) {
     try {
+      // Auto-heal missing product costs across purchasePrice, averageCost, and openingCost
+      try {
+        await prisma.$executeRawUnsafe(
+          `UPDATE "Product" 
+           SET "openingCost" = "purchasePrice" 
+           WHERE "businessId" = $1 
+             AND ("openingCost" = 0 OR "openingCost" IS NULL) 
+             AND "purchasePrice" > 0`,
+          businessId
+        );
+        await prisma.$executeRawUnsafe(
+          `UPDATE "Product" 
+           SET "averageCost" = "purchasePrice" 
+           WHERE "businessId" = $1 
+             AND ("averageCost" = 0 OR "averageCost" IS NULL) 
+             AND "purchasePrice" > 0`,
+          businessId
+        );
+        await prisma.$executeRawUnsafe(
+          `UPDATE "Product" 
+           SET "purchasePrice" = "openingCost" 
+           WHERE "businessId" = $1 
+             AND ("purchasePrice" = 0 OR "purchasePrice" IS NULL) 
+             AND "openingCost" > 0`,
+          businessId
+        );
+      } catch {
+        // Fallback or non-PostgreSQL environment
+      }
+
       const [
         accounts,
         cashBankAccounts,
@@ -121,7 +152,7 @@ export async function getOpeningBalances(businessId: string) {
 
         inventoryTotal = products.reduce((sum, p) => {
           const qty = Number(p.openingQuantity || 0);
-          const cost = Number(p.openingCost || p.purchasePrice || p.averageCost || 0);
+          const cost = getProductEffectiveCost(p);
           return sum + qty * cost;
         }, 0);
 
@@ -162,15 +193,19 @@ export async function getOpeningBalances(businessId: string) {
           { id: "bank-default", name: "Primary Bank Account (بینک اکاؤنٹ)", type: "BANK" as const, balance: bankTotal },
         ],
         inventory: products
-          .filter((p) => (openingJournal ? Number(p.openingQuantity || 0) > 0 : true))
-          .map((p) => ({
-            productId: p.id,
-            name: p.name,
-            sku: p.sku || "",
-            quantity: Number(p.openingQuantity || 0),
-            unitCost: Number(p.openingCost || p.purchasePrice || p.averageCost || 0),
-            totalValue: Number(p.openingQuantity || 0) * Number(p.openingCost || p.purchasePrice || p.averageCost || 0),
-          })),
+          .filter((p) => Number(p.openingQuantity || 0) > 0)
+          .map((p) => {
+            const unitCost = getProductEffectiveCost(p);
+            const quantity = Number(p.openingQuantity || 0);
+            return {
+              productId: p.id,
+              name: p.name,
+              sku: p.sku || "",
+              quantity,
+              unitCost,
+              totalValue: quantity * unitCost,
+            };
+          }),
         customers: customers
           .filter((c) => (openingJournal ? Number(c.openingBalance || 0) > 0 : true))
           .map((c) => ({
@@ -238,7 +273,7 @@ export async function getOpeningBalances(businessId: string) {
   } else {
     cashTotal = cashAccounts.filter((a) => a.type === "CASH").reduce((sum, a) => sum + Number(a.balance || 0), 0);
     bankTotal = cashAccounts.filter((a) => a.type === "BANK").reduce((sum, a) => sum + Number(a.balance || 0), 0);
-    inventoryTotal = products.reduce((sum, p) => sum + Number(p.openingQuantity || 0) * Number(p.purchasePrice || p.openingCost || 0), 0);
+    inventoryTotal = products.reduce((sum, p) => sum + Number(p.openingQuantity || 0) * getProductEffectiveCost(p), 0);
     receivablesTotal = customers.reduce((sum, c) => sum + Number(c.openingBalance || 0), 0);
     payablesTotal = suppliers.reduce((sum, s) => sum + Number(s.openingBalance || 0), 0);
     capitalAmount = Number(capitalAcc?.balance || 0);
@@ -267,15 +302,19 @@ export async function getOpeningBalances(businessId: string) {
       { id: "bank-default", name: "Main Bank Account", type: "BANK" as const, balance: bankTotal },
     ],
     inventory: products
-      .filter((p) => (fallbackOpeningJournal ? Number(p.openingQuantity || 0) > 0 : true))
-      .map((p) => ({
-        productId: p.id,
-        name: p.name,
-        sku: p.sku || "",
-        quantity: Number(p.openingQuantity || 0),
-        unitCost: Number(p.purchasePrice || p.openingCost || 0),
-        totalValue: Number(p.openingQuantity || 0) * Number(p.purchasePrice || p.openingCost || 0),
-      })),
+      .filter((p) => Number(p.openingQuantity || 0) > 0)
+      .map((p) => {
+        const unitCost = getProductEffectiveCost(p);
+        const quantity = Number(p.openingQuantity || 0);
+        return {
+          productId: p.id,
+          name: p.name,
+          sku: p.sku || "",
+          quantity,
+          unitCost,
+          totalValue: quantity * unitCost,
+        };
+      }),
     customers: customers
       .filter((c) => (fallbackOpeningJournal ? Number(c.openingBalance || 0) > 0 : true))
       .map((c) => ({

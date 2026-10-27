@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { formatMoney } from "@/lib/decimal";
+import { getProductEffectiveCost } from "@/lib/accountingConstants";
 import { Badge } from "@/components/ui/badge";
 import {
   Landmark,
@@ -91,6 +92,7 @@ export default function OpeningBalancesPage() {
   const [inventoryList, setInventoryList] = useState<InventoryRow[]>([]);
   const [customersList, setCustomersList] = useState<CustomerRow[]>([]);
   const [suppliersList, setSuppliersList] = useState<SupplierRow[]>([]);
+  const [catalogProducts, setCatalogProducts] = useState<any[]>([]);
 
   // Check if company is FBR only
   const isFbrInvoicingOnly = activeCompany?.packageType === "FBR_INVOICING_ONLY";
@@ -100,8 +102,14 @@ export default function OpeningBalancesPage() {
     setLoading(true);
     setErrorMessage(null);
     try {
-      const res = await smartFetch("/api/accounting/opening-balances", { ttlMs: 0, skipCache: true });
-      if (res.success && res.data) {
+      const [res, prodRes] = await Promise.all([
+        smartFetch("/api/accounting/opening-balances", { ttlMs: 0, skipCache: true }),
+        smartFetch("/api/products?limit=200", { ttlMs: 10000 }).catch(() => null),
+      ]);
+      if (prodRes && prodRes.products) {
+        setCatalogProducts(prodRes.products);
+      }
+      if (res && res.success && res.data) {
         const d = res.data;
         if (d.asOfDate) setAsOfDate(d.asOfDate);
         if (d.capital) {
@@ -851,10 +859,23 @@ export default function OpeningBalancesPage() {
                         <td className="px-4 py-2">
                           <input
                             type="text"
+                            list="existing-catalog-products"
                             value={row.name}
                             onChange={(e) => {
+                              const val = e.target.value;
                               const updated = [...inventoryList];
-                              updated[idx].name = e.target.value;
+                              updated[idx].name = val;
+                              const matched = catalogProducts.find(
+                                (p) => p.name.toLowerCase() === val.trim().toLowerCase()
+                              );
+                              if (matched) {
+                                updated[idx].productId = matched.id;
+                                if (matched.sku) updated[idx].sku = matched.sku;
+                                const cost = getProductEffectiveCost(matched);
+                                if (cost > 0 && (!updated[idx].unitCost || updated[idx].unitCost === 0)) {
+                                  updated[idx].unitCost = cost;
+                                }
+                              }
                               setInventoryList(updated);
                             }}
                             placeholder="e.g. Cotton Yarn 20s"
@@ -921,6 +942,18 @@ export default function OpeningBalancesPage() {
                 )}
               </tbody>
             </table>
+            {catalogProducts.length > 0 && (
+              <datalist id="existing-catalog-products">
+                {catalogProducts.map((p) => {
+                  const cost = getProductEffectiveCost(p);
+                  return (
+                    <option key={p.id} value={p.name}>
+                      {p.sku ? `${p.sku} | Cost: Rs. ${formatMoney(cost)}` : `Cost: Rs. ${formatMoney(cost)}`}
+                    </option>
+                  );
+                })}
+              </datalist>
+            )}
           </div>
 
           <div className="flex justify-between items-center pt-2 border-t border-slate-100 dark:border-slate-800">

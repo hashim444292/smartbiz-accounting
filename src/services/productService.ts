@@ -243,6 +243,7 @@ export interface CreateProductInput {
   openingCost?: number;
   sellingPrice?: number;
   openingQuantity?: number;
+  currentStock?: number;
   minStockLevel?: number;
   maxStockLevel?: number;
   status?: string;
@@ -274,8 +275,12 @@ export async function createProduct(input: CreateProductInput) {
   const retailPrice = Number(input.retailPrice ?? input.sellingPrice ?? 0);
   const wholesalePrice = Number(input.wholesalePrice ?? input.purchasePrice ?? 0);
   const purchasePrice = Number(input.purchasePrice ?? 0);
-  const averageCost = Number(input.averageCost ?? input.purchasePrice ?? 0);
-  const openingCost = Number(input.openingCost ?? input.purchasePrice ?? 0);
+  const averageCost = Number(input.averageCost ?? 0);
+  const openingCost = Number(input.openingCost ?? 0);
+  const effectiveCost = purchasePrice > 0 ? purchasePrice : (averageCost > 0 ? averageCost : (openingCost > 0 ? openingCost : 0));
+  const finalPurchasePrice = purchasePrice > 0 ? purchasePrice : effectiveCost;
+  const finalAverageCost = averageCost > 0 ? averageCost : effectiveCost;
+  const finalOpeningCost = openingCost > 0 ? openingCost : effectiveCost;
 
   const productData = {
     businessId: input.businessId,
@@ -296,11 +301,11 @@ export async function createProduct(input: CreateProductInput) {
     retailPrice,
     sellingPrice: retailPrice,
     wholesalePrice,
-    purchasePrice,
-    averageCost,
-    openingCost,
+    purchasePrice: finalPurchasePrice,
+    averageCost: finalAverageCost,
+    openingCost: finalOpeningCost,
     openingQuantity: Number(input.openingQuantity ?? 0),
-    currentStock: Number(input.openingQuantity ?? 0),
+    currentStock: Number(input.currentStock ?? input.openingQuantity ?? 0),
     minStockLevel: Number(input.minStockLevel ?? 1),
     maxStockLevel: input.maxStockLevel ? Number(input.maxStockLevel) : null,
     status: input.status || "ACTIVE",

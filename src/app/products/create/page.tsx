@@ -187,14 +187,18 @@ export default function CreateProductPage() {
     setSaveSuccess(null);
 
     try {
+      const openingQty = Number(formData.openingQuantity || 0);
+      const purchaseCost = Number(formData.purchasePrice || 0);
       const payload = {
         ...formData,
         status: asDraft ? "DRAFT" : formData.status,
         retailPrice: Number(formData.retailPrice || 0),
         wholesalePrice: Number(formData.wholesalePrice || formData.retailPrice || 0),
-        purchasePrice: Number(formData.purchasePrice || 0),
-        averageCost: Number(formData.purchasePrice || 0),
-        openingCost: Number(formData.purchasePrice || 0),
+        purchasePrice: purchaseCost,
+        averageCost: purchaseCost,
+        openingCost: purchaseCost,
+        openingQuantity: openingQty,
+        currentStock: openingQty,
         salesTax: Number(formData.salesTax || 18),
         furtherTax: Number(formData.furtherTax || 0),
         extraTax: Number(formData.extraTax || 0),
@@ -479,18 +483,18 @@ export default function CreateProductPage() {
         </div>
       </div>
 
-      {/* SECTION 3: PRICING */}
+      {/* SECTION 3: PRICING & INVENTORY */}
       <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-xs space-y-4">
         <div className="border-b border-slate-100 pb-3">
           <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
-            3. Pricing
+            3. Pricing & Inventory Defaults
           </h2>
           <p className="text-[11px] text-slate-500">
-            Define customer retail price, wholesale price, and acquisition cost
+            Define customer retail price, wholesale price, acquisition cost, and initial stock
           </p>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1">
               Retail Price (PKR) <span className="text-rose-500">*</span>
@@ -531,6 +535,23 @@ export default function CreateProductPage() {
               placeholder="0.00"
               className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs text-slate-900 font-mono placeholder-slate-400 focus:border-indigo-500 focus:outline-none"
             />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">
+              Opening Physical Stock (Qty)
+            </label>
+            <input
+              type="number"
+              min="0"
+              value={formData.openingQuantity}
+              onChange={(e) => setFormData({ ...formData, openingQuantity: e.target.value })}
+              placeholder="0 (Leave 0 if none)"
+              className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs text-slate-900 font-mono placeholder-slate-400 focus:border-indigo-500 focus:outline-none"
+            />
+            <p className="text-[10px] text-slate-500 mt-1">
+              Initial shop/warehouse quantity as of today
+            </p>
           </div>
         </div>
       </div>
