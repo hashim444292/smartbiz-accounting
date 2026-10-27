@@ -129,6 +129,38 @@ describe("Opening Balances, Capital Assignment & Double-Entry Setup Suite", () =
     expect(capAcc?.balance).toBe(350000);
   });
 
+  it("should NOT include subsequent operational inventory or purchases into opening balances or capital", async () => {
+    // Add an ongoing operational product with 50 units purchased later (openingQuantity: 0)
+    fallbackStore.products.push({
+      id: "prod-subsequent-01",
+      businessId: testBizId,
+      name: "Subsequent Purchase Denim",
+      sku: "SKU-DNM-99",
+      currentStock: 50,
+      openingQuantity: 0, // Not part of initial Day-1 opening stock
+      purchasePrice: 3000,
+    } as any);
+
+    const req = new Request("http://localhost:3000/api/accounting/opening-balances", {
+      headers: { "x-business-id": testBizId },
+    });
+
+    const res = await GET(req as any);
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.success).toBe(true);
+
+    // Opening inventory should strictly remain 200,000 (from Cotton Fabric Roll), NOT inflated by 50 * 3000 = 150,000!
+    expect(body.data.summary.inventoryTotal).toBe(200000);
+    expect(body.data.summary.capitalAmount).toBe(350000);
+    expect(body.data.summary.isBalanced).toBe(true);
+
+    // The subsequent purchase should NOT be in the opening inventory list when hasExistingSetup is true
+    const foundSubsequent = body.data.inventory.find((i: any) => i.name === "Subsequent Purchase Denim");
+    expect(foundSubsequent).toBeUndefined();
+  });
+
   it("should reject opening balance access for companies on FBR_INVOICING_ONLY package", async () => {
     const fbrBizId = "biz-di-only-99";
     fallbackStore.companies.push({

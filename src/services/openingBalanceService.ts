@@ -89,34 +89,53 @@ export async function getOpeningBalances(businessId: string) {
       const cashAcc = accounts.find((a) => a.code === "1010");
       const bankAcc = accounts.find((a) => a.code === "1020");
 
-      const cashTotal = cashBankAccounts
-        .filter((c) => c.type === "CASH")
-        .reduce((sum, c) => sum + Number(c.balance || 0), 0) || Number(cashAcc?.balance || 0);
+      let cashTotal = 0;
+      let bankTotal = 0;
+      let inventoryTotal = 0;
+      let receivablesTotal = 0;
+      let payablesTotal = 0;
+      let capitalAmount = 0;
 
-      const bankTotal = cashBankAccounts
-        .filter((c) => c.type === "BANK")
-        .reduce((sum, c) => sum + Number(c.balance || 0), 0) || Number(bankAcc?.balance || 0);
+      if (openingJournal && openingJournal.lines?.length > 0) {
+        // Read strictly from historical opening journal snapshot
+        for (const line of openingJournal.lines) {
+          const code = line.account?.code;
+          const dr = Number(line.debit || 0);
+          const cr = Number(line.credit || 0);
+          if (code === "1010") cashTotal += dr;
+          else if (code === "1020") bankTotal += dr;
+          else if (code === "1200") inventoryTotal += dr;
+          else if (code === "1100") receivablesTotal += dr;
+          else if (code === "2010") payablesTotal += cr;
+          else if (code === "3010") capitalAmount += cr;
+        }
+      } else {
+        // Unsaved initial state: calculate strictly from opening balances (never operational running stock)
+        cashTotal = cashBankAccounts
+          .filter((c) => c.type === "CASH")
+          .reduce((sum, c) => sum + Number(c.balance || 0), 0) || Number(cashAcc?.balance || 0);
 
-      const inventoryTotal = products.reduce((sum, p) => {
-        const qty = Number(p.openingQuantity || p.currentStock || 0);
-        const cost = Number(p.averageCost || p.purchasePrice || p.openingCost || 0);
-        return sum + qty * cost;
-      }, 0);
+        bankTotal = cashBankAccounts
+          .filter((c) => c.type === "BANK")
+          .reduce((sum, c) => sum + Number(c.balance || 0), 0) || Number(bankAcc?.balance || 0);
 
-      const receivablesTotal = customers.reduce(
-        (sum, c) => sum + Number(c.openingBalance || c.currentBalance || 0),
-        0
-      );
+        inventoryTotal = products.reduce((sum, p) => {
+          const qty = Number(p.openingQuantity || 0);
+          const cost = Number(p.openingCost || p.purchasePrice || p.averageCost || 0);
+          return sum + qty * cost;
+        }, 0);
 
-      const payablesTotal = suppliers.reduce(
-        (sum, s) => sum + Number(s.openingBalance || s.currentBalance || 0),
-        0
-      );
+        receivablesTotal = customers.reduce(
+          (sum, c) => sum + Number(c.openingBalance || 0),
+          0
+        );
 
-      let capitalAmount = Number(capitalAcc?.balance || 0);
-      if (capitalAmount === 0 && openingJournal) {
-        const capLine = openingJournal.lines.find((l) => l.account.code === "3010");
-        if (capLine) capitalAmount = Number(capLine.credit);
+        payablesTotal = suppliers.reduce(
+          (sum, s) => sum + Number(s.openingBalance || 0),
+          0
+        );
+
+        capitalAmount = Number(capitalAcc?.balance || 0);
       }
 
       const totalAssets = cashTotal + bankTotal + inventoryTotal + receivablesTotal;
@@ -142,26 +161,32 @@ export async function getOpeningBalances(businessId: string) {
           { id: "cash-default", name: "Cash in Hand (نقد رقم)", type: "CASH" as const, balance: cashTotal },
           { id: "bank-default", name: "Primary Bank Account (بینک اکاؤنٹ)", type: "BANK" as const, balance: bankTotal },
         ],
-        inventory: products.map((p) => ({
-          productId: p.id,
-          name: p.name,
-          sku: p.sku || "",
-          quantity: Number(p.openingQuantity || p.currentStock || 0),
-          unitCost: Number(p.averageCost || p.purchasePrice || p.openingCost || 0),
-          totalValue: Number(p.openingQuantity || p.currentStock || 0) * Number(p.averageCost || p.purchasePrice || p.openingCost || 0),
-        })),
-        customers: customers.map((c) => ({
-          customerId: c.id,
-          name: c.name,
-          phone: c.phone || "",
-          balance: Number(c.openingBalance || c.currentBalance || 0),
-        })),
-        suppliers: suppliers.map((s) => ({
-          supplierId: s.id,
-          name: s.name,
-          phone: s.phone || "",
-          balance: Number(s.openingBalance || s.currentBalance || 0),
-        })),
+        inventory: products
+          .filter((p) => (openingJournal ? Number(p.openingQuantity || 0) > 0 : true))
+          .map((p) => ({
+            productId: p.id,
+            name: p.name,
+            sku: p.sku || "",
+            quantity: Number(p.openingQuantity || 0),
+            unitCost: Number(p.openingCost || p.purchasePrice || p.averageCost || 0),
+            totalValue: Number(p.openingQuantity || 0) * Number(p.openingCost || p.purchasePrice || p.averageCost || 0),
+          })),
+        customers: customers
+          .filter((c) => (openingJournal ? Number(c.openingBalance || 0) > 0 : true))
+          .map((c) => ({
+            customerId: c.id,
+            name: c.name,
+            phone: c.phone || "",
+            balance: Number(c.openingBalance || 0),
+          })),
+        suppliers: suppliers
+          .filter((s) => (openingJournal ? Number(s.openingBalance || 0) > 0 : true))
+          .map((s) => ({
+            supplierId: s.id,
+            name: s.name,
+            phone: s.phone || "",
+            balance: Number(s.openingBalance || 0),
+          })),
         summary: {
           cashTotal: round2(cashTotal).toNumber(),
           bankTotal: round2(bankTotal).toNumber(),
@@ -187,24 +212,48 @@ export async function getOpeningBalances(businessId: string) {
   const customers = fallbackStore.customers.filter((c) => c.businessId === businessId);
   const suppliers = fallbackStore.suppliers.filter((s) => s.businessId === businessId);
   const capitalAcc = fallbackStore.accounts.find((a) => a.businessId === businessId && a.code === "3010");
+  const fallbackOpeningJournal = fallbackStore.journalEntries?.find(
+    (j) => j.businessId === businessId && j.referenceType === "OPENING_BALANCE"
+  );
 
-  const cashTotal = cashAccounts.filter((a) => a.type === "CASH").reduce((sum, a) => sum + Number(a.balance || 0), 0);
-  const bankTotal = cashAccounts.filter((a) => a.type === "BANK").reduce((sum, a) => sum + Number(a.balance || 0), 0);
-  const inventoryTotal = products.reduce((sum, p) => sum + Number(p.currentStock || 0) * Number(p.purchasePrice || 0), 0);
-  const receivablesTotal = customers.reduce((sum, c) => sum + Number(c.currentBalance || c.openingBalance || 0), 0);
-  const payablesTotal = suppliers.reduce((sum, s) => sum + Number(s.currentBalance || s.openingBalance || 0), 0);
-  const capitalAmount = Number(capitalAcc?.balance || 0);
+  let cashTotal = 0;
+  let bankTotal = 0;
+  let inventoryTotal = 0;
+  let receivablesTotal = 0;
+  let payablesTotal = 0;
+  let capitalAmount = 0;
+
+  if (fallbackOpeningJournal && fallbackOpeningJournal.lines?.length > 0) {
+    for (const line of fallbackOpeningJournal.lines) {
+      const code = line.account?.code || (line as any).accountCode;
+      const dr = Number(line.debit || 0);
+      const cr = Number(line.credit || 0);
+      if (code === "1010") cashTotal += dr;
+      else if (code === "1020") bankTotal += dr;
+      else if (code === "1200") inventoryTotal += dr;
+      else if (code === "1100") receivablesTotal += dr;
+      else if (code === "2010") payablesTotal += cr;
+      else if (code === "3010") capitalAmount += cr;
+    }
+  } else {
+    cashTotal = cashAccounts.filter((a) => a.type === "CASH").reduce((sum, a) => sum + Number(a.balance || 0), 0);
+    bankTotal = cashAccounts.filter((a) => a.type === "BANK").reduce((sum, a) => sum + Number(a.balance || 0), 0);
+    inventoryTotal = products.reduce((sum, p) => sum + Number(p.openingQuantity || 0) * Number(p.purchasePrice || p.openingCost || 0), 0);
+    receivablesTotal = customers.reduce((sum, c) => sum + Number(c.openingBalance || 0), 0);
+    payablesTotal = suppliers.reduce((sum, s) => sum + Number(s.openingBalance || 0), 0);
+    capitalAmount = Number(capitalAcc?.balance || 0);
+  }
 
   const totalAssets = cashTotal + bankTotal + inventoryTotal + receivablesTotal;
   const totalLiabilities = payablesTotal;
   const difference = round2(totalAssets - (totalLiabilities + capitalAmount)).toNumber();
 
   return {
-    asOfDate: new Date().toISOString().split("T")[0],
+    asOfDate: fallbackOpeningJournal?.date ? new Date(fallbackOpeningJournal.date).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
     capital: {
       amount: capitalAmount,
       drawings: 0,
-      notes: "Initial Business Capital Setup",
+      notes: fallbackOpeningJournal?.description || "Initial Business Capital Setup",
     },
     cashBank: cashAccounts.length > 0 ? cashAccounts.map((a) => ({
       id: a.id,
@@ -217,26 +266,32 @@ export async function getOpeningBalances(businessId: string) {
       { id: "cash-default", name: "Cash in Hand", type: "CASH" as const, balance: cashTotal },
       { id: "bank-default", name: "Main Bank Account", type: "BANK" as const, balance: bankTotal },
     ],
-    inventory: products.map((p) => ({
-      productId: p.id,
-      name: p.name,
-      sku: p.sku || "",
-      quantity: Number(p.currentStock || 0),
-      unitCost: Number(p.purchasePrice || 0),
-      totalValue: Number(p.currentStock || 0) * Number(p.purchasePrice || 0),
-    })),
-    customers: customers.map((c) => ({
-      customerId: c.id,
-      name: c.name,
-      phone: c.phone || "",
-      balance: Number(c.currentBalance || c.openingBalance || 0),
-    })),
-    suppliers: suppliers.map((s) => ({
-      supplierId: s.id,
-      name: s.name,
-      phone: s.phone || "",
-      balance: Number(s.currentBalance || s.openingBalance || 0),
-    })),
+    inventory: products
+      .filter((p) => (fallbackOpeningJournal ? Number(p.openingQuantity || 0) > 0 : true))
+      .map((p) => ({
+        productId: p.id,
+        name: p.name,
+        sku: p.sku || "",
+        quantity: Number(p.openingQuantity || 0),
+        unitCost: Number(p.purchasePrice || p.openingCost || 0),
+        totalValue: Number(p.openingQuantity || 0) * Number(p.purchasePrice || p.openingCost || 0),
+      })),
+    customers: customers
+      .filter((c) => (fallbackOpeningJournal ? Number(c.openingBalance || 0) > 0 : true))
+      .map((c) => ({
+        customerId: c.id,
+        name: c.name,
+        phone: c.phone || "",
+        balance: Number(c.openingBalance || 0),
+      })),
+    suppliers: suppliers
+      .filter((s) => (fallbackOpeningJournal ? Number(s.openingBalance || 0) > 0 : true))
+      .map((s) => ({
+        supplierId: s.id,
+        name: s.name,
+        phone: s.phone || "",
+        balance: Number(s.openingBalance || 0),
+      })),
     summary: {
       cashTotal: round2(cashTotal).toNumber(),
       bankTotal: round2(bankTotal).toNumber(),
@@ -249,7 +304,7 @@ export async function getOpeningBalances(businessId: string) {
       difference,
       isBalanced: Math.abs(difference) < 0.01,
     },
-    hasExistingSetup: false,
+    hasExistingSetup: Boolean(fallbackOpeningJournal),
   };
 }
 
@@ -653,6 +708,29 @@ export async function saveOpeningBalances(
     }
   }
 
+  // Update fallback cash & bank accounts
+  for (const cb of input.cashBank || []) {
+    const existing = fallbackStore.cashBankAccounts.find(
+      (a) => a.id === cb.id || (a.businessId === businessId && a.name.toLowerCase() === cb.name.toLowerCase())
+    );
+    if (existing) {
+      existing.balance = cb.balance;
+      existing.name = cb.name;
+      existing.type = cb.type;
+    } else {
+      fallbackStore.cashBankAccounts.push({
+        id: cb.id || `cb-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        businessId,
+        name: cb.name,
+        type: cb.type,
+        accountNumber: cb.accountNumber || null,
+        bankName: cb.bankName || null,
+        balance: cb.balance,
+        isActive: true,
+      } as any);
+    }
+  }
+
   // Update fallback products
   for (const item of input.inventory || []) {
     const existing = fallbackStore.products.find((p) => p.id === item.productId || p.name.toLowerCase() === item.name.toLowerCase());
@@ -673,6 +751,33 @@ export async function saveOpeningBalances(
       });
     }
   }
+
+  // Record master opening journal in fallbackStore
+  if (!fallbackStore.journalEntries) fallbackStore.journalEntries = [];
+  fallbackStore.journalEntries = fallbackStore.journalEntries.filter(
+    (j) => !(j.businessId === businessId && j.referenceType === "OPENING_BALANCE")
+  );
+
+  const fallbackLines: any[] = [];
+  if (cashTotal > 0) fallbackLines.push({ accountCode: "1010", debit: cashTotal, credit: 0, description: "Opening Cash in Hand" });
+  if (bankTotal > 0) fallbackLines.push({ accountCode: "1020", debit: bankTotal, credit: 0, description: "Opening Bank Accounts" });
+  if (inventoryTotal > 0) fallbackLines.push({ accountCode: "1200", debit: inventoryTotal, credit: 0, description: "Opening Stock" });
+  if (receivablesTotal > 0) fallbackLines.push({ accountCode: "1100", debit: receivablesTotal, credit: 0, description: "Opening Receivables" });
+  if (payablesTotal > 0) fallbackLines.push({ accountCode: "2010", debit: 0, credit: payablesTotal, description: "Opening Payables" });
+  if (capitalAmount > 0) fallbackLines.push({ accountCode: "3010", debit: 0, credit: capitalAmount, description: "Owner's Capital" });
+
+  fallbackStore.journalEntries.push({
+    id: `ob-jnl-${Date.now()}`,
+    businessId,
+    entryNumber: `OB-${asOfDate.getFullYear()}-0001`,
+    date: asOfDate,
+    description: "Official Opening Balance Sheet & Capital Assignment",
+    referenceType: "OPENING_BALANCE",
+    referenceId: businessId,
+    isBalanced: true,
+    status: "POSTED",
+    lines: fallbackLines,
+  } as any);
 
   return {
     success: true,

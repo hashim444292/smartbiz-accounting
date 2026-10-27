@@ -406,6 +406,27 @@ export default function OpeningBalancesPage() {
         </div>
       )}
 
+      {/* Accounting Guidance Banner */}
+      <div className="rounded-2xl border border-blue-200 bg-blue-50/80 p-4 text-xs text-blue-900 dark:border-blue-900/50 dark:bg-blue-950/40 dark:text-blue-200 flex items-start gap-3 shadow-xs">
+        <div className="p-2 bg-blue-100 dark:bg-blue-900/60 rounded-xl text-blue-700 dark:text-blue-300 shrink-0">
+          <Scale className="h-5 w-5" />
+        </div>
+        <div className="space-y-1">
+          <p className="font-bold text-sm text-blue-950 dark:text-blue-100 flex items-center gap-2">
+            <span>{t("Standard Accounting Principle: Capital is Defined Once at Inception", "اسٹینڈرڈ اکاؤنٹنگ اصول: سرمایہ (Capital) صرف ایک بار شروع میں درج ہوتا ہے")}</span>
+            <Badge variant="outline" className="border-blue-300 text-blue-700 dark:border-blue-700 dark:text-blue-300 text-[10px] bg-white dark:bg-blue-900/40">
+              IFRS / Double-Entry
+            </Badge>
+          </p>
+          <p className="leading-relaxed text-blue-800/90 dark:text-blue-300">
+            {t(
+              "Owner's Capital is established once as of the opening cutoff date. Ongoing daily purchases of new inventory do NOT alter Capital; they are funded by Cash, Bank, or Accounts Payable (Suppliers). Regular stock purchases belong to Purchases & Bills, not Opening Balances.",
+              "مالک کا ابتدائی سرمایہ (Capital) صرف ایک بار بزنس شروع کرتے وقت یا سافٹ ویئر کٹ آف تاریخ پر مقرر ہوتا ہے۔ روزمرہ کی نئی خریداری (Purchases) کیپیٹل میں شامل نہیں ہوتی، بلکہ وہ کیش، بینک یا سپلائر کے کھاتے سے ادا ہوتی ہے۔ نیا مال خریدنے کے لیے 'Purchases & Bills' ماڈیول استعمال کریں۔"
+            )}
+          </p>
+        </div>
+      </div>
+
       {/* Top Financial Health & Double-Entry Summary */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         <div className="rounded-2xl border border-slate-200/80 bg-white p-3.5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
@@ -414,7 +435,7 @@ export default function OpeningBalancesPage() {
             <Coins className="h-4 w-4 text-amber-500" />
           </div>
           <p className="mt-1 text-base font-black text-slate-900 dark:text-white">
-            Rs. {formatMoney(capitalAmount)}
+            {formatMoney(capitalAmount)}
           </p>
           <span className="text-[10px] text-slate-400">{t("Account 3010 (Equity)", "ایکویٹی کھاتہ")}</span>
         </div>
@@ -425,7 +446,7 @@ export default function OpeningBalancesPage() {
             <Wallet className="h-4 w-4 text-blue-500" />
           </div>
           <p className="mt-1 text-base font-black text-slate-900 dark:text-white">
-            Rs. {formatMoney(totals.cashTotal + totals.bankTotal)}
+            {formatMoney(totals.cashTotal + totals.bankTotal)}
           </p>
           <span className="text-[10px] text-slate-400">{cashBankList.length} {t("accounts", "اکاؤنٹس")}</span>
         </div>
@@ -436,7 +457,7 @@ export default function OpeningBalancesPage() {
             <Boxes className="h-4 w-4 text-purple-500" />
           </div>
           <p className="mt-1 text-base font-black text-slate-900 dark:text-white">
-            Rs. {formatMoney(totals.inventoryTotal)}
+            {formatMoney(totals.inventoryTotal)}
           </p>
           <span className="text-[10px] text-slate-400">{inventoryList.length} {t("products", "آئٹمز")}</span>
         </div>
@@ -447,7 +468,7 @@ export default function OpeningBalancesPage() {
             <Users className="h-4 w-4 text-emerald-500" />
           </div>
           <p className="mt-1 text-base font-black text-slate-900 dark:text-white">
-            Rs. {formatMoney(totals.receivablesTotal)}
+            {formatMoney(totals.receivablesTotal)}
           </p>
           <span className="text-[10px] text-slate-400">{customersList.length} {t("customers", "کسٹمرز")}</span>
         </div>
@@ -458,7 +479,7 @@ export default function OpeningBalancesPage() {
             <Truck className="h-4 w-4 text-rose-500" />
           </div>
           <p className="mt-1 text-base font-black text-slate-900 dark:text-white">
-            Rs. {formatMoney(totals.payablesTotal)}
+            {formatMoney(totals.payablesTotal)}
           </p>
           <span className="text-[10px] text-slate-400">{suppliersList.length} {t("suppliers", "سپلائرز")}</span>
         </div>
@@ -487,7 +508,7 @@ export default function OpeningBalancesPage() {
           ) : (
             <div className="mt-1">
               <span className="text-xs font-black text-amber-700 dark:text-amber-400">
-                Diff: Rs. {formatMoney(Math.abs(totals.difference))}
+                Diff: {formatMoney(Math.abs(totals.difference))}
               </span>
               <button
                 onClick={handleAutoBalanceCapital}
@@ -784,7 +805,7 @@ export default function OpeningBalancesPage() {
               {t("Total Liquid Cash & Bank:", "کل نقد و بینک بیلنس:")}
             </span>
             <span className="text-sm font-black text-emerald-600 dark:text-emerald-400">
-              Rs. {formatMoney(totals.cashTotal + totals.bankTotal)}
+              {formatMoney(totals.cashTotal + totals.bankTotal)}
             </span>
           </div>
         </div>
@@ -897,7 +918,7 @@ export default function OpeningBalancesPage() {
                           />
                         </td>
                         <td className="px-4 py-2 text-right font-black text-slate-800 dark:text-slate-100 font-mono">
-                          Rs. {formatMoney(rowVal)}
+                          {formatMoney(rowVal)}
                         </td>
                         <td className="px-4 py-2 text-center">
                           <button
@@ -922,7 +943,7 @@ export default function OpeningBalancesPage() {
               {t("Total Opening Stock Valuation (Account 1200):", "کل موجودہ اسٹاک مالیت (اکاؤنٹ 1200):")}
             </span>
             <span className="text-sm font-black text-purple-600 dark:text-purple-400">
-              Rs. {formatMoney(totals.inventoryTotal)}
+              {formatMoney(totals.inventoryTotal)}
             </span>
           </div>
         </div>
@@ -1052,7 +1073,7 @@ export default function OpeningBalancesPage() {
               {t("Total Accounts Receivable (Account 1100):", "کل واجب الوصول وصولیاں (اکاؤنٹ 1100):")}
             </span>
             <span className="text-sm font-black text-emerald-600 dark:text-emerald-400">
-              Rs. {formatMoney(totals.receivablesTotal)}
+              {formatMoney(totals.receivablesTotal)}
             </span>
           </div>
         </div>
@@ -1166,7 +1187,7 @@ export default function OpeningBalancesPage() {
               {t("Total Accounts Payable (Account 2010):", "کل واجب الادا ادائیگیاں (اکاؤنٹ 2010):")}
             </span>
             <span className="text-sm font-black text-rose-600 dark:text-rose-400">
-              Rs. {formatMoney(totals.payablesTotal)}
+              {formatMoney(totals.payablesTotal)}
             </span>
           </div>
         </div>
@@ -1177,16 +1198,16 @@ export default function OpeningBalancesPage() {
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <span className="text-xs font-bold text-slate-500">
-              {t("Assets:", "اثاثے:")} <strong className="text-slate-900 dark:text-white font-mono">Rs. {formatMoney(totals.totalAssets)}</strong>
+              {t("Assets:", "اثاثے:")} <strong className="text-slate-900 dark:text-white font-mono">{formatMoney(totals.totalAssets)}</strong>
             </span>
             <span className="text-slate-300">|</span>
             <span className="text-xs font-bold text-slate-500">
-              {t("Liab + Capital:", "واجبات و سرمایہ:")} <strong className="text-slate-900 dark:text-white font-mono">Rs. {formatMoney(totals.totalCredits)}</strong>
+              {t("Liab + Capital:", "واجبات و سرمایہ:")} <strong className="text-slate-900 dark:text-white font-mono">{formatMoney(totals.totalCredits)}</strong>
             </span>
             {!totals.isBalanced && (
               <span className="hidden sm:inline-flex items-center gap-1 rounded-md bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-800 dark:bg-amber-950/60 dark:text-amber-300">
                 <AlertTriangle className="h-3 w-3" />
-                <span>Diff: Rs. {formatMoney(Math.abs(totals.difference))}</span>
+                <span>Diff: {formatMoney(Math.abs(totals.difference))}</span>
               </span>
             )}
           </div>
