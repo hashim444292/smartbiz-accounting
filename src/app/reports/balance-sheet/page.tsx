@@ -86,13 +86,13 @@ export default function BalanceSheetPage() {
           badgeText="Financial Position"
         />
 
-        <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 py-4 text-xs">
+        <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 py-4 print:py-1 print:gap-4 text-xs print:text-[9.5px]">
           {/* Assets Side */}
-          <div className="space-y-4">
-            <h3 className="font-bold text-slate-900 dark:text-white uppercase text-[11px] pb-1 border-b border-slate-200 dark:border-slate-800">
+          <div className="space-y-4 print:space-y-1.5">
+            <h3 className="font-bold text-slate-900 dark:text-white uppercase text-[11px] print:text-[10px] pb-1 print:pb-0.5 border-b border-slate-200 dark:border-slate-800 print:border-slate-300">
               Assets (اثاثہ جات)
             </h3>
-            <div className="space-y-2.5">
+            <div className="space-y-2.5 print:space-y-1">
               <div className="flex justify-between">
                 <span>Cash in Hand (نقدی بر دست)</span>
                 <span className="tabular-nums font-semibold">{formatMoney(cash)}</span>
@@ -110,18 +110,18 @@ export default function BalanceSheetPage() {
                 <span className="tabular-nums font-semibold">{formatMoney(inventory)}</span>
               </div>
             </div>
-            <div className="border-t-2 border-slate-900 pt-3 flex justify-between font-black text-sm text-blue-600 dark:text-blue-400 dark:border-white">
+            <div className="border-t-2 border-slate-900 pt-3 print:pt-1 flex justify-between font-black text-sm print:text-xs text-blue-600 dark:text-blue-400 dark:border-white">
               <span>TOTAL ASSETS</span>
               <span className="tabular-nums">{formatMoney(totalAssets)}</span>
             </div>
           </div>
 
           {/* Liabilities & Equity Side */}
-          <div className="space-y-4">
-            <h3 className="font-bold text-slate-900 dark:text-white uppercase text-[11px] pb-1 border-b border-slate-200 dark:border-slate-800">
+          <div className="space-y-4 print:space-y-1.5">
+            <h3 className="font-bold text-slate-900 dark:text-white uppercase text-[11px] print:text-[10px] pb-1 print:pb-0.5 border-b border-slate-200 dark:border-slate-800 print:border-slate-300">
               Liabilities & Equity (واجبات و کیپیٹل)
             </h3>
-            <div className="space-y-2.5">
+            <div className="space-y-2.5 print:space-y-1">
               <div className="flex justify-between">
                 <span>Accounts Payable - Suppliers (سپلائرز واجبات)</span>
                 <span className="tabular-nums font-semibold text-rose-600">{formatMoney(payables)}</span>
@@ -130,20 +130,20 @@ export default function BalanceSheetPage() {
                 <span>{t("Tax & Sales Tax Accrued", "واجب الادا ٹیکس اور سیلز ٹیکس")}</span>
                 <span className="tabular-nums font-semibold">{formatMoney(accruedTaxes)}</span>
               </div>
-              <div className="flex justify-between border-t border-slate-100 pt-1 font-bold">
+              <div className="flex justify-between border-t border-slate-100 print:border-slate-300 pt-1 font-bold">
                 <span>Total Liabilities</span>
                 <span className="tabular-nums">{formatMoney(totalLiab)}</span>
               </div>
 
-              <div className="pt-3">
-                <p className="font-bold uppercase text-[10px] text-slate-400 mb-1">Owner's Equity (سرمایہ کاری و منافع)</p>
+              <div className="pt-3 print:pt-1">
+                <p className="font-bold uppercase text-[10px] print:text-[8.5px] text-slate-400 print:text-slate-600 mb-1 print:mb-0.5">Owner's Equity (سرمایہ کاری و منافع)</p>
                 <div className="flex justify-between text-slate-600 dark:text-slate-300">
                   <span>Owner Capital & Retained Earnings</span>
                   <span className="tabular-nums font-semibold">{formatMoney(equity)}</span>
                 </div>
               </div>
             </div>
-            <div className="border-t-2 border-slate-900 pt-3 flex justify-between font-black text-sm text-blue-600 dark:text-blue-400 dark:border-white">
+            <div className="border-t-2 border-slate-900 pt-3 print:pt-1 flex justify-between font-black text-sm print:text-xs text-blue-600 dark:text-blue-400 dark:border-white">
               <span>TOTAL LIABILITIES & EQUITY</span>
               <span className="tabular-nums">{formatMoney(totalLiab + equity)}</span>
             </div>

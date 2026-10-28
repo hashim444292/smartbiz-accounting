@@ -78,11 +78,11 @@ export default function CashFlowPage() {
           badgeText="Cash Reconciliation"
         />
 
-        <div className="py-4 space-y-4 text-xs">
-          <h3 className="font-bold text-slate-900 dark:text-white uppercase text-[11px] pb-1 border-b border-slate-200 dark:border-slate-800">
+        <div className="py-4 print:py-1 space-y-4 print:space-y-1.5 text-xs print:text-[9.5px]">
+          <h3 className="font-bold text-slate-900 dark:text-white uppercase text-[11px] print:text-[10px] pb-1 print:pb-0.5 border-b border-slate-200 dark:border-slate-800 print:border-slate-300">
             Cash Flows from Operating Activities (آپریٹنگ سرگرمیوں سے کیش فلو)
           </h3>
-          <div className="space-y-2.5">
+          <div className="space-y-2.5 print:space-y-1">
             <div className="flex justify-between">
               <span>Cash received from customer receivables & counter sales</span>
               <span className="tabular-nums font-semibold text-emerald-600">+{formatMoney(receipts)}</span>
@@ -95,13 +95,13 @@ export default function CashFlowPage() {
               <span>Cash paid for daily business operating expenses</span>
               <span className="tabular-nums font-semibold text-rose-600">-{formatMoney(expenses)}</span>
             </div>
-            <div className="border-t border-slate-200 pt-2 flex justify-between font-bold text-sm">
+            <div className="border-t border-slate-200 print:border-slate-300 pt-2 print:pt-1 flex justify-between font-bold text-sm print:text-xs">
               <span>Net Cash Provided by Operating Activities</span>
               <span className={`tabular-nums ${netOperatingCash >= 0 ? "text-blue-600" : "text-rose-600"}`}>{formatMoney(netOperatingCash)}</span>
             </div>
           </div>
 
-          <div className="rounded-xl bg-slate-50 p-4 mt-6 dark:bg-slate-800/60 flex justify-between items-center text-sm font-black print:bg-transparent print:border-t-2 print:border-b-2 print:border-slate-900 print:rounded-none">
+          <div className="rounded-xl bg-slate-50 p-4 print:p-2 mt-6 print:mt-2 dark:bg-slate-800/60 flex justify-between items-center text-sm print:text-xs font-black print:bg-transparent print:border-t-2 print:border-b-2 print:border-slate-900 print:rounded-none">
             <span>NET CHANGE IN PHYSICAL & BANK LIQUIDITY</span>
             <span className={`tabular-nums ${netOperatingCash >= 0 ? "text-emerald-600" : "text-rose-600"}`}>{formatMoney(netOperatingCash)}</span>
           </div>

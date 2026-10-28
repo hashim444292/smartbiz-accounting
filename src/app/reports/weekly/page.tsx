@@ -134,7 +134,7 @@ export default function WeeklyReportPage() {
       </div>
 
       {/* Printable Report Container */}
-      <div className="print-report-sheet space-y-6 print:space-y-4">
+      <div className="print-report-sheet space-y-6 print:space-y-2">
         {/* Printable Official Header */}
         <ReportPrintHeader
           title="Weekly Business Performance Report"
@@ -146,49 +146,49 @@ export default function WeeklyReportPage() {
         />
 
         {/* Key Metrics Cards */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 print:border print:border-slate-300 print:p-2 print:shadow-none print:break-inside-avoid">
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 text-xs">
-            <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-900 print:bg-transparent print:border-none print:p-1.5">
-              <p className="text-slate-400 uppercase font-bold text-[10px]">Weekly Turnover (Sales)</p>
-              <p className="text-lg font-bold text-blue-600 mt-1 tabular-nums">{formatMoney(weeklySales)}</p>
-              <span className="text-[10px] text-slate-500 block mt-0.5">{invoiceCount} invoices issued</span>
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 print:border print:border-slate-300 print:p-1.5 print:shadow-none print:break-inside-avoid">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 text-xs print:gap-1.5">
+            <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-900 print:bg-transparent print:border print:border-slate-200 print:p-1">
+              <p className="text-slate-400 uppercase font-bold text-[10px] print:text-[8px] print:text-slate-600">Weekly Turnover (Sales)</p>
+              <p className="text-lg font-bold text-blue-600 mt-1 tabular-nums print:text-xs print:mt-0">{formatMoney(weeklySales)}</p>
+              <span className="text-[10px] text-slate-500 block mt-0.5 print:text-[8px]">{invoiceCount} invoices issued</span>
             </div>
-            <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-900 print:bg-transparent print:border-none print:p-1.5">
-              <p className="text-slate-400 uppercase font-bold text-[10px]">Weekly Purchases</p>
-              <p className="text-lg font-bold text-indigo-600 mt-1 tabular-nums">{formatMoney(weeklyPurchases)}</p>
-              <span className="text-[10px] text-slate-500 block mt-0.5">Inventory restocking</span>
+            <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-900 print:bg-transparent print:border print:border-slate-200 print:p-1">
+              <p className="text-slate-400 uppercase font-bold text-[10px] print:text-[8px] print:text-slate-600">Weekly Purchases</p>
+              <p className="text-lg font-bold text-indigo-600 mt-1 tabular-nums print:text-xs print:mt-0">{formatMoney(weeklyPurchases)}</p>
+              <span className="text-[10px] text-slate-500 block mt-0.5 print:text-[8px]">Inventory restocking</span>
             </div>
-            <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-900 print:bg-transparent print:border-none print:p-1.5">
-              <p className="text-slate-400 uppercase font-bold text-[10px]">Weekly Overhead (Expenses)</p>
-              <p className="text-lg font-bold text-rose-600 mt-1 tabular-nums">{formatMoney(weeklyExpenses)}</p>
-              <span className="text-[10px] text-slate-500 block mt-0.5">Operating utilities</span>
+            <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-900 print:bg-transparent print:border print:border-slate-200 print:p-1">
+              <p className="text-slate-400 uppercase font-bold text-[10px] print:text-[8px] print:text-slate-600">Weekly Overhead (Expenses)</p>
+              <p className="text-lg font-bold text-rose-600 mt-1 tabular-nums print:text-xs print:mt-0">{formatMoney(weeklyExpenses)}</p>
+              <span className="text-[10px] text-slate-500 block mt-0.5 print:text-[8px]">Operating utilities</span>
             </div>
-            <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-900 print:bg-transparent print:border-none print:p-1.5">
-              <p className="text-slate-400 uppercase font-bold text-[10px]">Net Surplus / Margins</p>
-              <p className={`text-lg font-bold mt-1 tabular-nums ${estimatedProfit >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
+            <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-900 print:bg-transparent print:border print:border-slate-200 print:p-1">
+              <p className="text-slate-400 uppercase font-bold text-[10px] print:text-[8px] print:text-slate-600">Net Surplus / Margins</p>
+              <p className={`text-lg font-bold mt-1 tabular-nums print:text-xs print:mt-0 ${estimatedProfit >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
                 {formatMoney(estimatedProfit)}
               </p>
-              <span className="text-[10px] text-emerald-600 block mt-0.5">Turnover net margin</span>
+              <span className="text-[10px] text-emerald-600 block mt-0.5 print:text-[8px]">Turnover net margin</span>
             </div>
           </div>
         </div>
 
         {/* Day-by-Day 7-Day Performance List */}
-        <Card className="print:border print:border-slate-300 print:shadow-none print:break-inside-avoid">
-          <CardHeader className="pb-3 print:pb-2 print:border-b print:border-slate-300">
-            <CardTitle className="text-base font-bold">Day-by-Day 7-Day Operational Register (روزانہ ہفتہ وار فہرست)</CardTitle>
-            <p className="text-[11px] text-slate-500 mt-0.5">Itemized daily comparison of turnover, inward stock procurement, overheads and cash margins</p>
+        <Card className="print:border print:border-slate-300 print:shadow-none print:break-inside-avoid print:p-1.5">
+          <CardHeader className="pb-3 print:pb-1 print:border-b print:border-slate-300">
+            <CardTitle className="text-base font-bold print:text-xs">Day-by-Day 7-Day Operational Register (روزانہ ہفتہ وار فہرست)</CardTitle>
+            <p className="text-[11px] text-slate-500 mt-0.5 print:text-[8.5px] print:mt-0">Itemized daily comparison of turnover, inward stock procurement, overheads and cash margins</p>
           </CardHeader>
           <CardContent className="print:p-0">
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs border-collapse">
+              <table className="w-full text-left text-xs border-collapse print:text-[9.5px]">
                 <thead className="border-b text-[10px] font-bold uppercase text-slate-400 print:text-black print:border-slate-400">
                   <tr>
-                    <th className="pb-2">Day & Date</th>
-                    <th className="pb-2 text-right">Sales Turnover</th>
-                    <th className="pb-2 text-right">Stock Inflow (Purchases)</th>
-                    <th className="pb-2 text-right">Expenses (Overheads)</th>
-                    <th className="pb-2 text-right">Net Operating Delta</th>
+                    <th className="pb-2 print:pb-1">Day & Date</th>
+                    <th className="pb-2 print:pb-1 text-right">Sales Turnover</th>
+                    <th className="pb-2 print:pb-1 text-right">Stock Inflow (Purchases)</th>
+                    <th className="pb-2 print:pb-1 text-right">Expenses (Overheads)</th>
+                    <th className="pb-2 print:pb-1 text-right">Net Operating Delta</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800 print:divide-slate-200">
@@ -196,11 +196,11 @@ export default function WeeklyReportPage() {
                     const net = d.sales - d.purchases - d.expenses;
                     return (
                       <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50">
-                        <td className="py-2.5 font-semibold text-slate-900 dark:text-white font-mono">{d.day}</td>
-                        <td className="py-2.5 text-right font-bold text-blue-600 tabular-nums">{formatMoney(d.sales)}</td>
-                        <td className="py-2.5 text-right font-bold text-indigo-600 tabular-nums">{formatMoney(d.purchases)}</td>
-                        <td className="py-2.5 text-right font-bold text-rose-600 tabular-nums">-{formatMoney(d.expenses)}</td>
-                        <td className={`py-2.5 text-right font-black tabular-nums ${net >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
+                        <td className="py-2.5 print:py-1 font-semibold text-slate-900 dark:text-white font-mono">{d.day}</td>
+                        <td className="py-2.5 print:py-1 text-right font-bold text-blue-600 tabular-nums">{formatMoney(d.sales)}</td>
+                        <td className="py-2.5 print:py-1 text-right font-bold text-indigo-600 tabular-nums">{formatMoney(d.purchases)}</td>
+                        <td className="py-2.5 print:py-1 text-right font-bold text-rose-600 tabular-nums">-{formatMoney(d.expenses)}</td>
+                        <td className={`py-2.5 print:py-1 text-right font-black tabular-nums ${net >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
                           {formatMoney(net)}
                         </td>
                       </tr>
@@ -209,11 +209,11 @@ export default function WeeklyReportPage() {
                 </tbody>
                 <tfoot className="border-t-2 border-slate-900 text-[11px] font-bold text-slate-900 bg-slate-50/70 print:bg-transparent">
                   <tr>
-                    <td className="py-2 px-1 font-mono font-bold">7-DAY CUMULATIVE TOTALS</td>
-                    <td className="py-2 text-right font-black text-blue-700 tabular-nums">{formatMoney(weeklySales)}</td>
-                    <td className="py-2 text-right font-black text-indigo-700 tabular-nums">{formatMoney(weeklyPurchases)}</td>
-                    <td className="py-2 text-right font-black text-rose-700 tabular-nums">-{formatMoney(weeklyExpenses)}</td>
-                    <td className={`py-2 text-right font-black tabular-nums ${estimatedProfit >= 0 ? "text-emerald-700" : "text-rose-700"}`}>
+                    <td className="py-2 print:py-1 px-1 font-mono font-bold">7-DAY CUMULATIVE TOTALS</td>
+                    <td className="py-2 print:py-1 text-right font-black text-blue-700 tabular-nums">{formatMoney(weeklySales)}</td>
+                    <td className="py-2 print:py-1 text-right font-black text-indigo-700 tabular-nums">{formatMoney(weeklyPurchases)}</td>
+                    <td className="py-2 print:py-1 text-right font-black text-rose-700 tabular-nums">-{formatMoney(weeklyExpenses)}</td>
+                    <td className={`py-2 print:py-1 text-right font-black tabular-nums ${estimatedProfit >= 0 ? "text-emerald-700" : "text-rose-700"}`}>
                       {formatMoney(estimatedProfit)}
                     </td>
                   </tr>

@@ -157,7 +157,7 @@
 @media print {
   @page {
     size: A4 portrait;
-    margin: 8mm 10mm;
+    margin: 6mm 8mm;
   }
 
   /* Completely eliminate all shell navigation, banners, headers, docks & buttons */
@@ -180,7 +180,7 @@
   html,
   body {
     background: #ffffff !important;
-    color: #000000 !important;
+    color: #0f172a !important;
     padding: 0 !important;
     margin: 0 !important;
     width: 100% !important;
@@ -215,13 +215,15 @@
   /* ========================================================================= */
   .print-report-sheet {
     background: #ffffff !important;
-    color: #000000 !important;
+    color: #0f172a !important;
     border: none !important;
     box-shadow: none !important;
     padding: 0 !important;
     margin: 0 auto !important;
     width: 100% !important;
     max-width: 100% !important;
+    font-size: 10px !important;
+    line-height: 1.3 !important;
   }
 
   .print-report-sheet * {
@@ -229,9 +231,51 @@
     text-shadow: none !important;
   }
 
+  /* Moderate vertical spacing between sections (eliminates multi-page bloat) */
+  .print-report-sheet > * + *,
+  .print-report-sheet .space-y-6 > * + *,
+  .print-report-sheet .space-y-4 > * + * {
+    margin-top: 6px !important;
+  }
+
+  .print-report-sheet .grid {
+    gap: 6px !important;
+  }
+
+  /* Cards inside print report: compact borders, minimal padding, clean radius */
+  .print-report-sheet .rounded-2xl,
+  .print-report-sheet .rounded-xl,
+  .print-report-sheet [class*="rounded-2xl"],
+  .print-report-sheet [class*="rounded-xl"] {
+    border-radius: 4px !important;
+  }
+
+  .print-report-sheet [class*="p-4"],
+  .print-report-sheet [class*="p-5"],
+  .print-report-sheet [class*="p-6"] {
+    padding: 5px 8px !important;
+  }
+
+  .print-report-sheet [class*="p-3"] {
+    padding: 4px 6px !important;
+  }
+
+  .print-report-sheet [class*="pb-3"],
+  .print-report-sheet [class*="pb-4"] {
+    padding-bottom: 3px !important;
+  }
+
+  .print-report-sheet [class*="pt-4"],
+  .print-report-sheet [class*="pt-5"],
+  .print-report-sheet [class*="pt-6"] {
+    padding-top: 3px !important;
+  }
+
+  /* Tables inside print report: clean typography & balanced row heights */
   .print-report-sheet table {
     width: 100% !important;
     border-collapse: collapse !important;
+    font-size: 9.5px !important;
     page-break-inside: auto !important;
   }
 
@@ -239,8 +283,31 @@
     display: table-header-group !important;
   }
 
+  .print-report-sheet thead th {
+    padding: 3.5px 5px !important;
+    font-size: 9px !important;
+    font-weight: 700 !important;
+    line-height: 1.2 !important;
+    border-bottom: 1.5px solid #0f172a !important;
+    color: #0f172a !important;
+  }
+
+  .print-report-sheet tbody td {
+    padding: 3px 5px !important;
+    font-size: 9.5px !important;
+    line-height: 1.25 !important;
+    border-bottom: 1px solid #e2e8f0 !important;
+  }
+
   .print-report-sheet tfoot {
     display: table-footer-group !important;
+  }
+
+  .print-report-sheet tfoot td {
+    padding: 3.5px 5px !important;
+    font-size: 9.5px !important;
+    font-weight: 700 !important;
+    border-top: 1.5px solid #0f172a !important;
   }
 
   .print-report-sheet tr {
@@ -257,7 +324,7 @@
   .print-report-sheet .report-section {
     page-break-inside: avoid !important;
     break-inside: avoid !important;
-    margin-bottom: 16px !important;
+    margin-bottom: 6px !important;
   }
 }
 

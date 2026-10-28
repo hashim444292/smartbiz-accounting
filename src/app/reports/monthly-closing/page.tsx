@@ -171,7 +171,7 @@ export default function MonthlyClosingPage() {
       {loading || !report ? (
         <div className="p-12 text-center text-xs text-slate-400">Compiling monthly financial statements...</div>
       ) : (
-        <div className="print-report-sheet space-y-6 print:space-y-4">
+        <div className="print-report-sheet space-y-6 print:space-y-2">
           {/* Printable Official Corporate Header */}
           <ReportPrintHeader
             title="Monthly Business Closing & Audit Report"
@@ -240,13 +240,13 @@ export default function MonthlyClosingPage() {
           )}
 
           {/* Section A & B: Sales & Purchases Comparison */}
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-            <Card>
-              <CardHeader className="pb-3 border-b border-slate-100">
-                <CardTitle>A. Monthly Sales Performance</CardTitle>
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 print:gap-2">
+            <Card className="print:border print:border-slate-300 print:shadow-none print:break-inside-avoid print:p-1.5">
+              <CardHeader className="pb-3 border-b border-slate-100 print:pb-1 print:border-slate-300">
+                <CardTitle className="print:text-xs">A. Monthly Sales Performance</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-2.5 text-xs">
-                <div className="flex justify-between font-bold text-sm text-slate-900 dark:text-white">
+              <CardContent className="space-y-2.5 print:space-y-1 text-xs print:text-[9.5px] print:pt-1">
+                <div className="flex justify-between font-bold text-sm print:text-xs text-slate-900 dark:text-white">
                   <span>Gross Sales ({report.sales.invoiceCount} invoices)</span>
                   <span className="text-blue-600 tabular-nums">{formatMoney(report.sales.total)}</span>
                 </div>
@@ -262,19 +262,19 @@ export default function MonthlyClosingPage() {
                   <span>Cost of Goods Sold (COGS)</span>
                   <span className="tabular-nums font-semibold">-{formatMoney(report.sales.cogs)}</span>
                 </div>
-                <div className="flex justify-between border-t border-slate-100 pt-2 font-bold text-emerald-600">
+                <div className="flex justify-between border-t border-slate-100 print:border-slate-300 pt-2 print:pt-1 font-bold text-emerald-600">
                   <span>Gross Profit</span>
                   <span className="tabular-nums">{formatMoney(report.sales.grossProfit)}</span>
                 </div>
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader className="pb-3 border-b border-slate-100">
-                <CardTitle>B. Monthly Inward Purchases</CardTitle>
+            <Card className="print:border print:border-slate-300 print:shadow-none print:break-inside-avoid print:p-1.5">
+              <CardHeader className="pb-3 border-b border-slate-100 print:pb-1 print:border-slate-300">
+                <CardTitle className="print:text-xs">B. Monthly Inward Purchases</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-2.5 text-xs">
-                <div className="flex justify-between font-bold text-sm text-slate-900 dark:text-white">
+              <CardContent className="space-y-2.5 print:space-y-1 text-xs print:text-[9.5px] print:pt-1">
+                <div className="flex justify-between font-bold text-sm print:text-xs text-slate-900 dark:text-white">
                   <span>Total Purchases ({report.purchases.invoiceCount} bills)</span>
                   <span className="text-indigo-600 tabular-nums">{formatMoney(report.purchases.total)}</span>
                 </div>
@@ -286,82 +286,82 @@ export default function MonthlyClosingPage() {
                   <span>Credit Purchases (Payables)</span>
                   <span className="tabular-nums font-semibold text-rose-600">{formatMoney(report.purchases.credit)}</span>
                 </div>
-                <div className="flex justify-between border-t border-slate-100 pt-2 text-slate-500">
+                <div className="flex justify-between border-t border-slate-100 print:border-slate-300 pt-2 print:pt-1 text-slate-500 font-semibold">
                   <span>Net Stock Inventory Added</span>
-                  <span className="tabular-nums font-semibold">{formatMoney(report.purchases.total)}</span>
+                  <span className="tabular-nums">{formatMoney(report.purchases.total)}</span>
                 </div>
               </CardContent>
             </Card>
           </div>
 
           {/* Section C, D, & H: Receivables, Payables, and Stock Closing */}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-xs uppercase text-slate-500">C. Customer Receivables</CardTitle>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 print:gap-2">
+            <Card className="print:border print:border-slate-300 print:shadow-none print:break-inside-avoid print:p-1.5">
+              <CardHeader className="pb-2 print:pb-0.5">
+                <CardTitle className="text-xs uppercase text-slate-500 print:text-[9px]">C. Customer Receivables</CardTitle>
               </CardHeader>
-              <CardContent>
-                <p className="text-xl font-bold text-rose-600 tabular-nums">
+              <CardContent className="print:pt-1">
+                <p className="text-xl font-bold text-rose-600 tabular-nums print:text-xs">
                   {formatMoney(report.receivables.total)}
                 </p>
-                <p className="text-[11px] text-slate-400 mt-1">Outstanding across {report.receivables.count} customers</p>
+                <p className="text-[11px] text-slate-400 mt-1 print:text-[8px] print:mt-0.5">Outstanding across {report.receivables.count} customers</p>
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-xs uppercase text-slate-500">D. Supplier Payables</CardTitle>
+            <Card className="print:border print:border-slate-300 print:shadow-none print:break-inside-avoid print:p-1.5">
+              <CardHeader className="pb-2 print:pb-0.5">
+                <CardTitle className="text-xs uppercase text-slate-500 print:text-[9px]">D. Supplier Payables</CardTitle>
               </CardHeader>
-              <CardContent>
-                <p className="text-xl font-bold text-rose-600 tabular-nums">
+              <CardContent className="print:pt-1">
+                <p className="text-xl font-bold text-rose-600 tabular-nums print:text-xs">
                   {formatMoney(report.payables.total)}
                 </p>
-                <p className="text-[11px] text-slate-400 mt-1">Due to {report.payables.count} registered suppliers</p>
+                <p className="text-[11px] text-slate-400 mt-1 print:text-[8px] print:mt-0.5">Due to {report.payables.count} registered suppliers</p>
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-xs uppercase text-slate-500">H. Inventory Closing Value</CardTitle>
+            <Card className="print:border print:border-slate-300 print:shadow-none print:break-inside-avoid print:p-1.5">
+              <CardHeader className="pb-2 print:pb-0.5">
+                <CardTitle className="text-xs uppercase text-slate-500 print:text-[9px]">H. Inventory Closing Value</CardTitle>
               </CardHeader>
-              <CardContent>
-                <p className="text-xl font-bold text-blue-600 tabular-nums">
+              <CardContent className="print:pt-1">
+                <p className="text-xl font-bold text-blue-600 tabular-nums print:text-xs">
                   {formatMoney(report.inventory.totalValue)}
                 </p>
-                <p className="text-[11px] text-slate-400 mt-1">{report.inventory.productCount} active catalog items</p>
+                <p className="text-[11px] text-slate-400 mt-1 print:text-[8px] print:mt-0.5">{report.inventory.productCount} active catalog items</p>
               </CardContent>
             </Card>
           </div>
 
           {/* Section E: Itemized Product Sales Performance List */}
           {report.sales.byProduct && report.sales.byProduct.length > 0 && (
-            <Card className="print:border print:border-slate-300 print:shadow-none print:break-inside-avoid">
-              <CardHeader className="flex flex-row items-center justify-between pb-3 print:pb-2 print:border-b print:border-slate-300">
+            <Card className="print:border print:border-slate-300 print:shadow-none print:break-inside-avoid print:p-1.5">
+              <CardHeader className="flex flex-row items-center justify-between pb-3 print:pb-1 print:border-b print:border-slate-300">
                 <div>
-                  <CardTitle className="text-base font-bold">E. Itemized Product Sales Performance (ماہانہ اشیاء فروخت رجسٹر)</CardTitle>
-                  <p className="text-[11px] text-slate-500 mt-0.5">
+                  <CardTitle className="text-base font-bold print:text-xs">E. Itemized Product Sales Performance (ماہانہ اشیاء فروخت رجسٹر)</CardTitle>
+                  <p className="text-[11px] text-slate-500 mt-0.5 print:text-[8.5px] print:mt-0">
                     Product-wise sold quantities, sales revenue, and volume distribution
                   </p>
                 </div>
                 <div className="text-right">
-                  <span className="font-bold text-sm text-blue-600 block">
+                  <span className="font-bold text-sm text-blue-600 block print:text-xs">
                     {formatMoney(report.sales.total)}
                   </span>
-                  <span className="text-[10px] font-semibold text-slate-500">
+                  <span className="text-[10px] font-semibold text-slate-500 print:text-[8px]">
                     {report.sales.byProduct.reduce((acc: number, p: any) => acc + Number(p.quantity || 0), 0)} units total
                   </span>
                 </div>
               </CardHeader>
               <CardContent className="print:p-0">
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs border-collapse">
+                  <table className="w-full text-left text-xs border-collapse print:text-[9.5px]">
                     <thead className="border-b text-[10px] font-bold uppercase text-slate-400 print:text-black print:border-slate-400">
                       <tr>
-                        <th className="pb-2 w-10">#</th>
-                        <th className="pb-2">Product Description (اشیاء تفصیل)</th>
-                        <th className="pb-2 text-right">Units Sold (تعداد)</th>
-                        <th className="pb-2 text-right">Sales Revenue (رقم)</th>
-                        <th className="pb-2 text-right w-24">% Contribution</th>
+                        <th className="pb-2 print:pb-1 w-10">#</th>
+                        <th className="pb-2 print:pb-1">Product Description (اشیاء تفصیل)</th>
+                        <th className="pb-2 print:pb-1 text-right">Units Sold (تعداد)</th>
+                        <th className="pb-2 print:pb-1 text-right">Sales Revenue (رقم)</th>
+                        <th className="pb-2 print:pb-1 text-right w-24">% Contribution</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800 print:divide-slate-200">
@@ -369,17 +369,17 @@ export default function MonthlyClosingPage() {
                         const pct = report.sales.total > 0 ? ((p.total / report.sales.total) * 100).toFixed(1) : "0.0";
                         return (
                           <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50">
-                            <td className="py-2 text-slate-400 font-mono">{idx + 1}</td>
-                            <td className="py-2 font-semibold text-slate-900 dark:text-white">
+                            <td className="py-2 print:py-1 text-slate-400 font-mono">{idx + 1}</td>
+                            <td className="py-2 print:py-1 font-semibold text-slate-900 dark:text-white">
                               {p.name}
                             </td>
-                            <td className="py-2 text-right font-bold text-blue-600 tabular-nums">
+                            <td className="py-2 print:py-1 text-right font-bold text-blue-600 tabular-nums">
                               {p.quantity} units
                             </td>
-                            <td className="py-2 text-right font-bold tabular-nums">
+                            <td className="py-2 print:py-1 text-right font-bold tabular-nums">
                               {formatMoney(p.total)}
                             </td>
-                            <td className="py-2 text-right text-slate-500 font-mono text-[11px]">
+                            <td className="py-2 print:py-1 text-right text-slate-500 font-mono text-[11px] print:text-[8.5px]">
                               {pct}%
                             </td>
                           </tr>
@@ -388,16 +388,16 @@ export default function MonthlyClosingPage() {
                     </tbody>
                     <tfoot className="border-t-2 border-slate-900 text-[11px] font-bold text-slate-900 bg-slate-50/70 print:bg-transparent">
                       <tr>
-                        <td colSpan={2} className="py-2 px-1 font-bold font-mono">
+                        <td colSpan={2} className="py-2 print:py-1 px-1 font-bold font-mono">
                           TOTAL PRODUCT SALES ({report.sales.byProduct.length} Items)
                         </td>
-                        <td className="py-2 text-right text-blue-700 font-black tabular-nums">
+                        <td className="py-2 print:py-1 text-right text-blue-700 font-black tabular-nums">
                           {report.sales.byProduct.reduce((acc: number, p: any) => acc + Number(p.quantity || 0), 0)} units
                         </td>
-                        <td className="py-2 text-right font-black tabular-nums">
+                        <td className="py-2 print:py-1 text-right font-black tabular-nums">
                           {formatMoney(report.sales.total)}
                         </td>
-                        <td className="py-2 text-right font-bold text-slate-700">100.0%</td>
+                        <td className="py-2 print:py-1 text-right font-bold text-slate-700">100.0%</td>
                       </tr>
                     </tfoot>
                   </table>
@@ -408,33 +408,33 @@ export default function MonthlyClosingPage() {
 
           {/* Section F: Customer Sales Breakdown List */}
           {report.sales.byCustomer && report.sales.byCustomer.length > 0 && (
-            <Card className="print:border print:border-slate-300 print:shadow-none print:break-inside-avoid">
-              <CardHeader className="flex flex-row items-center justify-between pb-3 print:pb-2 print:border-b print:border-slate-300">
+            <Card className="print:border print:border-slate-300 print:shadow-none print:break-inside-avoid print:p-1.5">
+              <CardHeader className="flex flex-row items-center justify-between pb-3 print:pb-1 print:border-b print:border-slate-300">
                 <div>
-                  <CardTitle className="text-base font-bold">F. Customer Sales Turnover Distribution (کسٹمرز فروخت سمری)</CardTitle>
-                  <p className="text-[11px] text-slate-500 mt-0.5">
+                  <CardTitle className="text-base font-bold print:text-xs">F. Customer Sales Turnover Distribution (کسٹمرز فروخت سمری)</CardTitle>
+                  <p className="text-[11px] text-slate-500 mt-0.5 print:text-[8.5px] print:mt-0">
                     Account receivables turnover and invoice count per client
                   </p>
                 </div>
                 <div className="text-right">
-                  <span className="font-bold text-sm text-emerald-600 block">
+                  <span className="font-bold text-sm text-emerald-600 block print:text-xs">
                     {formatMoney(report.sales.total)}
                   </span>
-                  <span className="text-[10px] font-semibold text-slate-500">
+                  <span className="text-[10px] font-semibold text-slate-500 print:text-[8px]">
                     {report.sales.byCustomer.length} active clients
                   </span>
                 </div>
               </CardHeader>
               <CardContent className="print:p-0">
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs border-collapse">
+                  <table className="w-full text-left text-xs border-collapse print:text-[9.5px]">
                     <thead className="border-b text-[10px] font-bold uppercase text-slate-400 print:text-black print:border-slate-400">
                       <tr>
-                        <th className="pb-2 w-10">#</th>
-                        <th className="pb-2">Customer / Client (گاہک کا نام)</th>
-                        <th className="pb-2 text-center">Invoices Count</th>
-                        <th className="pb-2 text-right">Total Billed Revenue (رقم)</th>
-                        <th className="pb-2 text-right w-24">% of Sales</th>
+                        <th className="pb-2 print:pb-1 w-10">#</th>
+                        <th className="pb-2 print:pb-1">Customer / Client (گاہک کا نام)</th>
+                        <th className="pb-2 print:pb-1 text-center">Invoices Count</th>
+                        <th className="pb-2 print:pb-1 text-right">Total Billed Revenue (رقم)</th>
+                        <th className="pb-2 print:pb-1 text-right w-24">% of Sales</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800 print:divide-slate-200">
@@ -442,17 +442,17 @@ export default function MonthlyClosingPage() {
                         const pct = report.sales.total > 0 ? ((c.total / report.sales.total) * 100).toFixed(1) : "0.0";
                         return (
                           <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50">
-                            <td className="py-2 text-slate-400 font-mono">{idx + 1}</td>
-                            <td className="py-2 font-semibold text-slate-900 dark:text-white">
+                            <td className="py-2 print:py-1 text-slate-400 font-mono">{idx + 1}</td>
+                            <td className="py-2 print:py-1 font-semibold text-slate-900 dark:text-white">
                               {c.name}
                             </td>
-                            <td className="py-2 text-center font-bold text-slate-700 dark:text-slate-300">
+                            <td className="py-2 print:py-1 text-center font-bold text-slate-700 dark:text-slate-300">
                               {c.count} invoices
                             </td>
-                            <td className="py-2 text-right font-bold tabular-nums">
+                            <td className="py-2 print:py-1 text-right font-bold tabular-nums">
                               {formatMoney(c.total)}
                             </td>
-                            <td className="py-2 text-right text-slate-500 font-mono text-[11px]">
+                            <td className="py-2 print:py-1 text-right text-slate-500 font-mono text-[11px] print:text-[8.5px]">
                               {pct}%
                             </td>
                           </tr>
@@ -461,16 +461,16 @@ export default function MonthlyClosingPage() {
                     </tbody>
                     <tfoot className="border-t-2 border-slate-900 text-[11px] font-bold text-slate-900 bg-slate-50/70 print:bg-transparent">
                       <tr>
-                        <td colSpan={2} className="py-2 px-1 font-bold font-mono">
+                        <td colSpan={2} className="py-2 print:py-1 px-1 font-bold font-mono">
                           TOTAL CLIENTS BILLED ({report.sales.byCustomer.length} Accounts)
                         </td>
-                        <td className="py-2 text-center font-black">
+                        <td className="py-2 print:py-1 text-center font-black">
                           {report.sales.byCustomer.reduce((acc: number, c: any) => acc + Number(c.count || 0), 0)} invoices
                         </td>
-                        <td className="py-2 text-right font-black tabular-nums">
+                        <td className="py-2 print:py-1 text-right font-black tabular-nums">
                           {formatMoney(report.sales.total)}
                         </td>
-                        <td className="py-2 text-right font-bold text-slate-700">100.0%</td>
+                        <td className="py-2 print:py-1 text-right font-bold text-slate-700">100.0%</td>
                       </tr>
                     </tfoot>
                   </table>
@@ -480,21 +480,21 @@ export default function MonthlyClosingPage() {
           )}
 
           {/* Section G: Monthly Overhead Expenses */}
-          <Card className="print:border print:border-slate-300 print:shadow-none print:break-inside-avoid">
-            <CardHeader className="pb-3 border-b border-slate-100 print:pb-2 print:border-slate-300">
+          <Card className="print:border print:border-slate-300 print:shadow-none print:break-inside-avoid print:p-1.5">
+            <CardHeader className="pb-3 border-b border-slate-100 print:pb-1 print:border-slate-300">
               <div className="flex justify-between items-center">
                 <div>
-                  <CardTitle className="text-base font-bold">G. Operating Overhead Expenses Breakdown (تفصیلی اخراجات رجسٹر)</CardTitle>
-                  <p className="text-[11px] text-slate-500 mt-0.5">Utility bills, salaries, rent, maintenance and overhead expenses</p>
+                  <CardTitle className="text-base font-bold print:text-xs">G. Operating Overhead Expenses Breakdown (تفصیلی اخراجات رجسٹر)</CardTitle>
+                  <p className="text-[11px] text-slate-500 mt-0.5 print:text-[8.5px] print:mt-0">Utility bills, salaries, rent, maintenance and overhead expenses</p>
                 </div>
-                <span className="font-bold text-sm text-rose-600 tabular-nums">
+                <span className="font-bold text-sm text-rose-600 tabular-nums print:text-xs">
                   Total: {formatMoney(report.expenses.total)}
                 </span>
               </div>
             </CardHeader>
-            <CardContent className="space-y-4 print:p-0">
+            <CardContent className="space-y-4 print:space-y-1 print:p-0">
               {report.expenses.categories?.length === 0 ? (
-                <p className="text-xs text-slate-400 italic py-3 px-2">No expenses recorded for this month.</p>
+                <p className="text-xs text-slate-400 italic py-3 px-2 print:py-1 print:text-[9px]">No expenses recorded for this month.</p>
               ) : (
                 <>
                   <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 text-xs print:hidden">
@@ -508,35 +508,35 @@ export default function MonthlyClosingPage() {
                   </div>
 
                   <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs border-collapse">
+                    <table className="w-full text-left text-xs border-collapse print:text-[9.5px]">
                       <thead className="border-b text-[10px] font-bold uppercase text-slate-400 print:text-black print:border-slate-400">
                         <tr>
-                          <th className="pb-2 w-10">#</th>
-                          <th className="pb-2">Expense Category / Head (کھاتہ اخراجات)</th>
-                          <th className="pb-2 text-center">Vouchers Count</th>
-                          <th className="pb-2 text-right">Amount Spent (رقم)</th>
-                          <th className="pb-2 text-right w-24">% of Overheads</th>
+                          <th className="pb-2 print:pb-1 w-10">#</th>
+                          <th className="pb-2 print:pb-1">Expense Category / Head (کھاتہ اخراجات)</th>
+                          <th className="pb-2 print:pb-1 text-center">Vouchers Count</th>
+                          <th className="pb-2 print:pb-1 text-right">Amount Spent (رقم)</th>
+                          <th className="pb-2 print:pb-1 text-right w-24">% of Overheads</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 dark:divide-slate-800 print:divide-slate-200">
                         {report.expenses.categories.map((cat: any, i: number) => (
                           <tr key={i} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50">
-                            <td className="py-2 text-slate-400 font-mono">{i + 1}</td>
-                            <td className="py-2 font-semibold text-slate-900 dark:text-white">{cat.name}</td>
-                            <td className="py-2 text-center font-bold text-slate-700 dark:text-slate-300">{cat.count} vouchers</td>
-                            <td className="py-2 text-right font-bold text-rose-600 tabular-nums">{formatMoney(cat.total)}</td>
-                            <td className="py-2 text-right text-slate-500 font-mono text-[11px]">{cat.percentage}%</td>
+                            <td className="py-2 print:py-1 text-slate-400 font-mono">{i + 1}</td>
+                            <td className="py-2 print:py-1 font-semibold text-slate-900 dark:text-white">{cat.name}</td>
+                            <td className="py-2 print:py-1 text-center font-bold text-slate-700 dark:text-slate-300">{cat.count} vouchers</td>
+                            <td className="py-2 print:py-1 text-right font-bold text-rose-600 tabular-nums">{formatMoney(cat.total)}</td>
+                            <td className="py-2 print:py-1 text-right text-slate-500 font-mono text-[11px] print:text-[8.5px]">{cat.percentage}%</td>
                           </tr>
                         ))}
                       </tbody>
                       <tfoot className="border-t-2 border-slate-900 text-[11px] font-bold text-slate-900 bg-slate-50/70 print:bg-transparent">
                         <tr>
-                          <td colSpan={2} className="py-2 px-1 font-bold font-mono">TOTAL OPERATING EXPENSES</td>
-                          <td className="py-2 text-center font-black">
+                          <td colSpan={2} className="py-2 print:py-1 px-1 font-bold font-mono">TOTAL OPERATING EXPENSES</td>
+                          <td className="py-2 print:py-1 text-center font-black">
                             {report.expenses.categories.reduce((acc: number, c: any) => acc + Number(c.count || 0), 0)} vouchers
                           </td>
-                          <td className="py-2 text-right font-black text-rose-700 tabular-nums">{formatMoney(report.expenses.total)}</td>
-                          <td className="py-2 text-right font-bold text-slate-700">100.0%</td>
+                          <td className="py-2 print:py-1 text-right font-black text-rose-700 tabular-nums">{formatMoney(report.expenses.total)}</td>
+                          <td className="py-2 print:py-1 text-right font-bold text-slate-700">100.0%</td>
                         </tr>
                       </tfoot>
                     </table>
@@ -547,31 +547,31 @@ export default function MonthlyClosingPage() {
           </Card>
 
           {/* Section I: Profit & Loss Final Statement */}
-          <Card className="border-2 border-slate-900/10 dark:border-slate-800 print:border print:border-slate-300 print:shadow-none print:break-inside-avoid">
-            <CardHeader className="pb-3 border-b border-slate-200 print:pb-2 print:border-slate-300">
+          <Card className="border-2 border-slate-900/10 dark:border-slate-800 print:border print:border-slate-300 print:shadow-none print:break-inside-avoid print:p-1.5">
+            <CardHeader className="pb-3 border-b border-slate-200 print:pb-1 print:border-slate-300">
               <div className="flex items-center gap-2">
                 <TrendingUp className="h-5 w-5 text-emerald-600" />
-                <CardTitle className="text-base font-bold">I. Month-End Profit & Loss Formal Statement (آمدنی و اخراجات گوشوارہ)</CardTitle>
+                <CardTitle className="text-base font-bold print:text-xs">I. Month-End Profit & Loss Formal Statement (آمدنی و اخراجات گوشوارہ)</CardTitle>
               </div>
             </CardHeader>
-            <CardContent className="space-y-3 text-xs print:p-0">
-              <div className="flex justify-between font-medium py-1">
+            <CardContent className="space-y-3 print:space-y-0.5 text-xs print:text-[9.5px] print:p-0">
+              <div className="flex justify-between font-medium py-1 print:py-0.5">
                 <span>Gross Sales Turnover</span>
                 <span className="tabular-nums font-bold">{formatMoney(report.profitAndLoss.netSales)}</span>
               </div>
-              <div className="flex justify-between font-medium text-slate-500 py-1">
+              <div className="flex justify-between font-medium text-slate-500 py-1 print:py-0.5">
                 <span>Less: Cost of Goods Sold (COGS)</span>
                 <span className="tabular-nums font-semibold text-rose-600">-{formatMoney(report.profitAndLoss.cogs)}</span>
               </div>
-              <div className="flex justify-between font-bold text-sm border-t border-slate-200 pt-2 pb-1">
+              <div className="flex justify-between font-bold text-sm print:text-xs border-t border-slate-200 print:border-slate-300 pt-2 print:pt-1 pb-1 print:pb-0.5">
                 <span>Gross Profit Margin ({report.profitAndLoss.grossMargin}%)</span>
                 <span className="text-blue-600 tabular-nums">{formatMoney(report.profitAndLoss.grossProfit)}</span>
               </div>
-              <div className="flex justify-between font-medium text-slate-500 py-1">
+              <div className="flex justify-between font-medium text-slate-500 py-1 print:py-0.5">
                 <span>Less: Operating Overhead Expenses</span>
                 <span className="tabular-nums text-rose-600 font-semibold">-{formatMoney(report.profitAndLoss.expenses)}</span>
               </div>
-              <div className="flex justify-between font-black text-base border-t-2 border-slate-900 dark:border-white pt-2.5 pb-1">
+              <div className="flex justify-between font-black text-base print:text-xs border-t-2 border-slate-900 dark:border-white pt-2.5 print:pt-1 pb-1 print:pb-0.5">
                 <span>NET PROFIT / (LOSS) FOR THE PERIOD</span>
                 <span
                   className={`tabular-nums ${
@@ -585,35 +585,35 @@ export default function MonthlyClosingPage() {
           </Card>
 
           {/* Section K: Cash & Bank Reconciliation */}
-          <Card className="print:border print:border-slate-300 print:shadow-none print:break-inside-avoid">
-            <CardHeader className="pb-3 border-b border-slate-100 print:pb-2 print:border-slate-300">
+          <Card className="print:border print:border-slate-300 print:shadow-none print:break-inside-avoid print:p-1.5">
+            <CardHeader className="pb-3 border-b border-slate-100 print:pb-1 print:border-slate-300">
               <div className="flex items-center gap-2">
                 <Wallet className="h-4 w-4 text-blue-600" />
-                <CardTitle className="text-base font-bold">K. Liquid Cash & Bank Position at Month Close (نقدی و بینک سمری)</CardTitle>
+                <CardTitle className="text-base font-bold print:text-xs">K. Liquid Cash & Bank Position at Month Close (نقدی و بینک سمری)</CardTitle>
               </div>
             </CardHeader>
-            <CardContent className="grid grid-cols-2 gap-4 sm:grid-cols-4 text-xs print:p-0 print:border-t print:border-slate-200">
-              <div className="rounded-xl bg-slate-50 p-3 dark:bg-slate-800 print:bg-transparent print:border-r print:border-slate-200 print:p-2">
-                <p className="text-slate-400 uppercase text-[10px] font-bold">Total Cash Received</p>
-                <p className="text-sm font-bold text-emerald-600 tabular-nums mt-1">
+            <CardContent className="grid grid-cols-2 gap-4 sm:grid-cols-4 text-xs print:gap-1.5 print:p-0 print:border-t print:border-slate-200">
+              <div className="rounded-xl bg-slate-50 p-3 dark:bg-slate-800 print:bg-transparent print:border print:border-slate-200 print:p-1">
+                <p className="text-slate-400 uppercase text-[10px] font-bold print:text-[8px] print:text-slate-600">Total Cash Received</p>
+                <p className="text-sm font-bold text-emerald-600 tabular-nums mt-1 print:text-xs print:mt-0">
                   {formatMoney(report.cashFlow.cashReceived)}
                 </p>
               </div>
-              <div className="rounded-xl bg-slate-50 p-3 dark:bg-slate-800 print:bg-transparent print:border-r print:border-slate-200 print:p-2">
-                <p className="text-slate-400 uppercase text-[10px] font-bold">Total Bank Deposits</p>
-                <p className="text-sm font-bold text-emerald-600 tabular-nums mt-1">
+              <div className="rounded-xl bg-slate-50 p-3 dark:bg-slate-800 print:bg-transparent print:border print:border-slate-200 print:p-1">
+                <p className="text-slate-400 uppercase text-[10px] font-bold print:text-[8px] print:text-slate-600">Total Bank Deposits</p>
+                <p className="text-sm font-bold text-emerald-600 tabular-nums mt-1 print:text-xs print:mt-0">
                   {formatMoney(report.cashFlow.bankReceived)}
                 </p>
               </div>
-              <div className="rounded-xl bg-slate-50 p-3 dark:bg-slate-800 print:bg-transparent print:border-r print:border-slate-200 print:p-2">
-                <p className="text-slate-400 uppercase text-[10px] font-bold">Closing Physical Cash</p>
-                <p className="text-base font-bold text-slate-900 dark:text-white tabular-nums mt-1">
+              <div className="rounded-xl bg-slate-50 p-3 dark:bg-slate-800 print:bg-transparent print:border print:border-slate-200 print:p-1">
+                <p className="text-slate-400 uppercase text-[10px] font-bold print:text-[8px] print:text-slate-600">Closing Physical Cash</p>
+                <p className="text-base font-bold text-slate-900 dark:text-white tabular-nums mt-1 print:text-xs print:mt-0">
                   {formatMoney(report.cashFlow.closingCash)}
                 </p>
               </div>
-              <div className="rounded-xl bg-slate-50 p-3 dark:bg-slate-800 print:bg-transparent print:p-2">
-                <p className="text-slate-400 uppercase text-[10px] font-bold">Closing Bank Balance</p>
-                <p className="text-base font-bold text-blue-600 tabular-nums mt-1">
+              <div className="rounded-xl bg-slate-50 p-3 dark:bg-slate-800 print:bg-transparent print:border print:border-slate-200 print:p-1">
+                <p className="text-slate-400 uppercase text-[10px] font-bold print:text-[8px] print:text-slate-600">Closing Bank Balance</p>
+                <p className="text-base font-bold text-blue-600 tabular-nums mt-1 print:text-xs print:mt-0">
                   {formatMoney(report.cashFlow.closingBank)}
                 </p>
               </div>
