@@ -4,7 +4,7 @@ import { getActiveBusinessId, getActiveBranchId } from "@/lib/businessHelper";
 import { createAndPostExpense } from "@/services/expenseService";
 import { fallbackStore } from "@/lib/fallbackStore";
 import { getSession } from "@/lib/auth";
-import { ensureDefaultCategories } from "@/app/api/expense-categories/route";
+import { ensureDefaultCategories } from "@/services/expenseCategoryService";
 
 export const dynamic = "force-dynamic";
 

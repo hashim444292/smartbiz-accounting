@@ -7,7 +7,7 @@ import {
 import {
   DEFAULT_EXPENSE_CATEGORIES,
   ensureDefaultCategories,
-} from "@/app/api/expense-categories/route";
+} from "@/services/expenseCategoryService";
 
 describe("QA Accounting Fixes (Tasks 1 to 4)", () => {
   const businessId = "qa-biz-2026";
