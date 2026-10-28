@@ -251,7 +251,17 @@ export async function getDailyReport(businessId: string, targetDate: Date) {
   // Payments received today
   const receipts = await prisma.payment.findMany({
     where: { businessId, type: "RECEIPT", date: { gte: startOfDay, lte: endOfDay } },
-    include: { customer: true, account: true },
+    include: {
+      customer: true,
+      account: true,
+      allocations: {
+        include: {
+          sale: {
+            include: { items: true },
+          },
+        },
+      },
+    },
     orderBy: { date: "asc" },
   });
 
@@ -261,7 +271,17 @@ export async function getDailyReport(businessId: string, targetDate: Date) {
   // Payments made today
   const disbursements = await prisma.payment.findMany({
     where: { businessId, type: "DISBURSEMENT", date: { gte: startOfDay, lte: endOfDay } },
-    include: { supplier: true, account: true },
+    include: {
+      supplier: true,
+      account: true,
+      allocations: {
+        include: {
+          purchase: {
+            include: { items: true },
+          },
+        },
+      },
+    },
     orderBy: { date: "asc" },
   });
 

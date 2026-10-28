@@ -96,7 +96,15 @@ export default function DailyReportPage() {
                 <span className="text-base font-bold text-slate-900 dark:text-white tabular-nums">
                   {formatMoney(report.financialSummary.salesRevenue)}
                 </span>
-                <span className="block text-[10px] text-slate-500 mt-0.5">{report.sales.count} invoices issued</span>
+                <span className="block text-[10px] text-slate-500 mt-0.5">
+                  {report.sales.count} invoices
+                  {(() => {
+                    const totalUnits = (report.sales.items || []).reduce((sum: number, s: any) => {
+                      return sum + (s.items || []).reduce((isum: number, it: any) => isum + Number(it.quantity || 0), 0);
+                    }, 0);
+                    return totalUnits > 0 ? ` • ${totalUnits} units sold` : "";
+                  })()}
+                </span>
               </div>
 
               <div className="rounded-xl bg-slate-50 p-3 dark:bg-slate-800">
@@ -104,7 +112,15 @@ export default function DailyReportPage() {
                 <span className="text-base font-bold text-indigo-600 tabular-nums">
                   {formatMoney(report.financialSummary.totalPurchases || report.purchases.total)}
                 </span>
-                <span className="block text-[10px] text-slate-500 mt-0.5">{report.purchases.count} vendor bills</span>
+                <span className="block text-[10px] text-slate-500 mt-0.5">
+                  {report.purchases.count} vendor bills
+                  {(() => {
+                    const totalUnits = (report.purchases.items || []).reduce((sum: number, p: any) => {
+                      return sum + (p.items || []).reduce((isum: number, it: any) => isum + Number(it.quantity || 0), 0);
+                    }, 0);
+                    return totalUnits > 0 ? ` • ${totalUnits} units inward` : "";
+                  })()}
+                </span>
               </div>
 
               <div className="rounded-xl bg-slate-50 p-3 dark:bg-slate-800">
@@ -137,11 +153,26 @@ export default function DailyReportPage() {
             </div>
           </div>
 
-          {/* Section 1: Sales Summary */}
+          {/* Section 1: Sales Summary with Products & Item Counts */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-3">
-              <CardTitle>1. Sales Invoices Issued Today</CardTitle>
-              <span className="font-bold text-xs text-blue-600">{formatMoney(report.sales.total)}</span>
+              <div>
+                <CardTitle>1. Sales Invoices Issued Today</CardTitle>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  Itemized product breakdown with quantities, customer information, and receivables
+                </p>
+              </div>
+              <div className="text-right">
+                <span className="font-bold text-sm text-blue-600 block">{formatMoney(report.sales.total)}</span>
+                <span className="text-[10px] font-semibold text-slate-500">
+                  {(() => {
+                    const totalUnits = (report.sales.items || []).reduce((sum: number, s: any) => {
+                      return sum + (s.items || []).reduce((isum: number, it: any) => isum + Number(it.quantity || 0), 0);
+                    }, 0);
+                    return totalUnits > 0 ? `${totalUnits} units sold across ${report.sales.count} invoices` : `${report.sales.count} invoices`;
+                  })()}
+                </span>
+              </div>
             </CardHeader>
             <CardContent>
               {report.sales.items.length === 0 ? (
@@ -153,21 +184,52 @@ export default function DailyReportPage() {
                       <tr>
                         <th className="pb-2">Invoice #</th>
                         <th className="pb-2">Customer</th>
+                        <th className="pb-2">Products & Quantities Sold (اشیاء و تعداد)</th>
                         <th className="pb-2 text-right">Invoice Total</th>
                         <th className="pb-2 text-right">Paid Today</th>
                         <th className="pb-2 text-right">Receivable</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                      {report.sales.items.map((s: any) => (
-                        <tr key={s.id}>
-                          <td className="py-2 font-mono font-semibold text-blue-600">{s.invoiceNumber}</td>
-                          <td className="py-2 font-medium">{s.customerName}</td>
-                          <td className="py-2 text-right font-bold tabular-nums">{formatMoney(s.totalAmount)}</td>
-                          <td className="py-2 text-right text-emerald-600 tabular-nums">{formatMoney(s.paidAmount)}</td>
-                          <td className="py-2 text-right text-rose-600 tabular-nums">{formatMoney(s.remainingAmount)}</td>
-                        </tr>
-                      ))}
+                      {report.sales.items.map((s: any) => {
+                        const lineItems = s.items || [];
+                        const lineQty = lineItems.reduce((sum: number, it: any) => sum + Number(it.quantity || 0), 0);
+                        const itemsSummary = lineItems.length > 0
+                          ? lineItems.map((it: any) => `${Number(it.quantity)}x ${it.productName || it.name}`).join(", ")
+                          : (s.narration || "General Items");
+
+                        return (
+                          <tr key={s.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50">
+                            <td className="py-2.5 font-mono font-semibold text-blue-600 align-top">{s.invoiceNumber}</td>
+                            <td className="py-2.5 font-medium align-top">
+                              <span className="text-slate-900 dark:text-white font-semibold">{s.customerName}</span>
+                              {s.customerPhone && <span className="block text-[10px] text-slate-400 font-mono">{s.customerPhone}</span>}
+                            </td>
+                            <td className="py-2.5 align-top">
+                              <div className="flex flex-col gap-1 max-w-md">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  {lineQty > 0 && (
+                                    <span className="inline-flex items-center gap-1 rounded bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200 dark:border-blue-900">
+                                      📦 {lineQty} {lineQty === 1 ? "unit" : "units"} ({lineItems.length} {lineItems.length === 1 ? "item" : "items"})
+                                    </span>
+                                  )}
+                                  <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">
+                                    {itemsSummary}
+                                  </span>
+                                </div>
+                                {s.narration && s.narration !== itemsSummary && (
+                                  <span className="text-[10px] text-slate-500 italic block">
+                                    {s.narration}
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="py-2.5 text-right font-bold tabular-nums align-top">{formatMoney(s.totalAmount)}</td>
+                            <td className="py-2.5 text-right text-emerald-600 tabular-nums align-top">{formatMoney(s.paidAmount)}</td>
+                            <td className="py-2.5 text-right text-rose-600 tabular-nums align-top">{formatMoney(s.remainingAmount)}</td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -175,11 +237,26 @@ export default function DailyReportPage() {
             </CardContent>
           </Card>
 
-          {/* Section 2: Purchases Summary (Newly Added as Requested) */}
+          {/* Section 2: Purchases Summary with Products & Item Counts */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-3">
-              <CardTitle>2. Purchases & Vendor Bills Today</CardTitle>
-              <span className="font-bold text-xs text-indigo-600">{formatMoney(report.purchases.total)}</span>
+              <div>
+                <CardTitle>2. Purchases & Vendor Bills Today</CardTitle>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  Inward stock procurement breakdown with product items and vendor dues
+                </p>
+              </div>
+              <div className="text-right">
+                <span className="font-bold text-sm text-indigo-600 block">{formatMoney(report.purchases.total)}</span>
+                <span className="text-[10px] font-semibold text-slate-500">
+                  {(() => {
+                    const totalUnits = (report.purchases.items || []).reduce((sum: number, p: any) => {
+                      return sum + (p.items || []).reduce((isum: number, it: any) => isum + Number(it.quantity || 0), 0);
+                    }, 0);
+                    return totalUnits > 0 ? `${totalUnits} units inward across ${report.purchases.count} bills` : `${report.purchases.count} bills`;
+                  })()}
+                </span>
+              </div>
             </CardHeader>
             <CardContent>
               {report.purchases.items.length === 0 ? (
@@ -191,6 +268,7 @@ export default function DailyReportPage() {
                       <tr>
                         <th className="pb-2">Purchase #</th>
                         <th className="pb-2">Supplier / Vendor</th>
+                        <th className="pb-2">Products & Quantities Inward (خریداری اشیاء و تعداد)</th>
                         <th className="pb-2 text-right">Bill Total</th>
                         <th className="pb-2 text-right">Paid Amount</th>
                         <th className="pb-2 text-right">Payable Balance</th>
@@ -198,28 +276,57 @@ export default function DailyReportPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                      {report.purchases.items.map((p: any) => (
-                        <tr key={p.id}>
-                          <td className="py-2 font-mono font-semibold text-indigo-600">{p.purchaseNumber}</td>
-                          <td className="py-2 font-medium">{p.supplierName || p.supplier?.name || "Vendor"}</td>
-                          <td className="py-2 text-right font-bold tabular-nums">{formatMoney(p.totalAmount)}</td>
-                          <td className="py-2 text-right text-emerald-600 tabular-nums">{formatMoney(p.paidAmount)}</td>
-                          <td className="py-2 text-right text-rose-600 tabular-nums">{formatMoney(p.remainingAmount)}</td>
-                          <td className="py-2 text-right font-semibold">
-                            <span
-                              className={`rounded px-2 py-0.5 text-[10px] ${
-                                p.paymentStatus === "PAID"
-                                  ? "bg-emerald-100 text-emerald-800"
-                                  : p.paymentStatus === "PARTIAL"
-                                  ? "bg-amber-100 text-amber-800"
-                                  : "bg-rose-100 text-rose-800"
-                              }`}
-                            >
-                              {p.paymentStatus}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
+                      {report.purchases.items.map((p: any) => {
+                        const lineItems = p.items || [];
+                        const lineQty = lineItems.reduce((sum: number, it: any) => sum + Number(it.quantity || 0), 0);
+                        const itemsSummary = lineItems.length > 0
+                          ? lineItems.map((it: any) => `${Number(it.quantity)}x ${it.productName || it.name}`).join(", ")
+                          : (p.notes || "General Inventory");
+
+                        return (
+                          <tr key={p.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50">
+                            <td className="py-2.5 font-mono font-semibold text-indigo-600 align-top">{p.purchaseNumber}</td>
+                            <td className="py-2.5 font-medium align-top">
+                              <span className="text-slate-900 dark:text-white font-semibold">{p.supplierName || p.supplier?.name || "Vendor"}</span>
+                            </td>
+                            <td className="py-2.5 align-top">
+                              <div className="flex flex-col gap-1 max-w-md">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  {lineQty > 0 && (
+                                    <span className="inline-flex items-center gap-1 rounded bg-indigo-50 px-2 py-0.5 text-[10px] font-bold text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-900">
+                                      📦 {lineQty} {lineQty === 1 ? "unit" : "units"} ({lineItems.length} {lineItems.length === 1 ? "item" : "items"})
+                                    </span>
+                                  )}
+                                  <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">
+                                    {itemsSummary}
+                                  </span>
+                                </div>
+                                {p.notes && p.notes !== itemsSummary && (
+                                  <span className="text-[10px] text-slate-500 italic block">
+                                    {p.notes}
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="py-2.5 text-right font-bold tabular-nums align-top">{formatMoney(p.totalAmount)}</td>
+                            <td className="py-2.5 text-right text-emerald-600 tabular-nums align-top">{formatMoney(p.paidAmount)}</td>
+                            <td className="py-2.5 text-right text-rose-600 tabular-nums align-top">{formatMoney(p.remainingAmount)}</td>
+                            <td className="py-2.5 text-right font-semibold align-top">
+                              <span
+                                className={`rounded px-2 py-0.5 text-[10px] ${
+                                  p.paymentStatus === "PAID"
+                                    ? "bg-emerald-100 text-emerald-800"
+                                    : p.paymentStatus === "PARTIAL"
+                                    ? "bg-amber-100 text-amber-800"
+                                    : "bg-rose-100 text-rose-800"
+                                }`}
+                              >
+                                {p.paymentStatus}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -239,15 +346,37 @@ export default function DailyReportPage() {
                   <p className="text-xs text-slate-400 italic">No customer receipts logged.</p>
                 ) : (
                   <div className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
-                    {report.receipts.items.map((r: any) => (
-                      <div key={r.id} className="flex justify-between py-2">
-                        <div>
-                          <p className="font-semibold text-slate-900 dark:text-white">{r.partyName}</p>
-                          <p className="text-[10px] text-slate-400">{r.paymentMethod} • {r.referenceNumber || "Direct"}</p>
+                    {report.receipts.items.map((r: any) => {
+                      const matchedSale = (report.sales.items || []).find(
+                        (s: any) => s.invoiceNumber === r.referenceNumber || (r.allocations && r.allocations.some((al: any) => al.sale?.invoiceNumber === s.invoiceNumber))
+                      );
+                      const saleItems = matchedSale?.items || (r.allocations?.[0]?.sale?.items) || [];
+                      const saleItemSummary = saleItems.length > 0
+                        ? `${saleItems.reduce((acc: number, it: any) => acc + Number(it.quantity || 0), 0)} units (${saleItems.map((it: any) => `${Number(it.quantity)}x ${it.productName || it.name}`).slice(0, 2).join(", ")}${saleItems.length > 2 ? "..." : ""})`
+                        : "";
+
+                      return (
+                        <div key={r.id} className="flex justify-between py-2.5">
+                          <div>
+                            <p className="font-semibold text-slate-900 dark:text-white">{r.partyName}</p>
+                            <p className="text-[10px] text-slate-500">
+                              <span className="font-medium text-slate-700 dark:text-slate-300">{r.paymentMethod}</span>
+                              {" • "}
+                              <span className="font-mono text-blue-600 dark:text-blue-400">{r.referenceNumber || "Direct"}</span>
+                            </p>
+                            {saleItemSummary && (
+                              <p className="text-[10px] text-blue-700 dark:text-blue-300 font-semibold mt-0.5">
+                                📦 For: {saleItemSummary}
+                              </p>
+                            )}
+                            {r.notes && !saleItemSummary && (
+                              <p className="text-[10px] text-slate-400 italic mt-0.5">{r.notes}</p>
+                            )}
+                          </div>
+                          <p className="font-bold text-emerald-600 tabular-nums">{formatMoney(r.amount)}</p>
                         </div>
-                        <p className="font-bold text-emerald-600 tabular-nums">{formatMoney(r.amount)}</p>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </CardContent>
@@ -263,23 +392,48 @@ export default function DailyReportPage() {
               <CardContent>
                 <div className="space-y-2 text-xs">
                   {report.expenses.items.map((exp: any) => (
-                    <div key={exp.id} className="flex justify-between py-1.5 border-b border-slate-100 dark:border-slate-800">
+                    <div key={exp.id} className="flex justify-between py-2 border-b border-slate-100 dark:border-slate-800 last:border-b-0">
                       <div>
-                        <p className="font-semibold text-slate-900 dark:text-white">{exp.category?.name}: {exp.description}</p>
-                        <p className="text-[10px] text-slate-400">Paid to: {exp.paidTo || "Vendor"}</p>
+                        <p className="font-semibold text-slate-900 dark:text-white">
+                          <span className="text-rose-600 font-bold mr-1">[{exp.category?.name || "Expense"}]</span>
+                          {exp.description}
+                        </p>
+                        <p className="text-[10px] text-slate-500">
+                          Paid via <span className="font-medium text-slate-700 dark:text-slate-300">{exp.paymentMethod || "CASH"}</span>
+                          {exp.paidTo ? ` • Paid to: ${exp.paidTo}` : ""}
+                        </p>
                       </div>
                       <p className="font-bold text-rose-600 tabular-nums">-{formatMoney(exp.amount)}</p>
                     </div>
                   ))}
-                  {report.disbursements.items.map((d: any) => (
-                    <div key={d.id} className="flex justify-between py-1.5 border-b border-slate-100 dark:border-slate-800">
-                      <div>
-                        <p className="font-semibold text-slate-900 dark:text-white">Vendor: {d.partyName}</p>
-                        <p className="text-[10px] text-slate-400">Supplier bill payment</p>
+                  {report.disbursements.items.map((d: any) => {
+                    const matchedPurchase = (report.purchases.items || []).find(
+                      (p: any) => p.purchaseNumber === d.referenceNumber || (d.allocations && d.allocations.some((al: any) => al.purchase?.purchaseNumber === p.purchaseNumber))
+                    );
+                    const purchaseItems = matchedPurchase?.items || (d.allocations?.[0]?.purchase?.items) || [];
+                    const purchaseItemSummary = purchaseItems.length > 0
+                      ? `${purchaseItems.reduce((acc: number, it: any) => acc + Number(it.quantity || 0), 0)} units (${purchaseItems.map((it: any) => `${Number(it.quantity)}x ${it.productName || it.name}`).slice(0, 2).join(", ")}${purchaseItems.length > 2 ? "..." : ""})`
+                      : "";
+
+                    return (
+                      <div key={d.id} className="flex justify-between py-2 border-b border-slate-100 dark:border-slate-800 last:border-b-0">
+                        <div>
+                          <p className="font-semibold text-slate-900 dark:text-white">Vendor: {d.partyName}</p>
+                          <p className="text-[10px] text-slate-500">
+                            <span className="font-medium text-slate-700 dark:text-slate-300">{d.paymentMethod}</span>
+                            {" • "}
+                            <span className="font-mono text-indigo-600 dark:text-indigo-400">{d.referenceNumber || "Supplier Bill"}</span>
+                          </p>
+                          {purchaseItemSummary && (
+                            <p className="text-[10px] text-indigo-700 dark:text-indigo-300 font-semibold mt-0.5">
+                              📦 For: {purchaseItemSummary}
+                            </p>
+                          )}
+                        </div>
+                        <p className="font-bold text-rose-600 tabular-nums">-{formatMoney(d.amount)}</p>
                       </div>
-                      <p className="font-bold text-rose-600 tabular-nums">-{formatMoney(d.amount)}</p>
-                    </div>
-                  ))}
+                    );
+                  })}
                   {report.expenses.items.length === 0 && report.disbursements.items.length === 0 && (
                     <p className="text-xs text-slate-400 italic">No disbursements or expenses recorded.</p>
                   )}
