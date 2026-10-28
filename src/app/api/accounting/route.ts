@@ -5,6 +5,7 @@ import { fallbackStore } from "@/lib/fallbackStore";
 
 import { ensureStandardAccounts } from "@/services/accountingService";
 import { storeEnsureStandardAccounts } from "@/lib/fallbackStore";
+import { reconcileSupplierPayables, storeReconcileSupplierPayables } from "@/lib/payablesHelper";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +15,7 @@ export async function GET(req: NextRequest) {
 
     if (!process.env.DATABASE_URL) {
       storeEnsureStandardAccounts(businessId);
+      storeReconcileSupplierPayables(businessId);
       return NextResponse.json({
         success: true,
         data: {
@@ -30,8 +32,9 @@ export async function GET(req: NextRequest) {
 
     try {
       await ensureStandardAccounts(prisma, businessId);
+      await reconcileSupplierPayables(prisma, businessId);
     } catch (seedErr) {
-      console.warn("Notice: ensureStandardAccounts error:", seedErr);
+      console.warn("Notice: ensureStandardAccounts/reconcile error:", seedErr);
     }
 
     const [accounts, journals, suppliers, customers, purchases, payments] = await Promise.all([
@@ -92,6 +95,7 @@ export async function GET(req: NextRequest) {
     console.error("Accounting route error:", error?.message || error);
     const businessId = await getActiveBusinessId(req);
     storeEnsureStandardAccounts(businessId);
+    storeReconcileSupplierPayables(businessId);
     return NextResponse.json({
       success: true,
       data: {

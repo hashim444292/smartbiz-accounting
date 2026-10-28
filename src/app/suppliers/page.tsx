@@ -92,7 +92,7 @@ export default function SuppliersPage() {
       (s.phone && s.phone.includes(search))
   );
 
-  const totalPayables = suppliers.reduce((acc, s) => acc + Number(s.currentBalance), 0);
+  const totalPayables = suppliers.reduce((acc, s) => acc + Number(s.currentBalance || 0), 0);
 
   return (
     <div className="space-y-5">

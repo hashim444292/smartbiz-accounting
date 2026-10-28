@@ -2,12 +2,16 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getActiveBusinessId } from "@/lib/businessHelper";
 import { fallbackStore } from "@/lib/fallbackStore";
+import { reconcileSupplierPayables, storeReconcileSupplierPayables } from "@/lib/payablesHelper";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   try {
     const businessId = await getActiveBusinessId(req);
+    try {
+      await reconcileSupplierPayables(prisma, businessId);
+    } catch {}
     const suppliers = await prisma.supplier.findMany({
       where: { businessId, isActive: true },
       include: {
@@ -19,6 +23,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ success: true, data: suppliers });
   } catch (error: any) {
     const businessId = await getActiveBusinessId(req);
+    storeReconcileSupplierPayables(businessId);
     const filtered = fallbackStore.suppliers.filter((s) => s.businessId === businessId);
     return NextResponse.json({ success: true, data: filtered, fallback: true });
   }

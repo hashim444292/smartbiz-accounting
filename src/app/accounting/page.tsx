@@ -402,11 +402,53 @@ function AccountingContent() {
     fetchData(opts?.silent ?? true);
   });
 
+  // Comprehensive supplier list ensuring all purchase vendors appear with accurate open balances
+  const effectiveSuppliers = useMemo(() => {
+    const list = [...suppliers];
+    const knownKeys = new Set(list.map((s) => s.id));
+    const knownNames = new Set(list.map((s) => (s.name || "").toLowerCase().trim()));
+
+    purchases.forEach((p) => {
+      const name = (p.supplierName || "").trim();
+      if (name) {
+        const norm = name.toLowerCase();
+        const remForVendor = purchases
+          .filter((x) => (x.supplierName || "").toLowerCase().trim() === norm)
+          .reduce((sum, x) => sum + Number(x.remainingAmount || 0), 0);
+
+        if (!knownNames.has(norm)) {
+          const synthId = p.supplierId || `synth-sup-${norm.replace(/\s+/g, "-")}`;
+          if (!knownKeys.has(synthId)) {
+            list.push({
+              id: synthId,
+              name: name,
+              businessName: name,
+              openingBalance: 0,
+              currentBalance: remForVendor,
+              purchases: [],
+              payments: [],
+            });
+            knownKeys.add(synthId);
+            knownNames.add(norm);
+          }
+        } else {
+          // If existing supplier has balance 0 but purchases have dues, show accurate balance
+          const existing = list.find((s) => (s.name || "").toLowerCase().trim() === norm);
+          if (existing && Number(existing.currentBalance || 0) < remForVendor) {
+            existing.currentBalance = remForVendor;
+          }
+        }
+      }
+    });
+
+    return list;
+  }, [suppliers, purchases]);
+
   // When ledgerType changes, auto-select first entity if current doesn't match
   useEffect(() => {
-    if (ledgerType === "VENDOR" && suppliers.length > 0) {
-      if (!suppliers.some((s) => s.id === selectedEntityId)) {
-        setSelectedEntityId(suppliers[0].id);
+    if (ledgerType === "VENDOR" && effectiveSuppliers.length > 0) {
+      if (!effectiveSuppliers.some((s) => s.id === selectedEntityId)) {
+        setSelectedEntityId(effectiveSuppliers[0].id);
       }
     } else if (ledgerType === "CUSTOMER" && customers.length > 0) {
       if (!customers.some((c) => c.id === selectedEntityId)) {
@@ -417,7 +459,7 @@ function AccountingContent() {
         setSelectedEntityId(accounts[0].id);
       }
     }
-  }, [ledgerType, suppliers, customers, accounts]);
+  }, [ledgerType, effectiveSuppliers, customers, accounts]);
 
   // Compute Active Date Range Boundaries
   const dateRangeBounds = useMemo(() => {
@@ -460,7 +502,7 @@ function AccountingContent() {
     const { sDate, eDate } = dateRangeBounds;
 
     if (ledgerType === "VENDOR") {
-      const currentSupplier = suppliers.find((s) => s.id === selectedEntityId);
+      const currentSupplier = effectiveSuppliers.find((s) => s.id === selectedEntityId);
       if (!currentSupplier) {
         return {
           entity: null,
@@ -741,6 +783,29 @@ function AccountingContent() {
         });
       });
 
+      // Ensure open purchase bills with payables appear in Account 2010 (Accounts Payable) ledger
+      if (currentAccount.code === "2010") {
+        purchases.forEach((p) => {
+          const rem = Number(p.remainingAmount || 0);
+          if (rem > 0) {
+            const hasJournal = allAccLines.some(
+              (l) => l.refNumber?.includes(p.purchaseNumber) || l.description?.includes(p.purchaseNumber)
+            );
+            if (!hasJournal) {
+              allAccLines.push({
+                id: `pur-due-${p.id}`,
+                date: new Date(p.date),
+                refNumber: p.purchaseNumber,
+                type: "PURCHASE BILL",
+                description: `Payable to ${p.supplierName} for #${p.purchaseNumber}`,
+                debit: 0,
+                credit: rem,
+              });
+            }
+          }
+        });
+      }
+
       allAccLines.sort((a, b) => a.date.getTime() - b.date.getTime());
 
       let openingBalance = 0;
@@ -818,7 +883,7 @@ function AccountingContent() {
         closingBalanceType,
       };
     }
-  }, [ledgerType, selectedEntityId, dateRangeBounds, suppliers, customers, accounts, purchases, payments, journals]);
+  }, [ledgerType, selectedEntityId, dateRangeBounds, effectiveSuppliers, customers, accounts, purchases, payments, journals]);
 
   // Filter ledger lines by search box
   const filteredLedgerLines = useMemo(() => {
@@ -1194,9 +1259,13 @@ function AccountingContent() {
     const receivablesHead = Number(accounts.find((a) => a.code === "1100")?.balance || 0);
     const receivables = receivablesFromParties > 0 ? receivablesFromParties : receivablesHead;
 
-    const payablesFromParties = suppliers.reduce((sum, s) => sum + Number(s.currentBalance || 0), 0);
+    const payablesFromParties = effectiveSuppliers.reduce((sum, s) => sum + Number(s.currentBalance || 0), 0);
+    const payablesFromPurchases = purchases.reduce(
+      (sum, p) => (p.status !== "CANCELLED" ? sum + Number(p.remainingAmount || 0) : sum),
+      0
+    );
     const payablesHead = Number(accounts.find((a) => a.code === "2010")?.balance || 0);
-    const payables = payablesFromParties > 0 ? payablesFromParties : payablesHead;
+    const payables = Math.max(payablesFromParties, payablesFromPurchases, payablesHead);
 
     const capitalHead = Number(accounts.find((a) => a.code === "3010")?.balance || 0);
     const equity = accountStats.equity > 0 ? accountStats.equity : capitalHead;
@@ -1214,7 +1283,7 @@ function AccountingContent() {
       isBalanced,
       diff,
     };
-  }, [accounts, customers, suppliers, accountStats, totalDebits, totalCredits]);
+  }, [accounts, customers, effectiveSuppliers, purchases, accountStats, totalDebits, totalCredits]);
 
   if (loading) {
     return (
@@ -1875,7 +1944,7 @@ function AccountingContent() {
                   className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-800 shadow-xs focus:border-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                 >
                   {ledgerType === "VENDOR" &&
-                    suppliers.map((s) => (
+                    effectiveSuppliers.map((s) => (
                       <option key={s.id} value={s.id}>
                         {s.name} {s.phone ? `(${s.phone})` : ""} — Balance: Rs {Number(s.currentBalance || 0).toLocaleString()}
                       </option>

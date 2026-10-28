@@ -207,13 +207,38 @@ export async function POST(req: NextRequest) {
     const total = subtotal;
     const remaining = Math.max(0, total - paid);
 
-    let supName = body.supplierName || "Supplier";
-    if (body.supplierId) {
-      const sup = fallbackStore.suppliers.find((s) => s.id === body.supplierId && s.businessId === businessId);
-      if (sup) {
-        sup.currentBalance += remaining;
-        supName = sup.name;
-      }
+    let supName = (body.supplierName || "").trim() || "General Supplier";
+    let targetSupplierId = body.supplierId || null;
+
+    let sup = fallbackStore.suppliers.find(
+      (s) => s.businessId === businessId && (s.id === targetSupplierId || s.name.toLowerCase() === supName.toLowerCase())
+    );
+
+    if (!sup && (targetSupplierId || supName)) {
+      sup = {
+        id: targetSupplierId || `sup-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        businessId,
+        code: `ACP${String(fallbackStore.suppliers.length + 1).padStart(5, "0")}`,
+        name: supName,
+        businessName: supName,
+        phone: body.supplierPhone || null,
+        email: null,
+        address: "Karachi, Pakistan",
+        openingBalance: 0,
+        currentBalance: 0,
+        isActive: true,
+        purchases: [],
+        payments: [],
+        createdAt: new Date().toISOString(),
+      };
+      fallbackStore.suppliers.push(sup);
+    }
+
+    if (sup) {
+      sup.businessId = businessId;
+      sup.currentBalance += remaining;
+      supName = sup.name;
+      targetSupplierId = sup.id;
     }
 
     if (paid > 0) {
@@ -225,6 +250,75 @@ export async function POST(req: NextRequest) {
       if (acc) acc.balance -= paid;
     }
 
+    // Update Account 2010 (Accounts Payable) in Chart of Accounts
+    if (remaining > 0) {
+      let acc2010 = fallbackStore.accounts.find((a) => a.businessId === businessId && a.code === "2010");
+      if (!acc2010) {
+        acc2010 = {
+          id: `acc-2010-${businessId}`,
+          businessId,
+          code: "2010",
+          name: "Accounts Payable",
+          type: "LIABILITY",
+          subType: "Payable",
+          balance: remaining,
+        };
+        fallbackStore.accounts.push(acc2010);
+      } else {
+        acc2010.balance += remaining;
+      }
+
+      // Add balanced journal entry in fallbackStore
+      const acc1200 = fallbackStore.accounts.find((a) => a.businessId === businessId && a.code === "1200");
+      const accCashBank = fallbackStore.accounts.find(
+        (a) => a.businessId === businessId && (body.paymentMethod === "BANK" ? a.code === "1020" : a.code === "1010")
+      );
+      if (acc1200) {
+        const jId = `je-pur-${purId}`;
+        const jLines: any[] = [
+          {
+            id: `jl-${jId}-1`,
+            journalEntryId: jId,
+            accountId: acc1200.id,
+            debit: total,
+            credit: 0,
+            description: `Purchased merchandise on #${purNum}`,
+          },
+        ];
+        if (paid > 0 && accCashBank) {
+          jLines.push({
+            id: `jl-${jId}-2`,
+            journalEntryId: jId,
+            accountId: accCashBank.id,
+            debit: 0,
+            credit: paid,
+            description: `Payment for purchase #${purNum}`,
+          });
+        }
+        jLines.push({
+          id: `jl-${jId}-3`,
+          journalEntryId: jId,
+          accountId: acc2010.id,
+          debit: 0,
+          credit: remaining,
+          description: `Payable to ${supName} for #${purNum}`,
+        });
+
+        fallbackStore.journalEntries.unshift({
+          id: jId,
+          businessId,
+          entryNumber: `JE-${purNum}`,
+          date: body.date ? new Date(body.date).toISOString() : new Date().toISOString(),
+          description: `Purchase Bill #${purNum} from ${supName}`,
+          referenceType: "PURCHASE",
+          referenceId: purId,
+          isBalanced: true,
+          status: "POSTED",
+          lines: jLines,
+        });
+      }
+    }
+
     const newPurchase = {
       id: purId,
       businessId,
@@ -233,7 +327,7 @@ export async function POST(req: NextRequest) {
       purchaseNumber: purNum,
       date: body.date ? new Date(body.date).toISOString() : new Date().toISOString(),
       supplierName: supName,
-      supplierId: body.supplierId || null,
+      supplierId: targetSupplierId,
       totalAmount: total,
       paidAmount: paid,
       remainingAmount: remaining,

@@ -96,6 +96,18 @@ export async function getDashboardMetrics(businessId: string, range?: DateRange)
     totalPayables = totalPayables.add(toDecimal(s.currentBalance));
   }
 
+  const allOpenPurchases = await prisma.purchase.findMany({
+    where: { businessId },
+    select: { remainingAmount: true },
+  });
+  let totalPurchasePayables = new Decimal(0);
+  for (const p of allOpenPurchases) {
+    totalPurchasePayables = totalPurchasePayables.add(toDecimal(p.remainingAmount || 0));
+  }
+  if (totalPurchasePayables.gt(totalPayables)) {
+    totalPayables = totalPurchasePayables;
+  }
+
   // 6. Inventory Valuation
   const products = await prisma.product.findMany({
     where: { businessId, isActive: true },
@@ -403,6 +415,18 @@ export async function getMonthlyClosingReport(businessId: string, year: number, 
 
   let totalSupplierPayables = new Decimal(0);
   for (const s of suppliers) totalSupplierPayables = totalSupplierPayables.add(toDecimal(s.currentBalance));
+
+  const allOpenPurchasesMonthly = await prisma.purchase.findMany({
+    where: { businessId },
+    select: { remainingAmount: true },
+  });
+  let totalOpenPurchasePayables = new Decimal(0);
+  for (const p of allOpenPurchasesMonthly) {
+    totalOpenPurchasePayables = totalOpenPurchasePayables.add(toDecimal(p.remainingAmount || 0));
+  }
+  if (totalOpenPurchasePayables.gt(totalSupplierPayables)) {
+    totalSupplierPayables = totalOpenPurchasePayables;
+  }
 
   // E & F. Money Received & Paid
   const payments = await prisma.payment.findMany({

@@ -204,7 +204,7 @@ export async function createAndPostPurchase(input: CreatePurchaseInput) {
       paymentStatus = "PARTIAL";
     }
 
-    // Validate supplier exists in DB before using as foreign key
+    // Validate or auto-resolve supplier in DB before using as foreign key
     let validSupplierId: string | null = null;
     let resolvedSupplierName: string = (supplierName || "").trim();
     if (supplierId) {
@@ -216,6 +216,33 @@ export async function createAndPostPurchase(input: CreatePurchaseInput) {
         }
       }
     }
+
+    if (!validSupplierId && resolvedSupplierName) {
+      const supByName = await tx.supplier.findFirst({
+        where: {
+          businessId,
+          name: { equals: resolvedSupplierName, mode: "insensitive" },
+        },
+      });
+      if (supByName) {
+        validSupplierId = supByName.id;
+        resolvedSupplierName = supByName.name;
+      } else if (remainingAmount.gt(0)) {
+        // Auto-provision supplier in ledger when purchase has remaining balance
+        const createdSup = await tx.supplier.create({
+          data: {
+            businessId,
+            name: resolvedSupplierName,
+            businessName: resolvedSupplierName,
+            openingBalance: 0,
+            currentBalance: 0,
+            isActive: true,
+          },
+        });
+        validSupplierId = createdSup.id;
+      }
+    }
+
     if (!resolvedSupplierName) {
       resolvedSupplierName = "General Supplier";
     }
@@ -289,12 +316,12 @@ export async function createAndPostPurchase(input: CreatePurchaseInput) {
     }
 
     // 3. Update Supplier balance (credit purchase)
-    if (supplierId && remainingAmount.gt(0)) {
-      const supplier = await tx.supplier.findUnique({ where: { id: supplierId } });
+    if (validSupplierId && remainingAmount.gt(0)) {
+      const supplier = await tx.supplier.findUnique({ where: { id: validSupplierId } });
       if (supplier) {
         const newBal = toDecimal(supplier.currentBalance).add(remainingAmount);
         await tx.supplier.update({
-          where: { id: supplierId },
+          where: { id: validSupplierId },
           data: { currentBalance: newBal.toNumber() },
         });
       }

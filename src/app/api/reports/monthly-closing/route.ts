@@ -17,24 +17,40 @@ export async function GET(req: NextRequest) {
     const report = await getMonthlyClosingReport(businessId, year, month);
     return NextResponse.json({ success: true, data: report });
   } catch (error: any) {
+    let businessId = "biz-101";
+    try {
+      businessId = await getActiveBusinessId(req);
+    } catch {}
+
     const now = new Date();
     const { searchParams } = new URL(req.url);
     const year = parseInt(searchParams.get("year") || String(now.getFullYear()));
     const month = parseInt(searchParams.get("month") || String(now.getMonth() + 1));
 
-    const period = fallbackStore.accountingPeriods.find((p) => p.year === year && p.month === month);
-    const totalSales = fallbackStore.sales.reduce((a, s) => a + s.totalAmount, 0);
-    const totalPurchases = fallbackStore.purchases.reduce((a, p) => a + p.totalAmount, 0);
-    const totalExpenses = fallbackStore.expenses.reduce((a, e) => a + e.amount, 0);
+    const compSales = fallbackStore.sales.filter((s) => s.businessId === businessId);
+    const compPurchases = fallbackStore.purchases.filter((p) => p.businessId === businessId);
+    const compExpenses = fallbackStore.expenses.filter((e) => e.businessId === businessId);
+    const compCustomers = fallbackStore.customers.filter((c) => c.businessId === businessId);
+    const compSuppliers = fallbackStore.suppliers.filter((s) => s.businessId === businessId);
+    const compAccounts = fallbackStore.cashBankAccounts.filter((a) => a.businessId === businessId);
+    const compPeriods = fallbackStore.accountingPeriods.filter((p) => p.businessId === businessId);
+    const compProducts = fallbackStore.products.filter((p) => !p.businessId || p.businessId === businessId);
+
+    const period = compPeriods.find((p) => p.year === year && p.month === month);
+    const totalSales = compSales.reduce((a, s) => a + s.totalAmount, 0);
+    const totalPurchases = compPurchases.reduce((a, p) => a + p.totalAmount, 0);
+    const totalExpenses = compExpenses.reduce((a, e) => a + e.amount, 0);
     const cogs = totalSales * 0.65;
     const grossProfit = totalSales - cogs;
     const netProfit = grossProfit - totalExpenses;
 
-    const totalReceivables = fallbackStore.customers.reduce((a, c) => a + c.currentBalance, 0);
-    const totalPayables = fallbackStore.suppliers.reduce((a, s) => a + s.currentBalance, 0);
+    const totalReceivables = compCustomers.reduce((a, c) => a + Number(c.currentBalance || 0), 0);
+    const totalSupplierBal = compSuppliers.reduce((a, s) => a + Number(s.currentBalance || 0), 0);
+    const totalOpenPurchaseRem = compPurchases.reduce((a, p) => a + Number(p.remainingAmount || 0), 0);
+    const totalPayables = Math.max(totalSupplierBal, totalOpenPurchaseRem);
 
-    const cash = fallbackStore.cashBankAccounts.find((a) => a.type === "CASH")?.balance || 0;
-    const bank = fallbackStore.cashBankAccounts.find((a) => a.type === "BANK")?.balance || 0;
+    const cash = compAccounts.find((a) => a.type === "CASH")?.balance || 0;
+    const bank = compAccounts.find((a) => a.type === "BANK")?.balance || 0;
 
     const fallbackReport = {
       year,
@@ -44,29 +60,29 @@ export async function GET(req: NextRequest) {
       closedAt: period?.closedAt,
       sales: {
         total: totalSales,
-        invoiceCount: fallbackStore.sales.length,
-        cash: fallbackStore.sales.filter((s) => s.paymentStatus === "PAID").reduce((a, s) => a + s.totalAmount, 0),
-        credit: fallbackStore.sales.filter((s) => s.paymentStatus !== "PAID").reduce((a, s) => a + s.totalAmount, 0),
+        invoiceCount: compSales.length,
+        cash: compSales.filter((s) => s.paymentStatus === "PAID").reduce((a, s) => a + s.totalAmount, 0),
+        credit: compSales.filter((s) => s.paymentStatus !== "PAID").reduce((a, s) => a + s.totalAmount, 0),
         discounts: 0,
         taxes: 0,
         cogs,
         grossProfit,
-        byProduct: fallbackStore.products.map((p) => ({ name: p.name, quantity: 5, total: p.sellingPrice * 5 })),
-        byCustomer: fallbackStore.customers.map((c) => ({ name: c.name, count: 1, total: 25000 })),
+        byProduct: compProducts.map((p) => ({ name: p.name, quantity: 5, total: p.sellingPrice * 5 })),
+        byCustomer: compCustomers.map((c) => ({ name: c.name, count: 1, total: 25000 })),
       },
       purchases: {
         total: totalPurchases,
-        invoiceCount: fallbackStore.purchases.length,
+        invoiceCount: compPurchases.length,
         cash: totalPurchases,
         credit: 0,
       },
       receivables: {
         total: totalReceivables,
-        count: fallbackStore.customers.length,
+        count: compCustomers.length,
       },
       payables: {
         total: totalPayables,
-        count: fallbackStore.suppliers.length,
+        count: compSuppliers.length || (totalPayables > 0 ? 1 : 0),
       },
       cashFlow: {
         cashReceived: 10000,
@@ -87,9 +103,9 @@ export async function GET(req: NextRequest) {
         })),
       },
       inventory: {
-        totalValue: fallbackStore.products.reduce((a, p) => a + p.currentStock * p.averageCost, 0),
-        productCount: fallbackStore.products.length,
-        lowStockItems: fallbackStore.products.filter((p) => p.currentStock <= p.minStockLevel),
+        totalValue: compProducts.reduce((a, p) => a + p.currentStock * p.averageCost, 0),
+        productCount: compProducts.length,
+        lowStockItems: compProducts.filter((p) => p.currentStock <= p.minStockLevel),
       },
       profitAndLoss: {
         netSales: totalSales,

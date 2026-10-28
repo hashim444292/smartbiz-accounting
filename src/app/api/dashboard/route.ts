@@ -5,6 +5,7 @@ import { fallbackStore, storeGetBranches } from "@/lib/fallbackStore";
 import { prisma } from "@/lib/prisma";
 import { round2 } from "@/lib/decimal";
 import { getProductEffectiveCost } from "@/lib/accountingConstants";
+import { calculateTotalPayables, reconcileSupplierPayables, storeReconcileSupplierPayables } from "@/lib/payablesHelper";
 
 export const dynamic = "force-dynamic";
 
@@ -39,7 +40,9 @@ export async function GET(req: NextRequest) {
         prisma.branch.findMany({ where: { businessId, isActive: true }, orderBy: { name: "asc" } }),
         prisma.cashBankAccount.findMany({ where: { businessId, isActive: true } }),
       ]);
+      reconcileSupplierPayables(prisma, businessId).catch(() => null);
     } catch {
+      storeReconcileSupplierPayables(businessId);
       allSales = fallbackStore.sales.filter((s) => s.businessId === businessId);
       allPurchases = fallbackStore.purchases.filter((p) => p.businessId === businessId);
       allExpenses = fallbackStore.expenses.filter((e) => e.businessId === businessId);
@@ -92,12 +95,12 @@ export async function GET(req: NextRequest) {
         code: b.code,
         city: b.city,
         managerName: b.managerName,
-        totalSales: round2(sTotal),
-        totalPurchases: round2(pTotal),
-        totalExpenses: round2(eTotal),
-        totalCogs: round2(bCogs),
-        netProfit: round2(profit),
-        salesSharePercent: totalAllSales > 0 ? round2((sTotal / totalAllSales) * 100) : 0,
+        totalSales: round2(sTotal).toNumber(),
+        totalPurchases: round2(pTotal).toNumber(),
+        totalExpenses: round2(eTotal).toNumber(),
+        totalCogs: round2(bCogs).toNumber(),
+        netProfit: round2(profit).toNumber(),
+        salesSharePercent: totalAllSales > 0 ? round2((sTotal / totalAllSales) * 100).toNumber() : 0,
       };
     });
 
@@ -115,7 +118,7 @@ export async function GET(req: NextRequest) {
     const grossProfit = totalGrossSales - totalCogs;
     const netProfit = grossProfit - totalExpenses;
     const totalReceivables = customers.reduce((acc, c) => acc + Number(c.currentBalance || 0), 0);
-    const totalPayables = suppliers.reduce((acc, s) => acc + Number(s.currentBalance || 0), 0);
+    const totalPayables = calculateTotalPayables(suppliers, purchases);
     const totalInventoryValue = products.reduce((acc, p) => acc + Number(p.currentStock || 0) * getProductEffectiveCost(p), 0);
 
     // Calculate Cash Flow: Real receipts (Customer receipts + direct cash sales) and disbursements (Vendor disbursements + direct purchases)
@@ -246,8 +249,8 @@ export async function GET(req: NextRequest) {
       overdueCount,
       dueTodayCount,
       upcomingCount: reminders.filter((r) => r.urgency === "UPCOMING").length,
-      totalOverdueReceivables: round2(totalOverdueReceivables),
-      totalOverduePayables: round2(totalOverduePayables),
+      totalOverdueReceivables: round2(totalOverdueReceivables).toNumber(),
+      totalOverduePayables: round2(totalOverduePayables).toNumber(),
       reminders: reminders.slice(0, 15),
     };
 
@@ -278,19 +281,19 @@ export async function GET(req: NextRequest) {
         monthlyTrends,
 
         // Core Accounting Metrics
-        totalGrossSales: round2(totalGrossSales),
-        totalPurchases: round2(totalPurchases),
-        totalExpenses: round2(totalExpenses),
-        totalCogs: round2(totalCogs),
-        grossProfit: round2(grossProfit),
-        netProfit: round2(netProfit),
-        totalReceivables: round2(totalReceivables),
-        totalPayables: round2(totalPayables),
-        totalInventoryValue: round2(totalInventoryValue),
-        cashBalance: round2(cashBalance),
-        bankBalance: round2(bankBalance),
-        paymentsReceived: round2(paymentsReceived),
-        paymentsMade: round2(paymentsMade),
+        totalGrossSales: round2(totalGrossSales).toNumber(),
+        totalPurchases: round2(totalPurchases).toNumber(),
+        totalExpenses: round2(totalExpenses).toNumber(),
+        totalCogs: round2(totalCogs).toNumber(),
+        grossProfit: round2(grossProfit).toNumber(),
+        netProfit: round2(netProfit).toNumber(),
+        totalReceivables: round2(totalReceivables).toNumber(),
+        totalPayables: round2(totalPayables).toNumber(),
+        totalInventoryValue: round2(totalInventoryValue).toNumber(),
+        cashBalance: round2(cashBalance).toNumber(),
+        bankBalance: round2(bankBalance).toNumber(),
+        paymentsReceived: round2(paymentsReceived).toNumber(),
+        paymentsMade: round2(paymentsMade).toNumber(),
         lowStockCount: lowStockAlerts.length,
         lowStockAlerts,
 
