@@ -615,26 +615,71 @@ export async function saveOpeningBalances(
           });
         }
 
-        // Map account codes to IDs
+        // Map account codes to IDs and guarantee no lines are dropped
         const resolvedLines: Array<{ accountId: string; debit: number; credit: number; description: string }> = [];
         for (const l of journalLinesData) {
-          const acc = await tx.account.findUnique({
+          let acc = await tx.account.findUnique({
             where: { businessId_code: { businessId, code: l.accountCode } },
           });
-          if (acc) {
-            resolvedLines.push({
-              accountId: acc.id,
-              debit: l.debit,
-              credit: l.credit,
-              description: l.description,
+          if (!acc) {
+            const std = (STANDARD_ACCOUNTS as any)[l.accountCode] || {
+              name: l.accountCode === "3010" ? "Owner's Capital" : l.accountCode === "2010" ? "Accounts Payable" : "Opening Account",
+              type: l.accountCode.startsWith("1") ? "ASSET" : l.accountCode.startsWith("2") ? "LIABILITY" : "EQUITY",
+              subType: "Opening",
+            };
+            acc = await tx.account.create({
+              data: {
+                businessId,
+                code: l.accountCode,
+                name: std.name,
+                type: std.type,
+                subType: std.subType,
+                balance: 0,
+                isSystem: true,
+                isActive: true,
+              },
             });
+          }
 
-            // Update account balance
-            const isAsset = ["ASSET", "EXPENSE", "COGS"].includes(acc.type);
-            const netChange = isAsset ? (l.debit - l.credit) : (l.credit - l.debit);
+          resolvedLines.push({
+            accountId: acc.id,
+            debit: l.debit,
+            credit: l.credit,
+            description: l.description,
+          });
+
+          // Update account balance
+          const isAsset = ["ASSET", "EXPENSE", "COGS"].includes(acc.type);
+          const netChange = isAsset ? (l.debit - l.credit) : (l.credit - l.debit);
+          await tx.account.update({
+            where: { id: acc.id },
+            data: { balance: netChange },
+          });
+        }
+
+        // Mathematical verification of resolved lines
+        const sumDebits = round2(resolvedLines.reduce((s, l) => s + l.debit, 0)).toNumber();
+        const sumCredits = round2(resolvedLines.reduce((s, l) => s + l.credit, 0)).toNumber();
+        const finalDiff = round2(sumDebits - sumCredits).toNumber();
+        if (Math.abs(finalDiff) >= 0.01) {
+          const capAcc = await tx.account.findUnique({
+            where: { businessId_code: { businessId, code: "3010" } },
+          });
+          if (capAcc) {
+            const capLine = resolvedLines.find((l) => l.accountId === capAcc.id);
+            if (capLine) {
+              capLine.credit = round2(capLine.credit + finalDiff).toNumber();
+            } else {
+              resolvedLines.push({
+                accountId: capAcc.id,
+                debit: 0,
+                credit: finalDiff,
+                description: "Balancing Owner's Capital Setup",
+              });
+            }
             await tx.account.update({
-              where: { id: acc.id },
-              data: { balance: netChange },
+              where: { id: capAcc.id },
+              data: { balance: round2(Number(capAcc.balance) + finalDiff).toNumber() },
             });
           }
         }

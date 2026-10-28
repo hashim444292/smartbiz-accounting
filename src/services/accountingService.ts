@@ -201,6 +201,84 @@ export async function ensureStandardAccounts(
       }
     }
   }
+
+  // Auto-heal any historical opening balance journal entry imbalances
+  await autoHealOpeningBalanceJournal(txOrPrisma, businessId);
+}
+
+/**
+ * Reconciles and auto-heals opening balance journal entries ensuring Debits strictly equal Credits.
+ */
+export async function autoHealOpeningBalanceJournal(
+  txOrPrisma: Prisma.TransactionClient | typeof prisma,
+  businessId: string
+): Promise<void> {
+  try {
+    const obJournals = await txOrPrisma.journalEntry.findMany({
+      where: { businessId, referenceType: "OPENING_BALANCE" },
+      include: { lines: { include: { account: true } } },
+    });
+
+    for (const ob of obJournals) {
+      const debits = (ob.lines || []).reduce((sum, l) => sum + Number(l.debit || 0), 0);
+      const credits = (ob.lines || []).reduce((sum, l) => sum + Number(l.credit || 0), 0);
+      const diff = round2(debits - credits).toNumber();
+
+      if (Math.abs(diff) > 0.01) {
+        // Imbalance detected. Balance with Owner's Capital (3010)
+        const capitalLine = ob.lines.find((l) => l.account?.code === "3010");
+        if (capitalLine) {
+          const newCredit = round2(Number(capitalLine.credit || 0) + diff).toNumber();
+          await txOrPrisma.journalLine.update({
+            where: { id: capitalLine.id },
+            data: { credit: newCredit },
+          });
+          await txOrPrisma.account.update({
+            where: { id: capitalLine.accountId },
+            data: { balance: newCredit },
+          });
+        } else {
+          let acc3010 = await txOrPrisma.account.findUnique({
+            where: { businessId_code: { businessId, code: "3010" } },
+          });
+          if (!acc3010) {
+            acc3010 = await txOrPrisma.account.create({
+              data: {
+                businessId,
+                code: "3010",
+                name: "Owner's Capital",
+                type: "EQUITY",
+                subType: "Capital",
+                balance: diff,
+                isSystem: true,
+              },
+            });
+          }
+          await txOrPrisma.journalLine.create({
+            data: {
+              journalEntryId: ob.id,
+              accountId: acc3010.id,
+              debit: 0,
+              credit: diff,
+              description: "Balancing Owner's Capital Setup",
+            },
+          });
+          await txOrPrisma.account.update({
+            where: { id: acc3010.id },
+            data: { balance: diff },
+          });
+        }
+
+        await txOrPrisma.journalEntry.update({
+          where: { id: ob.id },
+          data: { isBalanced: true },
+        });
+      }
+    }
+  } catch (e) {
+    // Non-blocking notice
+    console.warn("autoHealOpeningBalanceJournal notice:", e);
+  }
 }
 
 /**

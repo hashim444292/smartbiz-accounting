@@ -115,10 +115,11 @@ export async function createAndPostExpense(input: CreateExpenseInput) {
 
     const accountCode = expenseAccount ? expenseAccount.code : "6990"; // default to Miscellaneous Expense
 
+    const paidToInfo = paidTo ? ` (Paid to: ${paidTo})` : "";
     await createJournalEntry(tx, {
       businessId,
       date,
-      description: `Expense: ${category.name} - ${description}`,
+      description: `Expense: ${description} (${category.name})${paidToInfo}`,
       referenceType: "EXPENSE",
       referenceId: expense.id,
       createdById,
@@ -127,13 +128,13 @@ export async function createAndPostExpense(input: CreateExpenseInput) {
           accountCode,
           debit: amount,
           credit: new Decimal(0),
-          description: `${category.name}: ${description}`,
+          description: `${category.name}: ${description}${paidToInfo}`,
         },
         {
           accountCode: targetCashBank?.type === "BANK" ? "1020" : "1010",
           debit: new Decimal(0),
           credit: amount,
-          description: `Paid via ${targetCashBank?.name || paymentMethod}`,
+          description: `Disbursement from ${targetCashBank?.name || paymentMethod} for ${description}`,
         },
       ],
     });

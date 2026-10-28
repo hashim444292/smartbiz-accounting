@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { round2 } from "@/lib/decimal";
 import { getProductEffectiveCost } from "@/lib/accountingConstants";
 import { calculateTotalPayables, reconcileSupplierPayables, storeReconcileSupplierPayables } from "@/lib/payablesHelper";
+import { calculateTotalReceivables, reconcileCustomerReceivables, storeReconcileCustomerReceivables } from "@/lib/receivablesHelper";
 
 export const dynamic = "force-dynamic";
 
@@ -41,8 +42,10 @@ export async function GET(req: NextRequest) {
         prisma.cashBankAccount.findMany({ where: { businessId, isActive: true } }),
       ]);
       reconcileSupplierPayables(prisma, businessId).catch(() => null);
+      reconcileCustomerReceivables(prisma, businessId).catch(() => null);
     } catch {
       storeReconcileSupplierPayables(businessId);
+      storeReconcileCustomerReceivables(businessId);
       allSales = fallbackStore.sales.filter((s) => s.businessId === businessId);
       allPurchases = fallbackStore.purchases.filter((p) => p.businessId === businessId);
       allExpenses = fallbackStore.expenses.filter((e) => e.businessId === businessId);
@@ -117,7 +120,7 @@ export async function GET(req: NextRequest) {
     const totalCogs = calculateSalesCogs(sales);
     const grossProfit = totalGrossSales - totalCogs;
     const netProfit = grossProfit - totalExpenses;
-    const totalReceivables = customers.reduce((acc, c) => acc + Number(c.currentBalance || 0), 0);
+    const totalReceivables = calculateTotalReceivables(customers, sales);
     const totalPayables = calculateTotalPayables(suppliers, purchases);
     const totalInventoryValue = products.reduce((acc, p) => acc + Number(p.currentStock || 0) * getProductEffectiveCost(p), 0);
 

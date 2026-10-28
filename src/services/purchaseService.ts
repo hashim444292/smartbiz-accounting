@@ -380,7 +380,7 @@ export async function createAndPostPurchase(input: CreatePurchaseInput) {
             paymentMethod,
             accountId: cashBank.id,
             referenceNumber: purchaseNumber,
-            notes: `Payment made for purchase ${purchaseNumber}`,
+            notes: `Payment to ${supplierName} for Purchase of ${processedItems.map((it) => `${it.quantity.toString()}x ${it.productName}`).slice(0, 3).join(", ")}${processedItems.length > 3 ? ` (+${processedItems.length - 3} more)` : ""} (Bill #${purchaseNumber})`,
             createdById,
             allocations: {
               create: {
@@ -394,6 +394,11 @@ export async function createAndPostPurchase(input: CreatePurchaseInput) {
     }
 
     // 5. Balanced Double-Entry Journal Entry
+    const purchaseItemsSummary = processedItems
+      .map((it) => `${it.quantity.toString()}x ${it.productName}`)
+      .slice(0, 3)
+      .join(", ") + (processedItems.length > 3 ? ` (+${processedItems.length - 3} more)` : "");
+
     // Debit Merchandise Inventory (1200) for totalAmount
     // Credit Cash/Bank (1010/1020) for paidAmount
     // Credit Accounts Payable (2010) for remainingAmount
@@ -402,7 +407,7 @@ export async function createAndPostPurchase(input: CreatePurchaseInput) {
         accountCode: "1200",
         debit: totalAmount,
         credit: new Decimal(0),
-        description: `Purchased goods on #${purchaseNumber}`,
+        description: `Merchandise Inward: ${purchaseItemsSummary} (Bill #${purchaseNumber})`,
       },
     ];
 
@@ -411,7 +416,7 @@ export async function createAndPostPurchase(input: CreatePurchaseInput) {
         accountCode: paymentMethod === "BANK" ? "1020" : "1010",
         debit: new Decimal(0),
         credit: paidAmount,
-        description: `Payment for purchase #${purchaseNumber}`,
+        description: `Payment for ${purchaseItemsSummary} (Bill #${purchaseNumber})`,
       });
     }
 
@@ -420,14 +425,14 @@ export async function createAndPostPurchase(input: CreatePurchaseInput) {
         accountCode: "2010", // Accounts Payable
         debit: new Decimal(0),
         credit: remainingAmount,
-        description: `Payable to ${supplierName} for #${purchaseNumber}`,
+        description: `Payable to ${supplierName} for ${purchaseItemsSummary} (Bill #${purchaseNumber})`,
       });
     }
 
     await createJournalEntry(tx, {
       businessId,
       date,
-      description: `Purchase Invoice #${purchaseNumber} from ${supplierName}`,
+      description: `Purchase of ${purchaseItemsSummary} from ${supplierName} (Bill #${purchaseNumber})`,
       referenceType: "PURCHASE",
       referenceId: purchase.id,
       createdById,

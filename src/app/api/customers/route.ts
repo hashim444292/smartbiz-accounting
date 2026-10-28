@@ -3,12 +3,16 @@ import { prisma } from "@/lib/prisma";
 import { getActiveBusinessId } from "@/lib/businessHelper";
 import { fallbackStore } from "@/lib/fallbackStore";
 import { enrichCustomer } from "@/lib/customerHelper";
+import { reconcileCustomerReceivables, storeReconcileCustomerReceivables } from "@/lib/receivablesHelper";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   try {
     const businessId = await getActiveBusinessId(req);
+    try {
+      await reconcileCustomerReceivables(prisma, businessId);
+    } catch {}
     const customers = await prisma.customer.findMany({
       where: { businessId, isActive: true },
       include: {
@@ -22,6 +26,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ success: true, data: parsedCustomers });
   } catch (error: any) {
     const businessId = await getActiveBusinessId(req);
+    storeReconcileCustomerReceivables(businessId);
     const filtered = fallbackStore.customers
       .filter((c) => !businessId || c.businessId === businessId)
       .map(enrichCustomer);

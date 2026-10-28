@@ -4,12 +4,14 @@ import { getActiveBusinessId, getActiveBranchId } from "@/lib/businessHelper";
 import { createAndPostExpense } from "@/services/expenseService";
 import { fallbackStore } from "@/lib/fallbackStore";
 import { getSession } from "@/lib/auth";
+import { ensureDefaultCategories } from "@/app/api/expense-categories/route";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   try {
     const businessId = await getActiveBusinessId(req);
+    await ensureDefaultCategories(businessId);
     const { branchId, isLockedToBranch } = await getActiveBranchId(req);
     const whereClause: any = { businessId };
     if (branchId) {

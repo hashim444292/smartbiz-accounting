@@ -87,6 +87,18 @@ export async function getDashboardMetrics(businessId: string, range?: DateRange)
     totalReceivables = totalReceivables.add(toDecimal(c.currentBalance));
   }
 
+  const allOpenSales = await prisma.sale.findMany({
+    where: { businessId, status: { not: "CANCELLED" } },
+    select: { remainingAmount: true },
+  });
+  let totalSalesReceivables = new Decimal(0);
+  for (const s of allOpenSales) {
+    totalSalesReceivables = totalSalesReceivables.add(toDecimal(s.remainingAmount || 0));
+  }
+  if (totalSalesReceivables.gt(totalReceivables)) {
+    totalReceivables = totalSalesReceivables;
+  }
+
   const suppliers = await prisma.supplier.findMany({
     where: { businessId, isActive: true },
     select: { currentBalance: true },
@@ -407,6 +419,18 @@ export async function getMonthlyClosingReport(businessId: string, year: number, 
 
   let totalCustomerReceivables = new Decimal(0);
   for (const c of customers) totalCustomerReceivables = totalCustomerReceivables.add(toDecimal(c.currentBalance));
+
+  const allOpenSalesMonthly = await prisma.sale.findMany({
+    where: { businessId, status: { not: "CANCELLED" } },
+    select: { remainingAmount: true },
+  });
+  let totalOpenSalesReceivables = new Decimal(0);
+  for (const s of allOpenSalesMonthly) {
+    totalOpenSalesReceivables = totalOpenSalesReceivables.add(toDecimal(s.remainingAmount || 0));
+  }
+  if (totalOpenSalesReceivables.gt(totalCustomerReceivables)) {
+    totalCustomerReceivables = totalOpenSalesReceivables;
+  }
 
   // D. Supplier Payables Reconciliation
   const suppliers = await prisma.supplier.findMany({

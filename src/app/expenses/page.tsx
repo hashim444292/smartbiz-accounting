@@ -66,6 +66,19 @@ export default function ExpensesPage() {
   const [editReason, setEditReason] = useState("");
   const [editSaving, setEditSaving] = useState(false);
 
+  // Category Management State
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [newCatName, setNewCatName] = useState("");
+  const [newCatDesc, setNewCatDesc] = useState("");
+  const [editingCatId, setEditingCatId] = useState<string | null>(null);
+  const [editCatName, setEditCatName] = useState("");
+  const [editCatDesc, setEditCatDesc] = useState("");
+  const [catActionLoading, setCatActionLoading] = useState(false);
+  const [catError, setCatError] = useState("");
+  const [catSuccess, setCatSuccess] = useState("");
+  const [showQuickAddCat, setShowQuickAddCat] = useState(false);
+  const [quickCatName, setQuickCatName] = useState("");
+
   const fetchExpenses = async (isSilent = false) => {
     if (!isSilent) setLoading(true);
     try {
@@ -93,9 +106,19 @@ export default function ExpensesPage() {
 
   useEffect(() => {
     fetchExpenses();
-    const branchToUse = isBranchLocked ? (user?.branchId || "") : (selectedBranch?.id || activeBranchId || (branches[0]?.id || ""));
-    setExpenseBranchId(branchToUse);
   }, [activeCompany?.id, activeBranchId, isBranchLocked, user?.branchId, selectedBranch?.id]);
+
+  // Dedicated branch auto-selection: pre-selects user branch or active/first branch if single or multiple
+  useEffect(() => {
+    if (branches && branches.length > 0) {
+      if (!expenseBranchId || !branches.some((b) => b.id === expenseBranchId)) {
+        const defaultBranch = isBranchLocked
+          ? (user?.branchId || branches[0].id)
+          : (selectedBranch?.id || activeBranchId || branches[0].id);
+        setExpenseBranchId(defaultBranch);
+      }
+    }
+  }, [branches, isBranchLocked, user?.branchId, selectedBranch?.id, activeBranchId, expenseBranchId]);
 
   // Real-time silent auto-sync for expenses
   useAutoSync((opts) => {
@@ -103,9 +126,116 @@ export default function ExpensesPage() {
   });
 
   const openAddModal = () => {
-    const branchToUse = isBranchLocked ? (user?.branchId || "") : (selectedBranch?.id || activeBranchId || (branches[0]?.id || ""));
+    const branchToUse = isBranchLocked
+      ? (user?.branchId || (branches[0]?.id || ""))
+      : (selectedBranch?.id || activeBranchId || (branches[0]?.id || ""));
     setExpenseBranchId(branchToUse);
     setShowAddModal(true);
+  };
+
+  const handleCreateCategory = async (e?: React.FormEvent, isQuick = false) => {
+    if (e) e.preventDefault();
+    const nameToCreate = isQuick ? quickCatName.trim() : newCatName.trim();
+    const descToCreate = isQuick ? "" : newCatDesc.trim();
+
+    if (!nameToCreate) {
+      alert("Please enter a category name");
+      return;
+    }
+
+    setCatActionLoading(true);
+    setCatError("");
+    setCatSuccess("");
+    try {
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (activeCompany?.id) headers["x-business-id"] = activeCompany.id;
+
+      const res = await fetch("/api/expense-categories", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ name: nameToCreate, description: descToCreate }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        setCatSuccess(`Category "${nameToCreate}" created successfully!`);
+        if (isQuick) {
+          setQuickCatName("");
+          setShowQuickAddCat(false);
+          setCategoryId(json.data.id);
+        } else {
+          setNewCatName("");
+          setNewCatDesc("");
+        }
+        invalidateCache("/api/expenses");
+        await fetchExpenses(true);
+      } else {
+        setCatError(json.error || "Failed to create category");
+        if (isQuick) alert(json.error || "Failed to create category");
+      }
+    } catch (err: any) {
+      setCatError(err.message || "Failed to create category");
+    } finally {
+      setCatActionLoading(false);
+    }
+  };
+
+  const handleUpdateCategory = async (catId: string) => {
+    if (!editCatName.trim()) {
+      alert("Category name cannot be empty");
+      return;
+    }
+    setCatActionLoading(true);
+    setCatError("");
+    try {
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (activeCompany?.id) headers["x-business-id"] = activeCompany.id;
+
+      const res = await fetch(`/api/expense-categories/${catId}`, {
+        method: "PUT",
+        headers,
+        body: JSON.stringify({ name: editCatName.trim(), description: editCatDesc.trim() }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        setCatSuccess("Category updated successfully!");
+        setEditingCatId(null);
+        invalidateCache("/api/expenses");
+        await fetchExpenses(true);
+      } else {
+        setCatError(json.error || "Failed to update category");
+      }
+    } catch (err: any) {
+      setCatError(err.message || "Failed to update category");
+    } finally {
+      setCatActionLoading(false);
+    }
+  };
+
+  const handleDeleteCategory = async (catId: string, catName: string) => {
+    if (!confirm(`Are you sure you want to delete category "${catName}"?`)) return;
+    setCatActionLoading(true);
+    setCatError("");
+    try {
+      const headers: Record<string, string> = {};
+      if (activeCompany?.id) headers["x-business-id"] = activeCompany.id;
+
+      const res = await fetch(`/api/expense-categories/${catId}`, {
+        method: "DELETE",
+        headers,
+      });
+      const json = await res.json();
+      if (json.success) {
+        setCatSuccess(`Category "${catName}" deleted.`);
+        invalidateCache("/api/expenses");
+        await fetchExpenses(true);
+      } else {
+        alert(json.error || "Failed to delete category");
+      }
+    } catch (err: any) {
+      alert(err.message || "Failed to delete category");
+    } finally {
+      setCatActionLoading(false);
+    }
   };
 
   const handleCreateExpense = async (e: React.FormEvent) => {
@@ -241,10 +371,16 @@ export default function ExpensesPage() {
             Total Filtered Expenses: <span className="font-bold text-rose-600">{formatMoney(totalExpenses)}</span>
           </p>
         </div>
-        <Button variant="danger" size="sm" onClick={openAddModal}>
-          <Plus className="h-4 w-4 mr-1.5" />
-          Add Expense
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => setShowCategoryModal(true)}>
+            <Tag className="h-4 w-4 mr-1.5 text-indigo-600 dark:text-indigo-400" />
+            {t("Manage Categories", "کیٹیگریز منظم کریں")}
+          </Button>
+          <Button variant="danger" size="sm" onClick={openAddModal}>
+            <Plus className="h-4 w-4 mr-1.5" />
+            {t("Add Expense", "خرچ درج کریں")}
+          </Button>
+        </div>
       </div>
 
       {/* Active Branch Scope Indicator Banner */}
@@ -421,6 +557,7 @@ export default function ExpensesPage() {
                     onChange={(e) => setExpenseBranchId(e.target.value)}
                     className="w-full rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
                   >
+                    {branches.length === 0 && <option value="">Main Branch (Default)</option>}
                     {branches.map((b) => (
                       <option key={b.id} value={b.id}>{b.name}</option>
                     ))}
@@ -430,12 +567,52 @@ export default function ExpensesPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Select label="Expense Category" value={categoryId} onChange={(e) => setCategoryId(e.target.value)} required>
-              {categories.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </Select>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-end">
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  {t("Expense Category *", "خرچ کا زمرہ *")}
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setShowQuickAddCat(!showQuickAddCat)}
+                  className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 dark:text-indigo-400"
+                >
+                  {showQuickAddCat ? "Cancel" : "+ New"}
+                </button>
+              </div>
+              {showQuickAddCat ? (
+                <div className="flex items-center gap-1.5 mb-2">
+                  <input
+                    type="text"
+                    placeholder="New category name..."
+                    value={quickCatName}
+                    onChange={(e) => setQuickCatName(e.target.value)}
+                    className="flex-1 rounded-lg border border-indigo-300 bg-indigo-50/50 px-2 py-1 text-xs font-semibold text-slate-900 focus:outline-none dark:border-indigo-700 dark:bg-slate-800 dark:text-white"
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="primary"
+                    disabled={catActionLoading || !quickCatName.trim()}
+                    onClick={() => handleCreateCategory(undefined, true)}
+                  >
+                    Add
+                  </Button>
+                </div>
+              ) : null}
+              <select
+                value={categoryId}
+                onChange={(e) => setCategoryId(e.target.value)}
+                required
+                className="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-900 shadow-xs dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+              >
+                {categories.length === 0 && <option value="">No categories available - click + New</option>}
+                {categories.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+            </div>
             <Input label="Date" type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
           </div>
           <Input label="Description / Purpose" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="e.g. Electricity bill for September" required />
@@ -578,6 +755,137 @@ export default function ExpensesPage() {
           </form>
         </Modal>
       )}
+
+      {/* Manage Expense Categories Modal */}
+      <Modal
+        isOpen={showCategoryModal}
+        onClose={() => {
+          setShowCategoryModal(false);
+          setEditingCatId(null);
+          setCatError("");
+          setCatSuccess("");
+        }}
+        title="Manage Expense Categories (اخراجات کے زمرے)"
+      >
+        <div className="space-y-4">
+          {catError && (
+            <div className="rounded-lg bg-rose-50 border border-rose-200 p-2.5 text-xs text-rose-700 font-semibold dark:bg-rose-950/40 dark:border-rose-900 dark:text-rose-300">
+              ⚠️ {catError}
+            </div>
+          )}
+          {catSuccess && (
+            <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-2.5 text-xs text-emerald-700 font-semibold dark:bg-emerald-950/40 dark:border-emerald-900 dark:text-emerald-300">
+              ✓ {catSuccess}
+            </div>
+          )}
+
+          {/* Add New Category Card */}
+          <div className="rounded-xl border border-indigo-100 bg-indigo-50/50 p-3 dark:border-indigo-900/40 dark:bg-indigo-950/20">
+            <h4 className="text-xs font-bold text-indigo-950 dark:text-indigo-200 mb-2">
+              + Add New Category (نیا زمرہ شامل کریں)
+            </h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <input
+                type="text"
+                placeholder="Category Name (e.g. Generator Fuel)..."
+                value={newCatName}
+                onChange={(e) => setNewCatName(e.target.value)}
+                className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+              />
+              <input
+                type="text"
+                placeholder="Description / Note (optional)..."
+                value={newCatDesc}
+                onChange={(e) => setNewCatDesc(e.target.value)}
+                className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+              />
+            </div>
+            <div className="mt-2.5 flex justify-end">
+              <Button
+                size="sm"
+                variant="primary"
+                disabled={catActionLoading || !newCatName.trim()}
+                onClick={(e) => handleCreateCategory(e, false)}
+              >
+                Save Category (محفوظ کریں)
+              </Button>
+            </div>
+          </div>
+
+          {/* Existing Categories List */}
+          <div className="space-y-2">
+            <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300">
+              Existing Categories ({categories.length})
+            </h4>
+            <div className="max-h-72 overflow-y-auto space-y-1.5 divide-y divide-slate-100 dark:divide-slate-800 rounded-xl border border-slate-200 bg-white p-2 dark:border-slate-800 dark:bg-slate-900">
+              {categories.length === 0 ? (
+                <p className="text-xs text-slate-400 text-center py-4">No categories configured yet.</p>
+              ) : (
+                categories.map((cat) => (
+                  <div key={cat.id} className="pt-2 first:pt-0 flex items-center justify-between gap-2">
+                    {editingCatId === cat.id ? (
+                      <div className="flex-1 flex flex-col gap-1.5">
+                        <input
+                          type="text"
+                          value={editCatName}
+                          onChange={(e) => setEditCatName(e.target.value)}
+                          className="rounded-md border border-indigo-300 px-2 py-1 text-xs font-semibold text-slate-900 dark:border-indigo-700 dark:bg-slate-800 dark:text-white"
+                        />
+                        <input
+                          type="text"
+                          placeholder="Description..."
+                          value={editCatDesc}
+                          onChange={(e) => setEditCatDesc(e.target.value)}
+                          className="rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                        />
+                        <div className="flex items-center gap-1.5 mt-1">
+                          <Button size="sm" variant="primary" onClick={() => handleUpdateCategory(cat.id)}>
+                            Save
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={() => setEditingCatId(null)}>
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-bold text-slate-900 dark:text-white truncate">{cat.name}</p>
+                          {cat.description && (
+                            <p className="text-[11px] text-slate-400 truncate">{cat.description}</p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingCatId(cat.id);
+                              setEditCatName(cat.name);
+                              setEditCatDesc(cat.description || "");
+                            }}
+                            className="rounded-md p-1.5 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/40"
+                            title="Edit Category"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteCategory(cat.id, cat.name)}
+                            className="rounded-md p-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40"
+                            title="Delete Category"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

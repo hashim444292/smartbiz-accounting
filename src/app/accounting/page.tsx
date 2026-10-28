@@ -204,6 +204,7 @@ function AccountingContent() {
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [customers, setCustomers] = useState<any[]>([]);
   const [purchases, setPurchases] = useState<any[]>([]);
+  const [sales, setSales] = useState<any[]>([]);
   const [payments, setPayments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -373,6 +374,7 @@ function AccountingContent() {
         setSuppliers(json.data.suppliers || []);
         setCustomers(json.data.customers || []);
         setPurchases(json.data.purchases || []);
+        setSales(json.data.sales || []);
         setPayments(json.data.payments || []);
 
         // Auto-select first entity if not already selected
@@ -444,22 +446,64 @@ function AccountingContent() {
     return list;
   }, [suppliers, purchases]);
 
+  // Comprehensive customer list ensuring all sales customers appear with accurate open balances
+  const effectiveCustomers = useMemo(() => {
+    const list = [...customers];
+    const knownKeys = new Set(list.map((c) => c.id));
+    const knownNames = new Set(list.map((c) => (c.name || "").toLowerCase().trim()));
+
+    sales.forEach((s) => {
+      const name = (s.customerName || "").trim();
+      if (name) {
+        const norm = name.toLowerCase();
+        const remForCustomer = sales
+          .filter((x) => (x.customerName || "").toLowerCase().trim() === norm)
+          .reduce((sum, x) => sum + Number(x.remainingAmount || 0), 0);
+
+        if (!knownNames.has(norm)) {
+          const synthId = s.customerId || `synth-cust-${norm.replace(/\s+/g, "-")}`;
+          if (!knownKeys.has(synthId)) {
+            list.push({
+              id: synthId,
+              name: name,
+              phone: s.customerPhone || "",
+              openingBalance: 0,
+              currentBalance: remForCustomer,
+              sales: [],
+              payments: [],
+            });
+            knownKeys.add(synthId);
+            knownNames.add(norm);
+          }
+        } else {
+          // If existing customer has balance 0 or lower than actual open dues, show true balance
+          const existing = list.find((c) => (c.name || "").toLowerCase().trim() === norm);
+          if (existing && Number(existing.currentBalance || 0) < remForCustomer) {
+            existing.currentBalance = remForCustomer;
+          }
+        }
+      }
+    });
+
+    return list;
+  }, [customers, sales]);
+
   // When ledgerType changes, auto-select first entity if current doesn't match
   useEffect(() => {
     if (ledgerType === "VENDOR" && effectiveSuppliers.length > 0) {
       if (!effectiveSuppliers.some((s) => s.id === selectedEntityId)) {
         setSelectedEntityId(effectiveSuppliers[0].id);
       }
-    } else if (ledgerType === "CUSTOMER" && customers.length > 0) {
-      if (!customers.some((c) => c.id === selectedEntityId)) {
-        setSelectedEntityId(customers[0].id);
+    } else if (ledgerType === "CUSTOMER" && effectiveCustomers.length > 0) {
+      if (!effectiveCustomers.some((c) => c.id === selectedEntityId)) {
+        setSelectedEntityId(effectiveCustomers[0].id);
       }
     } else if (ledgerType === "ACCOUNT" && accounts.length > 0) {
       if (!accounts.some((a) => a.id === selectedEntityId)) {
         setSelectedEntityId(accounts[0].id);
       }
     }
-  }, [ledgerType, effectiveSuppliers, customers, accounts]);
+  }, [ledgerType, effectiveSuppliers, effectiveCustomers, accounts]);
 
   // Compute Active Date Range Boundaries
   const dateRangeBounds = useMemo(() => {
@@ -635,7 +679,7 @@ function AccountingContent() {
         closingBalanceType,
       };
     } else if (ledgerType === "CUSTOMER") {
-      const currentCustomer = customers.find((c) => c.id === selectedEntityId);
+      const currentCustomer = effectiveCustomers.find((c) => c.id === selectedEntityId);
       if (!currentCustomer) {
         return {
           entity: null,
@@ -652,27 +696,44 @@ function AccountingContent() {
 
       const initialProfileOpening = Number(currentCustomer.openingBalance || 0);
 
-      // Customer sales & payments
-      const customerSales = (currentCustomer.sales || []).map((s: any) => ({
+      // Customer sales & payments with global fallback
+      const rawSales = (currentCustomer.sales && currentCustomer.sales.length > 0)
+        ? currentCustomer.sales
+        : sales.filter(
+            (s) =>
+              s.customerId === currentCustomer.id ||
+              (s.customerName && s.customerName.toLowerCase().trim() === (currentCustomer.name || "").toLowerCase().trim())
+          );
+
+      const customerSales = rawSales.map((s: any) => ({
         id: `sale-${s.id}`,
         date: new Date(s.date),
         refNumber: s.invoiceNumber,
         type: "SALES INVOICE",
-        description: language === "ur"
+        description: s.narration || (language === "ur"
           ? `سیلز انوائس #${s.invoiceNumber}`
-          : `Sales Invoice #${s.invoiceNumber}`,
+          : `Sales Invoice #${s.invoiceNumber}`),
         debit: Number(s.totalAmount || 0), // Sales increase receivable (DEBIT)
         credit: 0,
       }));
 
-      const customerPayments = (currentCustomer.payments || []).map((p: any) => ({
+      const rawPayments = (currentCustomer.payments && currentCustomer.payments.length > 0)
+        ? currentCustomer.payments
+        : payments.filter(
+            (p) =>
+              p.customerId === currentCustomer.id ||
+              (p.partyType === "CUSTOMER" && p.partyName && p.partyName.toLowerCase().trim() === (currentCustomer.name || "").toLowerCase().trim()) ||
+              rawSales.some((rs: any) => rs.invoiceNumber === p.referenceNumber)
+          );
+
+      const customerPayments = rawPayments.map((p: any) => ({
         id: `pay-${p.id}`,
         date: new Date(p.date),
         refNumber: p.referenceNumber || `RCPT-${p.id.slice(0, 6)}`,
         type: "RECEIPT",
         description: language === "ur"
           ? `وصولی گاہک بذریعہ ${p.paymentMethod || "CASH"}`
-          : `Receipt from Customer via ${p.paymentMethod || "CASH"}`,
+          : `Receipt from Customer via ${p.paymentMethod || "CASH"} ${p.notes ? `(${p.notes})` : ""}`,
         debit: 0,
         credit: Number(p.amount || 0), // Receipts decrease receivable (CREDIT)
       }));
@@ -1255,9 +1316,13 @@ function AccountingContent() {
     });
 
     const liquidTotal = cashBalance + bankBalance;
-    const receivablesFromParties = customers.reduce((sum, c) => sum + Number(c.currentBalance || 0), 0);
+    const receivablesFromParties = effectiveCustomers.reduce((sum, c) => sum + Number(c.currentBalance || 0), 0);
+    const receivablesFromSales = sales.reduce(
+      (sum, s) => (s.status !== "CANCELLED" ? sum + Number(s.remainingAmount || 0) : sum),
+      0
+    );
     const receivablesHead = Number(accounts.find((a) => a.code === "1100")?.balance || 0);
-    const receivables = receivablesFromParties > 0 ? receivablesFromParties : receivablesHead;
+    const receivables = Math.max(receivablesFromParties, receivablesFromSales, receivablesHead);
 
     const payablesFromParties = effectiveSuppliers.reduce((sum, s) => sum + Number(s.currentBalance || 0), 0);
     const payablesFromPurchases = purchases.reduce(
@@ -1283,7 +1348,7 @@ function AccountingContent() {
       isBalanced,
       diff,
     };
-  }, [accounts, customers, effectiveSuppliers, purchases, accountStats, totalDebits, totalCredits]);
+  }, [accounts, effectiveCustomers, effectiveSuppliers, purchases, sales, accountStats, totalDebits, totalCredits]);
 
   if (loading) {
     return (
@@ -1950,7 +2015,7 @@ function AccountingContent() {
                       </option>
                     ))}
                   {ledgerType === "CUSTOMER" &&
-                    customers.map((c) => (
+                    effectiveCustomers.map((c) => (
                       <option key={c.id} value={c.id}>
                         {c.name} {c.phone ? `(${c.phone})` : ""} — Balance: Rs {Number(c.currentBalance || 0).toLocaleString()}
                       </option>
@@ -2359,66 +2424,92 @@ function AccountingContent() {
               {t("No journal entries match the selected filter.", "منتخب کردہ فلٹر کے مطابق کوئی روزنامچہ اندراج نہیں ملا۔")}
             </div>
           ) : (
-            filteredJournals.map((j) => (
-              <div
-                key={j.id}
-                className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900"
-              >
-                <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
-                  <div className="flex items-center gap-3">
-                    <span className="font-mono font-bold text-xs text-blue-600 dark:text-blue-400">
-                      {j.entryNumber}
-                    </span>
-                    <span className="text-xs text-slate-400">{new Date(j.date).toLocaleDateString()}</span>
-                    <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">{j.description}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => handleViewVoucher(j)}
-                      className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-blue-600 shadow-2xs transition dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:text-blue-400"
-                      title={t("Print Voucher", "واؤچر پرنٹ کریں")}
-                    >
-                      <Printer className="h-3.5 w-3.5" />
-                      <span>{t("Print Voucher", "واؤچر پرنٹ کریں")}</span>
-                    </button>
-                    <Badge variant={j.isBalanced ? "success" : "danger"}>
-                      {j.isBalanced ? t("Balanced", "برابر") : t("Unbalanced", "غیر برابر")}
-                    </Badge>
-                  </div>
-                </div>
+            filteredJournals.map((j) => {
+              const jDebit = (j.lines || []).reduce((sum: number, l: any) => sum + Number(l.debit || 0), 0);
+              const jCredit = (j.lines || []).reduce((sum: number, l: any) => sum + Number(l.credit || 0), 0);
+              const jDiff = Math.round(Math.abs(jDebit - jCredit) * 100) / 100;
+              const actuallyBalanced = jDiff < 0.01 && (j.lines?.length || 0) > 0;
 
-                <div className="pt-3 overflow-x-auto">
-                  <table className="w-full text-left text-xs">
-                    <thead className="text-[10px] font-bold uppercase text-slate-400">
-                      <tr>
-                        <th className="pb-1">{t("Account Code & Title", "کھاتہ کوڈ و نام")}</th>
-                        <th className="pb-1">{t("Line Description", "تفصیل")}</th>
-                        <th className="pb-1 text-right">{t("Debit (Rs)", "ڈیبٹ (روپے)")}</th>
-                        <th className="pb-1 text-right">{t("Credit (Rs)", "کریڈٹ (روپے)")}</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
-                      {j.lines?.map((l: any) => (
-                        <tr key={l.id}>
-                          <td className="py-2 font-medium text-slate-800 dark:text-slate-200">
-                            <span className="font-mono text-slate-400 mr-2">{l.account?.code}</span>
-                            {l.account?.name}
+              return (
+                <div
+                  key={j.id}
+                  className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900"
+                >
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+                    <div className="flex items-center gap-3">
+                      <span className="font-mono font-bold text-xs text-blue-600 dark:text-blue-400">
+                        {j.entryNumber}
+                      </span>
+                      <span className="text-xs text-slate-400">{new Date(j.date).toLocaleDateString()}</span>
+                      <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">{j.description}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleViewVoucher(j)}
+                        className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-blue-600 shadow-2xs transition dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:text-blue-400"
+                        title={t("Print Voucher", "واؤچر پرنٹ کریں")}
+                      >
+                        <Printer className="h-3.5 w-3.5" />
+                        <span>{t("Print Voucher", "واؤچر پرنٹ کریں")}</span>
+                      </button>
+                      <Badge variant={actuallyBalanced ? "success" : "danger"}>
+                        {actuallyBalanced
+                          ? t("Balanced", "برابر")
+                          : `${t("Unbalanced", "غیر برابر")} (Diff: Rs ${jDiff.toLocaleString()})`}
+                      </Badge>
+                    </div>
+                  </div>
+
+                  <div className="pt-3 overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead className="text-[10px] font-bold uppercase text-slate-400">
+                        <tr>
+                          <th className="pb-1">{t("Account Code & Title", "کھاتہ کوڈ و نام")}</th>
+                          <th className="pb-1">{t("Line Description", "تفصیل")}</th>
+                          <th className="pb-1 text-right">{t("Debit (Rs)", "ڈیبٹ (روپے)")}</th>
+                          <th className="pb-1 text-right">{t("Credit (Rs)", "کریڈٹ (روپے)")}</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
+                        {j.lines?.map((l: any) => (
+                          <tr key={l.id}>
+                            <td className="py-2 font-medium text-slate-800 dark:text-slate-200">
+                              <span className="font-mono text-slate-400 mr-2">{l.account?.code}</span>
+                              {l.account?.name}
+                            </td>
+                            <td className="py-2 text-slate-500">{l.description || "—"}</td>
+                            <td className="py-2 text-right font-mono font-semibold text-slate-900 dark:text-white tabular-nums">
+                              {Number(l.debit) > 0 ? formatMoney(l.debit) : "—"}
+                            </td>
+                            <td className="py-2 text-right font-mono font-semibold text-slate-900 dark:text-white tabular-nums">
+                              {Number(l.credit) > 0 ? formatMoney(l.credit) : "—"}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot className="border-t border-slate-200 dark:border-slate-700 font-bold bg-slate-50/50 dark:bg-slate-800/30">
+                        <tr>
+                          <td colSpan={2} className="py-2 text-slate-700 dark:text-slate-300">
+                            {actuallyBalanced ? (
+                              <span className="text-emerald-600 dark:text-emerald-400 font-semibold">✓ Total (Balanced)</span>
+                            ) : (
+                              <span className="text-rose-600 dark:text-rose-400 font-semibold">⚠️ Discrepancy (Unbalanced: Rs {jDiff.toLocaleString()})</span>
+                            )}
                           </td>
-                          <td className="py-2 text-slate-500">{l.description || "—"}</td>
-                          <td className="py-2 text-right font-mono font-semibold text-slate-900 dark:text-white tabular-nums">
-                            {Number(l.debit) > 0 ? formatMoney(l.debit) : "—"}
+                          <td className={`py-2 text-right font-mono tabular-nums ${actuallyBalanced ? "text-slate-900 dark:text-white" : "text-rose-600 font-black"}`}>
+                            {formatMoney(jDebit)}
                           </td>
-                          <td className="py-2 text-right font-mono font-semibold text-slate-900 dark:text-white tabular-nums">
-                            {Number(l.credit) > 0 ? formatMoney(l.credit) : "—"}
+                          <td className={`py-2 text-right font-mono tabular-nums ${actuallyBalanced ? "text-slate-900 dark:text-white" : "text-rose-600 font-black"}`}>
+                            {formatMoney(jCredit)}
                           </td>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </tfoot>
+                    </table>
+                  </div>
                 </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       )}

@@ -6,6 +6,7 @@ import { fallbackStore } from "@/lib/fallbackStore";
 import { ensureStandardAccounts } from "@/services/accountingService";
 import { storeEnsureStandardAccounts } from "@/lib/fallbackStore";
 import { reconcileSupplierPayables, storeReconcileSupplierPayables } from "@/lib/payablesHelper";
+import { reconcileCustomerReceivables, storeReconcileCustomerReceivables } from "@/lib/receivablesHelper";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +17,7 @@ export async function GET(req: NextRequest) {
     if (!process.env.DATABASE_URL) {
       storeEnsureStandardAccounts(businessId);
       storeReconcileSupplierPayables(businessId);
+      storeReconcileCustomerReceivables(businessId);
       return NextResponse.json({
         success: true,
         data: {
@@ -24,6 +26,7 @@ export async function GET(req: NextRequest) {
           suppliers: fallbackStore.suppliers.filter((s) => s.businessId === businessId),
           customers: fallbackStore.customers.filter((c) => c.businessId === businessId),
           purchases: fallbackStore.purchases.filter((p) => p.businessId === businessId),
+          sales: fallbackStore.sales.filter((s) => s.businessId === businessId),
           payments: fallbackStore.payments.filter((p) => p.businessId === businessId),
         },
         fallback: true,
@@ -33,11 +36,12 @@ export async function GET(req: NextRequest) {
     try {
       await ensureStandardAccounts(prisma, businessId);
       await reconcileSupplierPayables(prisma, businessId);
+      await reconcileCustomerReceivables(prisma, businessId);
     } catch (seedErr) {
       console.warn("Notice: ensureStandardAccounts/reconcile error:", seedErr);
     }
 
-    const [accounts, journals, suppliers, customers, purchases, payments] = await Promise.all([
+    const [accounts, journals, suppliers, customers, purchases, sales, payments] = await Promise.all([
       prisma.account.findMany({
         where: { businessId, isActive: true },
         orderBy: { code: "asc" },
@@ -73,6 +77,11 @@ export async function GET(req: NextRequest) {
         include: { items: true, supplier: true },
         orderBy: { date: "desc" },
       }),
+      prisma.sale.findMany({
+        where: { businessId },
+        include: { items: true, customer: true },
+        orderBy: { date: "desc" },
+      }),
       prisma.payment.findMany({
         where: { businessId },
         include: { customer: true, supplier: true, account: true },
@@ -88,6 +97,7 @@ export async function GET(req: NextRequest) {
         suppliers,
         customers,
         purchases,
+        sales,
         payments,
       },
     });
@@ -96,6 +106,7 @@ export async function GET(req: NextRequest) {
     const businessId = await getActiveBusinessId(req);
     storeEnsureStandardAccounts(businessId);
     storeReconcileSupplierPayables(businessId);
+    storeReconcileCustomerReceivables(businessId);
     return NextResponse.json({
       success: true,
       data: {
@@ -104,6 +115,7 @@ export async function GET(req: NextRequest) {
         suppliers: fallbackStore.suppliers.filter((s) => s.businessId === businessId),
         customers: fallbackStore.customers.filter((c) => c.businessId === businessId),
         purchases: fallbackStore.purchases.filter((p) => p.businessId === businessId),
+        sales: fallbackStore.sales.filter((s) => s.businessId === businessId),
         payments: fallbackStore.payments.filter((p) => p.businessId === businessId),
       },
       fallback: true,

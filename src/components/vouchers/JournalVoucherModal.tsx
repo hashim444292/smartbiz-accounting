@@ -57,6 +57,8 @@ export function JournalVoucherModal({ isOpen, onClose, voucher, company }: Journ
   const voucherLines = voucher.lines || [];
   const totalDebit = voucherLines.reduce((acc, l) => acc + Number(l.debit || 0), 0);
   const totalCredit = voucherLines.reduce((acc, l) => acc + Number(l.credit || 0), 0);
+  const balanceDiff = Math.round(Math.abs(totalDebit - totalCredit) * 100) / 100;
+  const isVoucherBalanced = balanceDiff < 0.01 && voucherLines.length > 0;
   const isContra = voucher.referenceType === "CONTRA" || voucher.referenceType === "CASH_DEPOSIT" || voucher.referenceType === "TRANSFER";
   const voucherTitle = isContra ? "CONTRA VOUCHER (کاؤنٹرا واؤچر)" : "JOURNAL VOUCHER (جرنل واؤچر)";
   const voucherSubTitle = isContra ? "Cash & Bank Contra Transaction / نقد و بینک منتقلی" : "General Journal Entry / روزنامچہ اندراج";
@@ -302,7 +304,7 @@ export function JournalVoucherModal({ isOpen, onClose, voucher, company }: Journ
                 <td class="meta-label">Ref / Slip #:</td>
                 <td class="meta-val">${voucher.referenceNumber || voucher.referenceId || "—"}</td>
                 <td class="meta-label">Status:</td>
-                <td class="meta-val" style="color: #16a34a;">● POSTED (Balanced)</td>
+                <td class="meta-val" style="color: ${isVoucherBalanced ? '#16a34a' : '#e11d48'}; font-weight: 700;">● ${isVoucherBalanced ? 'POSTED (Balanced)' : `UNBALANCED (Diff: Rs. ${balanceDiff.toLocaleString()})`}</td>
               </tr>
               ${
                 voucher.depositorName
@@ -449,9 +451,16 @@ export function JournalVoucherModal({ isOpen, onClose, voucher, company }: Journ
           </div>
           <div>
             <div className="text-[10px] font-bold uppercase text-slate-400">Status (حیثیت)</div>
-            <div className="font-semibold text-emerald-600 dark:text-emerald-400 mt-0.5 font-bold">
-              POSTED (Balanced)
-            </div>
+            {isVoucherBalanced ? (
+              <div className="font-semibold text-emerald-600 dark:text-emerald-400 mt-0.5 font-bold">
+                ● POSTED (Balanced)
+              </div>
+            ) : (
+              <div className="font-semibold text-rose-600 dark:text-rose-400 mt-0.5 font-bold flex items-center gap-1">
+                <span>⚠️ UNBALANCED</span>
+                <span className="text-[10px] font-mono">({formatMoney(balanceDiff)})</span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -499,12 +508,18 @@ export function JournalVoucherModal({ isOpen, onClose, voucher, company }: Journ
             <tfoot>
               <tr className="border-t-2 border-slate-300 bg-slate-100/80 font-bold text-slate-900 dark:border-slate-700 dark:bg-slate-800/80 dark:text-white">
                 <td colSpan={3} className="px-3 py-2 text-right uppercase tracking-wider">
-                  Total (میزان):
+                  {isVoucherBalanced ? (
+                    <span>Total (میزان):</span>
+                  ) : (
+                    <span className="text-rose-600 dark:text-rose-400">
+                      ⚠️ Total (Unbalanced Diff: {formatMoney(balanceDiff)}):
+                    </span>
+                  )}
                 </td>
-                <td className="px-3 py-2 text-right font-mono tabular-nums text-emerald-600 dark:text-emerald-400">
+                <td className={`px-3 py-2 text-right font-mono tabular-nums ${isVoucherBalanced ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400 font-black"}`}>
                   {formatMoney(totalDebit)}
                 </td>
-                <td className="px-3 py-2 text-right font-mono tabular-nums text-emerald-600 dark:text-emerald-400">
+                <td className={`px-3 py-2 text-right font-mono tabular-nums ${isVoucherBalanced ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400 font-black"}`}>
                   {formatMoney(totalCredit)}
                 </td>
               </tr>

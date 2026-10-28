@@ -44,7 +44,9 @@ export async function GET(req: NextRequest) {
     const grossProfit = totalSales - cogs;
     const netProfit = grossProfit - totalExpenses;
 
-    const totalReceivables = compCustomers.reduce((a, c) => a + Number(c.currentBalance || 0), 0);
+    const totalCustBal = compCustomers.reduce((a, c) => a + Number(c.currentBalance || 0), 0);
+    const totalOpenSalesRem = compSales.reduce((a, s) => a + Number(s.remainingAmount || 0), 0);
+    const totalReceivables = Math.max(totalCustBal, totalOpenSalesRem);
     const totalSupplierBal = compSuppliers.reduce((a, s) => a + Number(s.currentBalance || 0), 0);
     const totalOpenPurchaseRem = compPurchases.reduce((a, p) => a + Number(p.remainingAmount || 0), 0);
     const totalPayables = Math.max(totalSupplierBal, totalOpenPurchaseRem);

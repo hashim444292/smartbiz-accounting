@@ -563,7 +563,7 @@ export async function createAndPostSale(input: CreateSaleInput) {
               paymentMethod,
               accountId: cashBank.id,
               referenceNumber: invoiceNumber,
-              notes: `Payment received against sale ${invoiceNumber}`,
+              notes: `Receipt from ${customerName} for Sale of ${processedItems.map((it) => `${it.quantity}x ${it.productName}`).slice(0, 3).join(", ")}${processedItems.length > 3 ? ` (+${processedItems.length - 3} more)` : ""} (Inv #${invoiceNumber})`,
               createdById,
               allocations: {
                 create: {
@@ -577,6 +577,11 @@ export async function createAndPostSale(input: CreateSaleInput) {
       }
 
       // 6. Create Balanced Double-Entry Journal Entry
+      const itemsSummary = processedItems
+        .map((it) => `${it.quantity}x ${it.productName}`)
+        .slice(0, 3)
+        .join(", ") + (processedItems.length > 3 ? ` (+${processedItems.length - 3} more)` : "");
+
       const journalLines: Array<{ accountCode: string; debit: Decimal; credit: Decimal; description?: string }> = [];
 
       if (paidAmount.gt(0)) {
@@ -584,7 +589,7 @@ export async function createAndPostSale(input: CreateSaleInput) {
           accountCode: paymentMethod === "BANK" ? "1020" : "1010",
           debit: paidAmount,
           credit: new Decimal(0),
-          description: `Payment received for ${invoiceNumber}`,
+          description: `Payment received for ${itemsSummary} (Inv #${invoiceNumber})`,
         });
       }
 
@@ -593,7 +598,7 @@ export async function createAndPostSale(input: CreateSaleInput) {
           accountCode: "1100", // Accounts Receivable
           debit: remainingAmount,
           credit: new Decimal(0),
-          description: `Receivable from ${customerName} for ${invoiceNumber}`,
+          description: `Receivable from ${customerName} for ${itemsSummary} (Inv #${invoiceNumber})`,
         });
       }
 
@@ -601,13 +606,13 @@ export async function createAndPostSale(input: CreateSaleInput) {
         accountCode: "4010", // Sales Revenue
         debit: new Decimal(0),
         credit: totalAmount,
-        description: `Sales revenue for ${invoiceNumber}`,
+        description: `Sales revenue: ${itemsSummary} (Inv #${invoiceNumber})`,
       });
 
       await createJournalEntry(tx, {
         businessId,
         date,
-        description: `Sale Invoice #${invoiceNumber} to ${customerName}`,
+        description: `Sale of ${itemsSummary} to ${customerName} (Inv #${invoiceNumber})`,
         referenceType: "SALE",
         referenceId: sale.id,
         createdById,
@@ -619,13 +624,13 @@ export async function createAndPostSale(input: CreateSaleInput) {
         await createJournalEntry(tx, {
           businessId,
           date,
-          description: `COGS for Sale Invoice #${invoiceNumber}`,
+          description: `COGS for Sale of ${itemsSummary} (Inv #${invoiceNumber})`,
           referenceType: "SALE",
           referenceId: sale.id,
           createdById,
           lines: [
-            { accountCode: "5010", debit: totalCOGS, credit: new Decimal(0), description: "Cost of Goods Sold" },
-            { accountCode: "1200", debit: new Decimal(0), credit: totalCOGS, description: "Inventory reduction for sale" },
+            { accountCode: "5010", debit: totalCOGS, credit: new Decimal(0), description: `COGS: ${itemsSummary}` },
+            { accountCode: "1200", debit: new Decimal(0), credit: totalCOGS, description: `Inventory reduction for ${itemsSummary}` },
           ],
         });
       }
