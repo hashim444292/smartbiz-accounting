@@ -209,5 +209,56 @@
     page-break-inside: avoid !important;
     break-inside: avoid !important;
   }
+
+  /* ========================================================================= */
+  /* UNIVERSAL ACCOUNTING REPORT & REGISTER PRINT STYLESHEET                   */
+  /* ========================================================================= */
+  .print-report-sheet {
+    background: #ffffff !important;
+    color: #000000 !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 auto !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .print-report-sheet * {
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+
+  .print-report-sheet table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    page-break-inside: auto !important;
+  }
+
+  .print-report-sheet thead {
+    display: table-header-group !important;
+  }
+
+  .print-report-sheet tfoot {
+    display: table-footer-group !important;
+  }
+
+  .print-report-sheet tr {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  .print-report-sheet .break-inside-avoid,
+  .print-report-sheet .page-break-inside-avoid {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  .print-report-sheet .report-section {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    margin-bottom: 16px !important;
+  }
 }
+
 

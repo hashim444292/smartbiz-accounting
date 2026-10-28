@@ -9,9 +9,11 @@ import { ArrowLeft, Printer, CalendarRange, TrendingUp, ShoppingBag, Receipt } f
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
 import { BrandPageLoader } from "@/components/ui/loader";
 import { useAuth } from "@/context/AuthContext";
+import { ReportPrintHeader } from "@/components/reports/ReportPrintHeader";
+import { ReportPrintFooter } from "@/components/reports/ReportPrintFooter";
 
 export default function WeeklyReportPage() {
-  const { activeCompany } = useAuth();
+  const { activeCompany, user } = useAuth();
   const [weeklyTrend, setWeeklyTrend] = useState<any[]>([]);
   const [weeklySales, setWeeklySales] = useState<number>(0);
   const [weeklyPurchases, setWeeklyPurchases] = useState<number>(0);
@@ -131,69 +133,124 @@ export default function WeeklyReportPage() {
         </div>
       </div>
 
-      {/* Printable Header */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 print:border-none print:p-0">
-        <div className="flex justify-between items-center border-b border-slate-100 pb-4 dark:border-slate-800">
-          <div>
-            <h1 className="text-xl font-bold text-slate-900 dark:text-white">Weekly Sales & Turnover Performance</h1>
-            <p className="text-xs text-slate-500">{activeCompany?.name || "SmartBiz Enterprise"} • 7-Day Performance Audit</p>
-          </div>
-          <div className="text-right">
-            <span className="rounded-lg bg-blue-50 px-2.5 py-1 text-xs font-bold text-blue-700">
-              LAST 7 DAYS
-            </span>
-          </div>
-        </div>
+      {/* Printable Report Container */}
+      <div className="print-report-sheet space-y-6 print:space-y-4">
+        {/* Printable Official Header */}
+        <ReportPrintHeader
+          title="Weekly Business Performance Report"
+          subtitle="7-Day Turnover, Stock Inward, Overhead & Net Operating Margin"
+          reportDate={`Last 7 Days (Ending ${new Date().toLocaleDateString("en-GB")})`}
+          company={activeCompany}
+          userName={user?.name}
+          badgeText="7-Day Operational Audit"
+        />
 
         {/* Key Metrics Cards */}
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 text-xs pt-4">
-          <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-900">
-            <p className="text-slate-400 uppercase font-bold text-[10px]">Weekly Turnover (Sales)</p>
-            <p className="text-lg font-bold text-blue-600 mt-1">{formatMoney(weeklySales)}</p>
-            <span className="text-[10px] text-slate-500 block mt-0.5">{invoiceCount} invoices issued</span>
-          </div>
-          <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-900">
-            <p className="text-slate-400 uppercase font-bold text-[10px]">Weekly Purchases</p>
-            <p className="text-lg font-bold text-indigo-600 mt-1">{formatMoney(weeklyPurchases)}</p>
-            <span className="text-[10px] text-slate-500 block mt-0.5">Inventory restocking</span>
-          </div>
-          <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-900">
-            <p className="text-slate-400 uppercase font-bold text-[10px]">Weekly Overhead (Expenses)</p>
-            <p className="text-lg font-bold text-rose-600 mt-1">{formatMoney(weeklyExpenses)}</p>
-            <span className="text-[10px] text-slate-500 block mt-0.5">Operating utilities</span>
-          </div>
-          <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-900">
-            <p className="text-slate-400 uppercase font-bold text-[10px]">Net Surplus / Margins</p>
-            <p className="text-lg font-bold text-emerald-600 mt-1">{formatMoney(estimatedProfit)}</p>
-            <span className="text-[10px] text-emerald-600 block mt-0.5">Turnover net margin</span>
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 print:border print:border-slate-300 print:p-2 print:shadow-none print:break-inside-avoid">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 text-xs">
+            <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-900 print:bg-transparent print:border-none print:p-1.5">
+              <p className="text-slate-400 uppercase font-bold text-[10px]">Weekly Turnover (Sales)</p>
+              <p className="text-lg font-bold text-blue-600 mt-1 tabular-nums">{formatMoney(weeklySales)}</p>
+              <span className="text-[10px] text-slate-500 block mt-0.5">{invoiceCount} invoices issued</span>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-900 print:bg-transparent print:border-none print:p-1.5">
+              <p className="text-slate-400 uppercase font-bold text-[10px]">Weekly Purchases</p>
+              <p className="text-lg font-bold text-indigo-600 mt-1 tabular-nums">{formatMoney(weeklyPurchases)}</p>
+              <span className="text-[10px] text-slate-500 block mt-0.5">Inventory restocking</span>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-900 print:bg-transparent print:border-none print:p-1.5">
+              <p className="text-slate-400 uppercase font-bold text-[10px]">Weekly Overhead (Expenses)</p>
+              <p className="text-lg font-bold text-rose-600 mt-1 tabular-nums">{formatMoney(weeklyExpenses)}</p>
+              <span className="text-[10px] text-slate-500 block mt-0.5">Operating utilities</span>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-900 print:bg-transparent print:border-none print:p-1.5">
+              <p className="text-slate-400 uppercase font-bold text-[10px]">Net Surplus / Margins</p>
+              <p className={`text-lg font-bold mt-1 tabular-nums ${estimatedProfit >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
+                {formatMoney(estimatedProfit)}
+              </p>
+              <span className="text-[10px] text-emerald-600 block mt-0.5">Turnover net margin</span>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Weekly Chart */}
-      <Card className="print:break-inside-avoid">
-        <CardHeader>
-          <CardTitle>Daily Turnover & Outflow for Past 7 Days</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="h-72">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={weeklyTrend} margin={{ top: 10, right: 10, left: 10, bottom: 20 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis dataKey="day" stroke="#94a3b8" fontSize={11} />
-                <YAxis stroke="#94a3b8" fontSize={11} />
-                <Tooltip
-                  formatter={(val: any) => [formatMoney(val), "Amount"]}
-                  contentStyle={{ backgroundColor: "#0f172a", border: "none", borderRadius: "8px", color: "#fff", fontSize: "12px" }}
-                />
-                <Bar dataKey="sales" name="Sales Revenue" fill="#2563eb" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="purchases" name="Stock Inflow" fill="#6366f1" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="expenses" name="Overheads" fill="#f43f5e" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </CardContent>
-      </Card>
+        {/* Day-by-Day 7-Day Performance List */}
+        <Card className="print:border print:border-slate-300 print:shadow-none print:break-inside-avoid">
+          <CardHeader className="pb-3 print:pb-2 print:border-b print:border-slate-300">
+            <CardTitle className="text-base font-bold">Day-by-Day 7-Day Operational Register (روزانہ ہفتہ وار فہرست)</CardTitle>
+            <p className="text-[11px] text-slate-500 mt-0.5">Itemized daily comparison of turnover, inward stock procurement, overheads and cash margins</p>
+          </CardHeader>
+          <CardContent className="print:p-0">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead className="border-b text-[10px] font-bold uppercase text-slate-400 print:text-black print:border-slate-400">
+                  <tr>
+                    <th className="pb-2">Day & Date</th>
+                    <th className="pb-2 text-right">Sales Turnover</th>
+                    <th className="pb-2 text-right">Stock Inflow (Purchases)</th>
+                    <th className="pb-2 text-right">Expenses (Overheads)</th>
+                    <th className="pb-2 text-right">Net Operating Delta</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800 print:divide-slate-200">
+                  {weeklyTrend.map((d: any, idx: number) => {
+                    const net = d.sales - d.purchases - d.expenses;
+                    return (
+                      <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50">
+                        <td className="py-2.5 font-semibold text-slate-900 dark:text-white font-mono">{d.day}</td>
+                        <td className="py-2.5 text-right font-bold text-blue-600 tabular-nums">{formatMoney(d.sales)}</td>
+                        <td className="py-2.5 text-right font-bold text-indigo-600 tabular-nums">{formatMoney(d.purchases)}</td>
+                        <td className="py-2.5 text-right font-bold text-rose-600 tabular-nums">-{formatMoney(d.expenses)}</td>
+                        <td className={`py-2.5 text-right font-black tabular-nums ${net >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
+                          {formatMoney(net)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                <tfoot className="border-t-2 border-slate-900 text-[11px] font-bold text-slate-900 bg-slate-50/70 print:bg-transparent">
+                  <tr>
+                    <td className="py-2 px-1 font-mono font-bold">7-DAY CUMULATIVE TOTALS</td>
+                    <td className="py-2 text-right font-black text-blue-700 tabular-nums">{formatMoney(weeklySales)}</td>
+                    <td className="py-2 text-right font-black text-indigo-700 tabular-nums">{formatMoney(weeklyPurchases)}</td>
+                    <td className="py-2 text-right font-black text-rose-700 tabular-nums">-{formatMoney(weeklyExpenses)}</td>
+                    <td className={`py-2 text-right font-black tabular-nums ${estimatedProfit >= 0 ? "text-emerald-700" : "text-rose-700"}`}>
+                      {formatMoney(estimatedProfit)}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Weekly Chart (Hidden on print to avoid broken graph rendering) */}
+        <Card className="print:hidden">
+          <CardHeader>
+            <CardTitle>Daily Turnover & Outflow for Past 7 Days</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-72">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={weeklyTrend} margin={{ top: 10, right: 10, left: 10, bottom: 20 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis dataKey="day" stroke="#94a3b8" fontSize={11} />
+                  <YAxis stroke="#94a3b8" fontSize={11} />
+                  <Tooltip
+                    formatter={(val: any) => [formatMoney(val), "Amount"]}
+                    contentStyle={{ backgroundColor: "#0f172a", border: "none", borderRadius: "8px", color: "#fff", fontSize: "12px" }}
+                  />
+                  <Bar dataKey="sales" name="Sales Revenue" fill="#2563eb" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="purchases" name="Stock Inflow" fill="#6366f1" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="expenses" name="Overheads" fill="#f43f5e" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Printable Official Signatures & System Footer */}
+        <ReportPrintFooter notes="Weekly performance report compiled across sales registers, inventory inward stock, and operational expenses." />
+      </div>
     </div>
   );
 }

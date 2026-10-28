@@ -7,8 +7,12 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Printer, Download, Calendar, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { BrandPageLoader } from "@/components/ui/loader";
+import { useAuth } from "@/context/AuthContext";
+import { ReportPrintHeader } from "@/components/reports/ReportPrintHeader";
+import { ReportPrintFooter } from "@/components/reports/ReportPrintFooter";
 
 export default function DailyReportPage() {
+  const { activeCompany, user } = useAuth();
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
   const [report, setReport] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -74,23 +78,25 @@ export default function DailyReportPage() {
       {loading || !report ? (
         <div className="p-12 text-center text-xs text-slate-400">Loading daily report...</div>
       ) : (
-        <div className="space-y-6 print:space-y-4">
-          {/* Printable Header */}
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 print:border-none print:p-0">
-            <div className="flex justify-between items-center border-b border-slate-100 pb-4 dark:border-slate-800">
-              <div>
-                <h1 className="text-xl font-bold text-slate-900 dark:text-white">Daily Operational Summary</h1>
-                <p className="text-xs text-slate-500">SmartBiz Trading & Distribution • Karachi, Pakistan</p>
-              </div>
-              <div className="text-right">
-                <span className="rounded-lg bg-blue-50 px-2.5 py-1 text-xs font-bold text-blue-700">
-                  DATE: {new Date(report.date).toLocaleDateString("en-GB", { dateStyle: "full" })}
-                </span>
-              </div>
-            </div>
+        <div className="print-report-sheet space-y-6 print:space-y-4">
+          {/* Printable Official Header */}
+          <ReportPrintHeader
+            title="Daily Day-End Closing Report"
+            subtitle="Sales, Inward Goods, Receipts, Expenses & Stock Reconciliation"
+            reportDate={new Date(report.date).toLocaleDateString("en-GB", {
+              weekday: "long",
+              year: "numeric",
+              month: "long",
+              day: "numeric",
+            })}
+            company={activeCompany}
+            userName={user?.name}
+            badgeText="Day-End Audit"
+          />
 
-            {/* Financial Totals 5-Column Grid */}
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-5 pt-4 text-xs">
+          {/* Financial Totals 5-Column Grid */}
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 print:border print:border-slate-300 print:p-2 print:shadow-none print:break-inside-avoid">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-5 text-xs">
               <div className="rounded-xl bg-slate-50 p-3 dark:bg-slate-800">
                 <span className="text-slate-400 block text-[10px] uppercase font-bold">Sales Revenue</span>
                 <span className="text-base font-bold text-slate-900 dark:text-white tabular-nums">
@@ -154,10 +160,10 @@ export default function DailyReportPage() {
           </div>
 
           {/* Section 1: Sales Summary with Products & Item Counts */}
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-3">
+          <Card className="print:border print:border-slate-300 print:shadow-none print:break-inside-avoid">
+            <CardHeader className="flex flex-row items-center justify-between pb-3 print:pb-2 print:border-b print:border-slate-300">
               <div>
-                <CardTitle>1. Sales Invoices Issued Today</CardTitle>
+                <CardTitle className="text-base font-bold">1. Sales Invoices Issued Today (فروخت رجسٹر)</CardTitle>
                 <p className="text-[11px] text-slate-500 mt-0.5">
                   Itemized product breakdown with quantities, customer information, and receivables
                 </p>
@@ -174,13 +180,13 @@ export default function DailyReportPage() {
                 </span>
               </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="print:p-0">
               {report.sales.items.length === 0 ? (
-                <p className="text-xs text-slate-400 italic">No sales transactions on this date.</p>
+                <p className="text-xs text-slate-400 italic py-3 px-2">No sales transactions on this date.</p>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
-                    <thead className="border-b text-[10px] font-bold uppercase text-slate-400">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead className="border-b text-[10px] font-bold uppercase text-slate-400 print:text-black print:border-slate-400">
                       <tr>
                         <th className="pb-2">Invoice #</th>
                         <th className="pb-2">Customer</th>
@@ -190,7 +196,7 @@ export default function DailyReportPage() {
                         <th className="pb-2 text-right">Receivable</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800 print:divide-slate-200">
                       {report.sales.items.map((s: any) => {
                         const lineItems = s.items || [];
                         const lineQty = lineItems.reduce((sum: number, it: any) => sum + Number(it.quantity || 0), 0);
@@ -209,7 +215,7 @@ export default function DailyReportPage() {
                               <div className="flex flex-col gap-1 max-w-md">
                                 <div className="flex items-center gap-1.5 flex-wrap">
                                   {lineQty > 0 && (
-                                    <span className="inline-flex items-center gap-1 rounded bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200 dark:border-blue-900">
+                                    <span className="inline-flex items-center gap-1 rounded bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200 dark:border-blue-900 print:border-none print:p-0">
                                       📦 {lineQty} {lineQty === 1 ? "unit" : "units"} ({lineItems.length} {lineItems.length === 1 ? "item" : "items"})
                                     </span>
                                   )}
@@ -231,6 +237,34 @@ export default function DailyReportPage() {
                         );
                       })}
                     </tbody>
+                    <tfoot className="border-t-2 border-slate-900 text-[11px] font-bold text-slate-900 bg-slate-50/70 print:bg-transparent">
+                      <tr>
+                        <td className="py-2 px-1 font-mono font-bold" colSpan={2}>
+                          TOTAL SALES ({report.sales.count} Invoices)
+                        </td>
+                        <td className="py-2 text-blue-700 font-bold">
+                          {(() => {
+                            const totalUnits = (report.sales.items || []).reduce((sum: number, s: any) => {
+                              return sum + (s.items || []).reduce((isum: number, it: any) => isum + Number(it.quantity || 0), 0);
+                            }, 0);
+                            return totalUnits > 0 ? `📦 Total ${totalUnits} units sold` : "—";
+                          })()}
+                        </td>
+                        <td className="py-2 text-right font-black tabular-nums">
+                          {formatMoney(report.sales.total)}
+                        </td>
+                        <td className="py-2 text-right text-emerald-700 font-black tabular-nums">
+                          {formatMoney(
+                            (report.sales.items || []).reduce((acc: number, s: any) => acc + Number(s.paidAmount || 0), 0)
+                          )}
+                        </td>
+                        <td className="py-2 text-right text-rose-700 font-black tabular-nums">
+                          {formatMoney(
+                            (report.sales.items || []).reduce((acc: number, s: any) => acc + Number(s.remainingAmount || 0), 0)
+                          )}
+                        </td>
+                      </tr>
+                    </tfoot>
                   </table>
                 </div>
               )}
@@ -238,10 +272,10 @@ export default function DailyReportPage() {
           </Card>
 
           {/* Section 2: Purchases Summary with Products & Item Counts */}
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-3">
+          <Card className="print:border print:border-slate-300 print:shadow-none print:break-inside-avoid">
+            <CardHeader className="flex flex-row items-center justify-between pb-3 print:pb-2 print:border-b print:border-slate-300">
               <div>
-                <CardTitle>2. Purchases & Vendor Bills Today</CardTitle>
+                <CardTitle className="text-base font-bold">2. Purchases & Vendor Bills Today (خریداری رجسٹر)</CardTitle>
                 <p className="text-[11px] text-slate-500 mt-0.5">
                   Inward stock procurement breakdown with product items and vendor dues
                 </p>
@@ -258,13 +292,13 @@ export default function DailyReportPage() {
                 </span>
               </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="print:p-0">
               {report.purchases.items.length === 0 ? (
-                <p className="text-xs text-slate-400 italic">No purchases recorded on this date.</p>
+                <p className="text-xs text-slate-400 italic py-3 px-2">No purchases recorded on this date.</p>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
-                    <thead className="border-b text-[10px] font-bold uppercase text-slate-400">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead className="border-b text-[10px] font-bold uppercase text-slate-400 print:text-black print:border-slate-400">
                       <tr>
                         <th className="pb-2">Purchase #</th>
                         <th className="pb-2">Supplier / Vendor</th>
@@ -275,7 +309,7 @@ export default function DailyReportPage() {
                         <th className="pb-2 text-right">Payment Status</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800 print:divide-slate-200">
                       {report.purchases.items.map((p: any) => {
                         const lineItems = p.items || [];
                         const lineQty = lineItems.reduce((sum: number, it: any) => sum + Number(it.quantity || 0), 0);
@@ -293,7 +327,7 @@ export default function DailyReportPage() {
                               <div className="flex flex-col gap-1 max-w-md">
                                 <div className="flex items-center gap-1.5 flex-wrap">
                                   {lineQty > 0 && (
-                                    <span className="inline-flex items-center gap-1 rounded bg-indigo-50 px-2 py-0.5 text-[10px] font-bold text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-900">
+                                    <span className="inline-flex items-center gap-1 rounded bg-indigo-50 px-2 py-0.5 text-[10px] font-bold text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-900 print:border-none print:p-0">
                                       📦 {lineQty} {lineQty === 1 ? "unit" : "units"} ({lineItems.length} {lineItems.length === 1 ? "item" : "items"})
                                     </span>
                                   )}
@@ -328,6 +362,37 @@ export default function DailyReportPage() {
                         );
                       })}
                     </tbody>
+                    <tfoot className="border-t-2 border-slate-900 text-[11px] font-bold text-slate-900 bg-slate-50/70 print:bg-transparent">
+                      <tr>
+                        <td className="py-2 px-1 font-mono font-bold" colSpan={2}>
+                          TOTAL PURCHASES ({report.purchases.count} Bills)
+                        </td>
+                        <td className="py-2 text-indigo-700 font-bold">
+                          {(() => {
+                            const totalUnits = (report.purchases.items || []).reduce((sum: number, p: any) => {
+                              return sum + (p.items || []).reduce((isum: number, it: any) => isum + Number(it.quantity || 0), 0);
+                            }, 0);
+                            return totalUnits > 0 ? `📦 Total ${totalUnits} units inward` : "—";
+                          })()}
+                        </td>
+                        <td className="py-2 text-right font-black tabular-nums">
+                          {formatMoney(report.purchases.total)}
+                        </td>
+                        <td className="py-2 text-right text-emerald-700 font-black tabular-nums">
+                          {formatMoney(
+                            (report.purchases.items || []).reduce((acc: number, p: any) => acc + Number(p.paidAmount || 0), 0)
+                          )}
+                        </td>
+                        <td className="py-2 text-right text-rose-700 font-black tabular-nums">
+                          {formatMoney(
+                            (report.purchases.items || []).reduce((acc: number, p: any) => acc + Number(p.remainingAmount || 0), 0)
+                          )}
+                        </td>
+                        <td className="py-2 text-right font-bold text-slate-700">
+                          {report.purchases.count > 0 ? "POSTED" : "—"}
+                        </td>
+                      </tr>
+                    </tfoot>
                   </table>
                 </div>
               )}
@@ -336,16 +401,16 @@ export default function DailyReportPage() {
 
           {/* Section 3: Receipts & Disbursements */}
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-3">
-                <CardTitle>3. Money Received Today</CardTitle>
-                <span className="font-bold text-xs text-emerald-600">{formatMoney(report.receipts.total)}</span>
+            <Card className="print:border print:border-slate-300 print:shadow-none print:break-inside-avoid">
+              <CardHeader className="flex flex-row items-center justify-between pb-3 print:pb-2 print:border-b print:border-slate-300">
+                <CardTitle className="text-base font-bold">3. Money Received Today (وصولیاں)</CardTitle>
+                <span className="font-bold text-xs text-emerald-600 tabular-nums">{formatMoney(report.receipts.total)}</span>
               </CardHeader>
-              <CardContent>
+              <CardContent className="print:p-0">
                 {report.receipts.items.length === 0 ? (
-                  <p className="text-xs text-slate-400 italic">No customer receipts logged.</p>
+                  <p className="text-xs text-slate-400 italic py-3 px-2">No customer receipts logged.</p>
                 ) : (
-                  <div className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
+                  <div className="divide-y divide-slate-100 dark:divide-slate-800 print:divide-slate-200 text-xs">
                     {report.receipts.items.map((r: any) => {
                       const matchedSale = (report.sales.items || []).find(
                         (s: any) => s.invoiceNumber === r.referenceNumber || (r.allocations && r.allocations.some((al: any) => al.sale?.invoiceNumber === s.invoiceNumber))
@@ -356,7 +421,7 @@ export default function DailyReportPage() {
                         : "";
 
                       return (
-                        <div key={r.id} className="flex justify-between py-2.5">
+                        <div key={r.id} className="flex justify-between py-2.5 px-2">
                           <div>
                             <p className="font-semibold text-slate-900 dark:text-white">{r.partyName}</p>
                             <p className="text-[10px] text-slate-500">
@@ -377,22 +442,26 @@ export default function DailyReportPage() {
                         </div>
                       );
                     })}
+                    <div className="flex justify-between py-2 px-2 bg-slate-50/70 print:bg-transparent border-t-2 border-slate-900 font-bold text-[11px] text-slate-900">
+                      <span>TOTAL RECEIPTS</span>
+                      <span className="text-emerald-700 font-black tabular-nums">{formatMoney(report.receipts.total)}</span>
+                    </div>
                   </div>
                 )}
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-3">
-                <CardTitle>4. Money Paid & Expenses Today</CardTitle>
-                <span className="font-bold text-xs text-rose-600">
+            <Card className="print:border print:border-slate-300 print:shadow-none print:break-inside-avoid">
+              <CardHeader className="flex flex-row items-center justify-between pb-3 print:pb-2 print:border-b print:border-slate-300">
+                <CardTitle className="text-base font-bold">4. Money Paid & Expenses (ادائیگیاں)</CardTitle>
+                <span className="font-bold text-xs text-rose-600 tabular-nums">
                   {formatMoney(report.disbursements.total + report.expenses.total)}
                 </span>
               </CardHeader>
-              <CardContent>
-                <div className="space-y-2 text-xs">
+              <CardContent className="print:p-0">
+                <div className="space-y-2 text-xs divide-y divide-slate-100 dark:divide-slate-800 print:divide-slate-200">
                   {report.expenses.items.map((exp: any) => (
-                    <div key={exp.id} className="flex justify-between py-2 border-b border-slate-100 dark:border-slate-800 last:border-b-0">
+                    <div key={exp.id} className="flex justify-between py-2 px-2">
                       <div>
                         <p className="font-semibold text-slate-900 dark:text-white">
                           <span className="text-rose-600 font-bold mr-1">[{exp.category?.name || "Expense"}]</span>
@@ -416,7 +485,7 @@ export default function DailyReportPage() {
                       : "";
 
                     return (
-                      <div key={d.id} className="flex justify-between py-2 border-b border-slate-100 dark:border-slate-800 last:border-b-0">
+                      <div key={d.id} className="flex justify-between py-2 px-2">
                         <div>
                           <p className="font-semibold text-slate-900 dark:text-white">Vendor: {d.partyName}</p>
                           <p className="text-[10px] text-slate-500">
@@ -435,25 +504,29 @@ export default function DailyReportPage() {
                     );
                   })}
                   {report.expenses.items.length === 0 && report.disbursements.items.length === 0 && (
-                    <p className="text-xs text-slate-400 italic">No disbursements or expenses recorded.</p>
+                    <p className="text-xs text-slate-400 italic py-3 px-2">No disbursements or expenses recorded.</p>
                   )}
+                  <div className="flex justify-between py-2 px-2 bg-slate-50/70 print:bg-transparent border-t-2 border-slate-900 font-bold text-[11px] text-slate-900">
+                    <span>TOTAL DISBURSED & EXPENSES</span>
+                    <span className="text-rose-700 font-black tabular-nums">-{formatMoney(report.disbursements.total + report.expenses.total)}</span>
+                  </div>
                 </div>
               </CardContent>
             </Card>
           </div>
 
           {/* Section 5: Stock Movements Today */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle>5. Inventory Movements Logged Today</CardTitle>
+          <Card className="print:border print:border-slate-300 print:shadow-none print:break-inside-avoid">
+            <CardHeader className="pb-3 print:pb-2 print:border-b print:border-slate-300">
+              <CardTitle className="text-base font-bold">5. Inventory Movements Logged Today (اسٹاک حرکت رجسٹر)</CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="print:p-0">
               {report.stockMovements.length === 0 ? (
-                <p className="text-xs text-slate-400 italic">No inventory movements recorded on this date.</p>
+                <p className="text-xs text-slate-400 italic py-3 px-2">No inventory movements recorded on this date.</p>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
-                    <thead className="border-b text-[10px] font-bold uppercase text-slate-400">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead className="border-b text-[10px] font-bold uppercase text-slate-400 print:text-black print:border-slate-400">
                       <tr>
                         <th className="pb-2">Time</th>
                         <th className="pb-2">Product Name</th>
@@ -462,13 +535,13 @@ export default function DailyReportPage() {
                         <th className="pb-2">Reference / Notes</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800 print:divide-slate-200">
                       {report.stockMovements.map((m: any) => (
                         <tr key={m.id}>
                           <td className="py-2 text-slate-400">{new Date(m.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
                           <td className="py-2 font-semibold text-slate-900 dark:text-white">{m.product?.name}</td>
                           <td className="py-2">
-                            <span className="rounded bg-slate-100 px-2 py-0.5 text-[10px] font-bold dark:bg-slate-800">
+                            <span className="rounded bg-slate-100 px-2 py-0.5 text-[10px] font-bold dark:bg-slate-800 print:bg-transparent print:border print:border-slate-300">
                               {m.type}
                             </span>
                           </td>
@@ -480,11 +553,21 @@ export default function DailyReportPage() {
                         </tr>
                       ))}
                     </tbody>
+                    <tfoot className="border-t-2 border-slate-900 text-[11px] font-bold text-slate-900 bg-slate-50/70 print:bg-transparent">
+                      <tr>
+                        <td colSpan={3} className="py-2 px-1 font-bold">TOTAL STOCK ENTRIES TODAY</td>
+                        <td className="py-2 text-center font-black tabular-nums">{report.stockMovements.length} logged</td>
+                        <td className="py-2 text-slate-500 font-normal">Reconciled with inventory warehouse</td>
+                      </tr>
+                    </tfoot>
                   </table>
                 </div>
               )}
             </CardContent>
           </Card>
+
+          {/* Printable Official Signatures & System Footer */}
+          <ReportPrintFooter notes="Daily business closing statement audited and balanced across sales, counter receipts, vendor disbursements, operational expenses, and physical stock movement." />
 
           {/* Section 6: Client Reports Quick Access (Receivables & Payables & Stock Summary) */}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 print:hidden">

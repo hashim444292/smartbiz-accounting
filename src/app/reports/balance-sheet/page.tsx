@@ -7,9 +7,13 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, Printer } from "lucide-react";
 import { BrandPageLoader } from "@/components/ui/loader";
 import { useLanguage } from "@/context/LanguageContext";
+import { useAuth } from "@/context/AuthContext";
+import { ReportPrintHeader } from "@/components/reports/ReportPrintHeader";
+import { ReportPrintFooter } from "@/components/reports/ReportPrintFooter";
 
 export default function BalanceSheetPage() {
   const { t } = useLanguage();
+  const { activeCompany, user } = useAuth();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
@@ -71,33 +75,38 @@ export default function BalanceSheetPage() {
         </Button>
       </div>
 
-      <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6 lg:p-8 shadow-sm dark:border-slate-800 dark:bg-slate-900 print:border-none print:p-0">
-        <div className="border-b border-slate-200 pb-4 dark:border-slate-800">
-          <h1 className="text-lg font-bold text-slate-900 dark:text-white">Balance Sheet (Financial Position)</h1>
-          <p className="text-xs text-slate-500">As of September 2026 • Prepared according to standard accounting principles</p>
-        </div>
+      <div className="print-report-sheet rounded-2xl border border-slate-200 bg-white p-4 sm:p-6 lg:p-8 shadow-sm dark:border-slate-800 dark:bg-slate-900 print:border print:border-slate-300 print:p-2 print:shadow-none print:break-inside-avoid">
+        {/* Printable Official Header */}
+        <ReportPrintHeader
+          title="Balance Sheet Statement"
+          subtitle="Statement of Financial Position: Assets = Liabilities + Owner's Equity"
+          reportDate={`Current Fiscal Position (As of ${new Date().toLocaleDateString("en-GB", { month: "long", year: "numeric", day: "numeric" })})`}
+          company={activeCompany}
+          userName={user?.name}
+          badgeText="Financial Position"
+        />
 
-        <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 py-6 text-xs">
+        <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 py-4 text-xs">
           {/* Assets Side */}
           <div className="space-y-4">
             <h3 className="font-bold text-slate-900 dark:text-white uppercase text-[11px] pb-1 border-b border-slate-200 dark:border-slate-800">
-              Assets
+              Assets (اثاثہ جات)
             </h3>
             <div className="space-y-2.5">
               <div className="flex justify-between">
-                <span>Cash in Hand</span>
+                <span>Cash in Hand (نقدی بر دست)</span>
                 <span className="tabular-nums font-semibold">{formatMoney(cash)}</span>
               </div>
               <div className="flex justify-between">
-                <span>Bank Accounts</span>
+                <span>Bank Accounts (بینک کھاتے)</span>
                 <span className="tabular-nums font-semibold">{formatMoney(bank)}</span>
               </div>
               <div className="flex justify-between">
-                <span>Accounts Receivable</span>
+                <span>Accounts Receivable (گاہکوں سے واجبات)</span>
                 <span className="tabular-nums font-semibold">{formatMoney(receivables)}</span>
               </div>
               <div className="flex justify-between">
-                <span>Merchandise Inventory Valuation</span>
+                <span>Merchandise Inventory Valuation (اسٹاک مالیت)</span>
                 <span className="tabular-nums font-semibold">{formatMoney(inventory)}</span>
               </div>
             </div>
@@ -110,11 +119,11 @@ export default function BalanceSheetPage() {
           {/* Liabilities & Equity Side */}
           <div className="space-y-4">
             <h3 className="font-bold text-slate-900 dark:text-white uppercase text-[11px] pb-1 border-b border-slate-200 dark:border-slate-800">
-              Liabilities & Equity
+              Liabilities & Equity (واجبات و کیپیٹل)
             </h3>
             <div className="space-y-2.5">
               <div className="flex justify-between">
-                <span>Accounts Payable (Suppliers)</span>
+                <span>Accounts Payable - Suppliers (سپلائرز واجبات)</span>
                 <span className="tabular-nums font-semibold text-rose-600">{formatMoney(payables)}</span>
               </div>
               <div className="flex justify-between">
@@ -127,7 +136,7 @@ export default function BalanceSheetPage() {
               </div>
 
               <div className="pt-3">
-                <p className="font-bold uppercase text-[10px] text-slate-400 mb-1">Owner's Equity</p>
+                <p className="font-bold uppercase text-[10px] text-slate-400 mb-1">Owner's Equity (سرمایہ کاری و منافع)</p>
                 <div className="flex justify-between text-slate-600 dark:text-slate-300">
                   <span>Owner Capital & Retained Earnings</span>
                   <span className="tabular-nums font-semibold">{formatMoney(equity)}</span>
@@ -140,6 +149,9 @@ export default function BalanceSheetPage() {
             </div>
           </div>
         </div>
+
+        {/* Printable Official Signatures & System Footer */}
+        <ReportPrintFooter notes="Balance sheet accounts reconciled and balanced under standard double-entry accounting equation." />
       </div>
     </div>
   );

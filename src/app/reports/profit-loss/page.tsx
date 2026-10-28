@@ -7,8 +7,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { ArrowLeft, Printer, TrendingUp } from "lucide-react";
 import { BrandPageLoader } from "@/components/ui/loader";
+import { useAuth } from "@/context/AuthContext";
+import { ReportPrintHeader } from "@/components/reports/ReportPrintHeader";
+import { ReportPrintFooter } from "@/components/reports/ReportPrintFooter";
 
 export default function ProfitLossPage() {
+  const { activeCompany, user } = useAuth();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
@@ -64,17 +68,22 @@ export default function ProfitLossPage() {
         </Button>
       </div>
 
-      <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6 lg:p-8 shadow-sm dark:border-slate-800 dark:bg-slate-900 print:border-none print:p-0">
-        <div className="border-b border-slate-200 pb-4 dark:border-slate-800">
-          <h1 className="text-lg font-bold text-slate-900 dark:text-white">Income Statement (P&L)</h1>
-          <p className="text-xs text-slate-500">For the period ended September 2026</p>
-        </div>
+      <div className="print-report-sheet rounded-2xl border border-slate-200 bg-white p-4 sm:p-6 lg:p-8 shadow-sm dark:border-slate-800 dark:bg-slate-900 print:border print:border-slate-300 print:p-2 print:shadow-none print:break-inside-avoid">
+        {/* Printable Official Header */}
+        <ReportPrintHeader
+          title="Statement of Profit & Loss (P&L)"
+          subtitle="Statement of Comprehensive Operational Income, Cost of Goods Sold & Margins"
+          reportDate={`Current Fiscal Period (As of ${new Date().toLocaleDateString("en-GB", { month: "long", year: "numeric", day: "numeric" })})`}
+          company={activeCompany}
+          userName={user?.name}
+          badgeText="Income Statement"
+        />
 
-        <div className="py-6 space-y-6 text-xs">
+        <div className="py-4 space-y-6 text-xs">
           {/* Revenue */}
           <div>
             <h3 className="font-bold text-slate-900 dark:text-white uppercase text-[11px] mb-2 tracking-wider">
-              Operating Revenue
+              1. Operating Revenue (آمدنی)
             </h3>
             <div className="space-y-2 border-b border-slate-100 pb-3 dark:border-slate-800">
               <div className="flex justify-between">
@@ -95,7 +104,7 @@ export default function ProfitLossPage() {
           {/* COGS */}
           <div>
             <h3 className="font-bold text-slate-900 dark:text-white uppercase text-[11px] mb-2 tracking-wider">
-              Cost of Goods Sold (COGS)
+              2. Cost of Goods Sold (COGS - اشیاء لاگت)
             </h3>
             <div className="space-y-2 border-b border-slate-100 pb-3 dark:border-slate-800">
               <div className="flex justify-between">
@@ -112,7 +121,7 @@ export default function ProfitLossPage() {
           {/* Operating Expenses */}
           <div>
             <h3 className="font-bold text-slate-900 dark:text-white uppercase text-[11px] mb-2 tracking-wider">
-              Operating Expenses
+              3. Operating Expenses (کاروباری اخراجات)
             </h3>
             <div className="space-y-2 border-b border-slate-100 pb-3 dark:border-slate-800">
               <div className="flex justify-between">
@@ -127,10 +136,13 @@ export default function ProfitLossPage() {
           </div>
 
           {/* Net Profit */}
-          <div className="rounded-xl bg-slate-50 p-4 dark:bg-slate-800/60 flex justify-between items-center text-sm font-black">
-            <span className="text-slate-900 dark:text-white">NET OPERATING PROFIT</span>
-            <span className="text-emerald-600 text-base tabular-nums">{formatMoney(netProfit)}</span>
+          <div className="rounded-xl bg-slate-50 p-4 dark:bg-slate-800/60 flex justify-between items-center text-sm font-black print:bg-transparent print:border-t-2 print:border-b-2 print:border-slate-900 print:rounded-none">
+            <span className="text-slate-900 dark:text-white">NET OPERATING PROFIT / (LOSS)</span>
+            <span className={`text-base tabular-nums ${netProfit >= 0 ? "text-emerald-600" : "text-rose-600"}`}>{formatMoney(netProfit)}</span>
           </div>
+
+          {/* Printable Official Signatures & System Footer */}
+          <ReportPrintFooter notes="Income statement prepared in accordance with standard Pakistan accounting standards." />
         </div>
       </div>
     </div>
