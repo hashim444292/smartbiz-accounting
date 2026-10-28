@@ -1441,7 +1441,7 @@ export default function PaymentsPage() {
                 ⚡ {t("Automatic Contra Journal Voucher", "خودکار کاؤنٹرا جرنل واؤچر")}
               </span>
               <span className="font-mono font-bold text-blue-700 dark:text-blue-400">
-                Rs. {formatMoney(depositAmount)}
+                {formatMoney(depositAmount)}
               </span>
             </div>
             <div className="grid grid-cols-2 gap-2 pt-2 text-[11px]">

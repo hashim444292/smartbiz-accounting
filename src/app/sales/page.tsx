@@ -735,10 +735,10 @@ export default function SalesPage() {
             <p className="text-xs text-slate-500">Generated: {new Date().toLocaleString()}</p>
             <p className="text-xs font-semibold text-slate-700 mt-1">Total Invoices: {totalInvoices}</p>
             <p className="text-sm font-black text-slate-900">
-              Total Sales: Rs. {formatMoney(filteredTotalGross)}
+              Total Sales: {formatMoney(filteredTotalGross)}
             </p>
             <p className="text-xs font-bold text-emerald-700">
-              Collected: Rs. {formatMoney(filteredTotalPaid)}
+              Collected: {formatMoney(filteredTotalPaid)}
             </p>
           </div>
         </div>
@@ -1707,13 +1707,13 @@ export default function SalesPage() {
                 Grand Summary ({filteredSales.length} Invoices Filtered):
               </td>
               <td className="py-2.5 px-2 text-right tabular-nums whitespace-nowrap">
-                Rs. {formatMoney(filteredTotalGross)}
+                {formatMoney(filteredTotalGross)}
               </td>
               <td className="py-2.5 px-2 text-right tabular-nums whitespace-nowrap text-emerald-800">
-                Rs. {formatMoney(filteredTotalPaid)}
+                {formatMoney(filteredTotalPaid)}
               </td>
               <td className="py-2.5 px-2 text-right tabular-nums whitespace-nowrap text-rose-800">
-                Rs. {formatMoney(Math.max(0, filteredTotalGross - filteredTotalPaid))}
+                {formatMoney(Math.max(0, filteredTotalGross - filteredTotalPaid))}
               </td>
               <td colSpan={2} className="py-2.5 px-2 text-center text-[10px] text-slate-600">
                 End of Report
