@@ -103,15 +103,59 @@ export async function createAndPostExpense(input: CreateExpenseInput) {
     }
 
     // 3. Balanced Journal Entry
-    // Find or map account code
-    // Check if there is an account matching category name or use general operating expense
-    const expenseAccount = await tx.account.findFirst({
-      where: {
-        businessId,
-        type: "EXPENSE",
-        name: { contains: category.name, mode: "insensitive" },
-      },
-    });
+    // Find or map account code to specific Chart of Accounts head
+    const cleanCategoryName = (category.name || "").split("(")[0].trim().toLowerCase();
+
+    const categoryCodeMap: Record<string, string> = {
+      rent: "6010",
+      salar: "6020",
+      wage: "6020",
+      electr: "6030",
+      utilit: "6030",
+      internet: "6040",
+      mobile: "6040",
+      phone: "6040",
+      transport: "6050",
+      fuel: "6050",
+      travel: "6050",
+      repair: "6060",
+      maint: "6060",
+      suppl: "6070",
+      station: "6070",
+      market: "6080",
+      advertis: "6080",
+      bank: "6090",
+      fee: "6090",
+      legal: "6100",
+      audit: "6100",
+      prof: "6100",
+      misc: "6990",
+    };
+
+    let targetCode: string | null = null;
+    for (const [kw, code] of Object.entries(categoryCodeMap)) {
+      if (cleanCategoryName.includes(kw)) {
+        targetCode = code;
+        break;
+      }
+    }
+
+    let expenseAccount = null;
+    if (targetCode) {
+      expenseAccount = await tx.account.findFirst({
+        where: { businessId, code: targetCode },
+      });
+    }
+
+    if (!expenseAccount) {
+      expenseAccount = await tx.account.findFirst({
+        where: {
+          businessId,
+          type: "EXPENSE",
+          name: { contains: cleanCategoryName, mode: "insensitive" },
+        },
+      });
+    }
 
     const accountCode = expenseAccount ? expenseAccount.code : "6990"; // default to Miscellaneous Expense
 
