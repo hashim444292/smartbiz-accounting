@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
       [allSales, allPurchases, allExpenses, allPayments, products, customers, suppliers, branches, cashBankAccounts] = await Promise.all([
         prisma.sale.findMany({ where: { businessId }, include: { items: true }, orderBy: { date: "desc" } }),
         prisma.purchase.findMany({ where: { businessId } }),
-        prisma.expense.findMany({ where: { businessId } }),
+        prisma.expense.findMany({ where: { businessId }, include: { category: true } }),
         prisma.payment.findMany({ where: { businessId } }),
         prisma.product.findMany({ where: { businessId } }),
         prisma.customer.findMany({ where: { businessId, isActive: true } }),
@@ -117,6 +117,32 @@ export async function GET(req: NextRequest) {
     const totalGrossSales = sales.reduce((acc, s) => acc + Number(s.totalAmount || 0), 0);
     const totalPurchases = purchases.reduce((acc, p) => acc + Number(p.totalAmount || 0), 0);
     const totalExpenses = expenses.reduce((acc, e) => acc + Number(e.amount || 0), 0);
+
+    // Group expenses by category for itemized Profit & Loss and expense reporting
+    const expenseCategoryMap = new Map<string, { name: string; amount: number; count: number }>();
+    for (const e of expenses) {
+      let catName = e.category?.name;
+      if (!catName && fallbackStore.expenseCategories) {
+        catName = fallbackStore.expenseCategories.find((c: any) => c.id === e.categoryId)?.name;
+      }
+      if (!catName) catName = "General Operating & Administrative";
+
+      const amt = Number(e.amount || 0);
+      const existing = expenseCategoryMap.get(catName);
+      if (existing) {
+        existing.amount += amt;
+        existing.count += 1;
+      } else {
+        expenseCategoryMap.set(catName, { name: catName, amount: amt, count: 1 });
+      }
+    }
+    const expenseCategories = Array.from(expenseCategoryMap.values())
+      .map((c) => ({
+        ...c,
+        amount: round2(c.amount).toNumber(),
+      }))
+      .sort((a, b) => b.amount - a.amount);
+
     const totalCogs = calculateSalesCogs(sales);
     const grossProfit = totalGrossSales - totalCogs;
     const netProfit = grossProfit - totalExpenses;
@@ -287,6 +313,7 @@ export async function GET(req: NextRequest) {
         totalGrossSales: round2(totalGrossSales).toNumber(),
         totalPurchases: round2(totalPurchases).toNumber(),
         totalExpenses: round2(totalExpenses).toNumber(),
+        expenseCategories,
         totalCogs: round2(totalCogs).toNumber(),
         grossProfit: round2(grossProfit).toNumber(),
         netProfit: round2(netProfit).toNumber(),

@@ -47,6 +47,7 @@ export default function ProfitLossPage() {
   const grossProfit = Number(data?.grossProfit ?? (salesRevenue - cogs));
   const expenses = Number(data?.totalExpenses ?? 0);
   const netProfit = Number(data?.netProfit ?? (grossProfit - expenses));
+  const expenseCategories: any[] = data?.expenseCategories || [];
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
@@ -124,13 +125,29 @@ export default function ProfitLossPage() {
               3. Operating Expenses (کاروباری اخراجات)
             </h3>
             <div className="space-y-2 print:space-y-1 border-b border-slate-100 pb-3 print:pb-1.5 dark:border-slate-800 print:border-slate-300">
-              <div className="flex justify-between">
-                <span>General Operating & Administrative Expenses</span>
-                <span className="tabular-nums">{formatMoney(expenses)}</span>
-              </div>
-              <div className="flex justify-between font-bold pt-1 print:pt-0.5 text-slate-800 dark:text-slate-200">
+              {expenseCategories.length > 0 ? (
+                expenseCategories.map((cat: any) => (
+                  <div key={cat.name} className="flex justify-between items-center text-slate-700 dark:text-slate-300 py-0.5">
+                    <span className="font-medium text-slate-800 dark:text-slate-200">
+                      {cat.name}
+                      {cat.count > 1 && (
+                        <span className="text-[10px] text-slate-400 dark:text-slate-500 font-normal ml-1.5">
+                          ({cat.count} expenses)
+                        </span>
+                      )}
+                    </span>
+                    <span className="tabular-nums font-semibold">{formatMoney(cat.amount)}</span>
+                  </div>
+                ))
+              ) : (
+                <div className="flex justify-between">
+                  <span>General Operating & Administrative Expenses</span>
+                  <span className="tabular-nums">{formatMoney(expenses)}</span>
+                </div>
+              )}
+              <div className="flex justify-between font-bold pt-2 print:pt-1 text-slate-900 dark:text-white border-t border-slate-200 dark:border-slate-800 print:border-slate-300 mt-1">
                 <span>Total Operating Expenses</span>
-                <span className="tabular-nums text-rose-600">-{formatMoney(expenses)}</span>
+                <span className="tabular-nums text-rose-600 font-bold">-{formatMoney(expenses)}</span>
               </div>
             </div>
           </div>
