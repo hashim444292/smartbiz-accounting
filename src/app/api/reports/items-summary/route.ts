@@ -40,34 +40,59 @@ export async function GET(req: NextRequest) {
       const group = categoryMap.get(catName)!;
 
       // Filter transactions
-      const txs = fallbackStore.inventoryTransactions.filter((t) => t.productId === prod.id);
+      const txs = (fallbackStore.inventoryTransactions || []).filter((t) => t.productId === prod.id);
+      
+      const openingTxs = txs.filter((t) => t.type === "OPENING");
+      const baselineOpening = Math.max(
+        Number(prod.openingQuantity || 0),
+        openingTxs.reduce((sum: number, t: any) => sum + Math.abs(Number(t.quantity || 0)), 0)
+      );
+
+      let priorIn = 0;
+      let priorOut = 0;
       let inQty = 0;
       let outQty = 0;
 
       for (const t of txs) {
-        const isPos = ["STOCK_IN", "PURCHASE", "OPENING", "SALE_RETURN"].includes(t.type);
+        if (t.type === "OPENING") continue;
+        const isPos = ["STOCK_IN", "PURCHASE", "SALE_RETURN"].includes(t.type);
         const isNeg = ["STOCK_OUT", "SALE", "DAMAGE", "PURCHASE_RETURN"].includes(t.type);
         const q = Math.abs(Number(t.quantity));
+        const tDate = new Date(t.date || new Date());
 
-        if (isPos) inQty += q;
-        if (isNeg) outQty += q;
+        if (tDate < startDate) {
+          if (isPos) priorIn += q;
+          if (isNeg) priorOut += q;
+        } else if (tDate <= endDate) {
+          if (isPos) inQty += q;
+          if (isNeg) outQty += q;
+        }
       }
 
-      const op = Number(prod.openingQuantity || prod.currentStock || 0);
+      const op = baselineOpening + priorIn - priorOut;
       const bal = op + inQty - outQty;
 
-      group.items.push({
-        id: prod.id,
-        description: prod.name,
-        sku: prod.sku,
-        unit: prod.unit || "pcs",
-        op,
-        in: inQty,
-        out: outQty,
-        bal,
-      });
+      const normalizedName = (prod.name || "").trim().toLowerCase();
+      const existing = group.items.find((it: any) => it.description.trim().toLowerCase() === normalizedName);
+      if (existing) {
+        existing.op += op;
+        existing.in += inQty;
+        existing.out += outQty;
+        existing.bal += bal;
+      } else {
+        group.items.push({
+          id: prod.id,
+          description: prod.name,
+          sku: prod.sku,
+          unit: prod.unit || "pcs",
+          op,
+          in: inQty,
+          out: outQty,
+          bal,
+        });
+        group.totals.count += 1;
+      }
 
-      group.totals.count += 1;
       group.totals.op += op;
       group.totals.in += inQty;
       group.totals.out += outQty;

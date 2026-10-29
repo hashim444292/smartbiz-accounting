@@ -7,6 +7,8 @@ import Link from "next/link";
 import { formatMoney } from "@/lib/decimal";
 import { BrandPageLoader, TableSkeleton } from "@/components/ui/loader";
 import { useAuth } from "@/context/AuthContext";
+import { ReportPrintHeader } from "@/components/reports/ReportPrintHeader";
+import { ReportPrintFooter } from "@/components/reports/ReportPrintFooter";
 
 export default function ReceivablesSummaryPage() {
   const { activeCompany } = useAuth();
@@ -139,52 +141,44 @@ export default function ReceivablesSummaryPage() {
           />
         </div>
       ) : (
-        /* Printable Document Container (Matches Client Physical Sheet) */
-        <div className="bg-white text-slate-900 p-4 sm:p-6 lg:p-8 rounded-xl border border-slate-200 shadow-sm print:border-none print:shadow-none print:p-0 font-sans">
-          {/* Header */}
-          <div className="flex justify-between items-start text-xs border-b border-slate-200 pb-2 mb-2">
-            <div>
-              <p className="text-[11px] text-slate-500">Printing Date/Time: {formatPrintDate(report.printingTime)}</p>
-            </div>
-            <div className="text-right">
-              <p className="text-[11px] text-slate-500">Page No: 1</p>
-            </div>
-          </div>
-
-          <div className="mb-4">
-            <h1 className="text-xl font-bold tracking-tight text-slate-900 uppercase">
-              {report.businessName || activeCompany?.name || "Business Account"}
-            </h1>
-            <h2 className="text-sm font-semibold tracking-wide text-slate-800 uppercase mt-0.5">
-              ACCOUNTS RECEIVABLES SUMMARY
-            </h2>
-          </div>
+        /* Printable Document Container (Matches Corporate Standard) */
+        <div className="print-report-sheet bg-white text-slate-900 p-4 sm:p-6 lg:p-8 rounded-xl border border-slate-200 shadow-sm print:border-none print:shadow-none print:p-0 font-sans space-y-4 print:space-y-2">
+          {/* Universal Corporate Letterhead Header */}
+          <ReportPrintHeader
+            title="Accounts Receivables & Customer Balances Summary"
+            documentNumber={`AR-SUM-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}`}
+            period={`As of ${new Date().toLocaleDateString("en-GB")}`}
+            company={activeCompany}
+          />
 
           {/* Table */}
           <div className="w-full overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="border-t border-b border-slate-400 text-[11px] font-bold text-slate-900">
-                  <th className="py-1.5 pr-3 uppercase tracking-wider font-semibold w-24">A/C CODE</th>
-                  <th className="py-1.5 px-3 uppercase tracking-wider font-semibold">A/C NAME</th>
-                  <th className="py-1.5 px-3 text-right uppercase tracking-wider font-semibold w-32">DEBIT AMT.</th>
-                  <th className="py-1.5 px-3 text-right uppercase tracking-wider font-semibold w-32">CREDIT AMT.</th>
-                  <th className="py-1.5 pl-3 text-right uppercase tracking-wider font-semibold w-32">TELEPHONE #</th>
+                <tr className="border-t-2 border-b-2 border-slate-900 text-[10px] font-bold text-slate-900 bg-slate-100 print:bg-transparent">
+                  <th className="py-2 pr-3 uppercase tracking-wider font-bold w-24">A/C CODE (کوڈ)</th>
+                  <th className="py-2 px-3 uppercase tracking-wider font-bold">CUSTOMER / PARTY NAME (گاہک کا نام)</th>
+                  <th className="py-2 px-3 text-right uppercase tracking-wider font-bold w-32">RECEIVABLE (وصولی)</th>
+                  <th className="py-2 px-3 text-right uppercase tracking-wider font-bold w-32">ADVANCE (پیشگی)</th>
+                  <th className="py-2 pl-3 text-right uppercase tracking-wider font-bold w-32">TELEPHONE #</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {filteredItems.map((item: any) => (
                   <tr
                     key={item.id}
-                    className="hover:bg-slate-50/70 text-[11px] transition-colors"
+                    className="hover:bg-slate-50/70 text-[10px] print:text-[9.5px] transition-colors"
                   >
                     <td className="py-1 pr-3 font-mono font-medium text-slate-700 uppercase">
                       {item.acCode}
                     </td>
                     <td className="py-1 px-3 font-semibold text-slate-900 uppercase">
                       {item.acName}
+                      {item.businessName && item.businessName !== item.acName && (
+                        <span className="text-[9px] text-slate-500 font-normal ml-1">({item.businessName})</span>
+                      )}
                     </td>
-                    <td className="py-1 px-3 text-right tabular-nums text-slate-900">
+                    <td className="py-1 px-3 text-right tabular-nums font-bold text-slate-900">
                       {formatAmt(item.debitAmt)}
                     </td>
                     <td className="py-1 px-3 text-right tabular-nums text-emerald-700">
@@ -195,26 +189,32 @@ export default function ReceivablesSummaryPage() {
                     </td>
                   </tr>
                 ))}
-
+              </tbody>
+              <tfoot>
                 {/* Totals Row */}
-                <tr className="border-t-2 border-b-2 border-slate-900 font-bold text-xs text-slate-900 bg-slate-50 print:bg-transparent">
-                  <td className="py-2 pr-3 uppercase">
-                    TOTALS: {report.totals.count}
+                <tr className="border-t-2 border-b-2 border-slate-900 font-bold text-xs print:text-[10px] text-slate-900 bg-slate-100 print:bg-slate-100">
+                  <td className="py-2 pr-3 uppercase font-black">
+                    TOTALS: {report.totals.count} Accounts
                   </td>
-                  <td className="py-2 px-3"></td>
-                  <td className="py-2 px-3 text-right tabular-nums font-bold">
+                  <td className="py-2 px-3 font-black text-right">Net Outstanding:</td>
+                  <td className="py-2 px-3 text-right tabular-nums font-black text-slate-950">
                     {formatAmt(report.totals.totalDebit)}
                   </td>
-                  <td className="py-2 px-3 text-right tabular-nums font-bold text-emerald-700">
+                  <td className="py-2 px-3 text-right tabular-nums font-black text-emerald-800">
                     {formatAmt(report.totals.totalCredit)}
                   </td>
-                  <td className="py-2 pl-3 text-right font-semibold text-blue-700">
+                  <td className="py-2 pl-3 text-right font-black text-blue-900">
                     Net: {formatMoney(report.totals.netReceivable)}
                   </td>
                 </tr>
-              </tbody>
+              </tfoot>
             </table>
           </div>
+
+          {/* Universal Auditing Signatures & Statutory Verification Notice */}
+          <ReportPrintFooter
+            notes="Official accounts receivable & customer khata summary. Audited and verified through reconciled sales invoices and receipt allocations."
+          />
         </div>
       )}
     </div>

@@ -5,7 +5,9 @@ import React from "react";
 interface ReportPrintHeaderProps {
   title: string;
   subtitle?: string;
+  documentNumber?: string;
   reportDate?: string;
+  period?: string;
   periodLabel?: string;
   company?: {
     name?: string;
@@ -25,13 +27,16 @@ interface ReportPrintHeaderProps {
 export function ReportPrintHeader({
   title,
   subtitle,
+  documentNumber,
   reportDate,
+  period,
   periodLabel,
   company,
   userName,
   badgeText,
   showOnScreen = true,
 }: ReportPrintHeaderProps) {
+  const activePeriod = periodLabel || period;
   const companyName = company?.legalName || company?.name || "Business Account";
   const ntn = company?.taxNumber;
   const strn = company?.strn;
@@ -93,9 +98,14 @@ export function ReportPrintHeader({
               DATE: <span className="underline">{reportDate}</span>
             </div>
           )}
-          {periodLabel && (
+          {activePeriod && (
             <div className="text-[11px] font-semibold text-slate-700 font-mono print:text-[9px]">
-              PERIOD: {periodLabel}
+              PERIOD: {activePeriod}
+            </div>
+          )}
+          {documentNumber && (
+            <div className="text-[10px] font-mono font-medium text-slate-500 print:text-[8.5px]">
+              DOC #: <strong className="text-slate-800">{documentNumber}</strong>
             </div>
           )}
           {badgeText && (

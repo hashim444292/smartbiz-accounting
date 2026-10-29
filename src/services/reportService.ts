@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { Decimal, round2, toDecimal } from "@/lib/decimal";
 import { createSafeAuditLog } from "@/lib/auditHelper";
+import { reconcileCustomerReceivables } from "@/lib/receivablesHelper";
+import { reconcileSupplierPayables } from "@/lib/payablesHelper";
 
 export interface DateRange {
   startDate: Date;
@@ -744,8 +746,10 @@ export async function getItemsSummaryReport(
     select: { name: true },
   });
 
-  const sDate = startDate || new Date(new Date().getFullYear(), new Date().getMonth(), 1);
-  const eDate = endDate || new Date();
+  const sDate = startDate ? new Date(startDate) : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+  sDate.setHours(0, 0, 0, 0);
+  const eDate = endDate ? new Date(endDate) : new Date();
+  eDate.setHours(23, 59, 59, 999);
 
   // Fetch all active products with their categories
   const products = await prisma.product.findMany({
@@ -783,15 +787,29 @@ export async function getItemsSummaryReport(
     // Filter transactions for this product
     const prodTx = allTx.filter((t) => t.productId === prod.id);
 
-    // Opening Stock before sDate: openingQuantity + prior IN - prior OUT
+    // Baseline opening quantity from product setup or opening setup transaction
+    const openingTxs = prodTx.filter((t) => t.type === "OPENING");
+    const baselineOpening = Math.max(
+      Number(prod.openingQuantity || 0),
+      openingTxs.reduce((sum, t) => sum + Math.abs(Number(t.quantity)), 0)
+    );
+
+    // Opening Stock before sDate: baselineOpening + prior operational IN - prior operational OUT
     let priorIn = 0;
     let priorOut = 0;
     let rangeIn = 0;
     let rangeOut = 0;
 
     for (const t of prodTx) {
-      const isPositive = ["STOCK_IN", "PURCHASE", "OPENING", "SALE_RETURN"].includes(t.type);
-      const isNegative = ["STOCK_OUT", "SALE", "DAMAGE", "PURCHASE_RETURN"].includes(t.type);
+      // "OPENING" is the baseline setup, not an operational inward shipment
+      if (t.type === "OPENING") continue;
+
+      const isPositive =
+        ["STOCK_IN", "PURCHASE", "SALE_RETURN"].includes(t.type) ||
+        (t.type === "ADJUSTMENT" && Number(t.quantity) > 0);
+      const isNegative =
+        ["STOCK_OUT", "SALE", "DAMAGE", "PURCHASE_RETURN"].includes(t.type) ||
+        (t.type === "ADJUSTMENT" && Number(t.quantity) < 0);
       const q = Math.abs(Number(t.quantity));
 
       const tDate = new Date(t.date);
@@ -804,21 +822,35 @@ export async function getItemsSummaryReport(
       }
     }
 
-    const op = Number(prod.openingQuantity || 0) + priorIn - priorOut;
+    const op = baselineOpening + priorIn - priorOut;
     const currentBal = op + rangeIn - rangeOut;
 
-    catGroup.items.push({
-      id: prod.id,
-      description: prod.name,
-      sku: prod.sku,
-      unit: prod.unit,
-      op,
-      in: rangeIn,
-      out: rangeOut,
-      bal: currentBal,
-    });
+    // Check if an item with the exact same name already exists in this category (deduplication)
+    const normalizedName = prod.name.trim().toLowerCase();
+    const existingItem = catGroup.items.find(
+      (it: any) => it.description.trim().toLowerCase() === normalizedName
+    );
 
-    catGroup.totals.count += 1;
+    if (existingItem) {
+      // Consolidate duplicate product entries
+      existingItem.op += op;
+      existingItem.in += rangeIn;
+      existingItem.out += rangeOut;
+      existingItem.bal += currentBal;
+    } else {
+      catGroup.items.push({
+        id: prod.id,
+        description: prod.name,
+        sku: prod.sku,
+        unit: prod.unit,
+        op,
+        in: rangeIn,
+        out: rangeOut,
+        bal: currentBal,
+      });
+      catGroup.totals.count += 1;
+    }
+
     catGroup.totals.op += op;
     catGroup.totals.in += rangeIn;
     catGroup.totals.out += rangeOut;
@@ -838,7 +870,7 @@ export async function getItemsSummaryReport(
     printingTime: new Date().toISOString(),
     categories: Array.from(categoryMap.values()),
     grandTotal: {
-      totalItems: products.length,
+      totalItems: Array.from(categoryMap.values()).reduce((sum, c) => sum + c.items.length, 0),
       op: grandOp,
       in: grandIn,
       out: grandOut,
@@ -852,6 +884,9 @@ export async function getItemsSummaryReport(
  * Matching Image 2 (A/C CODE, A/C NAME, DEBIT AMT., CREDIT AMT., TELEPHONE #)
  */
 export async function getReceivablesSummaryReport(businessId: string) {
+  // Reconcile customer balances with open sales invoices
+  await reconcileCustomerReceivables(prisma, businessId).catch(() => null);
+
   const business = await prisma.business.findUnique({
     where: { id: businessId },
     select: { name: true },
@@ -907,6 +942,9 @@ export async function getReceivablesSummaryReport(businessId: string) {
  * Matching Image 2 structure for Suppliers
  */
 export async function getPayablesSummaryReport(businessId: string) {
+  // Reconcile supplier balances with open purchase bills
+  await reconcileSupplierPayables(prisma, businessId).catch(() => null);
+
   const business = await prisma.business.findUnique({
     where: { id: businessId },
     select: { name: true },

@@ -438,32 +438,63 @@ export async function saveOpeningBalances(
 
           let prodId = item.productId;
           if (prodId) {
+            const existing = await tx.product.findUnique({ where: { id: prodId } });
+            const priorOp = Number(existing?.openingQuantity || 0);
+            const delta = qty - priorOp;
+            const newCurrentStock = Math.max(0, Number(existing?.currentStock || 0) + delta);
+
             await tx.product.update({
               where: { id: prodId },
               data: {
-                currentStock: qty,
+                currentStock: newCurrentStock,
                 openingQuantity: qty,
                 openingCost: cost,
-                averageCost: cost,
-                purchasePrice: cost,
+                averageCost: cost > 0 ? cost : existing?.averageCost,
+                purchasePrice: cost > 0 ? cost : existing?.purchasePrice,
               },
             });
           } else if (item.name) {
-            const newProd = await tx.product.create({
-              data: {
+            // Check if product with this name already exists in this business
+            const existing = await tx.product.findFirst({
+              where: {
                 businessId,
-                name: item.name,
-                sku: item.sku || `SKU-${Date.now().toString().slice(-6)}`,
-                currentStock: qty,
-                openingQuantity: qty,
-                openingCost: cost,
-                averageCost: cost,
-                purchasePrice: cost,
-                retailPrice: cost * 1.2,
-                sellingPrice: cost * 1.2,
+                name: { equals: item.name.trim(), mode: "insensitive" },
               },
             });
-            prodId = newProd.id;
+
+            if (existing) {
+              const priorOp = Number(existing.openingQuantity || 0);
+              const delta = qty - priorOp;
+              const newCurrentStock = Math.max(0, Number(existing.currentStock || 0) + delta);
+
+              await tx.product.update({
+                where: { id: existing.id },
+                data: {
+                  currentStock: newCurrentStock,
+                  openingQuantity: qty,
+                  openingCost: cost,
+                  averageCost: cost > 0 ? cost : existing.averageCost,
+                  purchasePrice: cost > 0 ? cost : existing.purchasePrice,
+                },
+              });
+              prodId = existing.id;
+            } else {
+              const newProd = await tx.product.create({
+                data: {
+                  businessId,
+                  name: item.name.trim(),
+                  sku: item.sku?.trim() || `SKU-${Date.now().toString().slice(-6)}`,
+                  currentStock: qty,
+                  openingQuantity: qty,
+                  openingCost: cost,
+                  averageCost: cost,
+                  purchasePrice: cost,
+                  retailPrice: cost * 1.2,
+                  sellingPrice: cost * 1.2,
+                },
+              });
+              prodId = newProd.id;
+            }
           }
 
           // Record Opening Inventory Transaction
