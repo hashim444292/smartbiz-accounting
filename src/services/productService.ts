@@ -295,7 +295,11 @@ export async function createProduct(input: CreateProductInput) {
     unit: input.uom || "pcs",
     hsCode: finalHsCode,
     taxProfile: input.taxProfile || "Standard 18%",
-    salesTax: Number(input.salesTax ?? 18.00),
+    salesTax: Number(
+      input.salesTax !== undefined && input.salesTax !== null
+        ? input.salesTax
+        : (input.taxProfile?.includes("0%") || input.taxProfile?.toLowerCase().includes("exempt") ? 0.00 : 18.00)
+    ),
     furtherTax: Number(input.furtherTax ?? 0.00),
     extraTax: Number(input.extraTax ?? 0.00),
     retailPrice,

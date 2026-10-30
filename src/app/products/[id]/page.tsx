@@ -206,7 +206,7 @@ export default function ProductDetailsPage() {
             Sales Tax (FBR Rate)
           </span>
           <p className="mt-1 text-xl font-bold font-mono text-emerald-600">
-            {product.salesTax ? `${product.salesTax}%` : "18.00%"}
+            {product.salesTax !== undefined && product.salesTax !== null ? `${Number(product.salesTax)}%` : (product.taxProfile?.includes("0%") ? "0%" : "18.00%")}
           </p>
           <span className="text-[10px] text-slate-400 mt-1 block">
             Further Tax: {product.furtherTax || 0}% • Extra: {product.extraTax || 0}%

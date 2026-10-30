@@ -165,6 +165,21 @@ export default function CreateProductPage() {
     }
   };
 
+  // Synchronize tax profile selection with sales tax rates
+  const handleTaxProfileChange = (profile: string) => {
+    setFormData((prev) => {
+      const isExempt = profile === "Exempt 0%" || profile.includes("0%");
+      const isStandard = profile === "Standard 18%";
+      return {
+        ...prev,
+        taxProfile: profile,
+        salesTax: isExempt ? 0 : (isStandard ? 18.0 : prev.salesTax),
+        furtherTax: isExempt ? 0 : prev.furtherTax,
+        extraTax: isExempt ? 0 : prev.extraTax,
+      };
+    });
+  };
+
   const validate = () => {
     const newErrors: Record<string, string> = {};
     if (!formData.name.trim()) {
@@ -182,13 +197,19 @@ export default function CreateProductPage() {
 
   const handleSave = async (asDraft = false) => {
     if (!validate()) return;
-
     setIsSaving(true);
     setSaveSuccess(null);
 
     try {
       const openingQty = Number(formData.openingQuantity || 0);
       const purchaseCost = Number(formData.purchasePrice || 0);
+      const isProfileExempt = formData.taxProfile === "Exempt 0%" || formData.taxProfile?.includes("0%");
+      const rawSalesTax = formData.salesTax;
+      const effectiveSalesTax =
+        rawSalesTax !== undefined && rawSalesTax !== null && !isNaN(Number(rawSalesTax))
+          ? Number(rawSalesTax)
+          : (isProfileExempt ? 0 : 18);
+
       const payload = {
         ...formData,
         status: asDraft ? "DRAFT" : formData.status,
@@ -199,7 +220,7 @@ export default function CreateProductPage() {
         openingCost: purchaseCost,
         openingQuantity: openingQty,
         currentStock: openingQty,
-        salesTax: Number(formData.salesTax || 18),
+        salesTax: effectiveSalesTax,
         furtherTax: Number(formData.furtherTax || 0),
         extraTax: Number(formData.extraTax || 0),
       };
@@ -574,7 +595,7 @@ export default function CreateProductPage() {
             </label>
             <select
               value={formData.taxProfile}
-              onChange={(e) => setFormData({ ...formData, taxProfile: e.target.value })}
+              onChange={(e) => handleTaxProfileChange(e.target.value)}
               className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs text-slate-800 focus:border-indigo-500 focus:outline-none shadow-2xs"
             >
               <option value="Standard 18%">Standard 18% Sales Tax</option>

@@ -80,7 +80,10 @@ export default function EditProductPage() {
             uom: p.uom || p.unit || "pcs",
             hsCode: p.hsCode || "",
             taxProfile: p.taxProfile || "Standard 18%",
-            salesTax: Number(p.salesTax || 18),
+            salesTax:
+              p.salesTax !== undefined && p.salesTax !== null && !isNaN(Number(p.salesTax))
+                ? Number(p.salesTax)
+                : (p.taxProfile?.includes("0%") ? 0 : 18),
             furtherTax: Number(p.furtherTax || 0),
             extraTax: Number(p.extraTax || 0),
             purchasePrice: Number(p.purchasePrice || 0),
@@ -135,6 +138,21 @@ export default function EditProductPage() {
     setHsCodeSource(selectedCat?.defaultHsCode ? "CATEGORY" : "ORGANIZATION");
   };
 
+  // Synchronize tax profile selection with sales tax rates
+  const handleTaxProfileChange = (profile: string) => {
+    setFormData((prev) => {
+      const isExempt = profile === "Exempt 0%" || profile.includes("0%");
+      const isStandard = profile === "Standard 18%";
+      return {
+        ...prev,
+        taxProfile: profile,
+        salesTax: isExempt ? 0 : (isStandard ? 18.0 : prev.salesTax),
+        furtherTax: isExempt ? 0 : prev.furtherTax,
+        extraTax: isExempt ? 0 : prev.extraTax,
+      };
+    });
+  };
+
   const handleSave = async () => {
     if (!formData.name.trim()) {
       setErrors({ name: "Product name is required" });
@@ -149,10 +167,27 @@ export default function EditProductPage() {
     setSaveSuccess(null);
 
     try {
+      const isProfileExempt = formData.taxProfile === "Exempt 0%" || formData.taxProfile?.includes("0%");
+      const rawSalesTax = formData.salesTax;
+      const effectiveSalesTax =
+        rawSalesTax !== undefined && rawSalesTax !== null && !isNaN(Number(rawSalesTax))
+          ? Number(rawSalesTax)
+          : (isProfileExempt ? 0 : 18);
+
+      const payload = {
+        ...formData,
+        salesTax: effectiveSalesTax,
+        furtherTax: Number(formData.furtherTax || 0),
+        extraTax: Number(formData.extraTax || 0),
+        retailPrice: Number(formData.retailPrice || 0),
+        sellingPrice: Number(formData.retailPrice || 0),
+        wholesalePrice: Number(formData.wholesalePrice || 0),
+      };
+
       const res = await fetch(`/api/products/${productId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       });
 
       const json = await res.json();
@@ -332,7 +367,7 @@ export default function EditProductPage() {
           Pricing & Tax Rates
         </h2>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1">Retail Price (PKR)</label>
             <input
@@ -351,6 +386,20 @@ export default function EditProductPage() {
               onChange={(e) => setFormData({ ...formData, wholesalePrice: Number(e.target.value) })}
               className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs text-slate-900 font-mono focus:border-indigo-500 focus:outline-none"
             />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">Tax Profile</label>
+            <select
+              value={formData.taxProfile}
+              onChange={(e) => handleTaxProfileChange(e.target.value)}
+              className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs text-slate-800 focus:border-indigo-500 focus:outline-none shadow-2xs"
+            >
+              <option value="Standard 18%">Standard 18% Sales Tax</option>
+              <option value="Exempt 0%">Exempt / 0% Tax</option>
+              <option value="Reduced Rate">Reduced Rate</option>
+              <option value="Third Schedule">3rd Schedule (Retail Price)</option>
+            </select>
           </div>
 
           <div>

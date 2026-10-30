@@ -78,6 +78,20 @@ export async function GET(req: NextRequest) {
         });
     }
 
+    // Auto-heal existing products where taxProfile is 'Exempt 0%' or includes '0%' but salesTax is > 0
+    try {
+      await prisma.$executeRawUnsafe(
+        `UPDATE "Product" SET "salesTax" = 0 WHERE "businessId" = $1 AND ("taxProfile" ILIKE '%Exempt%' OR "taxProfile" ILIKE '%0%') AND "salesTax" > 0`,
+        businessId
+      );
+    } catch {
+      fallbackStore.products
+        .filter((p) => p.businessId === businessId && (p.taxProfile?.toLowerCase().includes("exempt") || p.taxProfile?.includes("0%")) && Number(p.salesTax || 0) > 0)
+        .forEach((p) => {
+          p.salesTax = 0;
+        });
+    }
+
     const result = await listProducts({
       businessId,
       page,

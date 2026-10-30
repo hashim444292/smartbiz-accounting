@@ -364,7 +364,7 @@ export default function ProductsListPage() {
 
                   <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-xs">
                     <span className="text-[11px] text-slate-500">
-                      Tax: {p.salesTax ? `${p.salesTax}%` : "18%"} • Unit: {p.uom || p.unit || "pcs"}
+                      Tax: {p.salesTax !== undefined && p.salesTax !== null ? `${Number(p.salesTax)}%` : (p.taxProfile?.includes("0%") ? "0%" : "18%")} • Unit: {p.uom || p.unit || "pcs"}
                     </span>
                     <div className="flex items-center gap-2">
                       <Link
@@ -458,7 +458,7 @@ export default function ProductsListPage() {
                       </td>
                       <td className="py-3 px-4 text-slate-500">{p.uom || p.unit || "pcs"}</td>
                       <td className="py-3 px-4 text-right font-mono text-slate-700">
-                        {p.salesTax ? `${p.salesTax}%` : "18%"}
+                        {p.salesTax !== undefined && p.salesTax !== null ? `${Number(p.salesTax)}%` : (p.taxProfile?.includes("0%") ? "0%" : "18%")}
                       </td>
                       <td className="py-3 px-4 text-right font-mono font-bold text-slate-900 tabular-nums">
                         Rs {Number(p.sellingPrice || p.retailPrice || 0).toLocaleString()}

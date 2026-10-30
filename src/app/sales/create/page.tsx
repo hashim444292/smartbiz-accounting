@@ -50,6 +50,8 @@ interface ProductOption {
   currentStock: number;
   hsCode?: string | null;
   categoryId?: string | null;
+  taxProfile?: string | null;
+  salesTax?: number | null;
 }
 
 interface CustomerOption {
@@ -263,9 +265,18 @@ export default function CreateSalePage() {
       const discAmt = round2(toDecimal(sub).mul(discPct).div(100)).toNumber();
       const taxable = Math.max(0, sub - discAmt);
 
-      // Tax rate based on Buyer Tax Status (Digital Invoicing strictly disallows 0% tax)
+      // Tax rate based on Buyer Tax Status & Product Tax Profile (Digital Invoicing strictly disallows 0% tax)
       const isDiMode = fbrInvoiceType === "DIGITAL_INVOICING";
-      const tr = isDiMode ? 18 : (currentBuyerStatus === "EXEMPT" ? 0 : 18);
+      let tr = 18;
+      if (isDiMode) {
+        tr = 18;
+      } else if (currentBuyerStatus === "EXEMPT") {
+        tr = 0;
+      } else if (item.taxRate !== undefined && item.taxRate !== null && !isNaN(Number(item.taxRate))) {
+        tr = Number(item.taxRate);
+      } else {
+        tr = 18;
+      }
       const taxAmt = round2(toDecimal(taxable).mul(tr).div(100)).toNumber();
       const lineTotal = taxable + taxAmt;
 
@@ -359,6 +370,11 @@ export default function CreateSalePage() {
             prodList.find((p) => p.name.toLowerCase().includes("galaxy") || p.name.toLowerCase().includes("s25")) ||
             prodList[0];
 
+          const firstProdTaxRate =
+            firstProd.salesTax !== undefined && firstProd.salesTax !== null
+              ? Number(firstProd.salesTax)
+              : (firstProd.taxProfile?.includes("0%") ? 0 : 18);
+
           const initialItem = recalculateItem(
             {
               productId: firstProd.id,
@@ -370,6 +386,7 @@ export default function CreateSalePage() {
               unitPrice: Number(firstProd.sellingPrice || 285000),
               discountPercent: 0,
               availableStock: Number(firstProd.currentStock || 10),
+              taxRate: firstProdTaxRate,
             },
             "EXEMPT"
           );
@@ -481,6 +498,11 @@ export default function CreateSalePage() {
     clearFieldError(`item_${index}_product`);
     clearFieldError("items");
 
+    const prodTaxRate =
+      prod.salesTax !== undefined && prod.salesTax !== null
+        ? Number(prod.salesTax)
+        : (prod.taxProfile?.includes("0%") ? 0 : 18);
+
     setItems((prev) => {
       const next = [...prev];
       next[index] = recalculateItem(
@@ -492,6 +514,7 @@ export default function CreateSalePage() {
           uom: (prod.uom || prod.unit || "PCS").toUpperCase(),
           unitPrice: Number(prod.sellingPrice || 0),
           hsCode: prod.hsCode || orgHsCode,
+          taxRate: prodTaxRate,
           availableStock: Number(prod.currentStock || 0),
         },
         buyerTaxStatus
@@ -603,6 +626,11 @@ export default function CreateSalePage() {
   // Add Item Row
   const handleAddItem = () => {
     const defaultProd = products[0];
+    const defaultProdTaxRate = defaultProd
+      ? (defaultProd.salesTax !== undefined && defaultProd.salesTax !== null
+          ? Number(defaultProd.salesTax)
+          : (defaultProd.taxProfile?.includes("0%") ? 0 : 18))
+      : 18;
     const newItem = recalculateItem(
       {
         productId: defaultProd ? defaultProd.id : "",
@@ -614,6 +642,7 @@ export default function CreateSalePage() {
         unitPrice: defaultProd ? Number(defaultProd.sellingPrice || 0) : 0,
         discountPercent: 0,
         availableStock: defaultProd ? Number(defaultProd.currentStock || 0) : 10,
+        taxRate: defaultProdTaxRate,
       },
       buyerTaxStatus
     );
@@ -632,11 +661,19 @@ export default function CreateSalePage() {
   const totalDiscount = totalItemDiscounts + Number(overallDiscount || 0);
   const taxableAmount = Math.max(0, grossSubtotal - totalDiscount);
 
-  // Sales Tax (GST)
+  // Sales Tax (GST) - Sum of item-level tax amounts
   const gstAmount =
     buyerTaxStatus === "EXEMPT"
       ? 0
-      : round2(toDecimal(taxableAmount).mul(0.18)).toNumber();
+      : round2(
+          items.reduce((acc, it) => {
+            const itTax =
+              it.taxAmount !== undefined && it.taxAmount !== null
+                ? Number(it.taxAmount)
+                : round2(toDecimal(it.taxableAmount || 0).mul((it.taxRate || 0) / 100)).toNumber();
+            return acc.plus(toDecimal(itTax));
+          }, toDecimal(0))
+        ).toNumber();
 
   // Further Tax under Section 3(1A) (3% for Unregistered buyers)
   const furtherTaxAmount =
@@ -879,6 +916,10 @@ export default function CreateSalePage() {
               uom: (createdProduct.uom || createdProduct.unit || "PCS").toUpperCase(),
               unitPrice: Number(createdProduct.sellingPrice || sellP),
               hsCode: createdProduct.hsCode || orgHsCode,
+              taxRate:
+                createdProduct.salesTax !== undefined && createdProduct.salesTax !== null
+                  ? Number(createdProduct.salesTax)
+                  : (createdProduct.taxProfile?.includes("0%") ? 0 : 18),
               availableStock: Number(createdProduct.currentStock || newProductForm.openingQuantity || 10),
             },
             buyerTaxStatus
