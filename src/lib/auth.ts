@@ -47,10 +47,29 @@ export function verifySessionToken(token: string): SessionPayload | null {
   }
 }
 
-export async function getSession(): Promise<SessionPayload | null> {
+import type { NextRequest } from "next/server";
+
+export async function getSession(req?: NextRequest | Request): Promise<SessionPayload | null> {
   try {
-    const cookieStore = cookies();
-    const token = cookieStore.get(TOKEN_NAME)?.value;
+    let token: string | undefined;
+    if (req) {
+      if ((req as any).cookies?.get) {
+        token = (req as any).cookies.get(TOKEN_NAME)?.value;
+      }
+      if (!token && typeof (req as any).headers?.get === "function") {
+        const cookieHeader = (req as any).headers.get("cookie");
+        if (cookieHeader) {
+          const match = cookieHeader.match(new RegExp(`(?:^|;\\s*)${TOKEN_NAME}=([^;]+)`));
+          if (match) token = match[1];
+        }
+      }
+    }
+    if (!token) {
+      try {
+        const cookieStore = cookies();
+        token = cookieStore.get(TOKEN_NAME)?.value;
+      } catch {}
+    }
     if (!token) return null;
     return verifySessionToken(token);
   } catch {

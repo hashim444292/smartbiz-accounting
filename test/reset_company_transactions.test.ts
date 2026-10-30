@@ -1,6 +1,16 @@
 import { describe, it, expect } from "vitest";
 import { POST } from "../src/app/api/admin/companies/reset-transactions/route";
 import { fallbackStore } from "../src/lib/fallbackStore";
+import { signSessionToken } from "../src/lib/auth";
+
+const superAdminToken = signSessionToken({
+  userId: "usr-superadmin",
+  email: "admin@smartbiz.com",
+  name: "Super Admin",
+  role: "SUPER_ADMIN" as any,
+  businessId: "biz-101",
+  businessName: "Main",
+});
 
 describe("Admin Company Transactions Reset Suite", () => {
   it("should reset sales, payment allocations, customer balances in fallback store", async () => {
@@ -35,7 +45,10 @@ describe("Admin Company Transactions Reset Suite", () => {
     // Call POST handler
     const req = new Request("http://localhost:3000/api/admin/companies/reset-transactions", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        cookie: `sb_auth_token=${superAdminToken}`,
+      },
       body: JSON.stringify({
         businessId: testBizId,
         businessName: "Adeel Textile Mills",
@@ -65,7 +78,10 @@ describe("Admin Company Transactions Reset Suite", () => {
   it("should reject reset request without businessId or businessName", async () => {
     const req = new Request("http://localhost:3000/api/admin/companies/reset-transactions", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        cookie: `sb_auth_token=${superAdminToken}`,
+      },
       body: JSON.stringify({}),
     });
 

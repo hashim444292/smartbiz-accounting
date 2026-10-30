@@ -12,8 +12,8 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await getSession();
-    if (session && session.role !== "SUPER_ADMIN" && session.role !== "ADMIN" && session.role !== "OWNER_ADMIN") {
+    const session = await getSession(req);
+    if (!session || (session.role !== "SUPER_ADMIN" && session.role !== "ADMIN" && session.role !== "OWNER_ADMIN")) {
       return NextResponse.json(
         { success: false, error: "Access denied. Insufficient permissions to update company settings." },
         { status: 403 }
@@ -21,6 +21,12 @@ export async function PUT(
     }
 
     const { id } = params;
+    if (session.role === "OWNER_ADMIN" && session.businessId !== id && !session.companyIds?.includes(id)) {
+      return NextResponse.json(
+        { success: false, error: "Access denied. You can only update your own assigned company." },
+        { status: 403 }
+      );
+    }
     const body = await req.json();
 
     try {
@@ -211,8 +217,8 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await getSession();
-    if (session && session.role !== "SUPER_ADMIN" && session.role !== "ADMIN") {
+    const session = await getSession(req);
+    if (!session || (session.role !== "SUPER_ADMIN" && session.role !== "ADMIN")) {
       return NextResponse.json(
         { success: false, error: "Access denied. Only Platform Admins can delete companies." },
         { status: 403 }

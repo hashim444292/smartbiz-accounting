@@ -9,7 +9,13 @@ export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await getSession();
+    const session = await getSession(req);
+    if (!session || session.role !== "SUPER_ADMIN") {
+      return NextResponse.json(
+        { success: false, error: "Access denied. Only Super Admin has permission to reset company transactions." },
+        { status: 403 }
+      );
+    }
     const activeBizId = await getActiveBusinessId(req);
     const body = await req.json().catch(() => ({}));
 

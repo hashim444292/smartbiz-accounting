@@ -9,60 +9,112 @@ import { NextRequest } from "next/server";
  */
 export async function getActiveBusinessId(req?: NextRequest): Promise<string> {
   let candidate: string | null = null;
+  let session = null;
 
-  // 1. Try to read from explicit NextRequest headers or cookies if passed
+  // 1. Resolve candidate and session token from explicit NextRequest or cookies()
+  let token: string | undefined;
   if (req) {
     candidate = req.headers?.get?.("x-business-id") ||
                 req.cookies?.get?.(ACTIVE_BIZ_COOKIE)?.value ||
                 null;
-    if (!candidate) {
-      const token = req.cookies?.get?.(TOKEN_NAME)?.value;
-      if (token) {
-        const session = verifySessionToken(token);
-        if (session?.businessId) candidate = session.businessId;
+    token = req.cookies?.get?.(TOKEN_NAME)?.value;
+
+    if (typeof req.headers?.get === "function") {
+      const cookieHeader = req.headers.get("cookie");
+      if (cookieHeader) {
+        if (!token) {
+          const match = cookieHeader.match(new RegExp(`(?:^|;\\s*)${TOKEN_NAME}=([^;]+)`));
+          if (match) token = match[1];
+        }
+        if (!candidate) {
+          const bizMatch = cookieHeader.match(new RegExp(`(?:^|;\\s*)${ACTIVE_BIZ_COOKIE}=([^;]+)`));
+          if (bizMatch) candidate = bizMatch[1];
+        }
       }
     }
   }
 
-  // 2. Read from next/headers cookies() store (Server Components & Route Handlers)
-  if (!candidate) {
+  if (!token) {
     try {
       const cookieStore = cookies();
-      candidate = cookieStore.get(ACTIVE_BIZ_COOKIE)?.value || null;
-      if (!candidate) {
-        const token = cookieStore.get(TOKEN_NAME)?.value;
-        if (token) {
-          const session = verifySessionToken(token);
-          if (session?.businessId) candidate = session.businessId;
-        }
-      }
+      if (!candidate) candidate = cookieStore.get(ACTIVE_BIZ_COOKIE)?.value || null;
+      token = cookieStore.get(TOKEN_NAME)?.value;
     } catch {}
   }
 
-  // 3. If DB is connected, verify candidate exists in DB. If not, pick the first valid business
+  if (token) {
+    session = verifySessionToken(token);
+  }
+
+  // 2. Validate candidate business against authenticated user's authorized companies
+  let validatedBusinessId: string | null = null;
+  if (session) {
+    const isSuperAdmin = session.role === "SUPER_ADMIN";
+    const userCompanyIds = Array.isArray(session.companyIds) && session.companyIds.length > 0
+      ? session.companyIds
+      : (session.businessId ? [session.businessId] : []);
+
+    if (candidate) {
+      if (isSuperAdmin || userCompanyIds.includes(candidate)) {
+        validatedBusinessId = candidate;
+      } else if (process.env.DATABASE_URL) {
+        try {
+          const membership = await prisma.businessMember.findFirst({
+            where: { userId: session.userId, businessId: candidate },
+            select: { businessId: true },
+          });
+          if (membership?.businessId) {
+            validatedBusinessId = membership.businessId;
+          }
+        } catch {}
+      }
+    }
+
+    // If candidate was unauthorized or not supplied, fall back strictly to user's assigned business
+    if (!validatedBusinessId) {
+      validatedBusinessId = session.businessId || userCompanyIds[0] || null;
+    }
+  } else {
+    // Unauthenticated public request (e.g. public QR invoice verification)
+    validatedBusinessId = candidate;
+  }
+
+  // 3. Verify existence in DB if configured
   if (process.env.DATABASE_URL) {
     try {
-      if (candidate) {
+      if (validatedBusinessId) {
         const exists = await prisma.business.findUnique({
-          where: { id: candidate },
+          where: { id: validatedBusinessId },
           select: { id: true },
         });
         if (exists?.id) return exists.id;
       }
 
-      // Candidate not in DB or none specified; select the first business from DB
-      const firstBiz = await prisma.business.findFirst({
-        orderBy: { createdAt: "asc" },
-        select: { id: true },
-      });
-      if (firstBiz?.id) return firstBiz.id;
+      // If user has a valid session, never return an unrelated company
+      if (session?.businessId) {
+        const userBiz = await prisma.business.findUnique({
+          where: { id: session.businessId },
+          select: { id: true },
+        });
+        if (userBiz?.id) return userBiz.id;
+      }
+
+      // Unauthenticated fallback only
+      if (!session) {
+        const firstBiz = await prisma.business.findFirst({
+          orderBy: { createdAt: "asc" },
+          select: { id: true },
+        });
+        if (firstBiz?.id) return firstBiz.id;
+      }
     } catch (err: any) {
       console.error("getActiveBusinessId DB check error:", err?.message || err);
     }
   }
 
   // 4. Fallback if DB offline or empty
-  if (candidate) return candidate;
+  if (validatedBusinessId) return validatedBusinessId;
+  if (session?.businessId) return session.businessId;
   if (fallbackStore.companies && fallbackStore.companies.length > 0) {
     return fallbackStore.companies[0].id;
   }

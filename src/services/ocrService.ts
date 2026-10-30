@@ -84,12 +84,26 @@ export async function extractFromImage(params: {
   const startTime = Date.now();
   const { imageUrl, customApiKey, hintText } = params;
 
+  if (!imageUrl || typeof imageUrl !== 'string') {
+    throw new Error('Image URL is required');
+  }
+
+  // Maximum payload limit: 14MB base64 string (~10MB binary image)
+  const MAX_IMAGE_PAYLOAD_CHARS = 14 * 1024 * 1024;
+  if (imageUrl.length > MAX_IMAGE_PAYLOAD_CHARS) {
+    throw new Error('Image payload exceeds maximum allowed size (10MB)');
+  }
+
   let mimeType = 'image/jpeg';
   let base64Data = imageUrl;
-  const match = imageUrl.match(/^data:(image\/\w+);base64,(.+)$/);
+  const match = imageUrl.match(/^data:(image\/[a-zA-Z0-9\-.+]+);base64,(.+)$/);
   if (match) {
-    mimeType = match[1];
+    mimeType = match[1].toLowerCase();
     base64Data = match[2];
+    const allowedMimes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif', 'image/bmp'];
+    if (!allowedMimes.includes(mimeType)) {
+      throw new Error(`Unsupported image format: ${mimeType}. Allowed formats: JPEG, PNG, WEBP, GIF, BMP`);
+    }
   }
 
   // 1. Check for Gemini API Key (Fast Cloud Vision)

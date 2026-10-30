@@ -10,8 +10,8 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await getSession();
-    if (session && session.role !== "SUPER_ADMIN") {
+    const session = await getSession(req);
+    if (!session || session.role !== "SUPER_ADMIN") {
       return NextResponse.json(
         { success: false, error: "Access denied. Only Super Admin can modify user accounts." },
         { status: 403 }
@@ -119,9 +119,9 @@ export async function DELETE(
 ) {
   try {
     const { id } = params;
-    const session = await getSession();
+    const session = await getSession(req);
 
-    if (session && session.role !== "SUPER_ADMIN") {
+    if (!session || session.role !== "SUPER_ADMIN") {
       return NextResponse.json(
         { success: false, error: "Access denied. Only Super Admin can delete user accounts." },
         { status: 403 }

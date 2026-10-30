@@ -35,7 +35,14 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true, data: transfer });
   } catch (error: any) {
-    if (error.message?.includes("Can't reach database server") || error.code === "P1001" || !process.env.DATABASE_URL) {
+    if (
+      error.message?.includes("Can't reach database server") ||
+      error.message?.includes("does not exist") ||
+      error.name === "PrismaClientInitializationError" ||
+      error.code === "P1001" ||
+      error.code === "P1003" ||
+      !process.env.DATABASE_URL
+    ) {
       try {
         const session = await getSession();
         const businessId = await getActiveBusinessId(req);

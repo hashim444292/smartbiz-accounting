@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { POST } from "../src/app/api/payments/transfer/route";
 import { fallbackStore, storeTransferFunds } from "../src/lib/fallbackStore";
 import { numberToWords } from "../src/lib/numberToWords";
+import { signSessionToken } from "../src/lib/auth";
 
 describe("Cash Sales Deposit & Contra Journal Voucher Engine", () => {
   const testBizId = "biz-deposit-test-01";
@@ -128,11 +129,22 @@ describe("Cash Sales Deposit & Contra Journal Voucher Engine", () => {
         depositorName: "Adeel Ahmed",
       };
 
+      const testToken = signSessionToken({
+        userId: "usr-admin",
+        email: "admin@test.com",
+        name: "Admin",
+        role: "ADMIN" as any,
+        businessId: testBizId,
+        businessName: "Test Company",
+        companyIds: [testBizId],
+      });
+
       const req = new Request("http://localhost:3000/api/payments/transfer", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "x-business-id": testBizId,
+          cookie: `sb_auth_token=${testToken}; sb_active_business_id=${testBizId}`,
         },
         body: JSON.stringify(payload),
       });

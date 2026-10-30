@@ -7,10 +7,10 @@ import { createSafeAuditLog } from "@/lib/auditHelper";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
-    const session = await getSession();
-    if (session && session.role !== "SUPER_ADMIN" && session.role !== "ADMIN") {
+    const session = await getSession(req);
+    if (!session || (session.role !== "SUPER_ADMIN" && session.role !== "ADMIN")) {
       return NextResponse.json(
         { success: false, error: "Access denied. Only Super Admin and Platform Admins have access to company administration." },
         { status: 403 }
@@ -185,8 +185,8 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await getSession();
-    if (session && session.role !== "SUPER_ADMIN" && session.role !== "ADMIN") {
+    const session = await getSession(req);
+    if (!session || (session.role !== "SUPER_ADMIN" && session.role !== "ADMIN")) {
       return NextResponse.json(
         { success: false, error: "Access denied. Only Super Admin and Platform Admins can register new companies." },
         { status: 403 }

@@ -10,8 +10,8 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await getSession();
-    if (session && session.role !== "SUPER_ADMIN" && session.role !== "OWNER_ADMIN") {
+    const session = await getSession(req);
+    if (!session || (session.role !== "SUPER_ADMIN" && session.role !== "OWNER_ADMIN" && session.role !== "ADMIN")) {
       return NextResponse.json(
         { success: false, error: "Access denied. Only Business Owners and Super Admins can assign users to branches." },
         { status: 403 }

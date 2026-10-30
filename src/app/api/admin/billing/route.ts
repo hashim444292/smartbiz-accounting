@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   try {
     const session = await getSession();
-    if (session && session.role !== "SUPER_ADMIN" && session.role !== "ADMIN") {
+    if (!session || (session.role !== "SUPER_ADMIN" && session.role !== "ADMIN")) {
       return NextResponse.json(
         { success: false, error: "Access denied. SaaS billing is strictly restricted to Super Admin and Platform Admins." },
         { status: 403 }
@@ -118,7 +118,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const session = await getSession();
-    if (session && session.role !== "SUPER_ADMIN" && session.role !== "ADMIN") {
+    if (!session || (session.role !== "SUPER_ADMIN" && session.role !== "ADMIN")) {
       return NextResponse.json(
         { success: false, error: "Access denied. Only Super Admin and Platform Admins can record subscription payments." },
         { status: 403 }

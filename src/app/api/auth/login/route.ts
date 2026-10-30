@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { comparePassword, signSessionToken, setSessionCookie, setActiveBusinessCookie } from "@/lib/auth";
 import { fallbackStore } from "@/lib/fallbackStore";
+import { getClientIp, checkLoginRateLimit, recordFailedLogin, resetLoginRateLimit } from "@/lib/rateLimit";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +19,38 @@ export async function POST(req: NextRequest) {
     }
 
     const cleanEmail = email.toLowerCase().trim();
+    const clientIp = getClientIp(req);
+    const ipKey = `ip:${clientIp}`;
+    const emailKey = `email:${cleanEmail}`;
+
+    // Enforce rate limiting per IP and per Email
+    const ipCheck = checkLoginRateLimit(ipKey);
+    if (!ipCheck.allowed) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Too many failed login attempts from this network. Please wait ${ipCheck.retryAfterSeconds || 900} seconds before trying again.`,
+        },
+        {
+          status: 429,
+          headers: { "Retry-After": String(ipCheck.retryAfterSeconds || 900) },
+        }
+      );
+    }
+
+    const emailCheck = checkLoginRateLimit(emailKey);
+    if (!emailCheck.allowed) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Too many failed login attempts for this account. Please wait ${emailCheck.retryAfterSeconds || 900} seconds before trying again.`,
+        },
+        {
+          status: 429,
+          headers: { "Retry-After": String(emailCheck.retryAfterSeconds || 900) },
+        }
+      );
+    }
 
     // 1. Check in database first
     try {
@@ -53,6 +86,9 @@ export async function POST(req: NextRequest) {
             canCreateBranches: Boolean((primaryBusiness as any)?.canCreateBranches),
             allowedModules: user.allowedModules || [],
           };
+
+          resetLoginRateLimit(ipKey);
+          resetLoginRateLimit(emailKey);
 
           const token = signSessionToken(payload);
           setSessionCookie(token);
@@ -98,6 +134,9 @@ export async function POST(req: NextRequest) {
         canCreateBranches: Boolean(activeBiz.canCreateBranches),
       };
 
+      resetLoginRateLimit(ipKey);
+      resetLoginRateLimit(emailKey);
+
       const token = signSessionToken(payload);
       setSessionCookie(token);
       setActiveBusinessCookie(payload.businessId);
@@ -115,6 +154,21 @@ export async function POST(req: NextRequest) {
       }
 
       return response;
+    }
+
+    const ipRes = recordFailedLogin(ipKey);
+    const emailRes = recordFailedLogin(emailKey);
+
+    const isBlocked = !ipRes.allowed || !emailRes.allowed;
+    if (isBlocked) {
+      const waitSec = ipRes.retryAfterSeconds || emailRes.retryAfterSeconds || 900;
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Too many failed login attempts. Account temporarily locked. Please try again in ${waitSec} seconds.`,
+        },
+        { status: 429, headers: { "Retry-After": String(waitSec) } }
+      );
     }
 
     return NextResponse.json(

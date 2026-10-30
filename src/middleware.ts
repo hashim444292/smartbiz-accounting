@@ -1,26 +1,60 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-function isValidJwt(token?: string | null): boolean {
+const JWT_SECRET = process.env.JWT_SECRET || "dev-secret-accounting-jwt-key-2026";
+
+function base64UrlToUint8Array(str: string): Uint8Array {
+  const base64 = str.replace(/-/g, "+").replace(/_/g, "/");
+  const pad = base64.length % 4;
+  const padded = pad ? base64 + "=".repeat(4 - pad) : base64;
+  const binary = atob(padded);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
+}
+
+async function verifyJwt(token?: string | null): Promise<boolean> {
   if (!token || typeof token !== "string") return false;
   const parts = token.split(".");
   if (parts.length !== 3) return false;
+
+  const [headerB64, payloadB64, signatureB64] = parts;
+
   try {
-    const payloadJson = atob(parts[1].replace(/-/g, "+").replace(/_/g, "/"));
+    const encoder = new TextEncoder();
+    const key = await crypto.subtle.importKey(
+      "raw",
+      encoder.encode(JWT_SECRET),
+      { name: "HMAC", hash: "SHA-256" },
+      false,
+      ["verify"]
+    );
+
+    const signatureBytes = base64UrlToUint8Array(signatureB64);
+    const dataBytes = encoder.encode(`${headerB64}.${payloadB64}`);
+
+    const isValidSig = await crypto.subtle.verify("HMAC", key, signatureBytes as any, dataBytes);
+    if (!isValidSig) return false;
+
+    const payloadJson = atob(payloadB64.replace(/-/g, "+").replace(/_/g, "/"));
     const payload = JSON.parse(payloadJson);
+
     if (payload.exp && Date.now() >= payload.exp * 1000) {
       return false; // Token expired
     }
+
     return Boolean(payload.userId && payload.role);
   } catch {
     return false;
   }
 }
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const rawToken = request.cookies.get("sb_auth_token")?.value;
-  const isAuthenticated = isValidJwt(rawToken);
+  const isAuthenticated = await verifyJwt(rawToken);
 
   // 1. Allow Next.js internals, static assets, and images
   if (

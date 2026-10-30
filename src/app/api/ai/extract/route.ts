@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getActiveBusinessId } from "@/lib/businessHelper";
+import { getSession } from "@/lib/auth";
 import { extractTransactionsFromInput, parseDiaryText } from "@/services/aiService";
 import { extractFromImage } from "@/services/ocrService";
 import { fallbackStore } from "@/lib/fallbackStore";
@@ -7,20 +8,71 @@ import { isDatabaseOnline } from "@/lib/dbCheck";
 
 export const dynamic = "force-dynamic";
 
+const MAX_IMAGE_PAYLOAD_CHARS = 14 * 1024 * 1024; // ~10MB binary
+const ALLOWED_MIME_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif", "image/bmp"];
+
 export async function POST(req: NextRequest) {
-  const body = await req.json();
-  const { source = "TEXT", text, imageUrl, audioUrl, customApiKey } = body;
+  try {
+    const session = await getSession(req);
+    if (!session) {
+      return NextResponse.json(
+        { success: false, error: "Authentication required" },
+        { status: 401 }
+      );
+    }
 
-  let ocrRes: any = null;
-  let textToExtract = text || "";
+    const body = await req.json();
+    const { source = "TEXT", text, imageUrl, audioUrl, customApiKey } = body;
 
-  // Run OCR once if image is present
-  if (imageUrl) {
-    ocrRes = await extractFromImage({ imageUrl, customApiKey });
-    textToExtract = ocrRes.rawText || "";
-  }
+    // Validate imageUrl if supplied
+    if (imageUrl) {
+      if (typeof imageUrl !== "string") {
+        return NextResponse.json(
+          { success: false, error: "Invalid image URL format" },
+          { status: 400 }
+        );
+      }
 
-  const dbOnline = await isDatabaseOnline();
+      if (imageUrl.length > MAX_IMAGE_PAYLOAD_CHARS) {
+        return NextResponse.json(
+          { success: false, error: "Image size exceeds maximum allowed limit (10MB)" },
+          { status: 413 }
+        );
+      }
+
+      if (imageUrl.startsWith("data:")) {
+        const mimeMatch = imageUrl.match(/^data:([a-zA-Z0-9\-.+]+\/[a-zA-Z0-9\-.+]+);base64,/);
+        if (!mimeMatch) {
+          return NextResponse.json(
+            { success: false, error: "Invalid base64 data URI format" },
+            { status: 400 }
+          );
+        }
+        const mime = mimeMatch[1].toLowerCase();
+        if (!ALLOWED_MIME_TYPES.includes(mime)) {
+          return NextResponse.json(
+            { success: false, error: `Unsupported image format: ${mime}. Allowed formats: JPEG, PNG, WEBP, GIF, BMP.` },
+            { status: 415 }
+          );
+        }
+      } else if (!imageUrl.startsWith("http://") && !imageUrl.startsWith("https://")) {
+        return NextResponse.json(
+          { success: false, error: "Image URL must be a valid http/https URL or base64 data URI" },
+          { status: 400 }
+        );
+      }
+    }
+
+    let ocrRes: any = null;
+    let textToExtract = text || "";
+
+    // Run OCR once if image is present
+    if (imageUrl) {
+      ocrRes = await extractFromImage({ imageUrl, customApiKey });
+      textToExtract = ocrRes.rawText || "";
+    }
+
+    const dbOnline = await isDatabaseOnline();
 
   if (dbOnline) {
     try {
@@ -114,4 +166,10 @@ export async function POST(req: NextRequest) {
 
   fallbackStore.aiImports.unshift(fallbackImport);
   return NextResponse.json({ success: true, data: fallbackImport, fallback: true });
+  } catch (error: any) {
+    return NextResponse.json(
+      { success: false, error: error.message || "Failed to extract transactions" },
+      { status: 500 }
+    );
+  }
 }
