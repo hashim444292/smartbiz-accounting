@@ -35,7 +35,6 @@ import {
   UploadCloud,
   BarChart3,
   Landmark,
-  Scale,
   Boxes,
   BookOpen,
   Coins,
@@ -495,18 +494,6 @@ export default function DashboardPage() {
             hoverBorder: "hover:border-sky-400 hover:bg-sky-50/40 dark:hover:bg-sky-950/20",
             description: t("Manage customer balances, credit limits & statements", "کسٹمرز کے بقایا جات اور ادھار کی تفصیل دیکھیں"),
           },
-          {
-            category: "SALES",
-            href: "/sales/import",
-            icon: UploadCloud,
-            iconBg: "bg-indigo-100 text-indigo-700 dark:bg-indigo-950/80 dark:text-indigo-300",
-            badgeBg: "text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 border-indigo-200 dark:border-indigo-800",
-            badge: t("Bulk Upload", "بلک اپلوڈ"),
-            title: t("Excel / CSV Import", "ایکسل سے بلک انوائسز"),
-            hoverTitle: "group-hover:text-indigo-600 dark:group-hover:text-indigo-400",
-            hoverBorder: "hover:border-indigo-400 hover:bg-indigo-50/40 dark:hover:bg-indigo-950/20",
-            description: t("Upload sales spreadsheet and sync directly to accounting", "شیٹ اپلوڈ کریں اور بلک انوائسز سسٹم میں ڈالیں"),
-          },
           // PURCHASES & MONEY OUT
           {
             category: "PURCHASES",
@@ -581,18 +568,6 @@ export default function DashboardPage() {
             hoverBorder: "hover:border-indigo-400 hover:bg-indigo-50/40 dark:hover:bg-indigo-950/20",
             description: t("Double-entry journals, Chart of Accounts & audits", "تمام کھاتوں کا خلاصہ، جرنل انٹریز اور واؤچرز"),
           },
-          {
-            category: "BANKING",
-            href: "/accounting/opening-balances",
-            icon: Scale,
-            iconBg: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/80 dark:text-emerald-300",
-            badgeBg: "text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 border-emerald-200 dark:border-emerald-800",
-            badge: t("Capital", "ابتدائی کھاتہ"),
-            title: t("Opening Capital & Setup", "ابتدائی کیپیٹل و کھاتہ"),
-            hoverTitle: "group-hover:text-emerald-600 dark:group-hover:text-emerald-400",
-            hoverBorder: "hover:border-emerald-400 hover:bg-emerald-50/40 dark:hover:bg-emerald-950/20",
-            description: t("Set business starting capital, initial stock & dues", "کاروبار کا افتتاحی کیپیٹل، اوپننگ اسٹاک اور بیلنس"),
-          },
           // STOCK & REPORTS
           {
             category: "STOCK",
@@ -630,19 +605,6 @@ export default function DashboardPage() {
             hoverBorder: "hover:border-blue-400 hover:bg-blue-50/40 dark:hover:bg-blue-950/20",
             description: t("Profit & loss statement, balance sheet & tax summary", "نفع و نقصان، بیلنس شیٹ اور ٹرائل بیلنس دیکھیں"),
           },
-          // FBR DIGITAL (when compliance enabled)
-          ...(!isAccountingOnly ? [{
-            category: "SALES",
-            href: "/compliance/fbr",
-            icon: ShieldCheck,
-            iconBg: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/80 dark:text-emerald-300",
-            badgeBg: "text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 border-emerald-200 dark:border-emerald-800",
-            badge: t("FBR Live", "FBR تصدیق"),
-            title: t("FBR Digital Invoicing", "ایف بی آر ٹیکس ہب"),
-            hoverTitle: "group-hover:text-emerald-600 dark:group-hover:text-emerald-400",
-            hoverBorder: "hover:border-emerald-400 hover:bg-emerald-50/40 dark:hover:bg-emerald-950/20",
-            description: t("Live digital invoice submission, QR codes & tax queue", "لائیو ڈیجیٹل انوائسز اور ایف بی آر ریکارڈ"),
-          }] : []),
         ];
 
         const visibleCards = isFbrInvoicingOnly
@@ -749,7 +711,13 @@ export default function DashboardPage() {
             </div>
 
             {/* Fast Action Cards Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
+            <div
+              className={`grid gap-2.5 sm:gap-3 ${
+                isFbrInvoicingOnly
+                  ? "grid-cols-2 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-4"
+                  : "grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6"
+              }`}
+            >
               {isFbrInvoicingOnly ? (
                 <>
                   {/* Action 1: New Sale Invoice */}
@@ -851,27 +819,27 @@ export default function DashboardPage() {
                     <Link
                       key={card.href + card.category + idx}
                       href={card.href}
-                      className={`group relative flex flex-col justify-between p-3.5 sm:p-4 rounded-xl border border-slate-200/90 bg-white shadow-2xs hover:shadow-md transition-all duration-200 dark:border-slate-800 dark:bg-[#111827] ${card.hoverBorder}`}
+                      className={`group relative flex flex-col justify-between p-3 sm:p-3.5 rounded-xl border border-slate-200/90 bg-white shadow-2xs hover:shadow-md transition-all duration-200 dark:border-slate-800 dark:bg-[#111827] ${card.hoverBorder}`}
                     >
                       <div className="flex items-center justify-between">
                         <div
-                          className={`h-10 w-10 rounded-xl flex items-center justify-center font-bold group-hover:scale-105 transition-transform ${card.iconBg}`}
+                          className={`h-9 w-9 sm:h-10 sm:w-10 rounded-xl flex items-center justify-center font-bold group-hover:scale-105 transition-transform ${card.iconBg}`}
                         >
-                          <IconComp className="h-5 w-5" />
+                          <IconComp className="h-4.5 w-4.5 sm:h-5 sm:w-5" />
                         </div>
                         <span
-                          className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${card.badgeBg}`}
+                          className={`text-[10px] font-bold px-1.5 sm:px-2 py-0.5 rounded-md border ${card.badgeBg}`}
                         >
                           {card.badge}
                         </span>
                       </div>
-                      <div className="mt-3">
+                      <div className="mt-2.5 sm:mt-3">
                         <h3
-                          className={`text-sm sm:text-base font-bold text-slate-900 dark:text-white transition-colors ${card.hoverTitle}`}
+                          className={`text-xs sm:text-sm font-bold text-slate-900 dark:text-white transition-colors leading-snug ${card.hoverTitle}`}
                         >
                           {card.title}
                         </h3>
-                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-snug line-clamp-2">
+                        <p className="text-[10.5px] sm:text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-snug line-clamp-2">
                           {card.description}
                         </p>
                       </div>
