@@ -51,10 +51,15 @@ function savePersistedState(map: Map<string, RateLimitEntry>) {
       }
     }
     const tempFile = `${PERSISTENCE_FILE}.tmp.${Date.now()}.${Math.random().toString(36).slice(2, 6)}`;
-    fs.writeFileSync(tempFile, JSON.stringify(obj), "utf-8");
+    // Enforce owner-only (0600) permissions on file creation
+    fs.writeFileSync(tempFile, JSON.stringify(obj), { encoding: "utf-8", mode: 0o600 });
     fs.renameSync(tempFile, PERSISTENCE_FILE);
-  } catch {
-    // Non-blocking
+    try {
+      fs.chmodSync(PERSISTENCE_FILE, 0o600);
+    } catch {}
+  } catch (err: any) {
+    // Non-blocking fallback to in-memory store if disk write fails
+    console.warn("rateLimit disk sync warning:", err?.message || err);
   }
 }
 
@@ -67,15 +72,28 @@ try {
 } catch {}
 
 export function getClientIp(req: NextRequest): string {
+  // 1. In production, Nginx reverse proxy overwrites X-Real-IP with $remote_addr.
+  // Because smartbiz-app binds strictly to 127.0.0.1, external clients cannot bypass Nginx.
+  // X-Real-IP is unconditionally trustworthy as the true socket IP from Nginx.
+  const xRealIp = req.headers.get("x-real-ip");
+  if (xRealIp && xRealIp.trim()) {
+    return xRealIp.trim();
+  }
+
+  // 2. Cloudflare Connecting IP (when deployed behind Cloudflare)
+  const cfConnectingIp = req.headers.get("cf-connecting-ip");
+  if (cfConnectingIp && cfConnectingIp.trim()) {
+    return cfConnectingIp.trim();
+  }
+
+  // 3. Fallback: Rightmost entry of X-Forwarded-For if X-Real-IP is absent
+  // (Leftmost is client-controlled; rightmost is appended by the nearest trusted reverse proxy)
   const xForwardedFor = req.headers.get("x-forwarded-for");
   if (xForwardedFor) {
-    const ips = xForwardedFor.split(",").map((ip) => ip.trim());
-    if (ips[0]) return ips[0];
+    const ips = xForwardedFor.split(",").map((ip) => ip.trim()).filter(Boolean);
+    if (ips.length > 0) return ips[ips.length - 1];
   }
-  const xRealIp = req.headers.get("x-real-ip");
-  if (xRealIp) return xRealIp.trim();
-  const cfConnectingIp = req.headers.get("cf-connecting-ip");
-  if (cfConnectingIp) return cfConnectingIp.trim();
+
   return (req as any).ip || "127.0.0.1";
 }
 
@@ -136,11 +154,14 @@ export function checkLoginRateLimit(key: string): RateLimitCheckResult {
 export function recordFailedLogin(key: string): RateLimitCheckResult {
   const now = Date.now();
 
-  // Reload disk for multi-process freshness
+  // Reload disk for multi-process freshness and merge to prevent cross-key erasure
   try {
     const disk = loadPersistedState();
-    if (disk.has(key)) {
-      memoryStore.set(key, disk.get(key)!);
+    for (const [k, v] of disk.entries()) {
+      const existing = memoryStore.get(k);
+      if (!existing || v.lastAttempt > existing.lastAttempt || (v.blockedUntil && !existing.blockedUntil)) {
+        memoryStore.set(k, v);
+      }
     }
   } catch {}
 
