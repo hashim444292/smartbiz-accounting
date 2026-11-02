@@ -82,6 +82,7 @@ export default function PaymentsPage() {
   const [pendingBills, setPendingBills] = useState<any[]>([]);
   const [loadingBills, setLoadingBills] = useState(false);
   const [selectedBillId, setSelectedBillId] = useState<string>("ALL");
+  const [cashSummary, setCashSummary] = useState<any>(null);
 
   const fetchPayments = async (isSilent = false) => {
     if (!isSilent) setLoading(true);
@@ -95,7 +96,10 @@ export default function PaymentsPage() {
       invalidateCache("/api/payments");
       const payJson = await smartFetch(`/api/payments${query}`, { headers, ttlMs: 0, skipCache: true });
 
-      if (payJson.success) setPayments(payJson.data || []);
+      if (payJson.success) {
+        setPayments(payJson.data || []);
+        if (payJson.summary) setCashSummary(payJson.summary);
+      }
 
       const rawAccounts = (payJson.accounts && payJson.accounts.length > 0) ? payJson.accounts : [];
 
@@ -578,6 +582,31 @@ export default function PaymentsPage() {
 
   const netCashFlow = totalReceipts - totalDisbursements;
 
+  // Opening & Adjusted Liquid Balances
+  const openingCash = Number(cashSummary?.openingCash ?? 0);
+  const openingBank = Number(cashSummary?.openingBank ?? 0);
+  const openingTotal = Number(
+    cashSummary?.openingTotal ?? (openingCash + openingBank)
+  );
+
+  const closingLiquidTotal =
+    cashSummary?.closingTotal !== undefined && cashSummary?.closingTotal !== null
+      ? Number(cashSummary.closingTotal)
+      : openingTotal + netCashFlow;
+
+  const closingCash = Number(
+    cashSummary?.closingCash ??
+      accounts
+        .filter((a) => a.type === "CASH")
+        .reduce((sum, a) => sum + Number(a.balance || 0), 0)
+  );
+  const closingBank = Number(
+    cashSummary?.closingBank ??
+      accounts
+        .filter((a) => a.type === "BANK")
+        .reduce((sum, a) => sum + Number(a.balance || 0), 0)
+  );
+
   return (
     <div className="space-y-5">
       {/* Top Banner & Action Buttons */}
@@ -660,38 +689,89 @@ export default function PaymentsPage() {
       </div>
 
       {/* KPI Summary Cards */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {/* Card 1: Opening Liquid Balance */}
+        <div className="rounded-xl border border-slate-200/90 bg-white p-3.5 shadow-2xs dark:border-slate-800 dark:bg-[#111827]">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+              {t("Opening Liquid Balance", "ابتدائی کیش و بینک")}
+            </span>
+            <div className="h-7 w-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center dark:bg-emerald-950/60 dark:text-emerald-400">
+              <Landmark className="h-4 w-4" />
+            </div>
+          </div>
+          <p className="mt-1 text-lg font-bold text-slate-900 dark:text-white tabular-nums">
+            {formatMoney(openingTotal)}
+          </p>
+          <div className="mt-1 flex items-center gap-1.5 text-[10.5px] text-slate-500 dark:text-slate-400">
+            <span>Cash: <strong className="text-slate-700 dark:text-slate-300">{formatMoney(openingCash)}</strong></span>
+            <span>•</span>
+            <span>Bank: <strong className="text-slate-700 dark:text-slate-300">{formatMoney(openingBank)}</strong></span>
+          </div>
+        </div>
+
+        {/* Card 2: Total Money Received */}
         <div className="rounded-xl border border-emerald-100 bg-emerald-50/40 p-3.5 dark:border-emerald-900/50 dark:bg-emerald-950/20">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-emerald-800 dark:text-emerald-300">Total Money Received</span>
+            <span className="text-xs font-semibold text-emerald-800 dark:text-emerald-300">
+              {t("Total Money Received", "کل وصولی")}
+            </span>
             <TrendingUp className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
           </div>
           <p className="mt-1 text-lg font-bold text-emerald-700 dark:text-emerald-400 tabular-nums">
             +{formatMoney(totalReceipts)}
           </p>
-          <span className="text-[10px] text-emerald-600/80">From customer collections & sales</span>
+          <span className="text-[10px] text-emerald-600/80">
+            {t("From customer collections & sales", "کسٹمر وصولیاں اور کیش انوائسز")}
+          </span>
         </div>
 
+        {/* Card 3: Total Money Paid Out */}
         <div className="rounded-xl border border-rose-100 bg-rose-50/40 p-3.5 dark:border-rose-900/50 dark:bg-rose-950/20">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-rose-800 dark:text-rose-300">Total Money Paid Out</span>
+            <span className="text-xs font-semibold text-rose-800 dark:text-rose-300">
+              {t("Total Money Paid Out", "کل ادائیگی")}
+            </span>
             <TrendingDown className="h-4 w-4 text-rose-600 dark:text-rose-400" />
           </div>
           <p className="mt-1 text-lg font-bold text-rose-700 dark:text-rose-400 tabular-nums">
             -{formatMoney(totalDisbursements)}
           </p>
-          <span className="text-[10px] text-rose-600/80">To suppliers, purchases & vendors</span>
+          <span className="text-[10px] text-rose-600/80">
+            {t("To suppliers, purchases & vendors", "سپلائر ادائیگیاں اور بلز")}
+          </span>
         </div>
 
-        <div className="rounded-xl border border-blue-100 bg-blue-50/40 p-3.5 dark:border-blue-900/50 dark:bg-blue-950/20">
+        {/* Card 4: Total Adjusted Available Balance */}
+        <div className={`rounded-xl border p-3.5 shadow-2xs ${
+          closingLiquidTotal >= 0
+            ? "border-blue-200/90 bg-blue-50/40 dark:border-blue-900/50 dark:bg-blue-950/20"
+            : "border-amber-200/90 bg-amber-50/40 dark:border-amber-900/50 dark:bg-amber-950/20"
+        }`}>
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-blue-800 dark:text-blue-300">Net Movement Balance</span>
-            <Wallet className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+            <span className="text-xs font-semibold text-blue-900 dark:text-blue-200">
+              {t("Adjusted Available Funds", "کل موجودہ رقم")}
+            </span>
+            <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded-md border ${
+              netCashFlow >= 0
+                ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300"
+                : "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/60 dark:text-amber-300"
+            }`}>
+              {t("Flow: ", "بہاؤ: ")}{netCashFlow >= 0 ? "+" : ""}{formatMoney(netCashFlow)}
+            </span>
           </div>
-          <p className={`mt-1 text-lg font-bold tabular-nums ${netCashFlow >= 0 ? "text-blue-700 dark:text-blue-400" : "text-amber-600 dark:text-amber-400"}`}>
-            {netCashFlow >= 0 ? "+" : ""}{formatMoney(netCashFlow)}
+          <p className={`mt-1 text-lg font-bold tabular-nums ${
+            closingLiquidTotal >= 0
+              ? "text-blue-700 dark:text-blue-300"
+              : "text-amber-700 dark:text-amber-400"
+          }`}>
+            {formatMoney(closingLiquidTotal)}
           </p>
-          <span className="text-[10px] text-blue-600/80">Net cash & bank flow</span>
+          <div className="mt-1 flex items-center gap-1.5 text-[10px] text-slate-500 dark:text-slate-400">
+            <span>Cash: <strong className="text-slate-700 dark:text-slate-300">{formatMoney(closingCash)}</strong></span>
+            <span>•</span>
+            <span>Bank: <strong className="text-slate-700 dark:text-slate-300">{formatMoney(closingBank)}</strong></span>
+          </div>
         </div>
       </div>
 

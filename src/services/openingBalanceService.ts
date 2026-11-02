@@ -406,10 +406,29 @@ export async function saveOpeningBalances(
         // A. Upsert Cash & Bank accounts
         for (const cb of input.cashBank || []) {
           if (cb.id && !cb.id.startsWith("cash-") && !cb.id.startsWith("bank-")) {
+            // Compute subsequent operational payments for this account to preserve live balance
+            const accPayments = await tx.payment.findMany({
+              where: {
+                businessId,
+                OR: [{ accountId: cb.id }, { targetAccountId: cb.id }],
+              },
+            });
+            let netPaymentDelta = 0;
+            for (const p of accPayments) {
+              const amt = Number(p.amount || 0);
+              if (p.accountId === cb.id) {
+                if (p.type === "RECEIPT") netPaymentDelta += amt;
+                else netPaymentDelta -= amt;
+              }
+              if (p.targetAccountId === cb.id) {
+                netPaymentDelta += amt;
+              }
+            }
+
             await tx.cashBankAccount.update({
               where: { id: cb.id },
               data: {
-                balance: Number(cb.balance || 0),
+                balance: round2(Number(cb.balance || 0) + netPaymentDelta).toNumber(),
                 name: cb.name,
                 type: cb.type,
                 accountNumber: cb.accountNumber || null,
@@ -679,12 +698,26 @@ export async function saveOpeningBalances(
             description: l.description,
           });
 
-          // Update account balance
+          // Update account balance (preserving other operational journal lines)
           const isAsset = ["ASSET", "EXPENSE", "COGS"].includes(acc.type);
           const netChange = isAsset ? (l.debit - l.credit) : (l.credit - l.debit);
+
+          const otherLines = await tx.journalLine.findMany({
+            where: {
+              accountId: acc.id,
+              journalEntry: { referenceType: { not: "OPENING_BALANCE" } },
+            },
+          });
+          let otherDelta = 0;
+          for (const ol of otherLines) {
+            const dr = Number(ol.debit || 0);
+            const cr = Number(ol.credit || 0);
+            otherDelta += isAsset ? (dr - cr) : (cr - dr);
+          }
+
           await tx.account.update({
             where: { id: acc.id },
-            data: { balance: netChange },
+            data: { balance: round2(netChange + otherDelta).toNumber() },
           });
         }
 

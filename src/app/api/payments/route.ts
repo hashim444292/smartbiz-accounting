@@ -4,6 +4,7 @@ import { getActiveBusinessId, getActiveBranchId } from "@/lib/businessHelper";
 import { recordCustomerPayment, recordSupplierPayment } from "@/services/paymentService";
 import { fallbackStore, storeAddPayment } from "@/lib/fallbackStore";
 import { getSession } from "@/lib/auth";
+import { reconcileCashBankBalances, storeReconcileCashBankBalances } from "@/lib/cashBankHelper";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +19,7 @@ export async function GET(req: NextRequest) {
     if (type) where.type = type;
     if (branchId) where.branchId = branchId;
 
-    const [payments, accounts] = await Promise.all([
+    const [payments, accounts, cashBankSummary] = await Promise.all([
       prisma.payment.findMany({
         where,
         include: {
@@ -36,9 +37,19 @@ export async function GET(req: NextRequest) {
         where: { businessId, isActive: true },
         orderBy: { name: "asc" },
       }),
+      reconcileCashBankBalances(prisma, businessId),
     ]);
 
-    return NextResponse.json({ success: true, data: payments, accounts, branchId, isLockedToBranch });
+    const activeAccounts = cashBankSummary?.accounts?.length ? cashBankSummary.accounts : accounts;
+
+    return NextResponse.json({
+      success: true,
+      data: payments,
+      accounts: activeAccounts,
+      summary: cashBankSummary,
+      branchId,
+      isLockedToBranch,
+    });
   } catch (error: any) {
     const businessId = await getActiveBusinessId(req);
     const { branchId, isLockedToBranch } = await getActiveBranchId(req);
@@ -47,8 +58,16 @@ export async function GET(req: NextRequest) {
     let pays = fallbackStore.payments.filter((p) => p.businessId === businessId);
     if (type) pays = pays.filter((p) => p.type === type);
     if (branchId) pays = pays.filter((p) => p.branchId === branchId);
-    const accounts = fallbackStore.cashBankAccounts.filter((a) => a.businessId === businessId);
-    return NextResponse.json({ success: true, data: pays, accounts, branchId, isLockedToBranch, fallback: true });
+    const cashBankSummary = storeReconcileCashBankBalances(businessId);
+    return NextResponse.json({
+      success: true,
+      data: pays,
+      accounts: cashBankSummary.accounts,
+      summary: cashBankSummary,
+      branchId,
+      isLockedToBranch,
+      fallback: true,
+    });
   }
 }
 
