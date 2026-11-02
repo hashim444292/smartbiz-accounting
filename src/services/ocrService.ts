@@ -107,14 +107,18 @@ export async function extractFromImage(params: {
   }
 
   // 1. Check for Gemini API Key (Fast Cloud Vision)
+  const isGeminiKey = (k?: string | null): boolean => {
+    if (!k) return false;
+    const t = k.trim();
+    return t.startsWith('AIza') || t.startsWith('AQ.') || (!t.startsWith('sk-') && t.length > 20);
+  };
+
   const geminiKey =
-    (customApiKey && customApiKey.startsWith('AIza') ? customApiKey : null) ||
-    process.env.GEMINI_API_KEY;
+    (customApiKey && isGeminiKey(customApiKey) ? customApiKey.trim() : null) ||
+    (process.env.GEMINI_API_KEY && isGeminiKey(process.env.GEMINI_API_KEY) ? process.env.GEMINI_API_KEY.trim() : null);
 
-  if (geminiKey && geminiKey.trim().length > 10) {
+  if (geminiKey && geminiKey.length > 10) {
     try {
-      const geminiEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`;
-
       const prompt = `You are an expert Pakistani business accountant and OCR specialist.
 Extract all accounting and financial entries from this document (which may be a handwritten daily ledger slip, notebook diary, sales bill, cash memo, vendor purchase invoice, or expense voucher in English, Urdu, or Roman Urdu).
 
@@ -148,61 +152,69 @@ Return ONLY a valid JSON object matching this schema:
 If amounts are in PKR (e.g. 25,000 or 15k or 2.5 lac), convert to standard numbers (25000).
 If payment is partial, set paidAmount and remainingAmount accordingly. If credit/udhaar, paidAmount=0 and remainingAmount=totalAmount.`;
 
-      // Fast fetch with 8 second timeout to avoid hanging
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 8000);
+      // Candidate models: Modern fast multimodal vision models
+      const visionModels = ['gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-3.8-flash', 'gemini-flash-latest'];
 
-      const res = await fetch(geminiEndpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        signal: controller.signal,
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                { text: prompt + (hintText ? `\nUser notes/hints: ${hintText}` : '') },
+      for (const model of visionModels) {
+        try {
+          const geminiEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`;
+
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 12000);
+
+          const res = await fetch(geminiEndpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            signal: controller.signal,
+            body: JSON.stringify({
+              contents: [
                 {
-                  inlineData: {
-                    mimeType: mimeType,
-                    data: base64Data,
-                  },
+                  parts: [
+                    { text: prompt + (hintText ? `\nUser notes/hints: ${hintText}` : '') },
+                    {
+                      inlineData: {
+                        mimeType: mimeType,
+                        data: base64Data,
+                      },
+                    },
+                  ],
                 },
               ],
-            },
-          ],
-          generationConfig: {
-            responseMimeType: 'application/json',
-            temperature: 0.1,
-          },
-        }),
-      });
+              generationConfig: {
+                responseMimeType: 'application/json',
+                temperature: 0.1,
+              },
+            }),
+          });
 
-      clearTimeout(timeoutId);
+          clearTimeout(timeoutId);
 
-      if (res.ok) {
-        const json = await res.json();
-        const textContent = json.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (textContent) {
-          const parsed = JSON.parse(textContent);
-          const structuredResult: AIExtractionResult = {
-            documentDate: parsed.documentDate || new Date().toISOString().split('T')[0],
-            transactions: parsed.transactions || [],
-            sourceText: parsed.extractedText || '',
-            isSimulated: false,
-            providerNotice: 'Extracted via Google Gemini 1.5 Flash Vision Multimodal AI',
-          };
+          if (res.ok) {
+            const json = await res.json();
+            const textContent = json.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (textContent) {
+              const parsed = JSON.parse(textContent);
+              const structuredResult: AIExtractionResult = {
+                documentDate: parsed.documentDate || new Date().toISOString().split('T')[0],
+                transactions: parsed.transactions || [],
+                sourceText: parsed.extractedText || '',
+                isSimulated: false,
+                providerNotice: `Extracted via Google Gemini Multimodal Vision AI (${model})`,
+              };
 
-          return {
-            rawText: parsed.extractedText || '',
-            structuredResult,
-            engineUsed: 'GEMINI_VISION',
-            confidence: 0.96,
-            notice: 'Successfully parsed using Google Gemini Multimodal Vision',
-            processingTimeMs: Date.now() - startTime,
-          };
+              return {
+                rawText: parsed.extractedText || '',
+                structuredResult,
+                engineUsed: 'GEMINI_VISION',
+                confidence: 0.98,
+                notice: `Successfully parsed using Google Gemini Multimodal Vision (${model})`,
+                processingTimeMs: Date.now() - startTime,
+              };
+            }
+          }
+        } catch (mErr: any) {
+          // Continue to next candidate model if available
         }
-      } else {
-        console.warn('Gemini API call failed, falling back to fast local OCR:', await res.text());
       }
     } catch (err: any) {
       console.warn('Gemini Vision extraction error/timeout:', err.message);

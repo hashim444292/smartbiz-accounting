@@ -72,6 +72,7 @@ export default function AIDataEntryPage() {
   const [isKeyModalOpen, setIsKeyModalOpen] = useState(false);
   const [isGuideModalOpen, setIsGuideModalOpen] = useState(false);
   const [customApiKey, setCustomApiKey] = useState("");
+  const [serverAiConfigured, setServerAiConfigured] = useState(false);
   const [selectedSampleType, setSelectedSampleType] = useState<"DIARY" | "BILL" | "EXPENSE" | "PURCHASE">("DIARY");
 
   // WebRTC Video element ref
@@ -79,11 +80,18 @@ export default function AIDataEntryPage() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const recognitionRef = useRef<any>(null);
 
-  // Load API key from localStorage on mount
+  // Load API key from localStorage and check server AI status on mount
   useEffect(() => {
     if (typeof window !== "undefined") {
       const savedKey = localStorage.getItem("smartbiz_ai_key") || "";
       if (savedKey) setCustomApiKey(savedKey);
+
+      fetch("/api/ai/extract")
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (data?.aiConfigured) setServerAiConfigured(true);
+        })
+        .catch(() => {});
     }
   }, []);
 
@@ -595,7 +603,7 @@ Remaining Payable: Rs. 545,000`,
           >
             <Sliders className="h-3.5 w-3.5 text-slate-600 dark:text-slate-300" />
             <span>AI Engine & Key</span>
-            {customApiKey && (
+            {(customApiKey || serverAiConfigured) && (
               <span className="h-2 w-2 rounded-full bg-emerald-500 absolute -top-0.5 -right-0.5 ring-2 ring-white dark:ring-slate-900" />
             )}
           </Button>
@@ -784,8 +792,11 @@ Remaining Payable: Rs. 545,000`,
                 <span>Upload New File</span>
               </Button>
 
-              <span className="text-[10px] font-medium px-2 py-1 rounded-full bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
-                Engine: {customApiKey ? "Gemini AI Vision" : "Local Tesseract OCR"}
+              <span className="text-[10px] font-medium px-2 py-1 rounded-full bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 flex items-center gap-1.5">
+                {(customApiKey || serverAiConfigured) && (
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                )}
+                Engine: {customApiKey || serverAiConfigured ? "Google Gemini AI Vision" : "Local Tesseract OCR"}
               </span>
             </div>
           </CardHeader>
@@ -1635,11 +1646,17 @@ Expense tea - 500"
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
                   Custom Google Gemini or OpenAI API Key (Optional):
                 </label>
+                {serverAiConfigured && !customApiKey && (
+                  <div className="mb-2 p-2 rounded-xl bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 text-[11px] flex items-center gap-2 border border-emerald-200 dark:border-emerald-800">
+                    <span className="h-2 w-2 rounded-full bg-emerald-500 shrink-0" />
+                    <span><strong>Server AI Active:</strong> Google Gemini Vision is configured on your server. Custom key is optional.</span>
+                  </div>
+                )}
                 <input
                   type="password"
                   value={customApiKey}
                   onChange={(e) => setCustomApiKey(e.target.value)}
-                  placeholder="AIzaSy... or sk-proj-..."
+                  placeholder="AQ.Ab... or AIzaSy... or sk-proj-..."
                   className="w-full rounded-xl border border-slate-300 bg-white p-2.5 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
                 />
                 <p className="text-[10px] text-slate-400 mt-1">

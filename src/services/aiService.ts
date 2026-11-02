@@ -660,7 +660,7 @@ export async function extractTransactionsFromInput(params: {
 }): Promise<AIImportWithTransactions & { rawOcrText?: string; engineUsed?: string; notice?: string }> {
   const { businessId, source, text, imageUrl, createdById, customApiKey } = params;
 
-  let extraction: AIExtractionResult;
+  let extraction: AIExtractionResult = parseDiaryText(text || "");
   let engineUsed: string = "LOCAL_PARSER";
   let rawOcrText: string | undefined = undefined;
 
@@ -679,16 +679,21 @@ export async function extractTransactionsFromInput(params: {
     extraction.providerNotice = ocrRes.notice || extraction.providerNotice;
   } else {
     // Text or Voice input: Check for Gemini or OpenAI key, or fallback to intelligent local parser
-    const geminiKey =
-      (customApiKey && customApiKey.startsWith("AIza") ? customApiKey : null) ||
-      process.env.GEMINI_API_KEY;
-    const openAiKey =
-      (customApiKey && customApiKey.startsWith("sk-") ? customApiKey : null) ||
-      process.env.OPENAI_API_KEY;
+    const isGeminiKey = (k?: string | null): boolean => {
+      if (!k) return false;
+      const t = k.trim();
+      return t.startsWith("AIza") || t.startsWith("AQ.") || (!t.startsWith("sk-") && t.length > 20);
+    };
 
-    if (geminiKey && geminiKey.trim().length > 10) {
+    const geminiKey =
+      (customApiKey && isGeminiKey(customApiKey) ? customApiKey.trim() : null) ||
+      (process.env.GEMINI_API_KEY && isGeminiKey(process.env.GEMINI_API_KEY) ? process.env.GEMINI_API_KEY.trim() : null);
+    const openAiKey =
+      (customApiKey && customApiKey.startsWith("sk-") ? customApiKey.trim() : null) ||
+      (process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY.startsWith("sk-") ? process.env.OPENAI_API_KEY.trim() : null);
+
+    if (geminiKey && geminiKey.length > 10) {
       try {
-        const geminiEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey.trim()}`;
         const prompt = `You are an expert Pakistani business accountant. Extract all financial transactions from this text (English, Urdu, or Roman Urdu).
 Return ONLY a valid JSON object:
 {
@@ -709,26 +714,50 @@ Return ONLY a valid JSON object:
     }
   ]
 }`;
-        const res = await fetch(geminiEndpoint, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: `${prompt}\nText:\n${text}` }] }],
-            generationConfig: { responseMimeType: "application/json", temperature: 0.1 },
-          }),
-        });
 
-        if (res.ok) {
-          const json = await res.json();
-          const parsed = JSON.parse(json.candidates?.[0]?.content?.parts?.[0]?.text);
-          extraction = {
-            documentDate: parsed.documentDate || new Date().toISOString().split("T")[0],
-            transactions: parsed.transactions || [],
-            sourceText: text,
-            providerNotice: "Extracted via Google Gemini 1.5 Flash",
-          };
-          engineUsed = "GEMINI_VISION";
-        } else {
+        const textModels = ["gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-3.8-flash", "gemini-flash-latest"];
+        let success = false;
+
+        for (const model of textModels) {
+          try {
+            const geminiEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`;
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 12000);
+
+            const res = await fetch(geminiEndpoint, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              signal: controller.signal,
+              body: JSON.stringify({
+                contents: [{ parts: [{ text: `${prompt}\nText:\n${text}` }] }],
+                generationConfig: { responseMimeType: "application/json", temperature: 0.1 },
+              }),
+            });
+
+            clearTimeout(timeoutId);
+
+            if (res.ok) {
+              const json = await res.json();
+              const rawText = json.candidates?.[0]?.content?.parts?.[0]?.text;
+              if (rawText) {
+                const parsed = JSON.parse(rawText);
+                extraction = {
+                  documentDate: parsed.documentDate || new Date().toISOString().split("T")[0],
+                  transactions: parsed.transactions || [],
+                  sourceText: text,
+                  providerNotice: `Extracted via Google Gemini AI (${model})`,
+                };
+                engineUsed = "GEMINI_VISION";
+                success = true;
+                break;
+              }
+            }
+          } catch (mErr: any) {
+            // Try next candidate model
+          }
+        }
+
+        if (!success) {
           extraction = parseDiaryText(text || "");
         }
       } catch (err) {

@@ -11,6 +11,29 @@ export const dynamic = "force-dynamic";
 const MAX_IMAGE_PAYLOAD_CHARS = 14 * 1024 * 1024; // ~10MB binary
 const ALLOWED_MIME_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif", "image/bmp"];
 
+export async function GET(req: NextRequest) {
+  try {
+    const session = await getSession(req);
+    if (!session) {
+      return NextResponse.json(
+        { success: false, error: "Authentication required" },
+        { status: 401 }
+      );
+    }
+
+    const hasGemini = !!(process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY.trim().length > 10);
+    const hasOpenAi = !!(process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY.trim().startsWith("sk-"));
+
+    return NextResponse.json({
+      success: true,
+      aiConfigured: hasGemini || hasOpenAi,
+      defaultProvider: hasGemini ? "GEMINI" : hasOpenAi ? "OPENAI" : "LOCAL",
+    });
+  } catch (error: any) {
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
     const session = await getSession(req);
