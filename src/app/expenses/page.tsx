@@ -267,6 +267,7 @@ export default function ExpensesPage() {
         invalidateCache("/api/expenses");
         invalidateCache("/api/dashboard");
         invalidateCache("/api/accounting");
+        invalidateCache("/api/payments");
         fetchExpenses();
       } else {
         alert(json.error);
@@ -316,6 +317,7 @@ export default function ExpensesPage() {
         invalidateCache("/api/expenses");
         invalidateCache("/api/dashboard");
         invalidateCache("/api/accounting");
+        invalidateCache("/api/payments");
         fetchExpenses();
       } else {
         alert(json.error || "Failed to update expense");
@@ -342,6 +344,7 @@ export default function ExpensesPage() {
         invalidateCache("/api/expenses");
         invalidateCache("/api/dashboard");
         invalidateCache("/api/accounting");
+        invalidateCache("/api/payments");
         fetchExpenses();
       } else {
         alert(json.error || "Failed to delete expense");

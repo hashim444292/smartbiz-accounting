@@ -9,6 +9,8 @@ export interface CashBankReconciliationResult {
   totalReceipts: number;
   totalDisbursements: number;
   totalExpenses: number;
+  cashExpenses?: number;
+  bankExpenses?: number;
   netMovement: number;
   closingCash: number;
   closingBank: number;
@@ -22,6 +24,7 @@ export interface CashBankReconciliationResult {
     openingBalance: number;
     receipts: number;
     disbursements: number;
+    expenses?: number;
     balance: number;
   }>;
 }
@@ -118,9 +121,9 @@ export function calculateCashBankSummary(
     }
   }
 
-  const netMovement = round2(totalReceipts - totalDisbursements).toNumber();
-  const closingCash = round2(openingCash + cashReceipts - cashDisbursements).toNumber();
-  const closingBank = round2(openingBank + bankReceipts - bankDisbursements).toNumber();
+  const netMovement = round2(totalReceipts - totalDisbursements - totalExpenses).toNumber();
+  const closingCash = round2(openingCash + cashReceipts - cashDisbursements - cashExpenses).toNumber();
+  const closingBank = round2(openingBank + bankReceipts - bankDisbursements - bankExpenses).toNumber();
   const closingTotal = round2(openingTotal + netMovement).toNumber();
 
   // Map individual account closing balances
@@ -132,6 +135,7 @@ export function calculateCashBankSummary(
 
     let accReceipts = 0;
     let accDisbursements = 0;
+    let accExpenses = 0;
 
     for (const p of validPayments) {
       const amt = Number(p.amount || 0);
@@ -146,7 +150,23 @@ export function calculateCashBankSummary(
       }
     }
 
-    const calculatedBal = round2(accOpening + accReceipts - accDisbursements).toNumber();
+    for (const e of expenses || []) {
+      const amt = Number(e.amount || 0);
+      if (amt <= 0) continue;
+      if (e.accountId === a.id) {
+        accExpenses += amt;
+      } else if (!e.accountId) {
+        const method = String(e.paymentMethod || "").toUpperCase();
+        const matchesBank = (method === "BANK" || method === "ONLINE" || method === "CHEQUE") && a.type === "BANK";
+        const matchesCash = !(method === "BANK" || method === "ONLINE" || method === "CHEQUE") && a.type === "CASH";
+        if (matchesBank || matchesCash) {
+          const matchCount = accounts.filter((x) => x.type === a.type).length || 1;
+          accExpenses += amt / matchCount;
+        }
+      }
+    }
+
+    const calculatedBal = round2(accOpening + accReceipts - accDisbursements - accExpenses).toNumber();
 
     return {
       id: a.id,
@@ -157,6 +177,7 @@ export function calculateCashBankSummary(
       openingBalance: round2(accOpening).toNumber(),
       receipts: round2(accReceipts).toNumber(),
       disbursements: round2(accDisbursements).toNumber(),
+      expenses: round2(accExpenses).toNumber(),
       balance: calculatedBal,
     };
   });
@@ -168,6 +189,8 @@ export function calculateCashBankSummary(
     totalReceipts: round2(totalReceipts).toNumber(),
     totalDisbursements: round2(totalDisbursements).toNumber(),
     totalExpenses: round2(totalExpenses).toNumber(),
+    cashExpenses: round2(cashExpenses).toNumber(),
+    bankExpenses: round2(bankExpenses).toNumber(),
     netMovement,
     closingCash,
     closingBank,

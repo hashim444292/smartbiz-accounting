@@ -17,7 +17,7 @@ export interface RecordCustomerPaymentInput {
   allocations?: Array<{ saleId: string; amount: Decimal.Value }>;
   createdById?: string;
   createdByName?: string;
-  date?: Date;
+  date?: Date | string;
 }
 
 export interface RecordSupplierPaymentInput {
@@ -33,7 +33,7 @@ export interface RecordSupplierPaymentInput {
   allocations?: Array<{ purchaseId: string; amount: Decimal.Value }>;
   createdById?: string;
   createdByName?: string;
-  date?: Date;
+  date?: Date | string;
 }
 
 export interface TransferFundsInput {
@@ -56,9 +56,23 @@ export interface TransferFundsInput {
  * Records a customer payment received against receivables and invoices.
  */
 export async function recordCustomerPayment(input: RecordCustomerPaymentInput) {
+  const { businessId, customerId, accountId, referenceNumber, notes, createdById } = input;
   return await prisma.$transaction(async (tx) => {
-    const { businessId, customerId, accountId, referenceNumber, notes, createdById } = input;
-    const date = input.date || new Date();
+    let date: Date;
+    if (input.date instanceof Date) {
+      date = input.date;
+    } else if (typeof input.date === "string" && input.date.trim()) {
+      const str = input.date.trim();
+      if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+        const [y, m, d] = str.split("-").map(Number);
+        const now = new Date();
+        date = new Date(y, m - 1, d, now.getHours(), now.getMinutes(), now.getSeconds());
+      } else {
+        date = new Date(str);
+      }
+    } else {
+      date = new Date();
+    }
     await assertPeriodOpen(tx, businessId, date);
 
     const paymentAmount = round2(input.amount);
@@ -236,9 +250,23 @@ export async function recordCustomerPayment(input: RecordCustomerPaymentInput) {
  * Records a supplier payment disbursement against payables and purchase invoices.
  */
 export async function recordSupplierPayment(input: RecordSupplierPaymentInput) {
+  const { businessId, supplierId, accountId, referenceNumber, notes, createdById } = input;
   return await prisma.$transaction(async (tx) => {
-    const { businessId, supplierId, accountId, referenceNumber, notes, createdById } = input;
-    const date = input.date || new Date();
+    let date: Date;
+    if (input.date instanceof Date) {
+      date = input.date;
+    } else if (typeof input.date === "string" && input.date.trim()) {
+      const str = input.date.trim();
+      if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+        const [y, m, d] = str.split("-").map(Number);
+        const now = new Date();
+        date = new Date(y, m - 1, d, now.getHours(), now.getMinutes(), now.getSeconds());
+      } else {
+        date = new Date(str);
+      }
+    } else {
+      date = new Date();
+    }
     await assertPeriodOpen(tx, businessId, date);
 
     const paymentAmount = round2(input.amount);

@@ -26,7 +26,7 @@ export interface SaleItemInput {
 export interface CreateSaleInput {
   businessId: string;
   invoiceNumber?: string;
-  date?: Date;
+  date?: Date | string;
   customerId?: string | null;
   customerName: string;
   customerNtn?: string;
@@ -122,7 +122,21 @@ export async function createAndPostSale(input: CreateSaleInput) {
       createdByName,
     } = input;
 
-    const date = input.date ? (input.date instanceof Date ? input.date : new Date(input.date)) : new Date();
+    let date: Date;
+    if (input.date instanceof Date) {
+      date = input.date;
+    } else if (typeof input.date === "string" && input.date.trim()) {
+      const str = input.date.trim();
+      if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+        const [y, m, d] = str.split("-").map(Number);
+        const now = new Date();
+        date = new Date(y, m - 1, d, now.getHours(), now.getMinutes(), now.getSeconds());
+      } else {
+        date = new Date(str);
+      }
+    } else {
+      date = new Date();
+    }
 
     const business = await tx.business.findUnique({
       where: { id: businessId },

@@ -82,6 +82,18 @@ export async function POST(req: NextRequest) {
     const createdById = session?.userId || body.createdById || "usr-2";
     const createdByName = session?.name || body.createdByName || "Muhammad Hanif";
 
+    const paymentDate = body.date
+      ? (() => {
+          const raw = String(body.date).trim();
+          if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+            const [y, m, d] = raw.split("-").map(Number);
+            const now = new Date();
+            return new Date(y, m - 1, d, now.getHours(), now.getMinutes(), now.getSeconds());
+          }
+          return new Date(raw);
+        })()
+      : new Date();
+
     let result;
     if (body.type === "RECEIPT") {
       result = await recordCustomerPayment({
@@ -97,6 +109,7 @@ export async function POST(req: NextRequest) {
         allocations: body.allocations,
         createdById,
         createdByName,
+        date: paymentDate,
       });
     } else if (body.type === "DISBURSEMENT") {
       result = await recordSupplierPayment({
@@ -112,6 +125,7 @@ export async function POST(req: NextRequest) {
         allocations: body.allocations,
         createdById,
         createdByName,
+        date: paymentDate,
       });
     } else {
       return NextResponse.json({ success: false, error: "Invalid payment type." }, { status: 400 });
@@ -133,11 +147,24 @@ export async function POST(req: NextRequest) {
       const createdById = session?.userId || body.createdById || "usr-2";
       const createdByName = session?.name || body.createdByName || "Muhammad Hanif";
 
+      const paymentDate = body.date
+        ? (() => {
+            const raw = String(body.date).trim();
+            if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+              const [y, m, d] = raw.split("-").map(Number);
+              const now = new Date();
+              return new Date(y, m - 1, d, now.getHours(), now.getMinutes(), now.getSeconds());
+            }
+            return new Date(raw);
+          })()
+        : new Date();
+
       const newPayment = storeAddPayment(
         {
           businessId,
           ...body,
           branchId: effectiveBranchId,
+          date: paymentDate,
           createdById,
           createdByName,
         },

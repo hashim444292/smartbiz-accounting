@@ -173,7 +173,23 @@ export default function CreateSalePage() {
   const [fbrInvoiceType, setFbrInvoiceType] = useState<"TIER1_POS" | "DIGITAL_INVOICING">("TIER1_POS");
   const [registeredFbrType, setRegisteredFbrType] = useState<"TIER1_POS" | "DIGITAL_INVOICING" | "BOTH">("TIER1_POS");
   const [postToFbr, setPostToFbr] = useState<boolean>(true);
-  const [date, setDate] = useState<string>(new Date().toISOString().split("T")[0]);
+
+  const getTodayDateString = () => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  };
+
+  const buildInvoiceDateTime = (dateStr: string): Date => {
+    if (!dateStr) return new Date();
+    const parts = dateStr.split("-").map(Number);
+    if (parts.length === 3) {
+      const now = new Date();
+      return new Date(parts[0], parts[1] - 1, parts[2], now.getHours(), now.getMinutes(), now.getSeconds());
+    }
+    return new Date(dateStr);
+  };
+
+  const [date, setDate] = useState<string>(getTodayDateString);
 
   // Line Items State
   const [items, setItems] = useState<SaleLineItem[]>([]);
@@ -1116,7 +1132,7 @@ export default function CreateSalePage() {
           branchId: operatingBranchId,
           createdById: user?.userId,
           createdByName: user?.name,
-          date: new Date(date),
+          date: buildInvoiceDateTime(date),
           customerId: customerId || null,
           customerName: finalCustomerName,
           customerPhone: !customerId && remaining > 0 && walkInPhone.trim() ? walkInPhone.trim() : undefined,
@@ -1240,7 +1256,7 @@ export default function CreateSalePage() {
               branchId: operatingBranchId,
               createdById: user?.userId,
               createdByName: user?.name,
-              date: new Date(date),
+              date: buildInvoiceDateTime(date),
               customerId: customerId || null,
               customerName: finalCustomerName,
               customerPhone: !customerId && remaining > 0 && walkInPhone.trim() ? walkInPhone.trim() : undefined,
@@ -1447,10 +1463,10 @@ export default function CreateSalePage() {
                     <Calendar className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
                     <span>{t("Invoice Date", "تاریخ")}</span>
                   </span>
-                  {date !== new Date().toISOString().split("T")[0] && (
+                  {date !== getTodayDateString() && (
                     <button
                       type="button"
-                      onClick={() => setDate(new Date().toISOString().split("T")[0])}
+                      onClick={() => setDate(getTodayDateString())}
                       className="text-[11px] font-semibold text-blue-600 hover:underline dark:text-blue-400"
                     >
                       {t("Today", "آج")}

@@ -37,14 +37,20 @@ export default function PaymentsPage() {
   const [depositCashAccountId, setDepositCashAccountId] = useState("");
   const [depositBankAccountId, setDepositBankAccountId] = useState("");
   const [depositAmount, setDepositAmount] = useState<number>(0);
+  const getLocalDateString = () => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  };
+
   const [depositRef, setDepositRef] = useState("");
   const [depositorName, setDepositorName] = useState("");
-  const [depositDate, setDepositDate] = useState(new Date().toISOString().split("T")[0]);
+  const [depositDate, setDepositDate] = useState(getLocalDateString);
   const [depositNotes, setDepositNotes] = useState("");
 
   // Form State
   const [partyId, setPartyId] = useState("");
   const [amount, setAmount] = useState(0);
+  const [paymentDate, setPaymentDate] = useState(getLocalDateString);
   const [accountId, setAccountId] = useState("");
   const [targetAccountId, setTargetAccountId] = useState("");
   const [referenceNumber, setReferenceNumber] = useState("");
@@ -205,6 +211,7 @@ export default function PaymentsPage() {
     const branchToUse = isBranchLocked ? (user?.branchId || "") : (selectedBranch?.id || activeBranchId || (branches[0]?.id || ""));
     setPaymentBranchId(branchToUse);
     setShowReceiptModal(true);
+    setPaymentDate(getLocalDateString());
     setSelectedBillId("ALL");
     setPendingBills([]);
     const custList = await ensureCustomersLoaded(true);
@@ -225,6 +232,7 @@ export default function PaymentsPage() {
     const branchToUse = isBranchLocked ? (user?.branchId || "") : (selectedBranch?.id || activeBranchId || (branches[0]?.id || ""));
     setPaymentBranchId(branchToUse);
     setShowDisburseModal(true);
+    setPaymentDate(getLocalDateString());
     setSelectedBillId("ALL");
     setPendingBills([]);
     const supList = await ensureSuppliersLoaded(true);
@@ -426,6 +434,7 @@ export default function PaymentsPage() {
         customerId: partyId,
         amount,
         accountId,
+        date: paymentDate,
         referenceNumber,
         notes,
         branchId: effectiveCreateBranch,
@@ -479,6 +488,7 @@ export default function PaymentsPage() {
         supplierId: partyId,
         amount,
         accountId,
+        date: paymentDate,
         referenceNumber,
         notes,
         branchId: effectiveCreateBranch,
@@ -576,11 +586,17 @@ export default function PaymentsPage() {
     .filter((p) => p.type === "RECEIPT")
     .reduce((sum, p) => sum + Number(p.amount || 0), 0);
 
-  const totalDisbursements = safePayments
-    .filter((p) => p.type === "DISBURSEMENT")
-    .reduce((sum, p) => sum + Number(p.amount || 0), 0);
+  const totalDisbursements =
+    cashSummary?.totalExpenses !== undefined
+      ? Number(cashSummary.totalDisbursements || 0) + Number(cashSummary.totalExpenses || 0)
+      : safePayments
+          .filter((p) => p.type === "DISBURSEMENT")
+          .reduce((sum, p) => sum + Number(p.amount || 0), 0);
 
-  const netCashFlow = totalReceipts - totalDisbursements;
+  const netCashFlow =
+    cashSummary?.netMovement !== undefined
+      ? Number(cashSummary.netMovement)
+      : totalReceipts - totalDisbursements;
 
   // Opening & Adjusted Liquid Balances
   const openingCash = Number(cashSummary?.openingCash ?? 0);
@@ -738,7 +754,7 @@ export default function PaymentsPage() {
             -{formatMoney(totalDisbursements)}
           </p>
           <span className="text-[10px] text-rose-600/80">
-            {t("To suppliers, purchases & vendors", "سپلائر ادائیگیاں اور بلز")}
+            {t("To suppliers, purchases & operating expenses", "سپلائر ادائیگیاں، خریداری اور اخراجات")}
           </span>
         </div>
 
@@ -1078,6 +1094,13 @@ export default function PaymentsPage() {
             onChange={(e) => setAmount(parseFloat(e.target.value) || 0)}
             required
           />
+          <Input
+            label={t("Receipt Date (تاریخ)", "Receipt Date")}
+            type="date"
+            value={paymentDate}
+            onChange={(e) => setPaymentDate(e.target.value)}
+            required
+          />
           <Select label="Deposit Into Account" value={accountId} onChange={(e) => setAccountId(e.target.value)}>
             {modalAccounts.map((a) => (
               <option key={a.id} value={a.id}>
@@ -1306,6 +1329,13 @@ export default function PaymentsPage() {
             step="0.01"
             value={amount}
             onChange={(e) => setAmount(parseFloat(e.target.value) || 0)}
+            required
+          />
+          <Input
+            label={t("Payment Date (تاریخ)", "Payment Date")}
+            type="date"
+            value={paymentDate}
+            onChange={(e) => setPaymentDate(e.target.value)}
             required
           />
           <Select label="Disburse From Account" value={accountId} onChange={(e) => setAccountId(e.target.value)}>

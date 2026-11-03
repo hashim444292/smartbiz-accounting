@@ -74,4 +74,47 @@ describe("Cash & Bank Auto-Reconciliation Engine", () => {
     expect(result.closingBank).toBe(600000);
     expect(result.closingTotal).toBe(1000000);
   });
+
+  it("should accurately deduct operating expenses from cash and bank closing balances", () => {
+    const mockAccounts = [
+      { id: "cash-1", name: "Cash in Hand", type: "CASH", balance: 1901900 },
+      { id: "bank-1", name: "Main Bank Account", type: "BANK", balance: 762000 },
+    ];
+
+    const mockOpeningJournal = {
+      lines: [
+        { accountCode: "1010", debit: 1901900, credit: 0 },
+        { accountCode: "1020", debit: 762000, credit: 0 },
+      ],
+    };
+
+    const mockPayments = [
+      { id: "pay-1", type: "RECEIPT", amount: 455050, accountId: "cash-1" },
+      { id: "pay-2", type: "RECEIPT", amount: 800000, accountId: "bank-1" },
+      { id: "pay-3", type: "DISBURSEMENT", amount: 866450, accountId: "cash-1" },
+      { id: "pay-4", type: "DISBURSEMENT", amount: 832450, accountId: "bank-1" },
+    ];
+
+    const mockExpenses = [
+      { id: "exp-1", amount: 100000, paymentMethod: "CASH", accountId: "cash-1" },
+      { id: "exp-2", amount: 57000, paymentMethod: "CASH", accountId: "cash-1" },
+      { id: "exp-3", amount: 79700, paymentMethod: "CASH", accountId: "cash-1" },
+    ];
+
+    const result = calculateCashBankSummary(mockAccounts, mockPayments, mockOpeningJournal, mockExpenses);
+
+    // Total expenses: 100k + 57k + 79.7k = 236,700
+    expect(result.totalExpenses).toBe(236700);
+
+    // Without expenses, cash was 1,901,900 + 455,050 - 866,450 = 1,490,500
+    // With expenses deducted: 1,490,500 - 236,700 = 1,253,800
+    expect(result.closingCash).toBe(1253800);
+
+    // Bank: 762,000 + 800,000 - 832,450 = 729,550
+    expect(result.closingBank).toBe(729550);
+
+    // Net movement: (455050 + 800000) - (866450 + 832450) - 236700 = -680550
+    expect(result.netMovement).toBe(-680550);
+    expect(result.closingTotal).toBe(result.openingTotal + result.netMovement);
+  });
 });

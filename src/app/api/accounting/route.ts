@@ -7,6 +7,8 @@ import { ensureStandardAccounts } from "@/services/accountingService";
 import { storeEnsureStandardAccounts } from "@/lib/fallbackStore";
 import { reconcileSupplierPayables, storeReconcileSupplierPayables } from "@/lib/payablesHelper";
 import { reconcileCustomerReceivables, storeReconcileCustomerReceivables } from "@/lib/receivablesHelper";
+import { reconcileCashBankBalances, storeReconcileCashBankBalances } from "@/lib/cashBankHelper";
+import { reconcileInventoryValuation, storeReconcileInventoryValuation } from "@/lib/inventoryHelper";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +20,8 @@ export async function GET(req: NextRequest) {
       storeEnsureStandardAccounts(businessId);
       storeReconcileSupplierPayables(businessId);
       storeReconcileCustomerReceivables(businessId);
+      storeReconcileCashBankBalances(businessId);
+      storeReconcileInventoryValuation(businessId);
       return NextResponse.json({
         success: true,
         data: {
@@ -37,6 +41,8 @@ export async function GET(req: NextRequest) {
       await ensureStandardAccounts(prisma, businessId);
       await reconcileSupplierPayables(prisma, businessId);
       await reconcileCustomerReceivables(prisma, businessId);
+      await reconcileCashBankBalances(prisma, businessId);
+      await reconcileInventoryValuation(prisma, businessId);
     } catch (seedErr) {
       console.warn("Notice: ensureStandardAccounts/reconcile error:", seedErr);
     }
