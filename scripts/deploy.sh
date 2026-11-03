@@ -32,6 +32,39 @@ echo "📥 Pulling latest repository updates from GitHub..."
 git fetch origin main
 git reset --hard origin/main
 
+# 2.5. Execute Mandatory Pre-Deployment Database Backup & Integrity Verification
+echo "💾 Executing mandatory pre-deployment database backup before applying changes..."
+if [ -x "${APP_DIR}/scripts/backup-db.sh" ]; then
+    "${APP_DIR}/scripts/backup-db.sh"
+
+    # Locate the fresh backup produced within the last 5 minutes
+    LATEST_BACKUP=$(find /var/backups/smartbiz-db -name "smartbiz_db_*.sql.gz" -type f -mmin -5 2>/dev/null | sort -r | head -n 1 || true)
+
+    if [ -z "${LATEST_BACKUP}" ] || [ ! -s "${LATEST_BACKUP}" ]; then
+        echo "❌ FATAL: Pre-deployment database backup verification failed! No non-empty backup archive was found."
+        echo "Halting deployment to protect production data from unbacked schema modifications."
+        exit 1
+    fi
+
+    # Integrity Check 1: Test gzip decompression integrity
+    if ! gzip -t "${LATEST_BACKUP}" 2>/dev/null; then
+        echo "❌ FATAL: Pre-deployment database backup archive failed gzip integrity check (corrupted archive)!"
+        exit 1
+    fi
+
+    # Integrity Check 2: Verify structural SQL dump header
+    if ! gzip -dc "${LATEST_BACKUP}" 2>/dev/null | head -n 30 | grep -q "PostgreSQL database dump"; then
+        echo "❌ FATAL: Backup archive does not contain valid PostgreSQL dump structure!"
+        exit 1
+    fi
+
+    BACKUP_SIZE=$(du -h "${LATEST_BACKUP}" | cut -f1)
+    echo "✅ Verified pre-deployment database backup: ${LATEST_BACKUP} (${BACKUP_SIZE})"
+else
+    echo "❌ FATAL: scripts/backup-db.sh not found or not executable! Halting deployment."
+    exit 1
+fi
+
 # 3. Build and launch updated Docker container
 echo "🐳 Building and starting Docker container (${CONTAINER_NAME})..."
 docker compose -f "${COMPOSE_FILE}" build
