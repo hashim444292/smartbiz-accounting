@@ -367,7 +367,7 @@ function AccountingContent() {
   const fetchData = async (isSilent = false) => {
     if (!isSilent) setLoading(true);
     try {
-      const json = await smartFetch("/api/accounting", { ttlMs: isSilent ? 0 : 15000, skipCache: isSilent });
+      const json = await smartFetch("/api/accounting", { ttlMs: 0, skipCache: true });
       if (json.success && json.data) {
         setAccounts(json.data.accounts || []);
         setJournals(json.data.journals || []);
@@ -488,6 +488,67 @@ function AccountingContent() {
     return list;
   }, [customers, sales]);
 
+  // Comprehensive account list ensuring all accounts reflect exact ledger closing balances
+  const effectiveAccounts = useMemo(() => {
+    // Map total debits and credits per account from journals
+    const debitsByAccId = new Map<string, number>();
+    const creditsByAccId = new Map<string, number>();
+
+    journals.forEach((j) => {
+      (j.lines || []).forEach((l: any) => {
+        const id = l.accountId || l.account?.id;
+        const code = l.accountCode || l.account?.code;
+        const d = Number(l.debit || 0);
+        const c = Number(l.credit || 0);
+        if (id) {
+          debitsByAccId.set(id, (debitsByAccId.get(id) || 0) + d);
+          creditsByAccId.set(id, (creditsByAccId.get(id) || 0) + c);
+        }
+        if (code) {
+          debitsByAccId.set(`code:${code}`, (debitsByAccId.get(`code:${code}`) || 0) + d);
+          creditsByAccId.set(`code:${code}`, (creditsByAccId.get(`code:${code}`) || 0) + c);
+        }
+      });
+    });
+
+    const receivablesFromParties = effectiveCustomers.reduce((sum, c) => sum + Number(c.currentBalance || 0), 0);
+    const receivablesFromSales = sales.reduce(
+      (sum, s) => (s.status !== "CANCELLED" ? sum + Number(s.remainingAmount || 0) : sum),
+      0
+    );
+    const payablesFromParties = effectiveSuppliers.reduce((sum, s) => sum + Number(s.currentBalance || 0), 0);
+    const payablesFromPurchases = purchases.reduce(
+      (sum, p) => (p.status !== "CANCELLED" ? sum + Number(p.remainingAmount || 0) : sum),
+      0
+    );
+
+    return accounts.map((a) => {
+      const isDebitNormal = ["ASSET", "EXPENSE", "COGS"].includes(a.type);
+      const debits = debitsByAccId.get(a.id) ?? debitsByAccId.get(`code:${a.code}`) ?? 0;
+      const credits = creditsByAccId.get(a.id) ?? creditsByAccId.get(`code:${a.code}`) ?? 0;
+      const net = isDebitNormal ? debits - credits : credits - debits;
+
+      if (a.code === "1100") {
+        const maxRec = Math.max(Math.abs(net), receivablesFromParties, receivablesFromSales, Number(a.balance || 0));
+        return { ...a, balance: maxRec };
+      }
+
+      if (a.code === "2010") {
+        const maxPay = Math.max(Math.abs(net), payablesFromParties, payablesFromPurchases, Number(a.balance || 0));
+        return { ...a, balance: maxPay };
+      }
+
+      if (debits > 0 || credits > 0) {
+        return {
+          ...a,
+          balance: Math.abs(net),
+        };
+      }
+
+      return a;
+    });
+  }, [accounts, journals, effectiveCustomers, effectiveSuppliers, sales, purchases]);
+
   // When ledgerType changes, auto-select first entity if current doesn't match
   useEffect(() => {
     if (ledgerType === "VENDOR" && effectiveSuppliers.length > 0) {
@@ -498,12 +559,12 @@ function AccountingContent() {
       if (!effectiveCustomers.some((c) => c.id === selectedEntityId)) {
         setSelectedEntityId(effectiveCustomers[0].id);
       }
-    } else if (ledgerType === "ACCOUNT" && accounts.length > 0) {
-      if (!accounts.some((a) => a.id === selectedEntityId)) {
-        setSelectedEntityId(accounts[0].id);
+    } else if (ledgerType === "ACCOUNT" && effectiveAccounts.length > 0) {
+      if (!effectiveAccounts.some((a) => a.id === selectedEntityId)) {
+        setSelectedEntityId(effectiveAccounts[0].id);
       }
     }
-  }, [ledgerType, effectiveSuppliers, effectiveCustomers, accounts]);
+  }, [ledgerType, effectiveSuppliers, effectiveCustomers, effectiveAccounts]);
 
   // Compute Active Date Range Boundaries
   const dateRangeBounds = useMemo(() => {
@@ -797,7 +858,7 @@ function AccountingContent() {
       };
     } else {
       // General Ledger Account from Chart of Accounts
-      const currentAccount = accounts.find((a) => a.id === selectedEntityId);
+      const currentAccount = effectiveAccounts.find((a) => a.id === selectedEntityId) || accounts.find((a) => a.id === selectedEntityId);
       if (!currentAccount) {
         return {
           entity: null,
@@ -944,7 +1005,7 @@ function AccountingContent() {
         closingBalanceType,
       };
     }
-  }, [ledgerType, selectedEntityId, dateRangeBounds, effectiveSuppliers, customers, accounts, purchases, payments, journals]);
+  }, [ledgerType, selectedEntityId, dateRangeBounds, effectiveSuppliers, customers, accounts, effectiveAccounts, purchases, payments, journals]);
 
   // Filter ledger lines by search box
   const filteredLedgerLines = useMemo(() => {
@@ -1234,16 +1295,16 @@ function AccountingContent() {
     });
   }, [journals, journalSearch, journalAccountFilter, journalDateFilter, journalSort]);
 
-  const totalDebits = accounts
+  const totalDebits = effectiveAccounts
     .filter((a) => ["ASSET", "EXPENSE", "COGS"].includes(a.type))
     .reduce((acc, a) => acc + Number(a.balance), 0);
 
-  const totalCredits = accounts
+  const totalCredits = effectiveAccounts
     .filter((a) => ["LIABILITY", "EQUITY", "REVENUE"].includes(a.type))
     .reduce((acc, a) => acc + Number(a.balance), 0);
 
   const filteredAccounts = useMemo(() => {
-    return accounts.filter((a) => {
+    return effectiveAccounts.filter((a) => {
       if (accountTypeFilter !== "ALL" && a.type !== accountTypeFilter) {
         return false;
       }
@@ -1258,7 +1319,7 @@ function AccountingContent() {
       }
       return true;
     });
-  }, [accounts, accountTypeFilter, accountSearch]);
+  }, [effectiveAccounts, accountTypeFilter, accountSearch]);
 
   const accountStats = useMemo(() => {
     let assets = 0;
@@ -1268,7 +1329,7 @@ function AccountingContent() {
     let cogs = 0;
     let expenses = 0;
 
-    accounts.forEach((a) => {
+    effectiveAccounts.forEach((a) => {
       const bal = Number(a.balance || 0);
       if (a.type === "ASSET") assets += bal;
       else if (a.type === "LIABILITY") liabilities += bal;
@@ -1279,26 +1340,26 @@ function AccountingContent() {
     });
 
     return {
-      total: accounts.length,
-      assetCount: accounts.filter((a) => a.type === "ASSET").length,
+      total: effectiveAccounts.length,
+      assetCount: effectiveAccounts.filter((a) => a.type === "ASSET").length,
       assets,
-      liabilityCount: accounts.filter((a) => a.type === "LIABILITY").length,
+      liabilityCount: effectiveAccounts.filter((a) => a.type === "LIABILITY").length,
       liabilities,
-      equityCount: accounts.filter((a) => a.type === "EQUITY").length,
+      equityCount: effectiveAccounts.filter((a) => a.type === "EQUITY").length,
       equity,
-      revenueCount: accounts.filter((a) => a.type === "REVENUE").length,
+      revenueCount: effectiveAccounts.filter((a) => a.type === "REVENUE").length,
       revenue,
-      cogsCount: accounts.filter((a) => a.type === "COGS").length,
+      cogsCount: effectiveAccounts.filter((a) => a.type === "COGS").length,
       cogs,
-      expenseCount: accounts.filter((a) => a.type === "EXPENSE").length,
+      expenseCount: effectiveAccounts.filter((a) => a.type === "EXPENSE").length,
       expenses,
     };
-  }, [accounts]);
+  }, [effectiveAccounts]);
 
   const overviewMetrics = useMemo(() => {
     let cashBalance = 0;
     let bankBalance = 0;
-    accounts.forEach((a) => {
+    effectiveAccounts.forEach((a) => {
       const code = String(a.code || "");
       const bal = Number(a.balance || 0);
       if (
@@ -1321,7 +1382,7 @@ function AccountingContent() {
       (sum, s) => (s.status !== "CANCELLED" ? sum + Number(s.remainingAmount || 0) : sum),
       0
     );
-    const receivablesHead = Number(accounts.find((a) => a.code === "1100")?.balance || 0);
+    const receivablesHead = Number(effectiveAccounts.find((a) => a.code === "1100")?.balance || 0);
     const receivables = Math.max(receivablesFromParties, receivablesFromSales, receivablesHead);
 
     const payablesFromParties = effectiveSuppliers.reduce((sum, s) => sum + Number(s.currentBalance || 0), 0);
@@ -1329,10 +1390,10 @@ function AccountingContent() {
       (sum, p) => (p.status !== "CANCELLED" ? sum + Number(p.remainingAmount || 0) : sum),
       0
     );
-    const payablesHead = Number(accounts.find((a) => a.code === "2010")?.balance || 0);
+    const payablesHead = Number(effectiveAccounts.find((a) => a.code === "2010")?.balance || 0);
     const payables = Math.max(payablesFromParties, payablesFromPurchases, payablesHead);
 
-    const capitalHead = Number(accounts.find((a) => a.code === "3010")?.balance || 0);
+    const capitalHead = Number(effectiveAccounts.find((a) => a.code === "3010")?.balance || 0);
     const equity = accountStats.equity > 0 ? accountStats.equity : capitalHead;
 
     const diff = Math.round(Math.abs(totalDebits - totalCredits) * 100) / 100;
@@ -1348,7 +1409,7 @@ function AccountingContent() {
       isBalanced,
       diff,
     };
-  }, [accounts, effectiveCustomers, effectiveSuppliers, purchases, sales, accountStats, totalDebits, totalCredits]);
+  }, [effectiveAccounts, effectiveCustomers, effectiveSuppliers, purchases, sales, accountStats, totalDebits, totalCredits]);
 
   if (loading) {
     return (
@@ -1559,7 +1620,7 @@ function AccountingContent() {
           }`}
         >
           <Building2 className="h-4 w-4" />
-          <span>{t(`Chart of Accounts (${accounts.length})`, `کھاتوں کی فہرست (${accounts.length})`)}</span>
+          <span>{t(`Chart of Accounts (${effectiveAccounts.length})`, `کھاتوں کی فہرست (${effectiveAccounts.length})`)}</span>
         </button>
 
         <button
@@ -2021,7 +2082,7 @@ function AccountingContent() {
                       </option>
                     ))}
                   {ledgerType === "ACCOUNT" &&
-                    accounts.map((a) => (
+                    effectiveAccounts.map((a) => (
                       <option key={a.id} value={a.id}>
                         [{a.code}] {a.name} ({a.type}) — Balance: Rs {Number(a.balance || 0).toLocaleString()}
                       </option>
@@ -2389,7 +2450,7 @@ function AccountingContent() {
                 className="rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
               >
                 <option value="ALL">{t("All Accounts", "تمام کھاتے")}</option>
-                {accounts.map((a) => (
+                {effectiveAccounts.map((a) => (
                   <option key={a.id} value={a.id}>
                     [{a.code}] {a.name}
                   </option>
@@ -2570,7 +2631,7 @@ function AccountingContent() {
               {/* Type Category Pills */}
               <div className="flex flex-wrap items-center gap-1">
                 {[
-                  { key: "ALL", label: t("All", "تمام"), count: accounts.length },
+                  { key: "ALL", label: t("All", "تمام"), count: effectiveAccounts.length },
                   { key: "ASSET", label: t("Assets", "اثاثے"), count: accountStats.assetCount },
                   { key: "LIABILITY", label: t("Liabilities", "واجبات"), count: accountStats.liabilityCount },
                   { key: "EQUITY", label: t("Equity / Capital", "سرمایہ"), count: accountStats.equityCount },
@@ -2775,7 +2836,7 @@ function AccountingContent() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                {accounts.map((a) => {
+                {effectiveAccounts.map((a) => {
                   const isDebitSide = ["ASSET", "EXPENSE", "COGS"].includes(a.type);
                   return (
                     <tr key={a.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40">

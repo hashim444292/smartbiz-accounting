@@ -113,6 +113,8 @@ export async function GET(req: NextRequest) {
     storeEnsureStandardAccounts(businessId);
     storeReconcileSupplierPayables(businessId);
     storeReconcileCustomerReceivables(businessId);
+    storeReconcileCashBankBalances(businessId);
+    storeReconcileInventoryValuation(businessId);
     return NextResponse.json({
       success: true,
       data: {

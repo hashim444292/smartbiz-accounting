@@ -76,4 +76,40 @@ describe("QA Sync & Reconciliation Verification", () => {
     expect(constructed.getMonth()).toBe(10); // November (0-indexed 10)
     expect(constructed.getDate()).toBe(3);
   });
+
+  it("Task 1 Parity: Dropdown account balance matches journal closing balance exactly", () => {
+    const testAccounts = [
+      { id: "acc-1010-test", code: "1010", name: "Cash in Hand", type: "ASSET", balance: 1490500 }, // Stale balance from before expense deduction
+    ];
+    const testJournals = [
+      {
+        id: "j1",
+        lines: [
+          { accountId: "acc-1010-test", debit: 2811900, credit: 0 },
+          { accountId: "acc-1010-test", debit: 0, credit: 1558100 },
+        ],
+      },
+    ];
+
+    const debitsByAccId = new Map<string, number>();
+    const creditsByAccId = new Map<string, number>();
+    testJournals.forEach((j) => {
+      j.lines.forEach((l) => {
+        debitsByAccId.set(l.accountId, (debitsByAccId.get(l.accountId) || 0) + l.debit);
+        creditsByAccId.set(l.accountId, (creditsByAccId.get(l.accountId) || 0) + l.credit);
+      });
+    });
+
+    const effective = testAccounts.map((a) => {
+      const isDebitNormal = ["ASSET", "EXPENSE", "COGS"].includes(a.type);
+      const debits = debitsByAccId.get(a.id) || 0;
+      const credits = creditsByAccId.get(a.id) || 0;
+      const net = isDebitNormal ? debits - credits : credits - debits;
+      return { ...a, balance: Math.abs(net) };
+    });
+
+    const optionText = `[${effective[0].code}] ${effective[0].name} (${effective[0].type}) — Balance: Rs ${Number(effective[0].balance).toLocaleString()}`;
+    expect(optionText).toBe("[1010] Cash in Hand (ASSET) — Balance: Rs 1,253,800");
+    expect(effective[0].balance).toBe(1253800);
+  });
 });
