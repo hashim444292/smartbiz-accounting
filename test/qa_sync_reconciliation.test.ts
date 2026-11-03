@@ -77,9 +77,10 @@ describe("QA Sync & Reconciliation Verification", () => {
     expect(constructed.getDate()).toBe(3);
   });
 
-  it("Task 1 Parity: Dropdown account balance matches journal closing balance exactly", () => {
+  it("Task 1 & 4 Parity: Dropdown Cash and Bank account balances match journal closing balances exactly", () => {
     const testAccounts = [
       { id: "acc-1010-test", code: "1010", name: "Cash in Hand", type: "ASSET", balance: 1490500 }, // Stale balance from before expense deduction
+      { id: "acc-1020-test", code: "1020", name: "Main Bank Account", type: "ASSET", balance: 762000 },
     ];
     const testJournals = [
       {
@@ -87,29 +88,43 @@ describe("QA Sync & Reconciliation Verification", () => {
         lines: [
           { accountId: "acc-1010-test", debit: 2811900, credit: 0 },
           { accountId: "acc-1010-test", debit: 0, credit: 1558100 },
+          { accountId: "acc-1020-test", debit: 1562000, credit: 0 },
+          { accountId: "acc-1020-test", debit: 0, credit: 832450 },
         ],
       },
     ];
 
-    const debitsByAccId = new Map<string, number>();
-    const creditsByAccId = new Map<string, number>();
+    const debitsByAcc = new Map<string, number>();
+    const creditsByAcc = new Map<string, number>();
+    const accById = new Map<string, any>();
+    testAccounts.forEach((a) => accById.set(a.id, a));
+
     testJournals.forEach((j) => {
       j.lines.forEach((l) => {
-        debitsByAccId.set(l.accountId, (debitsByAccId.get(l.accountId) || 0) + l.debit);
-        creditsByAccId.set(l.accountId, (creditsByAccId.get(l.accountId) || 0) + l.credit);
+        const target = accById.get(l.accountId);
+        if (target) {
+          debitsByAcc.set(target.id, (debitsByAcc.get(target.id) || 0) + l.debit);
+          creditsByAcc.set(target.id, (creditsByAcc.get(target.id) || 0) + l.credit);
+        }
       });
     });
 
     const effective = testAccounts.map((a) => {
       const isDebitNormal = ["ASSET", "EXPENSE", "COGS"].includes(a.type);
-      const debits = debitsByAccId.get(a.id) || 0;
-      const credits = creditsByAccId.get(a.id) || 0;
+      const debits = debitsByAcc.get(a.id) || 0;
+      const credits = creditsByAcc.get(a.id) || 0;
       const net = isDebitNormal ? debits - credits : credits - debits;
       return { ...a, balance: Math.abs(net) };
     });
 
-    const optionText = `[${effective[0].code}] ${effective[0].name} (${effective[0].type}) — Balance: Rs ${Number(effective[0].balance).toLocaleString()}`;
-    expect(optionText).toBe("[1010] Cash in Hand (ASSET) — Balance: Rs 1,253,800");
+    // Cash verification
+    const cashText = `[${effective[0].code}] ${effective[0].name} (${effective[0].type}) — Balance: Rs ${Number(effective[0].balance).toLocaleString()}`;
+    expect(cashText).toBe("[1010] Cash in Hand (ASSET) — Balance: Rs 1,253,800");
     expect(effective[0].balance).toBe(1253800);
+
+    // Bank verification
+    const bankText = `[${effective[1].code}] ${effective[1].name} (${effective[1].type}) — Balance: Rs ${Number(effective[1].balance).toLocaleString()}`;
+    expect(bankText).toBe("[1020] Main Bank Account (ASSET) — Balance: Rs 729,550");
+    expect(effective[1].balance).toBe(729550);
   });
 });

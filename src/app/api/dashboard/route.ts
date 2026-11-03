@@ -7,6 +7,7 @@ import { round2 } from "@/lib/decimal";
 import { getProductEffectiveCost } from "@/lib/accountingConstants";
 import { calculateTotalPayables, reconcileSupplierPayables, storeReconcileSupplierPayables } from "@/lib/payablesHelper";
 import { calculateTotalReceivables, reconcileCustomerReceivables, storeReconcileCustomerReceivables } from "@/lib/receivablesHelper";
+import { reconcileCashBankBalances, storeReconcileCashBankBalances } from "@/lib/cashBankHelper";
 
 export const dynamic = "force-dynamic";
 
@@ -28,6 +29,7 @@ export async function GET(req: NextRequest) {
     let suppliers: any[] = [];
     let branches: any[] = [];
     let cashBankAccounts: any[] = [];
+    let cashBankSummary: any = null;
 
     try {
       [allSales, allPurchases, allExpenses, allPayments, products, customers, suppliers, branches, cashBankAccounts] = await Promise.all([
@@ -43,9 +45,11 @@ export async function GET(req: NextRequest) {
       ]);
       reconcileSupplierPayables(prisma, businessId).catch(() => null);
       reconcileCustomerReceivables(prisma, businessId).catch(() => null);
+      cashBankSummary = await reconcileCashBankBalances(prisma, businessId).catch(() => null);
     } catch {
       storeReconcileSupplierPayables(businessId);
       storeReconcileCustomerReceivables(businessId);
+      cashBankSummary = storeReconcileCashBankBalances(businessId);
       allSales = fallbackStore.sales.filter((s) => s.businessId === businessId);
       allPurchases = fallbackStore.purchases.filter((p) => p.businessId === businessId);
       allExpenses = fallbackStore.expenses.filter((e) => e.businessId === businessId);
@@ -163,8 +167,12 @@ export async function GET(req: NextRequest) {
     const directPurchasesPaid = purchases.reduce((sum, p) => sum + Number(p.paidAmount || 0), 0);
     const paymentsMade = Math.max(paymentDisbursements, directPurchasesPaid);
 
-    const cashBalance = cashBankAccounts.filter((a) => a.type === "CASH").reduce((sum, a) => sum + Number(a.balance || 0), 0);
-    const bankBalance = cashBankAccounts.filter((a) => a.type === "BANK").reduce((sum, a) => sum + Number(a.balance || 0), 0);
+    const cashBalance = cashBankSummary?.closingCash !== undefined
+      ? Number(cashBankSummary.closingCash)
+      : cashBankAccounts.filter((a) => a.type === "CASH").reduce((sum, a) => sum + Number(a.balance || 0), 0);
+    const bankBalance = cashBankSummary?.closingBank !== undefined
+      ? Number(cashBankSummary.closingBank)
+      : cashBankAccounts.filter((a) => a.type === "BANK").reduce((sum, a) => sum + Number(a.balance || 0), 0);
 
     const lowStockAlerts = products
       .filter((p) => Number(p.currentStock || 0) <= Number(p.minStockLevel || 1))

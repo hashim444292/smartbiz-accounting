@@ -490,23 +490,29 @@ function AccountingContent() {
 
   // Comprehensive account list ensuring all accounts reflect exact ledger closing balances
   const effectiveAccounts = useMemo(() => {
-    // Map total debits and credits per account from journals
-    const debitsByAccId = new Map<string, number>();
-    const creditsByAccId = new Map<string, number>();
+    const debitsByAcc = new Map<string, number>();
+    const creditsByAcc = new Map<string, number>();
+
+    const accById = new Map<string, any>();
+    const accByCode = new Map<string, any>();
+    accounts.forEach((a) => {
+      accById.set(a.id, a);
+      if (a.code) accByCode.set(String(a.code), a);
+    });
 
     journals.forEach((j) => {
       (j.lines || []).forEach((l: any) => {
-        const id = l.accountId || l.account?.id;
-        const code = l.accountCode || l.account?.code;
-        const d = Number(l.debit || 0);
-        const c = Number(l.credit || 0);
-        if (id) {
-          debitsByAccId.set(id, (debitsByAccId.get(id) || 0) + d);
-          creditsByAccId.set(id, (creditsByAccId.get(id) || 0) + c);
-        }
-        if (code) {
-          debitsByAccId.set(`code:${code}`, (debitsByAccId.get(`code:${code}`) || 0) + d);
-          creditsByAccId.set(`code:${code}`, (creditsByAccId.get(`code:${code}`) || 0) + c);
+        const targetAcc =
+          (l.accountId ? accById.get(l.accountId) : null) ||
+          (l.account?.id ? accById.get(l.account.id) : null) ||
+          (l.accountCode ? accByCode.get(String(l.accountCode)) : null) ||
+          (l.account?.code ? accByCode.get(String(l.account.code)) : null);
+
+        if (targetAcc) {
+          const d = Number(l.debit || 0);
+          const c = Number(l.credit || 0);
+          debitsByAcc.set(targetAcc.id, (debitsByAcc.get(targetAcc.id) || 0) + d);
+          creditsByAcc.set(targetAcc.id, (creditsByAcc.get(targetAcc.id) || 0) + c);
         }
       });
     });
@@ -524,8 +530,8 @@ function AccountingContent() {
 
     return accounts.map((a) => {
       const isDebitNormal = ["ASSET", "EXPENSE", "COGS"].includes(a.type);
-      const debits = debitsByAccId.get(a.id) ?? debitsByAccId.get(`code:${a.code}`) ?? 0;
-      const credits = creditsByAccId.get(a.id) ?? creditsByAccId.get(`code:${a.code}`) ?? 0;
+      const debits = debitsByAcc.get(a.id) || 0;
+      const credits = creditsByAcc.get(a.id) || 0;
       const net = isDebitNormal ? debits - credits : credits - debits;
 
       if (a.code === "1100") {
