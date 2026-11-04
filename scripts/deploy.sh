@@ -31,6 +31,7 @@ fi
 echo "📥 Pulling latest repository updates from GitHub..."
 git fetch origin main
 git reset --hard origin/main
+chmod +x "${APP_DIR}/scripts/deploy.sh" "${APP_DIR}/scripts/backup-db.sh" 2>/dev/null || true
 
 # 2.5. Execute Mandatory Pre-Deployment Database Backup & Integrity Verification
 echo "💾 Executing mandatory pre-deployment database backup before applying changes..."
