@@ -25,13 +25,29 @@ if command -v pg_dump &> /dev/null; then
     pg_dump -U "${DB_USER}" -h localhost -d "${DB_NAME}" | gzip -9 > "${BACKUP_FILE}"
 else
     # Fallback to docker container if Postgres runs inside a container
-    POSTGRES_CONTAINER=$(docker ps --filter "ancestor=postgres" --format "{{.Names}}" | head -n 1)
+    POSTGRES_CONTAINER=""
+    if docker ps --format "{{.Names}}" | grep -E -q "^contract-genie-db$"; then
+        POSTGRES_CONTAINER="contract-genie-db"
+    elif docker ps --format "{{.Names}} {{.Image}}" | grep -i "postgres" | awk '{print $1}' | head -n 1 | grep -q .; then
+        POSTGRES_CONTAINER=$(docker ps --format "{{.Names}} {{.Image}}" | grep -i "postgres" | awk '{print $1}' | head -n 1)
+    elif docker ps --filter "ancestor=postgres" --format "{{.Names}}" | grep -q .; then
+        POSTGRES_CONTAINER=$(docker ps --filter "ancestor=postgres" --format "{{.Names}}" | head -n 1)
+    fi
+
     if [ -n "${POSTGRES_CONTAINER}" ]; then
-        docker exec -t "${POSTGRES_CONTAINER}" pg_dump -U postgres -d "${DB_NAME}" | gzip -9 > "${BACKUP_FILE}"
+        if ! docker exec "${POSTGRES_CONTAINER}" pg_dump -U "${DB_USER}" -d "${DB_NAME}" | gzip -9 > "${BACKUP_FILE}"; then
+            echo "[$(date)] Notice: Retrying pg_dump with postgres user..."
+            docker exec "${POSTGRES_CONTAINER}" pg_dump -U postgres -d "${DB_NAME}" | gzip -9 > "${BACKUP_FILE}"
+        fi
     else
         echo "❌ ERROR: Neither pg_dump nor a running postgres container was found."
         exit 1
     fi
+fi
+
+if [ ! -s "${BACKUP_FILE}" ]; then
+    echo "❌ ERROR: Generated backup file is empty or missing: ${BACKUP_FILE}"
+    exit 1
 fi
 
 FILE_SIZE=$(du -h "${BACKUP_FILE}" | cut -f1)
