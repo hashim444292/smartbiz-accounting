@@ -55,5 +55,7 @@ jobs:
           script: |
             echo "Connected to Contabo VPS. Initiating deploy..."
             cd /opt/smartbiz-accounting
+            git fetch origin main
+            git reset --hard origin/main
             chmod +x scripts/deploy.sh scripts/backup-db.sh
             ./scripts/deploy.sh

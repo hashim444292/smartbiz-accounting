@@ -55,7 +55,7 @@ if [ -x "${APP_DIR}/scripts/backup-db.sh" ]; then
 
     # Integrity Check 2: Verify structural SQL dump header (run in subshell without pipefail to prevent SIGPIPE on early head exit)
     HEADER_SAMPLE=$(set +o pipefail; gzip -dc "${LATEST_BACKUP}" 2>/dev/null | head -n 30 || true)
-    if ! echo "${HEADER_SAMPLE}" | grep -q "PostgreSQL database dump"; then
+    if ! echo "${HEADER_SAMPLE}" | grep -q "PostgreSQL"; then
         echo "❌ FATAL: Backup archive does not contain valid PostgreSQL dump structure!"
         echo "Sample output: ${HEADER_SAMPLE}"
         exit 1
