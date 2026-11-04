@@ -168,7 +168,12 @@ export default function UsersManagementPage() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (currentLoggedUser && currentLoggedUser.role !== "SUPER_ADMIN" && currentLoggedUser.role !== "ADMIN") {
+    if (
+      currentLoggedUser &&
+      currentLoggedUser.role !== "SUPER_ADMIN" &&
+      currentLoggedUser.role !== "ADMIN" &&
+      (currentLoggedUser as any).platformRole !== "WEBAPP_ADMIN"
+    ) {
       router.replace("/");
     }
   }, [currentLoggedUser, router]);
@@ -193,21 +198,34 @@ export default function UsersManagementPage() {
     fetchUsersAndCompanies();
   }, []);
 
+  const isCallerSuperAdmin =
+    currentLoggedUser?.role === "SUPER_ADMIN" ||
+    (currentLoggedUser as any)?.platformRole === "SUPER_ADMIN";
+  const isCallerAdmin =
+    currentLoggedUser?.role === "ADMIN" ||
+    (currentLoggedUser as any)?.platformRole === "WEBAPP_ADMIN";
+
   // Split Users into Shop/Tenant users vs WebApp Platform Team
   const shopUsers = users.filter(
     (u) =>
       (!u.platformRole || u.platformRole === "TENANT_USER") &&
-      u.role !== "SUPER_ADMIN"
+      u.role !== "SUPER_ADMIN" &&
+      (u as any).platformRole !== "SUPER_ADMIN"
   );
 
-  const webappUsers = users.filter(
-    (u) =>
+  const webappUsers = users.filter((u) => {
+    // If viewer is not Super Admin, hide Super Admin accounts completely
+    if (!isCallerSuperAdmin && (u.role === "SUPER_ADMIN" || u.platformRole === "SUPER_ADMIN")) {
+      return false;
+    }
+    return (
       u.role === "SUPER_ADMIN" ||
       u.platformRole === "SUPER_ADMIN" ||
       u.platformRole === "WEBAPP_ADMIN" ||
       u.platformRole === "WEBAPP_EDITOR" ||
       u.platformRole === "WEBAPP_VIEWER"
-  );
+    );
+  });
 
   // Check assigned companies for current form state
   const assignedCompanies = companies.filter((c) => formData.companyIds.includes(c.id));
@@ -378,6 +396,12 @@ export default function UsersManagementPage() {
       return;
     }
 
+    const targetUser = users.find((u) => u.id === id);
+    if (!isCallerSuperAdmin && (targetUser?.role === "SUPER_ADMIN" || targetUser?.platformRole === "SUPER_ADMIN")) {
+      alert("Access denied. Super Admin account cannot be deleted.");
+      return;
+    }
+
     if (
       !confirm(
         `Are you sure you want to delete user "${name}"? Access will be immediately revoked.`
@@ -403,6 +427,9 @@ export default function UsersManagementPage() {
   };
 
   const openEditModal = (u: any) => {
+    if (!isCallerSuperAdmin && (u.role === "SUPER_ADMIN" || u.platformRole === "SUPER_ADMIN")) {
+      return;
+    }
     setSelectedUser(u);
     const assignedIds = u.companies ? u.companies.map((c: any) => c.id) : [];
     const assigned = companies.filter((c) => assignedIds.includes(c.id));
@@ -593,14 +620,14 @@ export default function UsersManagementPage() {
     return matchesSearch;
   });
 
-  if (currentLoggedUser && currentLoggedUser.role !== "SUPER_ADMIN") {
+  if (currentLoggedUser && !isCallerSuperAdmin && !isCallerAdmin) {
     return (
       <div className="p-12 text-center">
         <div className="mx-auto max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <AlertCircle className="mx-auto h-8 w-8 text-rose-500 mb-3" />
           <h2 className="text-base font-bold text-slate-900">Access Restricted</h2>
           <p className="text-xs text-slate-500 mt-1">
-            User Accounts & Permissions Management is exclusively available to Platform Super Administrators.
+            User Accounts & Permissions Management is exclusively available to Platform Administrators.
           </p>
           <Link
             href="/"
@@ -966,20 +993,22 @@ export default function UsersManagementPage() {
               <span>{t("SaaS Platform Access Tiers", "ویب ایپ انٹرنل ایڈمنسٹریشن کی سطحیں")}</span>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-3 text-xs">
-              {/* Super Admin */}
-              <div className="p-3 rounded-xl bg-white/90 dark:bg-slate-900/90 border border-amber-200 dark:border-amber-900/60 shadow-xs">
-                <div className="flex items-center gap-1.5 font-bold text-amber-900 dark:text-amber-200 mb-1">
-                  <Crown className="h-4 w-4 text-amber-500" />
-                  <span>👑 Super Admin</span>
+            <div className={`grid grid-cols-1 ${isCallerSuperAdmin ? "md:grid-cols-4" : "md:grid-cols-3"} gap-3 text-xs`}>
+              {/* Super Admin - Visible only to Super Admin */}
+              {isCallerSuperAdmin && (
+                <div className="p-3 rounded-xl bg-white/90 dark:bg-slate-900/90 border border-amber-200 dark:border-amber-900/60 shadow-xs">
+                  <div className="flex items-center gap-1.5 font-bold text-amber-900 dark:text-amber-200 mb-1">
+                    <Crown className="h-4 w-4 text-amber-500" />
+                    <span>👑 Super Admin</span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
+                    {t(
+                      "Master Owner: Unconditional control over the entire platform, databases, and all companies.",
+                      "صرف ہاشم خان (Master Owner): پورے سافٹ ویئر، سرور، ڈیٹا بیس اور تمام کمپنیوں کے غیر مشروط مالک۔ یہ اکاؤنٹ کسی دوسرے کو نہیں دیا جا سکتا۔"
+                    )}
+                  </p>
                 </div>
-                <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
-                  {t(
-                    "Master Owner: Unconditional control over the entire platform, databases, and all companies.",
-                    "صرف ہاشم خان (Master Owner): پورے سافٹ ویئر، سرور، ڈیٹا بیس اور تمام کمپنیوں کے غیر مشروط مالک۔ یہ اکاؤنٹ کسی دوسرے کو نہیں دیا جا سکتا۔"
-                  )}
-                </p>
-              </div>
+              )}
 
               {/* WebApp Admin */}
               <div className="p-3 rounded-xl bg-white/90 dark:bg-slate-900/90 border border-indigo-200 dark:border-indigo-900/60 shadow-xs">

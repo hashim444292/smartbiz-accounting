@@ -8,7 +8,12 @@ export const dynamic = "force-dynamic";
 export async function GET(req: NextRequest) {
   try {
     const session = await getSession(req);
-    if (!session || (session.role !== "SUPER_ADMIN" && session.role !== "ADMIN")) {
+    const isCallerSuperAdmin =
+      session?.role === "SUPER_ADMIN" || (session as any)?.platformRole === "SUPER_ADMIN";
+    const isCallerAdmin =
+      session?.role === "ADMIN" || (session as any)?.platformRole === "WEBAPP_ADMIN";
+
+    if (!session || (!isCallerSuperAdmin && !isCallerAdmin)) {
       return NextResponse.json(
         { success: false, error: "Access denied. User directory is only accessible to Platform Admins." },
         { status: 403 }
@@ -16,6 +21,14 @@ export async function GET(req: NextRequest) {
     }
     try {
       const users = await prisma.user.findMany({
+        where: isCallerSuperAdmin
+          ? undefined
+          : {
+              AND: [
+                { role: { not: "SUPER_ADMIN" } },
+                { platformRole: { not: "SUPER_ADMIN" } },
+              ],
+            },
         orderBy: { createdAt: "desc" },
         include: {
           memberships: {
@@ -24,25 +37,33 @@ export async function GET(req: NextRequest) {
         },
       });
 
-      const formatted = users.map((u) => ({
-        id: u.id,
-        name: u.name,
-        email: u.email,
-        role: u.role,
-        platformRole: (u as any).platformRole || (u.role === "SUPER_ADMIN" ? "SUPER_ADMIN" : "TENANT_USER"),
-        allowedModules: u.allowedModules || [],
-        createdAt: u.createdAt,
-        companies: u.memberships.map((m) => ({
-          id: m.business.id,
-          name: m.business.name,
-          role: m.role,
-        })),
-      }));
+      const formatted = users
+        .filter((u) => isCallerSuperAdmin || (u.role !== "SUPER_ADMIN" && (u as any).platformRole !== "SUPER_ADMIN"))
+        .map((u) => ({
+          id: u.id,
+          name: u.name,
+          email: u.email,
+          role: u.role,
+          platformRole: (u as any).platformRole || (u.role === "SUPER_ADMIN" ? "SUPER_ADMIN" : "TENANT_USER"),
+          allowedModules: u.allowedModules || [],
+          createdAt: u.createdAt,
+          companies: u.memberships.map((m) => ({
+            id: m.business.id,
+            name: m.business.name,
+            role: m.role,
+          })),
+        }));
 
       return NextResponse.json({ success: true, data: formatted });
     } catch {
       // Fallback
-      const formatted = fallbackStore.users.map((u) => {
+      const rawUsers = isCallerSuperAdmin
+        ? fallbackStore.users
+        : fallbackStore.users.filter(
+            (u) => u.role !== "SUPER_ADMIN" && (u as any).platformRole !== "SUPER_ADMIN"
+          );
+
+      const formatted = rawUsers.map((u) => {
         const assignedCompanies = fallbackStore.companies.filter((c) =>
           u.companyIds.includes(c.id)
         );
@@ -75,7 +96,12 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const session = await getSession(req);
-    if (!session || (session.role !== "SUPER_ADMIN" && session.role !== "ADMIN")) {
+    const isCallerSuperAdmin =
+      session?.role === "SUPER_ADMIN" || (session as any)?.platformRole === "SUPER_ADMIN";
+    const isCallerAdmin =
+      session?.role === "ADMIN" || (session as any)?.platformRole === "WEBAPP_ADMIN";
+
+    if (!session || (!isCallerSuperAdmin && !isCallerAdmin)) {
       return NextResponse.json(
         { success: false, error: "Access denied. Only Platform Admins can create user accounts." },
         { status: 403 }

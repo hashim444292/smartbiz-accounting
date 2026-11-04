@@ -23,8 +23,10 @@ export async function GET(req: NextRequest) {
 
     const businessId = await getActiveBusinessId(req);
 
+    const isCallerSuperAdmin = session.role === "SUPER_ADMIN" || (session as any).platformRole === "SUPER_ADMIN";
+
     if (!process.env.DATABASE_URL) {
-      const users = storeGetCompanyUsers(businessId);
+      const users = storeGetCompanyUsers(businessId).filter((u) => isCallerSuperAdmin || u.role !== "SUPER_ADMIN");
       return NextResponse.json({ success: true, data: users, fallback: true });
     }
 
@@ -34,6 +36,7 @@ export async function GET(req: NextRequest) {
           memberships: {
             some: { businessId },
           },
+          ...(isCallerSuperAdmin ? {} : { role: { not: "SUPER_ADMIN" } }),
         },
         include: {
           branch: {
@@ -43,23 +46,25 @@ export async function GET(req: NextRequest) {
         orderBy: { createdAt: "desc" },
       });
 
-      const formatted = dbUsers.map((u) => ({
-        id: u.id,
-        name: u.name,
-        email: u.email,
-        role: u.role,
-        phone: u.phone || null,
-        isBranchManager: Boolean(u.isBranchManager),
-        branchId: u.branchId || null,
-        branchName: u.branch?.name || null,
-        branchCode: u.branch?.code || null,
-        createdAt: u.createdAt,
-      }));
+      const formatted = dbUsers
+        .filter((u) => isCallerSuperAdmin || u.role !== "SUPER_ADMIN")
+        .map((u) => ({
+          id: u.id,
+          name: u.name,
+          email: u.email,
+          role: u.role,
+          phone: u.phone || null,
+          isBranchManager: Boolean(u.isBranchManager),
+          branchId: u.branchId || null,
+          branchName: u.branch?.name || null,
+          branchCode: u.branch?.code || null,
+          createdAt: u.createdAt,
+        }));
 
       return NextResponse.json({ success: true, data: formatted });
     } catch {
       // Fallback
-      const users = storeGetCompanyUsers(businessId);
+      const users = storeGetCompanyUsers(businessId).filter((u) => isCallerSuperAdmin || u.role !== "SUPER_ADMIN");
       return NextResponse.json({ success: true, data: users, fallback: true });
     }
   } catch (error: any) {
@@ -77,9 +82,13 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const session = await getSession();
-    if (!session || (session.role !== "OWNER_ADMIN" && session.role !== "SUPER_ADMIN")) {
+    const isCallerSuperAdmin = session?.role === "SUPER_ADMIN" || (session as any)?.platformRole === "SUPER_ADMIN";
+    const isCallerAdmin = session?.role === "ADMIN" || (session as any)?.platformRole === "WEBAPP_ADMIN";
+    const isCallerOwner = session?.role === "OWNER_ADMIN";
+
+    if (!session || (!isCallerOwner && !isCallerSuperAdmin && !isCallerAdmin)) {
       return NextResponse.json(
-        { success: false, error: "Only Company Owners and Super Admins can add branch staff." },
+        { success: false, error: "Only Company Owners and Platform Admins can add branch staff." },
         { status: 403 }
       );
     }
@@ -91,6 +100,13 @@ export async function POST(req: NextRequest) {
     if (!name || !email) {
       return NextResponse.json(
         { success: false, error: "User name and email are required" },
+        { status: 400 }
+      );
+    }
+
+    if (role === "SUPER_ADMIN") {
+      return NextResponse.json(
+        { success: false, error: "Cannot create user with Super Admin role" },
         { status: 400 }
       );
     }

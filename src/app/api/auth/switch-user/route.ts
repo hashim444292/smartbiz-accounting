@@ -10,10 +10,15 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { targetUserId } = body;
 
-    const session = await getSession();
-    if (!session || (session.role !== "SUPER_ADMIN" && !session.isSwitched)) {
+    const session = await getSession(req);
+    const isCallerSuperAdmin =
+      session?.role === "SUPER_ADMIN" || (session as any)?.platformRole === "SUPER_ADMIN";
+    const isCallerAdmin =
+      session?.role === "ADMIN" || (session as any)?.platformRole === "WEBAPP_ADMIN";
+
+    if (!session || (!isCallerSuperAdmin && !isCallerAdmin && !session.isSwitched)) {
       return NextResponse.json(
-        { success: false, error: "Access denied. Only Super Admin has permission to switch user profiles." },
+        { success: false, error: "Access denied. Only Platform Admins have permission to switch user profiles." },
         { status: 403 }
       );
     }
@@ -52,6 +57,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { success: false, error: "User not found in system" },
         { status: 404 }
+      );
+    }
+
+    // Non-super-admins cannot switch to Super Admin accounts
+    if (!isCallerSuperAdmin && (targetUser.role === "SUPER_ADMIN" || (targetUser as any).platformRole === "SUPER_ADMIN")) {
+      return NextResponse.json(
+        { success: false, error: "Access denied. Cannot switch into Super Admin profile." },
+        { status: 403 }
       );
     }
 

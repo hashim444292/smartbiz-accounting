@@ -13,6 +13,7 @@ export interface SessionPayload {
   email: string;
   name: string;
   role: Role;
+  platformRole?: string;
   businessId: string;
   businessName: string;
   companyIds?: string[];

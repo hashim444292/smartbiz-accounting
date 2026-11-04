@@ -21,6 +21,7 @@ export interface UserProfile {
   email: string;
   name: string;
   role: "SUPER_ADMIN" | "ADMIN" | "OWNER_ADMIN" | "ACCOUNTANT" | "STAFF";
+  platformRole?: string;
   businessId: string;
   businessName: string;
   companyIds?: string[];

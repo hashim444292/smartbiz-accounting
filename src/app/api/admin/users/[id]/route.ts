@@ -11,9 +11,14 @@ export async function PUT(
 ) {
   try {
     const session = await getSession(req);
-    if (!session || session.role !== "SUPER_ADMIN") {
+    const isCallerSuperAdmin =
+      session?.role === "SUPER_ADMIN" || (session as any)?.platformRole === "SUPER_ADMIN";
+    const isCallerAdmin =
+      session?.role === "ADMIN" || (session as any)?.platformRole === "WEBAPP_ADMIN";
+
+    if (!session || (!isCallerSuperAdmin && !isCallerAdmin)) {
       return NextResponse.json(
-        { success: false, error: "Access denied. Only Super Admin can modify user accounts." },
+        { success: false, error: "Access denied. Only Platform Admins can modify user accounts." },
         { status: 403 }
       );
     }
@@ -27,6 +32,16 @@ export async function PUT(
       const existingUser = await prisma.user.findUnique({ where: { id } });
       if (!existingUser) {
         return NextResponse.json({ success: false, error: "User not found" }, { status: 404 });
+      }
+
+      // Non-super-admins cannot modify Super Admin account
+      const isTargetSuperAdmin =
+        existingUser.role === "SUPER_ADMIN" || (existingUser as any).platformRole === "SUPER_ADMIN";
+      if (!isCallerSuperAdmin && isTargetSuperAdmin) {
+        return NextResponse.json(
+          { success: false, error: "Access denied. Cannot modify Super Admin account." },
+          { status: 403 }
+        );
       }
 
       // 1. Prevent promoting any non-super admin to SUPER_ADMIN
@@ -84,6 +99,29 @@ export async function PUT(
       });
     } catch {
       // Fallback
+      const existingUser = fallbackStore.users.find((u) => u.id === id);
+      if (!existingUser) {
+        return NextResponse.json({ success: false, error: "User not found" }, { status: 404 });
+      }
+      const isTargetSuperAdmin =
+        existingUser.role === "SUPER_ADMIN" || (existingUser as any).platformRole === "SUPER_ADMIN";
+      if (!isCallerSuperAdmin && isTargetSuperAdmin) {
+        return NextResponse.json(
+          { success: false, error: "Access denied. Cannot modify Super Admin account." },
+          { status: 403 }
+        );
+      }
+      if (
+        (role === "SUPER_ADMIN" || platformRole === "SUPER_ADMIN") &&
+        existingUser.role !== "SUPER_ADMIN" &&
+        (existingUser as any).platformRole !== "SUPER_ADMIN"
+      ) {
+        return NextResponse.json(
+          { success: false, error: "The SUPER_ADMIN role is protected and cannot be assigned to another user." },
+          { status: 400 }
+        );
+      }
+
       const updates: any = {};
       if (name) updates.name = name;
       if (role) updates.role = role;
@@ -120,10 +158,14 @@ export async function DELETE(
   try {
     const { id } = params;
     const session = await getSession(req);
+    const isCallerSuperAdmin =
+      session?.role === "SUPER_ADMIN" || (session as any)?.platformRole === "SUPER_ADMIN";
+    const isCallerAdmin =
+      session?.role === "ADMIN" || (session as any)?.platformRole === "WEBAPP_ADMIN";
 
-    if (!session || session.role !== "SUPER_ADMIN") {
+    if (!session || (!isCallerSuperAdmin && !isCallerAdmin)) {
       return NextResponse.json(
-        { success: false, error: "Access denied. Only Super Admin can delete user accounts." },
+        { success: false, error: "Access denied. Only Platform Admins can delete user accounts." },
         { status: 403 }
       );
     }
@@ -138,7 +180,12 @@ export async function DELETE(
     // Database delete
     try {
       const targetUser = await prisma.user.findUnique({ where: { id } });
-      if (targetUser?.role === "SUPER_ADMIN" || (targetUser as any)?.platformRole === "SUPER_ADMIN") {
+      if (!targetUser) {
+        return NextResponse.json({ success: false, error: "User not found" }, { status: 404 });
+      }
+      const isTargetSuperAdmin =
+        targetUser.role === "SUPER_ADMIN" || (targetUser as any)?.platformRole === "SUPER_ADMIN";
+      if (isTargetSuperAdmin) {
         return NextResponse.json(
           { success: false, error: "Cannot delete the master Super Admin account." },
           { status: 400 }
@@ -150,6 +197,16 @@ export async function DELETE(
       return NextResponse.json({ success: true, message: "User deleted successfully" });
     } catch {
       // Fallback
+      const targetUser = fallbackStore.users.find((u) => u.id === id);
+      if (!targetUser) {
+        return NextResponse.json({ success: false, error: "User not found" }, { status: 404 });
+      }
+      if (targetUser.role === "SUPER_ADMIN" || (targetUser as any).platformRole === "SUPER_ADMIN") {
+        return NextResponse.json(
+          { success: false, error: "Cannot delete the master Super Admin account." },
+          { status: 400 }
+        );
+      }
       const deleted = storeDeleteUser(id);
       if (!deleted) {
         return NextResponse.json({ success: false, error: "User not found" }, { status: 404 });

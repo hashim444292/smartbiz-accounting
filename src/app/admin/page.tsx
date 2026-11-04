@@ -143,7 +143,7 @@ export default function AdminDashboardPage() {
               <Plus className="h-4 w-4" />
               <span>New Company</span>
             </Link>
-            {user?.role === "SUPER_ADMIN" ? (
+            {user?.role === "SUPER_ADMIN" || user?.role === "ADMIN" ? (
               <Link
                 href="/admin/users"
                 className="inline-flex items-center justify-center gap-1.5 sm:gap-2 rounded-xl bg-purple-600 hover:bg-purple-500 px-3.5 sm:px-4 py-2.5 text-xs font-bold text-white shadow-lg transition"
@@ -373,7 +373,7 @@ export default function AdminDashboardPage() {
 
         {/* System Users Preview (Right col for Super Admin) / Activity Tracking (For Team Admin) */}
         <div className="space-y-4">
-          {user?.role === "SUPER_ADMIN" ? (
+          {user?.role === "SUPER_ADMIN" || user?.role === "ADMIN" ? (
             <>
               <div className="flex items-center justify-between">
                 <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
@@ -474,7 +474,7 @@ export default function AdminDashboardPage() {
                   <ArrowRight className="h-3.5 w-3.5 text-slate-400" />
                 </Link>
 
-                {user?.role === "SUPER_ADMIN" ? (
+                {user?.role === "SUPER_ADMIN" || user?.role === "ADMIN" ? (
                   <Link
                     href="/admin/users"
                     className="w-full flex items-center justify-between p-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:border-purple-500 transition"

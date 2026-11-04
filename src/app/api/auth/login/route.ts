@@ -78,6 +78,7 @@ export async function POST(req: NextRequest) {
             email: user.email,
             name: user.name,
             role: user.role,
+            platformRole: (user as any).platformRole || (user.role === "SUPER_ADMIN" ? "SUPER_ADMIN" : "TENANT_USER"),
             businessId: primaryBusiness?.id || "",
             businessName: primaryBusiness?.name || "SmartBiz",
             companyIds: companyIds.length > 0 ? companyIds : (primaryBusiness?.id ? [primaryBusiness.id] : []),
@@ -126,12 +127,14 @@ export async function POST(req: NextRequest) {
         email: fallbackUser.email,
         name: fallbackUser.name,
         role: fallbackUser.role,
+        platformRole: (fallbackUser as any).platformRole || (fallbackUser.role === "SUPER_ADMIN" ? "SUPER_ADMIN" : "TENANT_USER"),
         businessId: activeBiz.id,
         businessName: activeBiz.name,
         companyIds: fallbackUser.companyIds,
         branchId: fallbackUser.branchId || null,
         branchName: fallbackUser.branchName || null,
         canCreateBranches: Boolean(activeBiz.canCreateBranches),
+        allowedModules: fallbackUser.allowedModules || [],
       };
 
       resetLoginRateLimit(ipKey);
