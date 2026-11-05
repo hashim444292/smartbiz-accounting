@@ -348,7 +348,6 @@ function AccountingContent() {
     }
   };
 
-  // Sync URL search params on mount
   useEffect(() => {
     const tabParam = searchParams.get("tab") as TabType;
     if (tabParam && ["OVERVIEW", "LEDGER", "JOURNALS", "ACCOUNTS", "TRIAL_BALANCE"].includes(tabParam)) {
@@ -362,7 +361,16 @@ function AccountingContent() {
     if (idParam) {
       setSelectedEntityId(idParam);
     }
-  }, [searchParams]);
+    const codeParam = searchParams.get("code");
+    if (codeParam && accounts.length > 0) {
+      const matched = accounts.find((a) => a.code === codeParam);
+      if (matched) {
+        setLedgerType("ACCOUNT");
+        setSelectedEntityId(matched.id);
+        setActiveTab("LEDGER");
+      }
+    }
+  }, [searchParams, accounts]);
 
   const fetchData = async (isSilent = false) => {
     if (!isSilent) setLoading(true);
@@ -897,17 +905,23 @@ function AccountingContent() {
       journals.forEach((j) => {
         const jDate = new Date(j.date);
         (j.lines || []).forEach((l: any) => {
-          if (l.accountId === currentAccount.id) {
+            const isGenericDesc =
+              !l.description ||
+              l.description === currentAccount.name ||
+              l.description === "Inventory Shrinkage & Loss" ||
+              l.description === "Merchandise Inventory Write-down";
+
+            const effectiveDesc = isGenericDesc && j.description ? j.description : (l.description || j.description || currentAccount.name);
+
             allAccLines.push({
               id: l.id,
               date: jDate,
               refNumber: j.entryNumber,
-              type: "JOURNAL",
-              description: l.description || j.description || currentAccount.name,
+              type: j.referenceType === "ADJUSTMENT" ? "STOCK LOSS" : "JOURNAL",
+              description: effectiveDesc,
               debit: Number(l.debit || 0),
               credit: Number(l.credit || 0),
             });
-          }
         });
       });
 

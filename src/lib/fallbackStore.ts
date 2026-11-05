@@ -3638,18 +3638,31 @@ export function storeAdjustStock(
     const bizId = data.businessId || prod.businessId;
 
     if (diff < 0) {
+      const reasonLabel =
+        data.reason === "DAMAGE"
+          ? "Broken / Damaged (ٹوٹ پھوٹ یا خرابی)"
+          : data.reason === "EXPIRY"
+          ? "Expired (تاریخ ختم)"
+          : data.reason === "WRITE_OFF"
+          ? "Theft / Lost / Missing (چوری یا گمشدہ)"
+          : data.reason === "PHYSICAL_COUNT"
+          ? "Physical Audit Discrepancy (آڈٹ کمی)"
+          : (data.reason || "Stock Loss");
+      const unitCost = Number(prod.averageCost || 0);
+      const fullNarration = `Stock Loss: [${prod.name}] - ${Math.abs(diff)} ${prod.unit || "pcs"} @ Rs ${unitCost.toFixed(2)}/unit (${reasonLabel})${data.notes ? ` | Memo: ${data.notes}` : ""}`;
+
       // Loss: Debit 5020 Inventory Shrinkage & Loss, Credit 1200 Merchandise Inventory
       fallbackStore.journalEntries.unshift({
         id: jId,
         businessId: bizId,
         date: data.date || new Date().toISOString(),
-        description: `Inventory Shrinkage/Loss for ${prod.name} (${diff} ${prod.unit || "pcs"}) - Reason: ${data.reason || "DAMAGE"}`,
+        description: fullNarration,
         referenceType: "ADJUSTMENT",
         referenceId: txRecord.id,
         createdById,
         lines: [
-          { accountCode: "5020", debit: totalCost, credit: 0, description: "Inventory Shrinkage & Loss" },
-          { accountCode: "1200", debit: 0, credit: totalCost, description: "Merchandise Inventory Write-down" },
+          { accountCode: "5020", debit: totalCost, credit: 0, description: fullNarration },
+          { accountCode: "1200", debit: 0, credit: totalCost, description: `Inventory Asset Write-down: [${prod.name}] (-${Math.abs(diff)} ${prod.unit || "pcs"})` },
         ],
       });
 

@@ -1,12 +1,13 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import Link from "next/link";
 import { formatMoney } from "@/lib/decimal";
 import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, Receipt, Tag, Download, Pencil, Trash2, Building2 } from "lucide-react";
+import { Plus, Search, Receipt, Tag, Download, Pencil, Trash2, Building2, Flame, ArrowRight } from "lucide-react";
 import { TableRowsSkeleton } from "@/components/ui/loader";
 import { useAuth } from "@/context/AuthContext";
 import { useLanguage } from "@/context/LanguageContext";
@@ -410,6 +411,45 @@ export default function ExpensesPage() {
             👑 Owner Multi-Outlet View
           </span>
         )}
+      </div>
+
+      {/* Stock Damage & Inventory Loss Quick Reference Notice */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 rounded-2xl border border-rose-200/80 bg-rose-50/50 p-3.5 text-xs text-rose-950 dark:border-rose-900/50 dark:bg-rose-950/20 dark:text-rose-200">
+        <div className="flex items-start gap-2.5">
+          <div className="p-1.5 rounded-xl bg-rose-100 dark:bg-rose-900/60 text-rose-700 dark:text-rose-300 shrink-0">
+            <Flame className="h-4 w-4" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-bold text-slate-900 dark:text-white">
+                {language === "ur" ? "اسٹاک نقصان، ٹوٹ پھوٹ و چوری کھاتہ" : "Stock Damage, Breakage & Theft Loss"}
+              </span>
+              <span className="rounded bg-rose-200/70 text-rose-800 dark:bg-rose-900 dark:text-rose-300 px-1.5 py-0.2 text-[10px] font-bold">
+                Account 5020 (COGS Loss)
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-0.5">
+              {language === "ur"
+                ? "خراب، ٹوٹا یا چوری شدہ مال نان کیش نقصان ہے۔ یہ جنرل لیجر اکاونٹ 5020 اور انکم اسٹیٹمنٹ میں پروڈکٹ کے نام، وجہ اور تفصیل (narration) کے ساتھ ریکارڈ ہوتا ہے۔"
+                : "Broken, damaged or stolen items are non-cash inventory write-downs automatically posted to Account 5020 with complete product itemization and narration."}
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <Link
+            href="/accounting?tab=LEDGER&type=ACCOUNT&code=5020"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-rose-300 bg-white px-3 py-1.5 text-xs font-bold text-rose-700 shadow-xs hover:bg-rose-50 dark:border-rose-800 dark:bg-slate-900 dark:text-rose-300 dark:hover:bg-rose-950/40 transition"
+          >
+            <span>{language === "ur" ? "نقصان لیجر دیکھیں" : "View Loss Ledger (5020)"}</span>
+            <ArrowRight className="h-3.5 w-3.5" />
+          </Link>
+          <Link
+            href="/inventory"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 transition"
+          >
+            <span>{language === "ur" ? "اسٹاک نقصان درج کریں" : "Record in Inventory"}</span>
+          </Link>
+        </div>
       </div>
 
       {/* Filters Bar */}

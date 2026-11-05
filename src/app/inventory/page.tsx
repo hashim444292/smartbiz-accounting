@@ -6,7 +6,7 @@ import { formatMoney } from "@/lib/decimal";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Search, AlertTriangle, ArrowUpDown, Download, Package, Plus, Flame, X, CheckCircle2 } from "lucide-react";
+import { Search, AlertTriangle, ArrowUpDown, Download, Package, Plus, Flame, X, CheckCircle2, ExternalLink } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useLanguage } from "@/context/LanguageContext";
 import { TableRowsSkeleton } from "@/components/ui/loader";
@@ -290,6 +290,17 @@ export default function InventoryPage() {
             <Flame className="h-3.5 w-3.5 mr-1 text-rose-600" />
             <span>Record Damage & Loss</span>
           </Button>
+          <Link href="/accounting?tab=LEDGER&type=ACCOUNT&code=5020">
+            <Button
+              variant="outline"
+              size="sm"
+              className="border-slate-300 text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300"
+              title={t("View Stock Loss General Ledger (Account 5020)", "اسٹاک نقصان جنرل لیجر دیکھیں")}
+            >
+              <ExternalLink className="h-3.5 w-3.5 mr-1 text-slate-500" />
+              <span>{t("Loss Ledger (5020)", "نقصان لیجر (5020)")}</span>
+            </Button>
+          </Link>
           <Link href="/products/create">
             <Button variant="primary" size="sm">
               <Plus className="h-3.5 w-3.5 mr-1" />
@@ -478,8 +489,21 @@ export default function InventoryPage() {
                               </span>
                             </div>
                           </td>
-                          <td className="px-4 py-3 text-slate-500 max-w-xs truncate" title={t.notes || "—"}>
-                            {t.notes || (t.reason ? `Reason: ${t.reason}` : "—")}
+                          <td className="px-4 py-3 text-slate-700 dark:text-slate-300 max-w-sm">
+                            <div className="flex flex-col gap-0.5">
+                              <span className="font-semibold text-xs text-slate-900 dark:text-slate-100">
+                                {t.notes || (t.reason ? `Reason: ${t.reason}` : "—")}
+                              </span>
+                              {isDamage && (
+                                <Link
+                                  href="/accounting?tab=LEDGER&type=ACCOUNT&code=5020"
+                                  className="text-[10px] font-bold text-rose-600 dark:text-rose-400 hover:underline inline-flex items-center gap-1 mt-0.5"
+                                >
+                                  <span>View in Account 5020 Ledger</span>
+                                  <ExternalLink className="h-2.5 w-2.5" />
+                                </Link>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       );

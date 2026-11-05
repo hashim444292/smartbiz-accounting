@@ -235,8 +235,20 @@ export async function performStockAdjustment(
         ],
       });
     }
-  } else {
     // Stock Decrease (Shrinkage, Damage, Loss)
+    const reasonLabel =
+      reason === "DAMAGE"
+        ? "Broken / Damaged (ٹوٹ پھوٹ یا خرابی)"
+        : reason === "EXPIRY"
+        ? "Expired (تاریخ ختم)"
+        : reason === "WRITE_OFF"
+        ? "Theft / Lost / Missing (چوری یا گمشدہ)"
+        : reason === "PHYSICAL_COUNT"
+        ? "Physical Audit Discrepancy (آڈٹ کمی)"
+        : (reason || "Stock Loss");
+
+    const fullNarration = `Stock Loss: [${product.name}] - ${absDiff} ${product.unit || "pcs"} @ Rs ${avgCost.toFixed(2)}/unit (${reasonLabel})${notes ? ` | Memo: ${notes}` : ""}`;
+
     await recordStockMovement(tx, {
       businessId,
       branchId,
@@ -246,24 +258,34 @@ export async function performStockAdjustment(
       unitCost: avgCost,
       referenceType: "ADJUSTMENT",
       referenceId: adjustmentRecord.id,
-      notes: `Adjustment loss (${reason}): ${notes || ""}`,
+      notes: notes ? `${notes} (${reasonLabel})` : fullNarration,
       createdById,
       createdByName,
       date,
     });
 
-    // Journal Entry: Debit Inventory Loss, Credit Merchandise Inventory
+    // Journal Entry: Debit Inventory Loss (5020), Credit Merchandise Inventory (1200)
     if (totalCost.gt(0)) {
       await createJournalEntry(tx, {
         businessId,
         date,
-        description: `Inventory Shrinkage/Loss for ${product.name} (-${absDiff} ${product.unit})`,
+        description: fullNarration,
         referenceType: "ADJUSTMENT",
         referenceId: adjustmentRecord.id,
         createdById,
         lines: [
-          { accountCode: "5020", debit: totalCost, credit: 0, description: "Inventory Shrinkage & Loss" },
-          { accountCode: "1200", debit: 0, credit: totalCost, description: "Merchandise Inventory Write-down" },
+          {
+            accountCode: "5020",
+            debit: totalCost,
+            credit: 0,
+            description: fullNarration,
+          },
+          {
+            accountCode: "1200",
+            debit: 0,
+            credit: totalCost,
+            description: `Inventory Asset Write-down: [${product.name}] (-${absDiff} ${product.unit || "pcs"})`,
+          },
         ],
       });
     }
