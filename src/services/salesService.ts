@@ -675,10 +675,17 @@ export async function createAndPostSale(input: CreateSaleInput) {
 /**
  * Reverses a posted sale (Sales Return / Cancellation)
  */
+export interface ReturnItemInput {
+  itemId?: string;
+  productId: string;
+  quantity: Decimal.Value;
+}
+
 export async function reverseSale(
   saleId: string,
-  reason: string,
-  userId?: string
+  reason: string = "Customer return / cancellation",
+  userId?: string,
+  itemsToReturn?: ReturnItemInput[]
 ) {
   return await prisma.$transaction(async (tx) => {
     const sale = await tx.sale.findUnique({
@@ -687,7 +694,7 @@ export async function reverseSale(
     });
 
     if (!sale) throw new Error("Sale not found.");
-    if (sale.status === "CANCELLED") throw new Error("Sale is already cancelled.");
+    if (sale.status === "CANCELLED") throw new Error("Sale is already cancelled and fully returned.");
 
     // Statutory Rule: Only already-stamped FBR Digital Invoices cannot be reversed / credit noted
     const isStampedDI =
@@ -703,39 +710,133 @@ export async function reverseSale(
 
     await assertPeriodOpen(tx, sale.businessId, new Date());
 
-    // 1. Mark sale as CANCELLED
-    await tx.sale.update({
-      where: { id: saleId },
-      data: { status: "CANCELLED", notes: `${sale.notes || ""}\n[REVERSED]: ${reason}` },
+    // 1. Calculate previously returned quantities from inventory transactions
+    const previousReturns = await tx.inventoryTransaction.findMany({
+      where: { referenceId: sale.id, type: "SALE_RETURN" },
     });
+    const alreadyReturnedByProduct: Record<string, Decimal> = {};
+    for (const ret of previousReturns) {
+      alreadyReturnedByProduct[ret.productId] = (alreadyReturnedByProduct[ret.productId] || new Decimal(0)).add(toDecimal(ret.quantity));
+    }
 
-    // 2. Restock items via SALE_RETURN
+    // 2. Determine which items and quantities to return in this operation
+    const itemsProcessing: Array<{
+      saleItem: typeof sale.items[0];
+      returnQty: Decimal;
+      lineReturnAmount: Decimal;
+      lineCOGSReversal: Decimal;
+    }> = [];
+
+    if (Array.isArray(itemsToReturn) && itemsToReturn.length > 0) {
+      // Partial / Item-Specific Return
+      for (const reqItem of itemsToReturn) {
+        const qty = round4(toDecimal(reqItem.quantity));
+        if (qty.lte(0)) continue;
+
+        const saleItem = sale.items.find(
+          (it) => (reqItem.itemId && it.id === reqItem.itemId) || it.productId === reqItem.productId
+        );
+        if (!saleItem) {
+          throw new Error(`Item with product ID ${reqItem.productId} was not found on sale #${sale.invoiceNumber}.`);
+        }
+
+        const soldQty = toDecimal(saleItem.quantity);
+        const alreadyReturned = alreadyReturnedByProduct[saleItem.productId] || new Decimal(0);
+        const returnableQty = Decimal.max(0, soldQty.sub(alreadyReturned));
+
+        if (qty.gt(returnableQty)) {
+          throw new Error(
+            `Cannot return ${qty} of "${saleItem.productName}". Maximum returnable quantity is ${returnableQty} (Sold: ${soldQty}, Already Returned: ${alreadyReturned}).`
+          );
+        }
+
+        const unitPrice = toDecimal(saleItem.unitPrice);
+        const taxRate = toDecimal(saleItem.taxRate || 0);
+        const costPrice = toDecimal(saleItem.costPrice || 0);
+
+        const subtotalForReturn = qty.mul(unitPrice);
+        const taxForReturn = subtotalForReturn.mul(taxRate).div(100);
+        const lineTotalWithTax = subtotalForReturn.add(taxForReturn);
+        const lineCOGS = qty.mul(costPrice);
+
+        itemsProcessing.push({
+          saleItem,
+          returnQty: qty,
+          lineReturnAmount: lineTotalWithTax,
+          lineCOGSReversal: lineCOGS,
+        });
+      }
+
+      if (itemsProcessing.length === 0) {
+        throw new Error("No items selected for return. Please specify a quantity greater than zero.");
+      }
+    } else {
+      // Full Return (All remaining returnable quantities)
+      for (const saleItem of sale.items) {
+        const soldQty = toDecimal(saleItem.quantity);
+        const alreadyReturned = alreadyReturnedByProduct[saleItem.productId] || new Decimal(0);
+        const returnableQty = Decimal.max(0, soldQty.sub(alreadyReturned));
+        if (returnableQty.lte(0)) continue;
+
+        const unitPrice = toDecimal(saleItem.unitPrice);
+        const taxRate = toDecimal(saleItem.taxRate || 0);
+        const costPrice = toDecimal(saleItem.costPrice || 0);
+
+        const subtotalForReturn = returnableQty.mul(unitPrice);
+        const taxForReturn = subtotalForReturn.mul(taxRate).div(100);
+        const lineTotalWithTax = subtotalForReturn.add(taxForReturn);
+        const lineCOGS = returnableQty.mul(costPrice);
+
+        itemsProcessing.push({
+          saleItem,
+          returnQty: returnableQty,
+          lineReturnAmount: lineTotalWithTax,
+          lineCOGSReversal: lineCOGS,
+        });
+      }
+
+      if (itemsProcessing.length === 0) {
+        throw new Error(`All items on invoice #${sale.invoiceNumber} have already been returned.`);
+      }
+    }
+
+    // 3. Compute aggregate return monetary amounts
+    let totalReturnAmount = new Decimal(0);
     let totalCOGSReversal = new Decimal(0);
-    for (const item of sale.items) {
-      const q = toDecimal(item.quantity);
-      const cost = toDecimal(item.costPrice);
-      totalCOGSReversal = totalCOGSReversal.add(q.mul(cost));
+    for (const p of itemsProcessing) {
+      totalReturnAmount = totalReturnAmount.add(p.lineReturnAmount);
+      totalCOGSReversal = totalCOGSReversal.add(p.lineCOGSReversal);
+    }
+    totalReturnAmount = round2(totalReturnAmount);
+    totalCOGSReversal = round2(totalCOGSReversal);
 
+    // 4. Restock items via SALE_RETURN inventory transactions
+    for (const p of itemsProcessing) {
       await recordStockMovement(tx, {
         businessId: sale.businessId,
-        productId: item.productId,
+        productId: p.saleItem.productId,
         type: "SALE_RETURN",
-        quantity: q,
-        unitCost: cost,
+        quantity: p.returnQty,
+        unitCost: p.saleItem.costPrice,
         referenceType: "SALE_RETURN",
         referenceId: sale.id,
-        notes: `Reversal of sale #${sale.invoiceNumber}: ${reason}`,
+        notes: `Return of sale #${sale.invoiceNumber}: ${p.returnQty}x ${p.saleItem.productName} (${reason})`,
         skipPeriodCheck: true,
         business: sale.business,
       });
     }
 
-    // 3. Rebalance customer receivables if remaining amount was unpaid
-    const remaining = toDecimal(sale.remainingAmount);
-    if (sale.customerId && remaining.gt(0)) {
+    // 5. Rebalance customer receivable & cash refund
+    const currentRemaining = toDecimal(sale.remainingAmount);
+    const currentPaid = toDecimal(sale.paidAmount);
+
+    const receivableReduction = round2(Decimal.min(currentRemaining, totalReturnAmount));
+    const cashRefund = round2(totalReturnAmount.sub(receivableReduction));
+
+    if (sale.customerId && receivableReduction.gt(0)) {
       const customer = await tx.customer.findUnique({ where: { id: sale.customerId } });
       if (customer) {
-        const newBal = Decimal.max(0, toDecimal(customer.currentBalance).sub(remaining));
+        const newBal = Decimal.max(0, toDecimal(customer.currentBalance).sub(receivableReduction));
         await tx.customer.update({
           where: { id: sale.customerId },
           data: { currentBalance: newBal.toNumber() },
@@ -743,23 +844,24 @@ export async function reverseSale(
       }
     }
 
-    // 4. Reverse Journal Entries
-    const paid = toDecimal(sale.paidAmount);
-    const total = toDecimal(sale.totalAmount);
-    const revLines: Array<{ accountCode: string; debit: Decimal; credit: Decimal }> = [];
+    const newRemaining = Decimal.max(0, currentRemaining.sub(receivableReduction));
+    const newPaid = cashRefund.gt(0) ? Decimal.max(0, currentPaid.sub(cashRefund)) : currentPaid;
 
-    revLines.push({ accountCode: "4020", debit: total, credit: new Decimal(0) }); // Sales Returns
-    if (paid.gt(0)) {
-      revLines.push({ accountCode: "1010", debit: new Decimal(0), credit: paid });
+    // 6. Balanced Journal Entries for Return
+    const revLines: Array<{ accountCode: string; debit: Decimal; credit: Decimal }> = [];
+    revLines.push({ accountCode: "4020", debit: totalReturnAmount, credit: new Decimal(0) }); // Sales Returns & Allowances
+    if (receivableReduction.gt(0)) {
+      revLines.push({ accountCode: "1100", debit: new Decimal(0), credit: receivableReduction }); // Receivables
     }
-    if (remaining.gt(0)) {
-      revLines.push({ accountCode: "1100", debit: new Decimal(0), credit: remaining });
+    if (cashRefund.gt(0)) {
+      const refundAcc = sale.paymentMethod === "BANK" ? "1020" : "1010";
+      revLines.push({ accountCode: refundAcc, debit: new Decimal(0), credit: cashRefund }); // Cash / Bank Refund
     }
 
     await createJournalEntry(tx, {
       businessId: sale.businessId,
       date: new Date(),
-      description: `Reversal of Sale Invoice #${sale.invoiceNumber} (${reason})`,
+      description: `Sales Return for #${sale.invoiceNumber} (${reason}) - Total: Rs ${totalReturnAmount}`,
       referenceType: "SALE_RETURN",
       referenceId: sale.id,
       createdById: userId,
@@ -770,28 +872,106 @@ export async function reverseSale(
       await createJournalEntry(tx, {
         businessId: sale.businessId,
         date: new Date(),
-        description: `COGS Reversal for #${sale.invoiceNumber}`,
+        description: `COGS Reversal for Return #${sale.invoiceNumber}`,
         referenceType: "SALE_RETURN",
         referenceId: sale.id,
         createdById: userId,
         lines: [
-          { accountCode: "1200", debit: totalCOGSReversal, credit: new Decimal(0) },
-          { accountCode: "5010", debit: new Decimal(0), credit: totalCOGSReversal },
+          { accountCode: "1200", debit: totalCOGSReversal, credit: new Decimal(0) }, // Merchandise Inventory
+          { accountCode: "5010", debit: new Decimal(0), credit: totalCOGSReversal }, // COGS
         ],
       });
     }
 
-    // 5. Audit Log
+    // 7. Verify whether invoice is 100% returned or partially returned
+    let isAllReturned = true;
+    for (const saleItem of sale.items) {
+      const prevRet = alreadyReturnedByProduct[saleItem.productId] || new Decimal(0);
+      const thisRet = itemsProcessing.find((p) => p.saleItem.productId === saleItem.productId)?.returnQty || new Decimal(0);
+      const totalRetForProd = prevRet.add(thisRet);
+      if (totalRetForProd.lt(toDecimal(saleItem.quantity))) {
+        isAllReturned = false;
+        break;
+      }
+    }
+
+    // 8. Track return history in sale.notes
+    let returnHistory: any[] = [];
+    let cleanNotes = sale.notes || "";
+    try {
+      if (cleanNotes.includes('"returnHistory":')) {
+        const parsed = JSON.parse(cleanNotes);
+        returnHistory = parsed.returnHistory || [];
+      }
+    } catch {}
+
+    const returnRecord = {
+      returnId: `RET-${Date.now().toString().slice(-6)}`,
+      date: new Date().toISOString(),
+      reason,
+      totalAmount: totalReturnAmount.toNumber(),
+      receivableReduction: receivableReduction.toNumber(),
+      cashRefund: cashRefund.toNumber(),
+      cogsReversal: totalCOGSReversal.toNumber(),
+      isAllReturned,
+      items: itemsProcessing.map((p) => ({
+        productId: p.saleItem.productId,
+        productName: p.saleItem.productName,
+        quantity: p.returnQty.toNumber(),
+        lineTotal: p.lineReturnAmount.toNumber(),
+      })),
+    };
+    returnHistory.push(returnRecord);
+
+    const updatedNotes = JSON.stringify({
+      notes: cleanNotes.replace(/\{"returnHistory":.*\}$/, "").trim(),
+      returnHistory,
+      lastReturn: returnRecord,
+    });
+
+    await tx.sale.update({
+      where: { id: saleId },
+      data: {
+        status: isAllReturned ? "CANCELLED" : "POSTED",
+        remainingAmount: newRemaining.toNumber(),
+        paidAmount: newPaid.toNumber(),
+        paymentStatus: newRemaining.lte(0) ? "PAID" : (newPaid.gt(0) ? "PARTIAL" : "UNPAID"),
+        notes: updatedNotes,
+      },
+    });
+
+    // 9. Audit Log
     await createSafeAuditLog(tx, {
       businessId: sale.businessId,
       userId: userId || null,
-      action: "REVERSE_SALE",
+      action: isAllReturned ? "REVERSE_SALE" : "PARTIAL_RETURN_SALE",
       entity: "Sale",
       entityId: sale.id,
-      details: JSON.stringify({ invoiceNumber: sale.invoiceNumber, reason }),
+      details: JSON.stringify({
+        invoiceNumber: sale.invoiceNumber,
+        reason,
+        isAllReturned,
+        returnedAmount: totalReturnAmount.toNumber(),
+        itemsCount: itemsProcessing.length,
+      }),
     });
 
-    return { status: "REVERSED", saleId };
+    return {
+      status: isAllReturned ? "REVERSED" : "PARTIALLY_RETURNED",
+      saleId,
+      invoiceNumber: sale.invoiceNumber,
+      returnedAmount: totalReturnAmount.toNumber(),
+      receivableReduction: receivableReduction.toNumber(),
+      cashRefund: cashRefund.toNumber(),
+      cogsReversed: totalCOGSReversal.toNumber(),
+      isAllReturned,
+      itemsReturned: itemsProcessing.map((p) => ({
+        productId: p.saleItem.productId,
+        productName: p.saleItem.productName,
+        quantity: p.returnQty.toNumber(),
+        lineTotal: p.lineReturnAmount.toNumber(),
+      })),
+    };
   });
 }
 

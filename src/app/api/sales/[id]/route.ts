@@ -105,7 +105,60 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
       }
     }
 
-    return NextResponse.json({ success: true, data: { ...sale, customer } });
+    // Inspect returnHistory from notes or InventoryTransaction
+    let returnHistory: any[] = [];
+    if (sale.notes && typeof sale.notes === "string") {
+      try {
+        const parsedNotes = JSON.parse(sale.notes);
+        if (Array.isArray(parsedNotes.returnHistory)) {
+          returnHistory = parsedNotes.returnHistory;
+        }
+      } catch {}
+    }
+
+    let retTxSumByProduct: Record<string, number> = {};
+    try {
+      const returnTxs = await prisma.inventoryTransaction.findMany({
+        where: { referenceId: sale.id, type: "SALE_RETURN" },
+        select: { productId: true, quantity: true },
+      });
+      for (const t of returnTxs) {
+        retTxSumByProduct[t.productId] = (retTxSumByProduct[t.productId] || 0) + Number(t.quantity || 0);
+      }
+    } catch {}
+
+    const enrichedItems = (sale.items || []).map((it) => {
+      let retFromHistory = 0;
+      for (const rh of returnHistory) {
+        for (const rItem of rh.items || []) {
+          if (rItem.productId === it.productId) {
+            retFromHistory += Number(rItem.quantity || 0);
+          }
+        }
+      }
+      const returnedQty = Math.max(retFromHistory, retTxSumByProduct[it.productId] || 0);
+      const remainingQty = Math.max(0, Number(it.quantity || 0) - returnedQty);
+      return {
+        ...it,
+        returnedQuantity: returnedQty,
+        remainingQuantity: remainingQty,
+      };
+    });
+
+    const totalReturnedAmount = returnHistory.reduce((s: number, r: any) => s + Number(r.totalAmount || 0), 0);
+    const isPartialReturn = sale.status !== "CANCELLED" && (totalReturnedAmount > 0 || enrichedItems.some((it) => it.returnedQuantity > 0));
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        ...sale,
+        customer,
+        items: enrichedItems,
+        returnHistory,
+        totalReturnedAmount,
+        isPartialReturn,
+      },
+    });
   } catch {
     const businessId = await getActiveBusinessId(req);
     const sale = fallbackStore.sales.find((s) => s.id === id && s.businessId === businessId);
@@ -123,11 +176,24 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     }
 
     let fbrMeta: any = null;
+    let returnHistory: any[] = [];
     if (sale.notes && typeof sale.notes === "string" && sale.notes.trim().startsWith("{")) {
       try {
         const parsed = JSON.parse(sale.notes);
         fbrMeta = parsed.fbrMeta || parsed;
+        if (Array.isArray(parsed.returnHistory)) returnHistory = parsed.returnHistory;
       } catch {}
+    } else if (Array.isArray((sale as any).returnHistory)) {
+      returnHistory = (sale as any).returnHistory;
+    }
+
+    // Look up returned quantities from fallback inventoryTransactions
+    const retTxs = (fallbackStore.inventoryTransactions || []).filter(
+      (tx) => tx.referenceId === sale.id && tx.type === "SALE_RETURN"
+    );
+    const returnedByProd: Record<string, number> = {};
+    for (const tx of retTxs) {
+      returnedByProd[tx.productId] = (returnedByProd[tx.productId] || 0) + Math.abs(Number(tx.quantity || 0));
     }
 
     if (customer && fbrMeta) {
@@ -147,7 +213,41 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     }
 
     const business = fallbackStore.companies.find((c) => c.id === businessId);
-    return NextResponse.json({ success: true, data: { ...sale, customer, business }, fallback: true });
+    const enrichedItems = (sale.items || []).map((it: any) => {
+      let retFromHistory = returnedByProd[it.productId] || 0;
+      if (retFromHistory === 0) {
+        for (const rh of returnHistory) {
+          for (const rItem of rh.items || []) {
+            if (rItem.productId === it.productId) {
+              retFromHistory += Number(rItem.quantity || 0);
+            }
+          }
+        }
+      }
+      const remainingQty = Math.max(0, Number(it.quantity || 0) - retFromHistory);
+      return {
+        ...it,
+        returnedQuantity: retFromHistory,
+        remainingQuantity: remainingQty,
+      };
+    });
+
+    const totalReturnedAmount = returnHistory.reduce((s: number, r: any) => s + Number(r.totalAmount || 0), 0);
+    const isPartialReturn = sale.status !== "CANCELLED" && (totalReturnedAmount > 0 || enrichedItems.some((it: any) => it.returnedQuantity > 0));
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        ...sale,
+        customer,
+        business,
+        items: enrichedItems,
+        returnHistory,
+        totalReturnedAmount,
+        isPartialReturn,
+      },
+      fallback: true,
+    });
   }
 }
 

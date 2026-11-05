@@ -39,6 +39,7 @@ import {
   Lock,
 } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
+import { SalesReturnModal } from "@/components/sales/SalesReturnModal";
 import { useAuth } from "@/context/AuthContext";
 import { useLanguage } from "@/context/LanguageContext";
 import { smartFetch, invalidateCache, useAutoSync } from "@/lib/clientCache";
@@ -69,7 +70,25 @@ interface SaleRecord {
   updatedAt?: string;
   editReason?: string;
   notes?: string;
-  items: Array<{ productName: string; quantity: number; unitPrice: number; lineTotal: number }>;
+  isPartialReturn?: boolean;
+  totalReturnedAmount?: number;
+  hasReturnableItems?: boolean;
+  returnHistory?: any[];
+  items: Array<{
+    id?: string;
+    productName: string;
+    quantity: number;
+    unitPrice: number;
+    lineTotal: number;
+    returnedQuantity?: number;
+    remainingQuantity?: number;
+    taxRate?: number;
+    taxAmount?: number;
+    costPrice?: number;
+    productId?: string;
+    uom?: string;
+    product?: any;
+  }>;
 }
 
 export default function SalesPage() {
@@ -91,6 +110,8 @@ export default function SalesPage() {
   const [endDate, setEndDate] = useState("");
   const [reversingId, setReversingId] = useState<string | null>(null);
   const [deletingSaleId, setDeletingSaleId] = useState<string | null>(null);
+  const [returnModalSale, setReturnModalSale] = useState<any | null>(null);
+  const [isReturnModalOpen, setIsReturnModalOpen] = useState(false);
 
   // Helper for date-only input formatting (YYYY-MM-DD, no time)
   const formatDateOnly = (d?: string | Date | null) => {
@@ -213,6 +234,31 @@ export default function SalesPage() {
     } finally {
       setReversingId(null);
     }
+  };
+
+  const handleInitiateReturn = (sale: any) => {
+    const isFbrPos = sale.fbrStatus === "SUCCESS" && Boolean(sale.fbrInvoiceNumber) && !sale.fbrInvoiceNumber.includes("DI");
+    if (isFbrPos) {
+      handleReverse(sale.id, sale.invoiceNumber, true);
+    } else {
+      setReturnModalSale(sale);
+      setIsReturnModalOpen(true);
+    }
+  };
+
+  const handleReturnSuccess = (result: any) => {
+    const msg = language === "ur"
+      ? (result.isFullReturn
+          ? "مکمل سیل کامیابی سے واپس ہو گئی اور تمام اشیاء گودام میں بحال ہو گئیں۔"
+          : `کامیابی سے ${result.returnedItemsCount || "منتخب"} اشیاء واپس کر دی گئیں اور کھاتہ ایڈجسٹ ہو گیا۔`)
+      : (result.isFullReturn
+          ? "Sale invoice fully reversed and all items restocked."
+          : `Successfully returned ${result.returnedItemsCount || "selected"} item(s). Accounts and inventory updated.`);
+    alert(msg);
+    invalidateCache("/api/sales");
+    invalidateCache("/api/products");
+    invalidateCache("/api/dashboard");
+    fetchSales();
   };
 
   const handleDeleteSale = async (sale: SaleRecord) => {
@@ -1224,6 +1270,11 @@ export default function SalesPage() {
                             ✏️ Edited
                           </span>
                         )}
+                        {sale.isPartialReturn && sale.status === "POSTED" && (
+                          <span className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-300 dark:bg-amber-950/60 dark:text-amber-300">
+                            ↺ {language === "ur" ? "جزوی واپسی" : "Partial Return"}
+                          </span>
+                        )}
                       </div>
                       <p className="font-semibold text-xs text-slate-900 dark:text-white">
                         {sale.customerName}
@@ -1299,6 +1350,16 @@ export default function SalesPage() {
                       >
                         <Pencil className="h-3.5 w-3.5" />
                       </button>
+                      {sale.status === "POSTED" && sale.hasReturnableItems !== false && !(sale.fbrStatus === "SUCCESS" && Boolean(typeof sale.fbrInvoiceNumber === "string" && (sale.fbrInvoiceNumber.includes("DI") || isDigitalInvoicing))) && (
+                        <button
+                          onClick={() => handleInitiateReturn(sale)}
+                          disabled={reversingId === sale.id}
+                          className="p-1 text-rose-500 hover:bg-rose-50 dark:text-rose-400 rounded-lg"
+                          title={sale.fbrStatus === "SUCCESS" ? t("Return Sale & Issue FBR Credit Note", "سیل واپسی اور FBR کریڈٹ نوٹ") : t("Select Items to Return", "آئٹم وائز سیل واپسی")}
+                        >
+                          <RotateCcw className={`h-3.5 w-3.5 ${reversingId === sale.id ? "animate-spin text-rose-700" : ""}`} />
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1428,6 +1489,7 @@ export default function SalesPage() {
                         <div className="flex flex-col gap-1">
                           {sale.items.map((item: any, i: number) => {
                             const uomDisplay = (item.uom || item.product?.uom || item.product?.unit || "").toUpperCase() || "PCS";
+                            const retQty = Number(item.returnedQuantity || 0);
                             return (
                               <div key={i} className="flex items-center gap-1.5 text-xs">
                                 <span className="font-bold text-slate-900 dark:text-white">
@@ -1436,6 +1498,11 @@ export default function SalesPage() {
                                 <span className="rounded bg-emerald-50 border border-emerald-200/60 px-1.5 py-0.2 text-[10px] font-bold text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800 shrink-0">
                                   {Number(item.quantity || 1)} {uomDisplay}
                                 </span>
+                                {retQty > 0 && (
+                                  <span className="rounded bg-rose-50 border border-rose-200/60 px-1 py-0.2 text-[9px] font-bold text-rose-600 dark:bg-rose-950/60 dark:text-rose-300 shrink-0">
+                                    (-{retQty} {language === "ur" ? "واپس" : "ret"})
+                                  </span>
+                                )}
                               </div>
                             );
                           })}
@@ -1484,9 +1551,21 @@ export default function SalesPage() {
                       </Badge>
                     </td>
                     <td className="px-4 py-3 text-center">
-                      <Badge variant={sale.status === "POSTED" ? "default" : "secondary"}>
-                        {sale.status}
-                      </Badge>
+                      <div className="flex flex-col items-center gap-1">
+                        <Badge variant={sale.status === "POSTED" ? "default" : "secondary"}>
+                          {sale.status === "CANCELLED"
+                            ? (language === "ur" ? "واپسی شدہ" : "CANCELLED")
+                            : sale.status}
+                        </Badge>
+                        {sale.isPartialReturn && sale.status === "POSTED" && (
+                          <span
+                            className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.2 text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-300 dark:bg-amber-950/60 dark:text-amber-300"
+                            title={`Partial return of Rs. ${formatMoney(sale.totalReturnedAmount || 0)}`}
+                          >
+                            ↺ {language === "ur" ? "جزوی واپسی" : "Partial Ret"}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-right print:hidden">
                       <div className="flex items-center justify-end gap-1.5">
@@ -1522,12 +1601,12 @@ export default function SalesPage() {
                             <ShieldCheck className={`h-3.5 w-3.5 ${transmittingFbrId === sale.id ? "animate-spin text-blue-700" : ""}`} />
                           </button>
                         )}
-                        {sale.status === "POSTED" && !(sale.fbrStatus === "SUCCESS" && Boolean(typeof sale.fbrInvoiceNumber === "string" && (sale.fbrInvoiceNumber.includes("DI") || isDigitalInvoicing))) && (
+                        {sale.status === "POSTED" && sale.hasReturnableItems !== false && !(sale.fbrStatus === "SUCCESS" && Boolean(typeof sale.fbrInvoiceNumber === "string" && (sale.fbrInvoiceNumber.includes("DI") || isDigitalInvoicing))) && (
                           <button
-                            onClick={() => handleReverse(sale.id, sale.invoiceNumber, sale.fbrStatus === "SUCCESS" && Boolean(sale.fbrInvoiceNumber))}
+                            onClick={() => handleInitiateReturn(sale)}
                             disabled={reversingId === sale.id}
                             className="rounded-lg p-1.5 text-rose-500 hover:bg-rose-50 hover:text-rose-700 dark:hover:bg-rose-950/40"
-                            title={sale.fbrStatus === "SUCCESS" ? t("Return Sale & Issue FBR Credit Note", "سیل واپسی اور FBR کریڈٹ نوٹ") : t("Return / Reverse Sale", "سیل واپسی / ریورس")}
+                            title={sale.fbrStatus === "SUCCESS" ? t("Return Sale & Issue FBR Credit Note", "سیل واپسی اور FBR کریڈٹ نوٹ") : t("Select Items to Return / Reverse Sale", "آئٹم وائز سیل واپسی / ریورس")}
                           >
                             <RotateCcw className={`h-3.5 w-3.5 ${reversingId === sale.id ? "animate-spin text-rose-700" : ""}`} />
                           </button>
@@ -2159,6 +2238,17 @@ export default function SalesPage() {
           </form>
         </Modal>
       )}
+
+      {/* Partial & Item-wise Sales Return Modal */}
+      <SalesReturnModal
+        isOpen={isReturnModalOpen}
+        onClose={() => {
+          setIsReturnModalOpen(false);
+          setReturnModalSale(null);
+        }}
+        sale={returnModalSale}
+        onSuccess={handleReturnSuccess}
+      />
     </div>
   );
 }

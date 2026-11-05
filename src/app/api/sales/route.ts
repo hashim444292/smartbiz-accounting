@@ -58,10 +58,46 @@ export async function GET(req: NextRequest) {
       },
       orderBy: { date: "desc" },
     });
-    const parsedSales = sales.map((s) => ({
-      ...s,
-      customer: s.customer ? enrichCustomer(s.customer) : null,
-    }));
+    const parsedSales = sales.map((s) => {
+      let returnHistory: any[] = [];
+      if (s.notes && typeof s.notes === "string") {
+        try {
+          const parsedNotes = JSON.parse(s.notes);
+          if (Array.isArray(parsedNotes.returnHistory)) returnHistory = parsedNotes.returnHistory;
+        } catch {}
+      }
+
+      const returnedByProd: Record<string, number> = {};
+      for (const rh of returnHistory) {
+        for (const it of rh.items || []) {
+          returnedByProd[it.productId] = (returnedByProd[it.productId] || 0) + Number(it.quantity || 0);
+        }
+      }
+
+      const enrichedItems = (s.items || []).map((it) => {
+        const retQty = returnedByProd[it.productId] || 0;
+        const remQty = Math.max(0, Number(it.quantity || 0) - retQty);
+        return {
+          ...it,
+          returnedQuantity: retQty,
+          remainingQuantity: remQty,
+        };
+      });
+
+      const totalReturnedAmount = returnHistory.reduce((acc: number, r: any) => acc + Number(r.totalAmount || 0), 0);
+      const isPartialReturn = s.status !== "CANCELLED" && (totalReturnedAmount > 0 || enrichedItems.some((it) => it.returnedQuantity > 0));
+      const hasReturnableItems = s.status !== "CANCELLED" && enrichedItems.some((it) => it.remainingQuantity > 0);
+
+      return {
+        ...s,
+        customer: s.customer ? enrichCustomer(s.customer) : null,
+        items: enrichedItems,
+        returnHistory,
+        totalReturnedAmount,
+        isPartialReturn,
+        hasReturnableItems,
+      };
+    });
     return NextResponse.json({ success: true, data: parsedSales, branchId, isLockedToBranch });
   } catch (err) {
     const businessId = await getActiveBusinessId(req);
@@ -84,9 +120,44 @@ export async function GET(req: NextRequest) {
       if (!cust && s.customerId) {
         cust = fallbackStore.customers.find((c) => c.id === s.customerId);
       }
+
+      let returnHistory: any[] = [];
+      if (s.notes && typeof s.notes === "string") {
+        try {
+          const parsedNotes = JSON.parse(s.notes);
+          if (Array.isArray(parsedNotes.returnHistory)) returnHistory = parsedNotes.returnHistory;
+        } catch {}
+      }
+
+      const returnedByProd: Record<string, number> = {};
+      for (const rh of returnHistory) {
+        for (const it of rh.items || []) {
+          returnedByProd[it.productId] = (returnedByProd[it.productId] || 0) + Number(it.quantity || 0);
+        }
+      }
+
+      const enrichedItems = (s.items || []).map((it: any) => {
+        const retQty = returnedByProd[it.productId] || 0;
+        const remQty = Math.max(0, Number(it.quantity || 0) - retQty);
+        return {
+          ...it,
+          returnedQuantity: retQty,
+          remainingQuantity: remQty,
+        };
+      });
+
+      const totalReturnedAmount = returnHistory.reduce((acc: number, r: any) => acc + Number(r.totalAmount || 0), 0);
+      const isPartialReturn = s.status !== "CANCELLED" && (totalReturnedAmount > 0 || enrichedItems.some((it: any) => it.returnedQuantity > 0));
+      const hasReturnableItems = s.status !== "CANCELLED" && enrichedItems.some((it: any) => it.remainingQuantity > 0);
+
       return {
         ...s,
         customer: cust ? enrichCustomer(cust) : null,
+        items: enrichedItems,
+        returnHistory,
+        totalReturnedAmount,
+        isPartialReturn,
+        hasReturnableItems,
       };
     });
     return NextResponse.json({ success: true, data: parsedFiltered, branchId, isLockedToBranch, fallback: true });
