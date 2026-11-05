@@ -90,8 +90,6 @@ export function SalesReturnModal({
     }
   }, [isOpen, sale, itemRows]);
 
-  if (!isOpen || !sale) return null;
-
   const handleQtyChange = (itemId: string, newQty: number, maxQty: number) => {
     const clamped = Math.max(0, Math.min(maxQty, Math.round(newQty * 10000) / 10000));
     setReturnQtys((prev) => ({ ...prev, [itemId]: clamped }));
@@ -134,16 +132,16 @@ export function SalesReturnModal({
       if (q > 0) {
         units += q;
         selectedCount += 1;
-        const lineTotal = q * row.unitPrice * (1 + row.taxRate / 100);
+        const lineTotal = q * row.unitPrice * (1 + (row.taxRate || 0) / 100);
         returnAmt += lineTotal;
-        cogsRev += q * row.costPrice;
+        cogsRev += q * (row.costPrice || 0);
       }
       if (q !== row.remainingQuantity) {
         allRemainingSelected = false;
       }
     }
 
-    const currentRem = Number(sale.remainingAmount || 0);
+    const currentRem = Number(sale?.remainingAmount || 0);
     const recRed = Math.min(currentRem, returnAmt);
     const cashRef = Math.max(0, returnAmt - recRed);
 
@@ -156,10 +154,11 @@ export function SalesReturnModal({
       receivableReduction: recRed,
       cashRefund: cashRef,
     };
-  }, [itemRows, returnQtys, sale]);
+  }, [itemRows, returnQtys, sale?.remainingAmount]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!sale) return;
     if (totalUnitsReturning <= 0) {
       setError(
         language === "ur"
@@ -217,6 +216,8 @@ export function SalesReturnModal({
     }
   };
 
+  if (!isOpen || !sale) return null;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">
       <div
@@ -248,7 +249,7 @@ export function SalesReturnModal({
                 </Badge>
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Invoice #{sale.invoiceNumber} • {sale.customerName || "Customer"} • {new Date(sale.date).toLocaleDateString()}
+                Invoice #{sale.invoiceNumber || "—"} • {sale.customerName || (sale.customer && sale.customer.name) || "Customer"} • {sale.date ? new Date(sale.date).toLocaleDateString() : ""}
               </p>
             </div>
           </div>
@@ -361,7 +362,7 @@ export function SalesReturnModal({
                             )}
                           </td>
                           <td className="py-2.5 px-3 text-right font-medium text-slate-700 dark:text-slate-300">
-                            Rs {formatMoney(row.unitPrice)}
+                            {formatMoney(row.unitPrice)}
                           </td>
                           <td className="py-2.5 px-3 text-center text-slate-600 dark:text-slate-400">
                             {row.soldQuantity}
@@ -425,7 +426,7 @@ export function SalesReturnModal({
                             )}
                           </td>
                           <td className="py-2.5 px-3 text-right font-bold text-slate-900 dark:text-slate-100">
-                            {qty > 0 ? `Rs ${formatMoney(lineVal)}` : "—"}
+                            {qty > 0 ? formatMoney(lineVal) : "—"}
                           </td>
                         </tr>
                       );
@@ -482,25 +483,25 @@ export function SalesReturnModal({
               <div className="p-2.5 rounded-lg bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-slate-800">
                 <span className="text-[10px] text-slate-500 font-semibold block">Total Return Value</span>
                 <span className="text-sm font-bold text-rose-600 dark:text-rose-400">
-                  Rs {formatMoney(totalReturnAmount)}
+                  {formatMoney(totalReturnAmount)}
                 </span>
               </div>
               <div className="p-2.5 rounded-lg bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-slate-800">
                 <span className="text-[10px] text-slate-500 font-semibold block">Receivables Reduction</span>
                 <span className="text-sm font-bold text-amber-600 dark:text-amber-400">
-                  Rs {formatMoney(receivableReduction)}
+                  {formatMoney(receivableReduction)}
                 </span>
               </div>
               <div className="p-2.5 rounded-lg bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-slate-800">
                 <span className="text-[10px] text-slate-500 font-semibold block">Cash/Bank Refund</span>
                 <span className="text-sm font-bold text-blue-600 dark:text-blue-400">
-                  Rs {formatMoney(cashRefund)}
+                  {formatMoney(cashRefund)}
                 </span>
               </div>
               <div className="p-2.5 rounded-lg bg-white dark:bg-[#0B1120] border border-slate-200 dark:border-slate-800">
                 <span className="text-[10px] text-slate-500 font-semibold block">COGS Value Restocked</span>
                 <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400">
-                  Rs {formatMoney(totalCogsReversal)}
+                  {formatMoney(totalCogsReversal)}
                 </span>
               </div>
             </div>
@@ -510,25 +511,25 @@ export function SalesReturnModal({
               <div className="flex justify-between">
                 <span>[Dr] 4020 Sales Returns & Allowances</span>
                 <span className="font-semibold text-slate-900 dark:text-slate-100">
-                  Rs {formatMoney(totalReturnAmount)}
+                  {formatMoney(totalReturnAmount)}
                 </span>
               </div>
               {receivableReduction > 0 && (
                 <div className="flex justify-between pl-4 text-amber-700 dark:text-amber-400">
                   <span>[Cr] 1100 Customer Receivables (کھاتہ واجبات کمی)</span>
-                  <span>Rs {formatMoney(receivableReduction)}</span>
+                  <span>{formatMoney(receivableReduction)}</span>
                 </div>
               )}
               {cashRefund > 0 && (
                 <div className="flex justify-between pl-4 text-blue-700 dark:text-blue-400">
-                  <span>[Cr] {sale.paymentMethod === "BANK" ? "1020 Main Bank" : "1010 Cash in Hand"} (رقم واپسی)</span>
-                  <span>Rs {formatMoney(cashRefund)}</span>
+                  <span>[Cr] {sale?.paymentMethod === "BANK" ? "1020 Main Bank" : "1010 Cash in Hand"} (رقم واپسی)</span>
+                  <span>{formatMoney(cashRefund)}</span>
                 </div>
               )}
               {totalCogsReversal > 0 && (
                 <div className="flex justify-between text-emerald-700 dark:text-emerald-400 border-t border-slate-200/50 dark:border-slate-800/80 pt-1">
                   <span>[Dr] 1200 Inventory (اسٹاک بحالی) / [Cr] 5010 COGS</span>
-                  <span>Rs {formatMoney(totalCogsReversal)}</span>
+                  <span>{formatMoney(totalCogsReversal)}</span>
                 </div>
               )}
             </div>

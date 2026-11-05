@@ -830,12 +830,14 @@ export default function SaleDetailPage() {
       </div>
 
       {/* Partial & Item-wise Sales Return Modal */}
-      <SalesReturnModal
-        isOpen={isReturnModalOpen}
-        onClose={() => setIsReturnModalOpen(false)}
-        sale={sale}
-        onSuccess={handleReturnSuccess}
-      />
+      {isReturnModalOpen && sale && (
+        <SalesReturnModal
+          isOpen={isReturnModalOpen}
+          onClose={() => setIsReturnModalOpen(false)}
+          sale={sale}
+          onSuccess={handleReturnSuccess}
+        />
+      )}
     </>
   );
 }

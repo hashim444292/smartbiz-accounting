@@ -2237,15 +2237,17 @@ export default function SalesPage() {
       )}
 
       {/* Partial & Item-wise Sales Return Modal */}
-      <SalesReturnModal
-        isOpen={isReturnModalOpen}
-        onClose={() => {
-          setIsReturnModalOpen(false);
-          setReturnModalSale(null);
-        }}
-        sale={returnModalSale}
-        onSuccess={handleReturnSuccess}
-      />
+      {isReturnModalOpen && returnModalSale && (
+        <SalesReturnModal
+          isOpen={isReturnModalOpen}
+          onClose={() => {
+            setIsReturnModalOpen(false);
+            setReturnModalSale(null);
+          }}
+          sale={returnModalSale}
+          onSuccess={handleReturnSuccess}
+        />
+      )}
     </div>
   );
 }
