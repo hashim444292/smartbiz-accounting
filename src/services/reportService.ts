@@ -994,3 +994,188 @@ export async function getPayablesSummaryReport(businessId: string) {
     },
   };
 }
+
+export interface ProfitLossReportParams {
+  businessId: string;
+  startDate?: string;
+  endDate?: string;
+  branchId?: string | null;
+}
+
+export interface ProfitLossReportResult {
+  startDate: string;
+  endDate: string;
+  periodLabel: string;
+  grossSales: number;
+  salesReturns: number;
+  netSales: number;
+  salesCount: number;
+  unitsSold: number;
+  cogs: number;
+  inventoryLoss: number;
+  totalCostOfSales: number;
+  grossProfit: number;
+  grossMarginPercent: number;
+  expenses: number;
+  expenseCategories: Array<{ name: string; amount: number; count: number }>;
+  netProfit: number;
+  netMarginPercent: number;
+}
+
+export async function getProfitLossReport(params: ProfitLossReportParams): Promise<ProfitLossReportResult> {
+  const { businessId, branchId } = params;
+
+  const now = new Date();
+  const defaultStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split("T")[0];
+  const defaultEnd = now.toISOString().split("T")[0];
+
+  const startDate = params.startDate || defaultStart;
+  const endDate = params.endDate || defaultEnd;
+
+  const [sY, sM, sD] = startDate.split("-").map(Number);
+  const startDateTime = new Date(sY, sM - 1, sD, 0, 0, 0, 0);
+
+  const [eY, eM, eD] = endDate.split("-").map(Number);
+  const endDateTime = new Date(eY, eM - 1, eD, 23, 59, 59, 999);
+
+  const branchFilter = branchId ? { branchId } : {};
+
+  const [sales, products, damageTxList, expensesList] = await Promise.all([
+    prisma.sale.findMany({
+      where: {
+        businessId,
+        date: { gte: startDateTime, lte: endDateTime },
+        ...branchFilter,
+      },
+      include: { items: true },
+    }),
+    prisma.product.findMany({
+      where: { businessId },
+      select: { id: true, purchasePrice: true, openingCost: true, averageCost: true },
+    }),
+    prisma.inventoryTransaction.findMany({
+      where: {
+        businessId,
+        type: "DAMAGE",
+        date: { gte: startDateTime, lte: endDateTime },
+        ...branchFilter,
+      },
+    }),
+    prisma.expense.findMany({
+      where: {
+        businessId,
+        date: { gte: startDateTime, lte: endDateTime },
+        ...branchFilter,
+      },
+      include: { category: true },
+    }),
+  ]);
+
+  const productCostMap = new Map<string, number>();
+  for (const p of products) {
+    const cost = Number((p as any).averageCost || (p as any).purchasePrice || (p as any).costPrice || (p as any).openingCost || 0);
+    productCostMap.set(p.id, cost);
+  }
+
+  let grossSalesDec = new Decimal(0);
+  let salesReturnsDec = new Decimal(0);
+  let cogsDec = new Decimal(0);
+  let unitsSoldDec = new Decimal(0);
+  let activeSalesCount = 0;
+
+  for (const s of sales) {
+    if (s.status === "CANCELLED") {
+      salesReturnsDec = salesReturnsDec.add(toDecimal(s.totalAmount));
+    } else {
+      grossSalesDec = grossSalesDec.add(toDecimal(s.totalAmount));
+      activeSalesCount++;
+      for (const item of s.items || []) {
+        const qty = toDecimal(item.quantity);
+        unitsSoldDec = unitsSoldDec.add(qty);
+        let unitCost = toDecimal(item.costPrice);
+        if (unitCost.lte(0) && item.productId) {
+          unitCost = toDecimal(productCostMap.get(item.productId) || 0);
+        }
+        cogsDec = cogsDec.add(qty.mul(unitCost));
+      }
+    }
+  }
+
+  let inventoryLossDec = new Decimal(0);
+  for (const d of damageTxList) {
+    const cost = toDecimal((d as any).totalCost || 0);
+    if (cost.gt(0)) {
+      inventoryLossDec = inventoryLossDec.add(cost);
+    } else {
+      const q = toDecimal(d.quantity);
+      const uc = toDecimal((d as any).unitCost || 0);
+      inventoryLossDec = inventoryLossDec.add(q.mul(uc));
+    }
+  }
+
+  const netSalesDec = grossSalesDec.sub(salesReturnsDec);
+  const totalCostOfSalesDec = cogsDec.add(inventoryLossDec);
+  const grossProfitDec = netSalesDec.sub(totalCostOfSalesDec);
+
+  let totalExpensesDec = new Decimal(0);
+  const catMap = new Map<string, { name: string; amount: Decimal; count: number }>();
+  for (const exp of expensesList) {
+    const amt = toDecimal(exp.amount);
+    totalExpensesDec = totalExpensesDec.add(amt);
+    const catName = exp.category?.name || "General Operating & Administrative";
+    const existing = catMap.get(catName);
+    if (existing) {
+      existing.amount = existing.amount.add(amt);
+      existing.count += 1;
+    } else {
+      catMap.set(catName, { name: catName, amount: amt, count: 1 });
+    }
+  }
+
+  const expenseCategories = Array.from(catMap.values())
+    .map((c) => ({
+      name: c.name,
+      amount: round2(c.amount).toNumber(),
+      count: c.count,
+    }))
+    .sort((a, b) => b.amount - a.amount);
+
+  const netProfitDec = grossProfitDec.sub(totalExpensesDec);
+
+  const grossSales = round2(grossSalesDec).toNumber();
+  const salesReturns = round2(salesReturnsDec).toNumber();
+  const netSales = round2(netSalesDec).toNumber();
+  const cogs = round2(cogsDec).toNumber();
+  const inventoryLoss = round2(inventoryLossDec).toNumber();
+  const totalCostOfSales = round2(totalCostOfSalesDec).toNumber();
+  const grossProfit = round2(grossProfitDec).toNumber();
+  const expenses = round2(totalExpensesDec).toNumber();
+  const netProfit = round2(netProfitDec).toNumber();
+
+  const grossMarginPercent = netSales > 0 ? round2(grossProfitDec.div(netSalesDec).mul(100)).toNumber() : 0;
+  const netMarginPercent = netSales > 0 ? round2(netProfitDec.div(netSalesDec).mul(100)).toNumber() : 0;
+
+  const startFmt = startDateTime.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+  const endFmt = endDateTime.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+  const periodLabel = `${startFmt} to ${endFmt}`;
+
+  return {
+    startDate,
+    endDate,
+    periodLabel,
+    grossSales,
+    salesReturns,
+    netSales,
+    salesCount: activeSalesCount,
+    unitsSold: round2(unitsSoldDec).toNumber(),
+    cogs,
+    inventoryLoss,
+    totalCostOfSales,
+    grossProfit,
+    grossMarginPercent,
+    expenses,
+    expenseCategories,
+    netProfit,
+    netMarginPercent,
+  };
+}

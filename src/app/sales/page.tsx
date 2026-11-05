@@ -169,8 +169,16 @@ export default function SalesPage() {
     fetchSales(opts?.silent ?? true);
   });
 
-  const handleReverse = async (id: string, invoiceNumber: string) => {
-    if (!confirm(`Are you sure you want to reverse sale invoice #${invoiceNumber}? This will restock items and rebalance receivables.`)) {
+  const handleReverse = async (id: string, invoiceNumber: string, isFbrPos = false) => {
+    const confirmPrompt = isFbrPos
+      ? (language === "ur"
+          ? `انوائس #${invoiceNumber} FBR POS سے منظور شدہ ہے۔ اسے ریورس کرنے پر باقاعدہ FBR Credit Note (InvoiceType 3) جاری ہوگا، مال گودام میں بحال ہوگا اور کھاتہ ایڈجسٹ ہو جائے گا۔ کیا آپ جاری رکھنا چاہتے ہیں؟`
+          : `Sale invoice #${invoiceNumber} is stamped with FBR POS. Returning this will issue an official FBR Credit Note (InvoiceType 3), restock inventory items, and adjust customer khata balance. Do you want to proceed?`)
+      : (language === "ur"
+          ? `کیا آپ واقعی سیل انوائس #${invoiceNumber} واپس (reverse) کرنا چاہتے ہیں؟ اس سے مال گودام میں واپس آ جائے گا اور کھاتہ ایڈجسٹ ہو جائے گا۔`
+          : `Are you sure you want to return sale invoice #${invoiceNumber}? This will restock items and balance receivables.`);
+
+    if (!confirm(confirmPrompt)) {
       return;
     }
     setReversingId(id);
@@ -178,17 +186,24 @@ export default function SalesPage() {
       const res = await fetch(`/api/sales/${id}/reverse`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reason: "Customer return / cancellation requested by user" }),
+        body: JSON.stringify({ reason: isFbrPos ? "FBR POS Credit Note / Customer Return" : "Customer return / cancellation requested by user" }),
       });
       const json = await res.json();
       if (json.success) {
-        alert("Sale reversed successfully.");
+        const msg = json.isPosCreditNote
+          ? (language === "ur"
+              ? "سیل کامیابی سے واپس ہو گئی اور FBR Credit Note جاری کر دیا گیا!"
+              : "Sale returned successfully and FBR Credit Note issued!")
+          : (language === "ur"
+              ? "سیل کامیابی سے واپس ہو گئی اور مال گودام میں بحال کر دیا گیا۔"
+              : "Sale returned successfully and items restocked.");
+        alert(msg);
         invalidateCache("/api/sales");
         invalidateCache("/api/products");
         invalidateCache("/api/dashboard");
         fetchSales();
       } else {
-        alert(`Failed to reverse: ${json.error}`);
+        alert(`Failed to return sale: ${json.error}`);
       }
     } catch (err: any) {
       alert(`Error: ${err.message}`);
@@ -1504,14 +1519,14 @@ export default function SalesPage() {
                             <ShieldCheck className={`h-3.5 w-3.5 ${transmittingFbrId === sale.id ? "animate-spin text-blue-700" : ""}`} />
                           </button>
                         )}
-                        {sale.status === "POSTED" && !isDigitalInvoicing && !(typeof sale.fbrInvoiceNumber === "string" && sale.fbrInvoiceNumber.includes("DI")) && (
+                        {sale.status === "POSTED" && !(sale.fbrStatus === "SUCCESS" && Boolean(typeof sale.fbrInvoiceNumber === "string" && (sale.fbrInvoiceNumber.includes("DI") || isDigitalInvoicing))) && (
                           <button
-                            onClick={() => handleReverse(sale.id, sale.invoiceNumber)}
+                            onClick={() => handleReverse(sale.id, sale.invoiceNumber, sale.fbrStatus === "SUCCESS" && Boolean(sale.fbrInvoiceNumber))}
                             disabled={reversingId === sale.id}
                             className="rounded-lg p-1.5 text-rose-500 hover:bg-rose-50 hover:text-rose-700 dark:hover:bg-rose-950/40"
-                            title={t("Return / Reverse Sale", "سیل واپسی / ریورس")}
+                            title={sale.fbrStatus === "SUCCESS" ? t("Return Sale & Issue FBR Credit Note", "سیل واپسی اور FBR کریڈٹ نوٹ") : t("Return / Reverse Sale", "سیل واپسی / ریورس")}
                           >
-                            <RotateCcw className="h-3.5 w-3.5" />
+                            <RotateCcw className={`h-3.5 w-3.5 ${reversingId === sale.id ? "animate-spin text-rose-700" : ""}`} />
                           </button>
                         )}
                         {sale.fbrStatus !== "SUCCESS" && !Boolean(sale.fbrInvoiceNumber) ? (

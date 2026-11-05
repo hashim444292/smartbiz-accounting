@@ -689,21 +689,16 @@ export async function reverseSale(
     if (!sale) throw new Error("Sale not found.");
     if (sale.status === "CANCELLED") throw new Error("Sale is already cancelled.");
 
-    // Statutory Rule: Digital Invoicing does not permit credit notes / reversals
-    let isDI =
-      (sale.business as any)?.integrationType === "DIGITAL_INVOICING" ||
-      (typeof sale.fbrInvoiceNumber === "string" && sale.fbrInvoiceNumber.includes("DI"));
-    if (!isDI) {
-      try {
-        const { getFbrConfig } = await import("@/services/fbrService");
-        const cfg = await getFbrConfig(sale.businessId);
-        if (cfg.integrationType === "DIGITAL_INVOICING" && !(sale.fbrInvoiceNumber && !sale.fbrInvoiceNumber.includes("DI"))) {
-          isDI = true;
-        }
-      } catch {}
-    }
-    if (isDI) {
-      throw new Error("Credit Notes and Reversals are not permitted for FBR Digital Invoices.");
+    // Statutory Rule: Only already-stamped FBR Digital Invoices cannot be reversed / credit noted
+    const isStampedDI =
+      sale.fbrStatus === "SUCCESS" &&
+      Boolean(
+        (sale.business as any)?.integrationType === "DIGITAL_INVOICING" ||
+        (typeof sale.fbrInvoiceNumber === "string" && sale.fbrInvoiceNumber.includes("DI"))
+      );
+
+    if (isStampedDI) {
+      throw new Error("Credit Notes and Reversals are not permitted for stamped FBR Digital Invoices.");
     }
 
     await assertPeriodOpen(tx, sale.businessId, new Date());

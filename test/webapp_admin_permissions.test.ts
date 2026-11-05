@@ -44,7 +44,7 @@ describe("WebApp Admin Permissions & Super Admin Invisibility", () => {
     const token = signSessionToken(payload);
     const headers = new Headers(options.headers);
     headers.set("Cookie", `sb_auth_token=${token}`);
-    return new NextRequest(url, { ...options, headers });
+    return new NextRequest(url, { ...options, headers } as any);
   };
 
   it("should allow WebApp Admin to fetch user directory, but EXCLUDE Super Admin entirely", async () => {

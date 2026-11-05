@@ -3590,7 +3590,13 @@ export function storeAdjustStock(
   if (!prod) throw new Error("Product not found");
 
   const prev = Number(prod.currentStock || 0);
-  const target = Number(data.targetStock);
+  let target: number;
+  if (data.deductQuantity !== undefined && data.deductQuantity !== null) {
+    const deduct = Math.max(0, Number(data.deductQuantity));
+    target = Math.max(0, prev - deduct);
+  } else {
+    target = Number(data.targetStock);
+  }
   const diff = target - prev;
   prod.currentStock = target;
 
@@ -3602,6 +3608,8 @@ export function storeAdjustStock(
 
   const createdById = sessionUser?.userId || data.createdById || "usr-2";
   const createdByName = sessionUser?.name || data.createdByName || "Muhammad Hanif";
+  const totalCost = Math.abs(diff) * Number(prod.averageCost || 0);
+  const txType = data.reason === "DAMAGE" ? "DAMAGE" : "ADJUSTMENT";
 
   const txRecord = {
     id: data.id || `itx-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
@@ -3610,18 +3618,68 @@ export function storeAdjustStock(
     branchName,
     productId: prod.id,
     product: { name: prod.name },
-    type: "ADJUSTMENT",
+    type: txType,
     quantity: diff,
     unitCost: Number(prod.averageCost || 0),
-    totalCost: Math.abs(diff) * Number(prod.averageCost || 0),
+    totalCost,
     date: data.date || new Date().toISOString(),
     reason: data.reason || "PHYSICAL_COUNT",
-    notes: `Adjustment (${data.reason || "PHYSICAL_COUNT"}): ${prev} -> ${target}.${data.notes ? ` ${data.notes}` : ""}`,
+    notes: data.notes || `Stock adjusted from ${prev} to ${target} (${data.reason || "PHYSICAL_COUNT"})`,
     createdById,
     createdByName,
   };
 
   fallbackStore.inventoryTransactions.unshift(txRecord);
+
+  // Journal Entry for Stock Shrinkage / Damage (Account 5020 vs 1200)
+  if (totalCost > 0) {
+    if (!fallbackStore.journalEntries) fallbackStore.journalEntries = [];
+    const jId = `je-adj-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    const bizId = data.businessId || prod.businessId;
+
+    if (diff < 0) {
+      // Loss: Debit 5020 Inventory Shrinkage & Loss, Credit 1200 Merchandise Inventory
+      fallbackStore.journalEntries.unshift({
+        id: jId,
+        businessId: bizId,
+        date: data.date || new Date().toISOString(),
+        description: `Inventory Shrinkage/Loss for ${prod.name} (${diff} ${prod.unit || "pcs"}) - Reason: ${data.reason || "DAMAGE"}`,
+        referenceType: "ADJUSTMENT",
+        referenceId: txRecord.id,
+        createdById,
+        lines: [
+          { accountCode: "5020", debit: totalCost, credit: 0, description: "Inventory Shrinkage & Loss" },
+          { accountCode: "1200", debit: 0, credit: totalCost, description: "Merchandise Inventory Write-down" },
+        ],
+      });
+
+      // Update Chart of Account balances in fallbackStore
+      const acc5020 = fallbackStore.accounts.find((a: any) => a.code === "5020" && a.businessId === bizId);
+      if (acc5020) acc5020.balance = (acc5020.balance || 0) + totalCost;
+      const acc1200 = fallbackStore.accounts.find((a: any) => a.code === "1200" && a.businessId === bizId);
+      if (acc1200) acc1200.balance = Math.max(0, (acc1200.balance || 0) - totalCost);
+    } else {
+      // Gain: Debit 1200 Merchandise Inventory, Credit 4100 Other Income
+      fallbackStore.journalEntries.unshift({
+        id: jId,
+        businessId: bizId,
+        date: data.date || new Date().toISOString(),
+        description: `Inventory Adjustment Gain for ${prod.name} (+${diff} ${prod.unit || "pcs"})`,
+        referenceType: "ADJUSTMENT",
+        referenceId: txRecord.id,
+        createdById,
+        lines: [
+          { accountCode: "1200", debit: totalCost, credit: 0, description: "Inventory Gain" },
+          { accountCode: "4100", debit: 0, credit: totalCost, description: "Stock Gain / Other Income" },
+        ],
+      });
+
+      const acc1200 = fallbackStore.accounts.find((a: any) => a.code === "1200" && a.businessId === bizId);
+      if (acc1200) acc1200.balance = (acc1200.balance || 0) + totalCost;
+      const acc4100 = fallbackStore.accounts.find((a: any) => a.code === "4100" && a.businessId === bizId);
+      if (acc4100) acc4100.balance = (acc4100.balance || 0) + totalCost;
+    }
+  }
 
   if (!fallbackStore.auditLogs) fallbackStore.auditLogs = [];
   fallbackStore.auditLogs.unshift({

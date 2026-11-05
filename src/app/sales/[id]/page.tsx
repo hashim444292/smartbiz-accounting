@@ -1,51 +1,99 @@
 "use client";
 
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { formatMoney } from "@/lib/decimal";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Printer, Download, CheckCircle2, ExternalLink } from "lucide-react";
+import { ArrowLeft, Printer, Download, CheckCircle2, ExternalLink, RotateCcw } from "lucide-react";
 import { BrandPageLoader } from "@/components/ui/loader";
 import { FbrQrCode } from "@/components/ui/FbrQrCode";
 import { useLanguage } from "@/context/LanguageContext";
 import { useAuth } from "@/context/AuthContext";
+import { invalidateCache } from "@/lib/clientCache";
 
 export default function SaleDetailPage() {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const { activeCompany } = useAuth();
+  const isDigitalInvoicing = activeCompany?.integrationType === "DIGITAL_INVOICING";
   const params = useParams();
   const router = useRouter();
   const [sale, setSale] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [isReversing, setIsReversing] = useState(false);
   const invoiceRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    async function fetchSale() {
-      try {
-        const res = await fetch(`/api/sales/${params.id}`);
-        const json = await res.json();
-        if (json.success) {
-          setSale(json.data);
-        } else {
-          // fallback to list
-          const listRes = await fetch(`/api/sales`);
-          const listJson = await listRes.json();
-          if (listJson.success) {
-            const found = listJson.data.find((s: any) => s.id === params.id);
-            setSale(found);
-          }
+  const fetchSale = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/sales/${params.id}`);
+      const json = await res.json();
+      if (json.success) {
+        setSale(json.data);
+      } else {
+        // fallback to list
+        const listRes = await fetch(`/api/sales`);
+        const listJson = await listRes.json();
+        if (listJson.success) {
+          const found = listJson.data.find((s: any) => s.id === params.id);
+          setSale(found);
         }
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
       }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
     }
-    if (params.id) fetchSale();
   }, [params.id]);
+
+  useEffect(() => {
+    if (params.id) fetchSale();
+  }, [params.id, fetchSale]);
+
+  const handleReverseSale = async () => {
+    if (!sale) return;
+    const isFbrPos = sale.fbrStatus === "SUCCESS" && Boolean(sale.fbrInvoiceNumber) && !sale.fbrInvoiceNumber.includes("DI");
+    const confirmPrompt = isFbrPos
+      ? (language === "ur"
+          ? `انوائس #${sale.invoiceNumber} FBR POS سے منظور شدہ ہے۔ اسے ریورس کرنے پر باقاعدہ FBR Credit Note (InvoiceType 3) جاری ہوگا، مال گودام میں بحال ہوگا اور کھاتہ ایڈجسٹ ہو جائے گا۔ کیا آپ جاری رکھنا چاہتے ہیں؟`
+          : `Sale invoice #${sale.invoiceNumber} is stamped with FBR POS. Returning this will issue an official FBR Credit Note (InvoiceType 3), restock inventory items, and adjust customer khata balance. Do you want to proceed?`)
+      : (language === "ur"
+          ? `کیا آپ واقعی سیل انوائس #${sale.invoiceNumber} واپس (reverse) کرنا چاہتے ہیں؟ اس سے مال گودام میں واپس آ جائے گا اور کھاتہ ایڈجسٹ ہو جائے گا۔`
+          : `Are you sure you want to return sale invoice #${sale.invoiceNumber}? This will restock items and balance receivables.`);
+
+    if (!confirm(confirmPrompt)) return;
+
+    setIsReversing(true);
+    try {
+      const res = await fetch(`/api/sales/${sale.id}/reverse`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: isFbrPos ? "FBR POS Credit Note / Customer Return" : "Customer return / cancellation requested by user" }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        const msg = json.isPosCreditNote
+          ? (language === "ur"
+              ? "سیل کامیابی سے واپس ہو گئی اور FBR Credit Note جاری کر دیا گیا!"
+              : "Sale returned successfully and FBR Credit Note issued!")
+          : (language === "ur"
+              ? "سیل کامیابی سے واپس ہو گئی اور مال گودام میں بحال کر دیا گیا۔"
+              : "Sale returned successfully and items restocked.");
+        alert(msg);
+        invalidateCache("/api/sales");
+        invalidateCache("/api/products");
+        invalidateCache("/api/dashboard");
+        await fetchSale();
+      } else {
+        alert(`Failed to return sale: ${json.error}`);
+      }
+    } catch (err: any) {
+      alert(`Error: ${err.message}`);
+    } finally {
+      setIsReversing(false);
+    }
+  };
 
   useEffect(() => {
     if (sale && typeof window !== "undefined") {
@@ -270,6 +318,31 @@ export default function SaleDetailPage() {
             <span>Back to Sales</span>
           </Link>
           <div className="flex items-center gap-2">
+            {sale.status === "CANCELLED" ? (
+              <Badge variant="danger" className="text-xs px-2.5 py-1 font-semibold">
+                {language === "ur" ? "منسوخ / واپسی شدہ" : "Returned / Cancelled"}
+              </Badge>
+            ) : (
+              sale.status === "POSTED" && !(sale.fbrStatus === "SUCCESS" && (sale.fbrInvoiceNumber?.includes("DI") || isDigitalInvoicing)) && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleReverseSale}
+                  disabled={isReversing}
+                  className="flex items-center gap-1.5 font-semibold text-rose-600 hover:text-rose-700 hover:bg-rose-50 border-rose-200 dark:border-rose-900 shadow-2xs"
+                >
+                  <RotateCcw className={`h-3.5 w-3.5 ${isReversing ? "animate-spin" : ""}`} />
+                  <span>
+                    {isReversing
+                      ? (language === "ur" ? "واپسی جاری..." : "Processing Return...")
+                      : (sale.fbrStatus === "SUCCESS" && sale.fbrInvoiceNumber
+                          ? (language === "ur" ? "FBR واپسی (Credit Note)" : "Return / Credit Note")
+                          : (language === "ur" ? "سیل واپس کریں" : "Return Sale"))
+                    }
+                  </span>
+                </Button>
+              )
+            )}
             {sale.fbrInvoiceNumber && (
               <a
                 href={`/verify/fbr?inv=${encodeURIComponent(sale.fbrInvoiceNumber || sale.invoiceNumber)}`}
@@ -386,6 +459,11 @@ export default function SaleDetailPage() {
                 Document #:{" "}
                 <span className="font-bold text-slate-900 font-mono">{sale.invoiceNumber}</span>
               </p>
+              {sale.status === "CANCELLED" && (
+                <div className="inline-block px-2 py-0.5 text-[11px] font-bold uppercase rounded bg-rose-100 text-rose-800 border border-rose-300">
+                  {language === "ur" ? "منسوخ / واپسی شدہ (CANCELLED / RETURNED)" : "CANCELLED / RETURNED"}
+                </div>
+              )}
               <p className="text-xs text-slate-600">
                 Date: <span className="font-medium text-slate-800">{formattedDate}</span>
               </p>

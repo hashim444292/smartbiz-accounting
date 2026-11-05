@@ -19,12 +19,21 @@ export async function POST(req: NextRequest) {
     const createdByName = session?.name || body.createdByName || "Muhammad Hanif";
 
     const result = await prisma.$transaction(async (tx) => {
+      let targetStock = body.targetStock;
+      if (body.deductQuantity !== undefined && body.deductQuantity !== null) {
+        const product = await tx.product.findUnique({ where: { id: body.productId } });
+        if (!product) throw new Error("Product not found");
+        const current = Number(product.currentStock || 0);
+        const deduct = Math.max(0, Number(body.deductQuantity));
+        targetStock = Math.max(0, current - deduct);
+      }
+
       return await performStockAdjustment(tx, {
         businessId,
         branchId: effectiveBranchId,
         productId: body.productId,
-        targetStock: body.targetStock,
-        reason: body.reason || "PHYSICAL_COUNT",
+        targetStock,
+        reason: body.reason || "DAMAGE",
         notes: body.notes,
         createdById,
         createdByName,
@@ -48,6 +57,7 @@ export async function POST(req: NextRequest) {
             branchId: effectiveBranchId,
             productId: body.productId,
             targetStock: body.targetStock,
+            deductQuantity: body.deductQuantity,
             reason: body.reason,
             notes: body.notes,
             createdById,
