@@ -1842,13 +1842,14 @@ export async function executeTransmitFbrCreditNote(
 
   const config = await getFbrConfig(sale.businessId);
   const isDiMode =
-    Boolean(sale.fbrInvoiceNumber && sale.fbrInvoiceNumber.includes("DI")) ||
-    (config.integrationType === "DIGITAL_INVOICING" && !(sale.fbrInvoiceNumber && !sale.fbrInvoiceNumber.includes("DI")));
+    sale.fbrStatus === "SUCCESS" &&
+    (Boolean(sale.fbrInvoiceNumber && sale.fbrInvoiceNumber.includes("DI")) ||
+      (config.integrationType === "DIGITAL_INVOICING" && !(sale.fbrInvoiceNumber && !sale.fbrInvoiceNumber.includes("DI"))));
   if (isDiMode) {
     return {
       success: false,
       sale,
-      message: "Credit Notes and Reversals are not permitted for FBR Digital Invoices.",
+      message: "Credit Notes and Reversals are not permitted for stamped FBR Digital Invoices.",
     };
   }
 
