@@ -254,7 +254,7 @@ export async function performStockAdjustment(
       businessId,
       branchId,
       productId,
-      type: reason === "DAMAGE" ? "DAMAGE" : "STOCK_OUT",
+      type: "DAMAGE",
       quantity: absDiff,
       unitCost: avgCost,
       referenceType: "ADJUSTMENT",

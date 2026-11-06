@@ -445,8 +445,8 @@ export default function InventoryPage() {
                 ) : (
                   filteredTransactions.map((t) => {
                       const isPositive = Number(t.quantity || 0) > 0;
-                      const isAdj = t.type === "ADJUSTMENT";
-                      const isDamage = t.type === "DAMAGE";
+                      const isAdj = t.type === "ADJUSTMENT" && !((t.notes || "").toLowerCase().includes("loss") || (t.notes || "").toLowerCase().includes("theft") || (t.notes || "").toLowerCase().includes("stolen"));
+                      const isDamage = t.type === "DAMAGE" || (t.notes || "").toLowerCase().includes("loss") || (t.notes || "").toLowerCase().includes("theft") || (t.notes || "").toLowerCase().includes("stolen") || (t.notes || "").toLowerCase().includes("damage");
                       const isSale = t.type === "SALE";
                       const isPurchase = t.type === "PURCHASE" || t.type === "STOCK_IN";
                       const branchName = t.branch?.name || t.branchName || "Main Warehouse";
@@ -463,10 +463,10 @@ export default function InventoryPage() {
                           <td className="px-4 py-3 text-center">
                             <Badge
                               variant={
-                                isAdj ? "default" : isDamage ? "danger" : isPurchase ? "success" : isSale ? "secondary" : "default"
+                                isDamage ? "danger" : isAdj ? "default" : isPurchase ? "success" : isSale ? "secondary" : "default"
                               }
                             >
-                              {t.type}
+                              {isDamage ? "DAMAGE / LOSS" : t.type}
                             </Badge>
                           </td>
                           <td className="px-4 py-3 text-center font-bold">

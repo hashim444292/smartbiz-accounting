@@ -49,7 +49,18 @@ export async function GET(req: NextRequest) {
       (e) => e.businessId === businessId && (!branchParam || e.branchId === branchParam)
     );
     const compDamageTx = (fallbackStore.inventoryTransactions || []).filter(
-      (t) => t.businessId === businessId && t.type === "DAMAGE" && (!branchParam || t.branchId === branchParam)
+      (t) =>
+        t.businessId === businessId &&
+        (t.type === "DAMAGE" ||
+          (t.type === "ADJUSTMENT" && Number(t.quantity || 0) < 0) ||
+          (t.type === "STOCK_OUT" &&
+            (t.referenceType === "ADJUSTMENT" ||
+              (t.notes || "").toLowerCase().includes("loss") ||
+              (t.notes || "").toLowerCase().includes("theft") ||
+              (t.notes || "").toLowerCase().includes("stolen") ||
+              (t.notes || "").toLowerCase().includes("expiry") ||
+              (t.notes || "").toLowerCase().includes("damage")))) &&
+        (!branchParam || t.branchId === branchParam)
     );
     const compProducts = (fallbackStore.products || []).filter(
       (p) => !p.businessId || p.businessId === businessId
@@ -101,18 +112,41 @@ export async function GET(req: NextRequest) {
       inventoryLossDec = inventoryLossDec.add(toDecimal(l.debit || 0)).sub(toDecimal(l.credit || 0));
     }
 
+    const damageBreakdown: Record<string, Decimal> = {
+      damage: new Decimal(0),
+      theft: new Decimal(0),
+      expiry: new Decimal(0),
+      missing: new Decimal(0),
+      audit: new Decimal(0),
+      other: new Decimal(0),
+    };
+
+    const classifyLoss = (notes?: string | null, reason?: string | null): string => {
+      const r = (reason || "").toUpperCase();
+      const n = (notes || "").toLowerCase();
+      if (n.includes("theft") || n.includes("stolen") || n.includes("چوری")) return "theft";
+      if (r === "EXPIRY" || n.includes("expir") || n.includes("ختم")) return "expiry";
+      if (n.includes("missing") || n.includes("lost") || n.includes("گمشدہ")) return "missing";
+      if (r === "PHYSICAL_COUNT" || n.includes("audit") || n.includes("آڈٹ")) return "audit";
+      if (r === "DAMAGE" || n.includes("damage") || n.includes("broken") || n.includes("خراب") || n.includes("ٹوٹ")) return "damage";
+      if (r === "WRITE_OFF") return "theft";
+      return "other";
+    };
+
     let txLossDec = new Decimal(0);
     for (const d of compDamageTx) {
       const txDate = new Date(d.date);
       if (txDate >= startDateTime && txDate <= endDateTime) {
-        const cost = toDecimal(d.totalCost || 0);
-        if (cost.gt(0)) {
-          txLossDec = txLossDec.add(cost);
-        } else {
+        let cost = toDecimal(d.totalCost || 0);
+        if (cost.lte(0)) {
           const q = toDecimal(Math.abs(Number(d.quantity || 0)));
           const uc = toDecimal(d.unitCost || 0);
-          txLossDec = txLossDec.add(q.mul(uc));
+          cost = q.mul(uc);
         }
+        txLossDec = txLossDec.add(cost);
+
+        const catKey = classifyLoss(d.notes, d.reason);
+        damageBreakdown[catKey] = (damageBreakdown[catKey] || new Decimal(0)).add(cost);
       }
     }
 
@@ -173,6 +207,23 @@ export async function GET(req: NextRequest) {
     const endFmt = endDateTime.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
     const periodLabel = `${startFmt} to ${endFmt}`;
 
+    const breakdownList = [
+      { label: "Broken / Damaged (ٹوٹ پھوٹ یا خرابی)", amount: round2(damageBreakdown.damage).toNumber(), icon: "💥" },
+      { label: "Theft / Stolen (چوری ہو گیا)", amount: round2(damageBreakdown.theft).toNumber(), icon: "🕵️" },
+      { label: "Expired Goods (ایکسپائر مال)", amount: round2(damageBreakdown.expiry).toNumber(), icon: "⏳" },
+      { label: "Lost / Missing (گمشدہ یا کمی)", amount: round2(damageBreakdown.missing).toNumber(), icon: "❓" },
+      { label: "Physical Audit Shortage (آڈٹ کمی)", amount: round2(damageBreakdown.audit).toNumber(), icon: "📋" },
+      { label: "Other Inventory Loss (دیگر نقصان)", amount: round2(damageBreakdown.other).toNumber(), icon: "📝" },
+    ].filter((b) => b.amount > 0);
+
+    if (inventoryLoss > 0 && breakdownList.length === 0) {
+      breakdownList.push({
+        label: "General Inventory Shrinkage & Loss (اکاؤنٹ 5020)",
+        amount: inventoryLoss,
+        icon: "📦",
+      });
+    }
+
     return NextResponse.json({
       success: true,
       data: {
@@ -186,6 +237,7 @@ export async function GET(req: NextRequest) {
         unitsSold: round2(unitsSoldDec).toNumber(),
         cogs,
         inventoryLoss,
+        inventoryLossBreakdown: breakdownList,
         totalCostOfSales,
         grossProfit,
         grossMarginPercent,

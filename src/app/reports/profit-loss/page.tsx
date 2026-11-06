@@ -341,9 +341,26 @@ export default function ProfitLossPage() {
                 <span className="font-semibold tabular-nums">-{formatMoney(cogs)}</span>
               </div>
               {inventoryLoss > 0 && (
-                <div className="flex justify-between text-rose-600">
-                  <span>Inventory Shrinkage, Loss & Damage (نقصان / چوری / خرابی)</span>
-                  <span className="font-semibold tabular-nums">-{formatMoney(inventoryLoss)}</span>
+                <div className="space-y-1">
+                  <div className="flex justify-between text-rose-600 font-semibold">
+                    <span>Inventory Shrinkage, Loss & Damage (نقصان / چوری / خرابی)</span>
+                    <span className="font-semibold tabular-nums">-{formatMoney(inventoryLoss)}</span>
+                  </div>
+                  {data?.inventoryLossBreakdown && data.inventoryLossBreakdown.length > 0 && (
+                    <div className="pl-3 sm:pl-4 space-y-1 my-1 border-l-2 border-rose-300 dark:border-rose-900/60 text-[11px] text-slate-600 dark:text-slate-400">
+                      {data.inventoryLossBreakdown.map((cat: any, idx: number) => (
+                        <div key={idx} className="flex justify-between items-center py-0.5">
+                          <span className="flex items-center gap-1.5">
+                            <span>{cat.icon}</span>
+                            <span>{cat.label}</span>
+                          </span>
+                          <span className="font-mono text-rose-700 dark:text-rose-400 font-medium tabular-nums">
+                            -{formatMoney(cat.amount)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
               <div className="flex justify-between text-slate-600 font-semibold pt-1 border-t border-slate-100 dark:border-slate-800">

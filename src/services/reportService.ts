@@ -1026,6 +1026,7 @@ export interface ProfitLossReportResult {
   unitsSold: number;
   cogs: number;
   inventoryLoss: number;
+  inventoryLossBreakdown?: Array<{ label: string; amount: number; icon: string }>;
   totalCostOfSales: number;
   grossProfit: number;
   grossMarginPercent: number;
@@ -1132,18 +1133,53 @@ export async function getProfitLossReport(params: ProfitLossReportParams): Promi
     }
   }
 
+  const damageBreakdown: Record<string, Decimal> = {
+    damage: new Decimal(0),
+    theft: new Decimal(0),
+    expiry: new Decimal(0),
+    missing: new Decimal(0),
+    audit: new Decimal(0),
+    other: new Decimal(0),
+  };
+
+  const classifyLoss = (notes?: string | null, reason?: string | null): string => {
+    const r = (reason || "").toUpperCase();
+    const n = (notes || "").toLowerCase();
+    if (n.includes("theft") || n.includes("stolen") || n.includes("چوری")) return "theft";
+    if (r === "EXPIRY" || n.includes("expir") || n.includes("ختم")) return "expiry";
+    if (n.includes("missing") || n.includes("lost") || n.includes("گمشدہ")) return "missing";
+    if (r === "PHYSICAL_COUNT" || n.includes("audit") || n.includes("آڈٹ")) return "audit";
+    if (r === "DAMAGE" || n.includes("damage") || n.includes("broken") || n.includes("خراب") || n.includes("ٹوٹ")) return "damage";
+    if (r === "WRITE_OFF") return "theft";
+    return "other";
+  };
+
   // Also reconcile damage/shrinkage from inventory transactions to guarantee full parity
   let txLossDec = new Decimal(0);
   for (const d of damageTxList) {
-    if (d.type === "DAMAGE" || (d.type === "ADJUSTMENT" && Number(d.quantity) < 0) || ((d.notes || "").toLowerCase().includes("loss"))) {
-      const cost = toDecimal((d as any).totalCost || 0);
-      if (cost.gt(0)) {
-        txLossDec = txLossDec.add(cost);
-      } else {
+    const isLoss =
+      d.type === "DAMAGE" ||
+      (d.type === "ADJUSTMENT" && Number(d.quantity) < 0) ||
+      (d.type === "STOCK_OUT" && (
+        d.referenceType === "ADJUSTMENT" ||
+        (d.notes || "").toLowerCase().includes("loss") ||
+        (d.notes || "").toLowerCase().includes("stolen") ||
+        (d.notes || "").toLowerCase().includes("theft") ||
+        (d.notes || "").toLowerCase().includes("damage") ||
+        (d.notes || "").toLowerCase().includes("expiry")
+      ));
+
+    if (isLoss) {
+      let cost = toDecimal((d as any).totalCost || 0);
+      if (cost.lte(0)) {
         const q = toDecimal(Math.abs(Number(d.quantity)));
         const uc = toDecimal((d as any).unitCost || 0);
-        txLossDec = txLossDec.add(q.mul(uc));
+        cost = q.mul(uc);
       }
+      txLossDec = txLossDec.add(cost);
+
+      const catKey = classifyLoss(d.notes, (d as any).reason);
+      damageBreakdown[catKey] = (damageBreakdown[catKey] || new Decimal(0)).add(cost);
     }
   }
 
@@ -1197,6 +1233,23 @@ export async function getProfitLossReport(params: ProfitLossReportParams): Promi
   const endFmt = endDateTime.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
   const periodLabel = `${startFmt} to ${endFmt}`;
 
+  const breakdownList = [
+    { label: "Broken / Damaged (ٹوٹ پھوٹ یا خرابی)", amount: round2(damageBreakdown.damage).toNumber(), icon: "💥" },
+    { label: "Theft / Stolen (چوری ہو گیا)", amount: round2(damageBreakdown.theft).toNumber(), icon: "🕵️" },
+    { label: "Expired Goods (ایکسپائر مال)", amount: round2(damageBreakdown.expiry).toNumber(), icon: "⏳" },
+    { label: "Lost / Missing (گمشدہ یا کمی)", amount: round2(damageBreakdown.missing).toNumber(), icon: "❓" },
+    { label: "Physical Audit Shortage (آڈٹ کمی)", amount: round2(damageBreakdown.audit).toNumber(), icon: "📋" },
+    { label: "Other Inventory Loss (دیگر نقصان)", amount: round2(damageBreakdown.other).toNumber(), icon: "📝" },
+  ].filter((b) => b.amount > 0);
+
+  if (inventoryLoss > 0 && breakdownList.length === 0) {
+    breakdownList.push({
+      label: "General Inventory Shrinkage & Loss (اکاؤنٹ 5020)",
+      amount: inventoryLoss,
+      icon: "📦",
+    });
+  }
+
   return {
     startDate,
     endDate,
@@ -1208,6 +1261,7 @@ export async function getProfitLossReport(params: ProfitLossReportParams): Promi
     unitsSold: round2(unitsSoldDec).toNumber(),
     cogs,
     inventoryLoss,
+    inventoryLossBreakdown: breakdownList,
     totalCostOfSales,
     grossProfit,
     grossMarginPercent,

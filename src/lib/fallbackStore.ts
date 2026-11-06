@@ -3609,7 +3609,7 @@ export function storeAdjustStock(
   const createdById = sessionUser?.userId || data.createdById || "usr-2";
   const createdByName = sessionUser?.name || data.createdByName || "Muhammad Hanif";
   const totalCost = Math.abs(diff) * Number(prod.averageCost || 0);
-  const txType = data.reason === "DAMAGE" ? "DAMAGE" : "ADJUSTMENT";
+  const txType = diff < 0 ? "DAMAGE" : "ADJUSTMENT";
 
   const txRecord = {
     id: data.id || `itx-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
