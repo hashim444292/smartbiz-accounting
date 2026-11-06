@@ -814,16 +814,28 @@ export function enrichPurchase(p: any) {
     returnHistory = (p as any).returnHistory;
   }
 
-  const returnedByProd: Record<string, number> = {};
+  const returnedByProdId: Record<string, number> = {};
+  const returnedByProdName: Record<string, number> = {};
   for (const rh of returnHistory) {
     for (const it of rh.items || []) {
-      returnedByProd[it.productId] = (returnedByProd[it.productId] || 0) + Number(it.quantity || 0);
+      const q = Number(it.quantity || 0);
+      if (it.productId) {
+        returnedByProdId[String(it.productId)] = (returnedByProdId[String(it.productId)] || 0) + q;
+      }
+      if (it.productName) {
+        const norm = String(it.productName).trim().toLowerCase();
+        returnedByProdName[norm] = (returnedByProdName[norm] || 0) + q;
+      }
     }
   }
 
   const enrichedItems = (p.items || []).map((it: any) => {
-    const retQty = returnedByProd[it.productId] || 0;
-    const remQty = Math.max(0, Number(it.quantity || 0) - retQty);
+    const byId = it.productId ? returnedByProdId[String(it.productId)] : 0;
+    const nameKey = (it.productName || it.name || "").trim().toLowerCase();
+    const byName = nameKey ? returnedByProdName[nameKey] : 0;
+    const retQty = Math.max(byId || 0, byName || 0);
+    const origQty = Number(it.quantity || 0);
+    const remQty = Math.max(0, origQty - retQty);
     return {
       ...it,
       returnedQuantity: retQty,
@@ -841,18 +853,33 @@ export function enrichPurchase(p: any) {
       0
     );
   }
+  if (totalReturnedAmount === 0 && (p as any).totalReturnedAmount) {
+    totalReturnedAmount = Number((p as any).totalReturnedAmount);
+  }
+
+  const totalInwardQty = enrichedItems.reduce((acc: number, it: any) => acc + Number(it.quantity || 0), 0);
+  const totalReturnedQty = enrichedItems.reduce((acc: number, it: any) => acc + Number(it.returnedQuantity || 0), 0);
+  const totalRemainingQty = enrichedItems.reduce((acc: number, it: any) => acc + Number(it.remainingQuantity || 0), 0);
 
   const isAllReturned =
     enrichedItems.length > 0 && enrichedItems.every((it: any) => Number(it.remainingQuantity || 0) === 0);
   const isPartialReturn =
-    !isAllReturned && (totalReturnedAmount > 0 || enrichedItems.some((it: any) => it.returnedQuantity > 0));
+    !isAllReturned && (totalReturnedAmount > 0 || totalReturnedQty > 0);
   const hasReturnableItems = enrichedItems.some((it: any) => Number(it.remainingQuantity || 0) > 0);
+
+  const grossTotalAmount = Number(p.totalAmount || 0);
+  const netTotalAmount = Math.max(0, grossTotalAmount - totalReturnedAmount);
 
   return {
     ...p,
     items: enrichedItems,
     returnHistory,
     totalReturnedAmount,
+    grossTotalAmount,
+    netTotalAmount,
+    totalInwardQty,
+    totalReturnedQty,
+    totalRemainingQty,
     isPartialReturn,
     isAllReturned,
     hasReturnableItems,

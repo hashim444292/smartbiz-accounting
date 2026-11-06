@@ -89,30 +89,47 @@ export default function PurchasesPage() {
     }
 
     const itemsRows = (p.items || [])
-      .map(
-        (it: any, i: number) => `
+      .map((it: any, i: number) => {
+        const origQty = Number(it.quantity || 0);
+        const retQty = Number(it.returnedQuantity || 0);
+        const remQty =
+          it.remainingQuantity !== undefined ? Number(it.remainingQuantity) : Math.max(0, origQty - retQty);
+        const unitCost = Number(it.unitCost || 0);
+        const origLineTotal = Number(it.lineTotal || origQty * unitCost);
+        const netLineTotal = Math.max(0, remQty * unitCost);
+        const effectiveUom = (it.uom || it.product?.uom || it.product?.unit || "").toUpperCase() || "PCS";
+
+        return `
         <tr style="border-bottom: 1px solid #e2e8f0;">
-          <td style="padding: 10px; text-align: center; color: #64748b; font-size: 12px;">${i + 1}</td>
-          <td style="padding: 10px;">
-            <div style="font-weight: 700; color: #0f172a; font-size: 13px;">${it.productName || "Product Item"}</div>
-            ${it.sku ? `<div style="font-size: 11px; color: #64748b;">SKU / Code: ${it.sku}</div>` : ""}
+          <td style="padding: 8px 10px; text-align: center; color: #64748b; font-size: 11px;">${i + 1}</td>
+          <td style="padding: 8px 10px;">
+            <div style="font-weight: 700; color: #0f172a; font-size: 12px;">${it.productName || "Product Item"}</div>
+            ${it.sku ? `<div style="font-size: 10px; color: #64748b;">SKU: ${it.sku}</div>` : ""}
+            ${retQty > 0 ? `<div style="font-size: 10px; color: #b91c1c; font-weight: 700; margin-top: 2px;">↺ ${retQty} ${effectiveUom} Returned to Vendor (Debit Note)</div>` : ""}
           </td>
-          <td style="padding: 10px; text-align: center; font-weight: 700; font-size: 13px; color: #0f172a;">
-            ${Number(it.quantity || 0).toLocaleString()}
+          <td style="padding: 8px 10px; text-align: center; font-size: 12px; color: #334155;">
+            ${origQty.toLocaleString()} ${effectiveUom}
           </td>
-          <td style="padding: 10px; text-align: right; font-size: 12px; color: #334155;">
-            Rs ${Number(it.unitCost || 0).toLocaleString()}
+          <td style="padding: 8px 10px; text-align: center; font-size: 11px; color: ${retQty > 0 ? "#b91c1c; font-weight: 700;" : "#94a3b8;"}">
+            ${retQty > 0 ? `-${retQty.toLocaleString()} ${effectiveUom}` : "—"}
           </td>
-          <td style="padding: 10px; text-align: right; font-weight: 700; font-size: 13px; color: #0f172a;">
-            Rs ${Number(it.lineTotal || 0).toLocaleString()}
+          <td style="padding: 8px 10px; text-align: center; font-weight: 800; font-size: 12px; color: #15803d; background: #f0fdf4;">
+            ${remQty.toLocaleString()} ${effectiveUom}
           </td>
-          <td style="padding: 10px; text-align: center;">
-            <div style="width: 18px; height: 18px; border: 1.5px solid #94a3b8; border-radius: 4px; margin: 0 auto;"></div>
+          <td style="padding: 8px 10px; text-align: right; font-size: 12px; color: #334155;">
+            Rs ${unitCost.toLocaleString()}
+          </td>
+          <td style="padding: 8px 10px; text-align: right; font-weight: 700; font-size: 12px; color: #0f172a;">
+            ${retQty > 0 ? `<div>Rs ${netLineTotal.toLocaleString()}</div><div style="font-size: 9px; color: #94a3b8; text-decoration: line-through;">Rs ${origLineTotal.toLocaleString()}</div>` : `Rs ${origLineTotal.toLocaleString()}`}
           </td>
         </tr>
-      `
-      )
+      `;
+      })
       .join("");
+
+    const totalRetAmt = Number(p.totalReturnedAmount || 0);
+    const grossTotalAmt = Number(p.totalAmount || 0);
+    const netTotalAmt = Math.max(0, grossTotalAmt - totalRetAmt);
 
     const statusBg =
       p.paymentStatus === "PAID" ? "#f0fdf4" : p.paymentStatus === "PARTIAL" ? "#fffbeb" : "#fef2f2";
@@ -135,7 +152,7 @@ export default function PurchasesPage() {
             .info-grid { display: grid; grid-template-columns: 1.2fr 1fr; gap: 16px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 16px; margin-bottom: 20px; }
             table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
             th { background: #f1f5f9; color: #334155; font-weight: 700; text-transform: uppercase; font-size: 11px; padding: 8px 10px; border-bottom: 2px solid #cbd5e1; }
-            .summary-box { width: 340px; margin-left: auto; border: 1px solid #e2e8f0; border-radius: 8px; background: #f8fafc; padding: 12px 16px; margin-bottom: 30px; }
+            .summary-box { width: 360px; margin-left: auto; border: 1px solid #e2e8f0; border-radius: 8px; background: #f8fafc; padding: 12px 16px; margin-bottom: 30px; }
             .summary-row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 12px; }
             .total-row { display: flex; justify-content: space-between; padding: 8px 0; border-top: 1.5px solid #cbd5e1; border-bottom: 1.5px solid #cbd5e1; margin: 6px 0; font-size: 14px; font-weight: 800; }
             .sign-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 24px; margin-top: 40px; padding-top: 20px; }
@@ -178,38 +195,38 @@ export default function PurchasesPage() {
           <table>
             <thead>
               <tr>
-                <th style="width: 35px; text-align: center;">#</th>
-                <th style="text-align: left;">Item Description & Catalog SKU</th>
-                <th style="width: 100px; text-align: center;">${language === "ur" ? "تعداد" : "Qty Received"}</th>
-                <th style="width: 120px; text-align: right;">${language === "ur" ? "لاگت" : "Unit Cost"}</th>
-                <th style="width: 130px; text-align: right;">${language === "ur" ? "کل رقم" : "Line Total"}</th>
-                <th style="width: 80px; text-align: center;">Stock Tally</th>
+                <th style="width: 30px; text-align: center;">#</th>
+                <th style="text-align: left;">Item Description & SKU</th>
+                <th style="width: 85px; text-align: center;">${language === "ur" ? "اصل وصول" : "Inward Qty"}</th>
+                <th style="width: 85px; text-align: center;">${language === "ur" ? "واپسی" : "Returned"}</th>
+                <th style="width: 95px; text-align: center;">${language === "ur" ? "صاف موجود" : "Net In Store"}</th>
+                <th style="width: 100px; text-align: right;">${language === "ur" ? "لاگت" : "Unit Cost"}</th>
+                <th style="width: 110px; text-align: right;">${language === "ur" ? "خالص رقم" : "Net Total"}</th>
               </tr>
             </thead>
             <tbody>
-              ${itemsRows || `<tr><td colspan="6" style="padding: 16px; text-align: center; color: #94a3b8;">No line item records.</td></tr>`}
+              ${itemsRows || `<tr><td colspan="7" style="padding: 16px; text-align: center; color: #94a3b8;">No line item records.</td></tr>`}
             </tbody>
           </table>
 
           <div class="summary-box">
+            ${totalRetAmt > 0 ? `
             <div class="summary-row">
-              <span style="color: #64748b;">Subtotal:</span>
-              <span style="font-weight: 600;">Rs ${Number(p.subtotal || p.totalAmount || 0).toLocaleString()}</span>
+              <span style="color: #64748b;">${language === "ur" ? "اصل خریداری بل:" : "Gross Purchase Bill:"}</span>
+              <span style="font-weight: 600; text-decoration: line-through; color: #94a3b8;">Rs ${grossTotalAmt.toLocaleString()}</span>
             </div>
-            ${Number(p.discountAmount || 0) > 0 ? `
-            <div class="summary-row">
-              <span style="color: #64748b;">Overall Discount:</span>
-              <span style="color: #16a34a; font-weight: 600;">- Rs ${Number(p.discountAmount).toLocaleString()}</span>
-            </div>` : ""}
-            ${Number(p.taxAmount || 0) > 0 ? `
-            <div class="summary-row">
-              <span style="color: #64748b;">Tax:</span>
-              <span style="font-weight: 600;">+ Rs ${Number(p.taxAmount).toLocaleString()}</span>
-            </div>` : ""}
+            <div class="summary-row" style="color: #b91c1c; font-weight: 700;">
+              <span>${language === "ur" ? "منہا خریداری واپسی (ڈیبٹ نوٹ):" : "Less Purchase Return (Debit Note):"}</span>
+              <span>- Rs ${totalRetAmt.toLocaleString()}</span>
+            </div>
+            <div class="total-row" style="color: #15803d;">
+              <span>${language === "ur" ? "صاف بل (موجود مال کا بل):" : "Net Bill (Retained Stock):"}</span>
+              <span>Rs ${netTotalAmt.toLocaleString()}</span>
+            </div>` : `
             <div class="total-row">
               <span>${language === "ur" ? "کل خریداری بل:" : "Total Bill:"}</span>
-              <span>Rs ${Number(p.totalAmount || 0).toLocaleString()}</span>
-            </div>
+              <span>Rs ${grossTotalAmt.toLocaleString()}</span>
+            </div>`}
             <div class="summary-row" style="color: #15803d; font-weight: 700;">
               <span>${language === "ur" ? "ادا شدہ رقم:" : "Amount Paid:"}</span>
               <span>Rs ${Number(p.paidAmount || 0).toLocaleString()}</span>
@@ -756,19 +773,48 @@ export default function PurchasesPage() {
                         </span>
                       )}
                     </td>
-                    <td className="px-4 py-3 min-w-[180px]">
+                    <td className="px-4 py-3 min-w-[210px]">
                       {p.items && p.items.length > 0 ? (
-                        <div className="flex flex-col gap-1">
+                        <div className="flex flex-col gap-1.5">
                           {p.items.map((item: any, i: number) => {
                             const uomDisplay = (item.uom || item.product?.uom || item.product?.unit || "").toUpperCase() || "PCS";
+                            const origQty = Number(item.quantity || 0);
+                            const retQty = Number(item.returnedQuantity || 0);
+                            const remQty = item.remainingQuantity !== undefined ? Number(item.remainingQuantity) : Math.max(0, origQty - retQty);
+                            const hasReturn = retQty > 0;
+
                             return (
-                              <div key={i} className="flex items-center gap-1.5 text-xs">
-                                <span className="font-bold text-slate-900 dark:text-white">
+                              <div key={i} className="flex flex-wrap items-center gap-1.5 text-xs">
+                                <span className={`font-bold ${remQty === 0 ? "line-through text-slate-400 dark:text-slate-500" : "text-slate-900 dark:text-white"}`}>
                                   {item.productName || item.name || "Item"}
                                 </span>
-                                <span className="rounded bg-indigo-50 border border-indigo-200/60 px-1.5 py-0.2 text-[10px] font-bold text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 dark:border-indigo-800 shrink-0">
-                                  {Number(item.quantity || 1)} {uomDisplay}
-                                </span>
+                                {hasReturn ? (
+                                  <div className="inline-flex items-center gap-1">
+                                    <span
+                                      className={`rounded px-1.5 py-0.2 text-[10px] font-bold border shrink-0 ${
+                                        remQty === 0
+                                          ? "bg-slate-100 text-slate-500 border-slate-300 dark:bg-slate-800 dark:text-slate-400"
+                                          : "bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800"
+                                      }`}
+                                      title={remQty === 0 ? "Fully returned to vendor" : "Net retained pieces kept in stock"}
+                                    >
+                                      {remQty} {uomDisplay} {remQty > 0 ? (language === "ur" ? "موجود" : "kept") : ""}
+                                    </span>
+                                    <span className="text-[10px] text-slate-400 line-through">
+                                      {origQty}
+                                    </span>
+                                    <span
+                                      className="rounded bg-rose-50 border border-rose-200/80 px-1 py-0.2 text-[9px] font-bold text-rose-600 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-900 shrink-0"
+                                      title="Returned to vendor"
+                                    >
+                                      (-{retQty} {language === "ur" ? "واپس" : "ret"})
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <span className="rounded bg-indigo-50 border border-indigo-200/60 px-1.5 py-0.2 text-[10px] font-bold text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 dark:border-indigo-800 shrink-0">
+                                    {origQty} {uomDisplay}
+                                  </span>
+                                )}
                               </div>
                             );
                           })}
@@ -957,6 +1003,30 @@ export default function PurchasesPage() {
               </div>
             </div>
 
+            {/* Purchase Return / Debit Note Notice Banner if applicable */}
+            {(Number(viewingPurchase.totalReturnedAmount || 0) > 0 || viewingPurchase.isPartialReturn) && (
+              <div className="rounded-xl border border-amber-300 bg-amber-50/90 p-3.5 text-xs text-amber-950 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200 flex flex-wrap items-center justify-between gap-2 shadow-2xs">
+                <div className="flex items-center gap-2.5">
+                  <RotateCcw className="h-4 w-4 text-amber-700 dark:text-amber-400 shrink-0" />
+                  <div>
+                    <p className="font-bold text-amber-900 dark:text-amber-200">
+                      {language === "ur" ? "خریداری واپسی / ڈیبٹ نوٹ کا اندراج موجود ہے" : "Purchase Return / Debit Note Applied"}
+                    </p>
+                    <p className="text-[11px] text-amber-800/90 dark:text-amber-300">
+                      {language === "ur"
+                        ? "اس خریداری بل میں سے کچھ مال وینڈر کو واپس کیا جا چکا ہے۔ ذیل میں اصل وصول شدہ، واپسی، اور صاف موجود تعداد (Net Kept) الگ الگ درج ہے۔"
+                        : "Merchandise from this bill was returned to vendor. Original inward, returned quantities, and net retained pieces kept in stock are itemized below."}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge variant="warning" className="font-mono text-xs font-bold">
+                    -Rs {formatMoney(viewingPurchase.totalReturnedAmount || 0)}
+                  </Badge>
+                </div>
+              </div>
+            )}
+
             {/* Items Tally Table */}
             <div>
               <div className="flex items-center justify-between mb-2">
@@ -974,69 +1044,200 @@ export default function PurchasesPage() {
                     <tr>
                       <th className="px-3 py-2.5 text-center w-10">#</th>
                       <th className="px-3 py-2.5">Product Description & SKU</th>
-                      <th className="px-3 py-2.5 text-center">{t("Qty Inwarded", "تعداد")}</th>
+                      <th className="px-3 py-2.5 text-center">{t("Qty Inwarded", "اصل وصول")}</th>
+                      <th className="px-3 py-2.5 text-center">{t("Returned", "واپسی")}</th>
+                      <th className="px-3 py-2.5 text-center">{t("Net In Store", "صاف موجود")}</th>
                       <th className="px-3 py-2.5 text-right">{t("Unit Cost", "لاگت")}</th>
-                      <th className="px-3 py-2.5 text-right">{t("Line Total", "کل رقم")}</th>
+                      <th className="px-3 py-2.5 text-right">{t("Net Line Total", "خالص رقم")}</th>
                       <th className="px-3 py-2.5 text-center">{t("Stock Tally", "تصدیق")}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800 bg-white dark:bg-slate-900">
                     {viewingPurchase.items && viewingPurchase.items.length > 0 ? (
-                      viewingPurchase.items.map((it: any, idx: number) => (
-                        <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40">
-                          <td className="px-3 py-2.5 text-center text-slate-400 font-medium">{idx + 1}</td>
-                          <td className="px-3 py-2.5">
-                            <p className="font-semibold text-slate-900 dark:text-white">{it.productName}</p>
-                            {it.sku && <p className="text-[10px] text-slate-400">SKU: {it.sku}</p>}
-                          </td>
-                          <td className="px-3 py-2.5 text-center font-bold text-slate-900 dark:text-white tabular-nums">
-                            {Number(it.quantity || 0).toLocaleString()}
-                          </td>
-                          <td className="px-3 py-2.5 text-right text-slate-600 dark:text-slate-300 tabular-nums">
-                            {formatMoney(it.unitCost)}
-                          </td>
-                          <td className="px-3 py-2.5 text-right font-bold text-slate-900 dark:text-white tabular-nums">
-                            {formatMoney(it.lineTotal)}
-                          </td>
-                          <td className="px-3 py-2.5 text-center">
-                            <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
-                              <CheckCircle2 className="h-3 w-3" />
-                              <span>Verified</span>
-                            </span>
-                          </td>
-                        </tr>
-                      ))
+                      viewingPurchase.items.map((it: any, idx: number) => {
+                        const origQty = Number(it.quantity || 0);
+                        const retQty = Number(it.returnedQuantity || 0);
+                        const remQty =
+                          it.remainingQuantity !== undefined
+                            ? Number(it.remainingQuantity)
+                            : Math.max(0, origQty - retQty);
+                        const unitCost = Number(it.unitCost || 0);
+                        const origLineTotal = Number(it.lineTotal || origQty * unitCost);
+                        const netLineTotal = Math.max(0, remQty * unitCost);
+                        const effectiveUom =
+                          (it.uom || it.product?.uom || it.product?.unit || "").toUpperCase() || "PCS";
+
+                        return (
+                          <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40">
+                            <td className="px-3 py-2.5 text-center text-slate-400 font-medium">{idx + 1}</td>
+                            <td className="px-3 py-2.5">
+                              <p
+                                className={`font-semibold ${
+                                  remQty === 0
+                                    ? "line-through text-slate-400 dark:text-slate-500"
+                                    : "text-slate-900 dark:text-white"
+                                }`}
+                              >
+                                {it.productName}
+                              </p>
+                              {it.sku && <p className="text-[10px] text-slate-400">SKU: {it.sku}</p>}
+                            </td>
+                            <td className="px-3 py-2.5 text-center font-semibold text-slate-700 dark:text-slate-300 tabular-nums">
+                              {origQty.toLocaleString()}{" "}
+                              <span className="text-[10px] uppercase text-slate-400">{effectiveUom}</span>
+                            </td>
+                            <td className="px-3 py-2.5 text-center tabular-nums">
+                              {retQty > 0 ? (
+                                <span className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-900">
+                                  -{retQty} {effectiveUom}
+                                </span>
+                              ) : (
+                                <span className="text-slate-400 text-xs">—</span>
+                              )}
+                            </td>
+                            <td className="px-3 py-2.5 text-center tabular-nums">
+                              <span
+                                className={`inline-flex items-center gap-0.5 rounded px-2 py-0.5 text-xs font-bold border ${
+                                  remQty === 0
+                                    ? "bg-slate-100 text-slate-500 border-slate-200 dark:bg-slate-800 dark:text-slate-400"
+                                    : "bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800"
+                                }`}
+                              >
+                                {remQty.toLocaleString()} {effectiveUom}{" "}
+                                {remQty > 0 ? (language === "ur" ? "موجود" : "kept") : (language === "ur" ? "مکمل واپس" : "0 kept")}
+                              </span>
+                            </td>
+                            <td className="px-3 py-2.5 text-right text-slate-600 dark:text-slate-300 tabular-nums">
+                              {formatMoney(unitCost)}
+                            </td>
+                            <td className="px-3 py-2.5 text-right font-bold text-slate-900 dark:text-white tabular-nums">
+                              {retQty > 0 ? (
+                                <div>
+                                  <div className="text-emerald-700 dark:text-emerald-300 font-bold">
+                                    {formatMoney(netLineTotal)}
+                                  </div>
+                                  <div className="text-[10px] text-slate-400 line-through">
+                                    {formatMoney(origLineTotal)}
+                                  </div>
+                                </div>
+                              ) : (
+                                formatMoney(origLineTotal)
+                              )}
+                            </td>
+                            <td className="px-3 py-2.5 text-center">
+                              <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                                <CheckCircle2 className="h-3 w-3" />
+                                <span>Verified</span>
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })
                     ) : (
                       <tr>
-                        <td colSpan={6} className="py-6 text-center text-xs text-slate-400">
+                        <td colSpan={8} className="py-6 text-center text-xs text-slate-400">
                           No line items recorded for this purchase.
                         </td>
                       </tr>
                     )}
                   </tbody>
+                  {viewingPurchase.items && viewingPurchase.items.length > 0 && (
+                    <tfoot className="bg-slate-50 font-semibold text-xs text-slate-700 dark:bg-slate-800/80 dark:text-slate-300 border-t-2 border-slate-200 dark:border-slate-700">
+                      <tr>
+                        <td colSpan={2} className="px-3 py-2 text-right uppercase tracking-wider font-bold">
+                          {language === "ur" ? "کل تعداد (ٹوٹل پیسز):" : "Total Stock Tally:"}
+                        </td>
+                        <td className="px-3 py-2 text-center font-bold tabular-nums">
+                          {viewingPurchase.items.reduce((s: number, it: any) => s + Number(it.quantity || 0), 0)}{" "}
+                          <span className="text-[10px] text-slate-400 uppercase">IN</span>
+                        </td>
+                        <td className="px-3 py-2 text-center font-bold text-rose-600 tabular-nums">
+                          -{viewingPurchase.items.reduce((s: number, it: any) => s + Number(it.returnedQuantity || 0), 0)}{" "}
+                          <span className="text-[10px] text-rose-500 uppercase">RET</span>
+                        </td>
+                        <td className="px-3 py-2 text-center font-black text-emerald-700 dark:text-emerald-300 tabular-nums">
+                          {viewingPurchase.items.reduce(
+                            (s: number, it: any) =>
+                              s +
+                              (it.remainingQuantity !== undefined
+                                ? Number(it.remainingQuantity)
+                                : Math.max(0, Number(it.quantity || 0) - Number(it.returnedQuantity || 0))),
+                            0
+                          )}{" "}
+                          <span className="text-[10px] text-emerald-600 uppercase">KEPT</span>
+                        </td>
+                        <td colSpan={3}></td>
+                      </tr>
+                    </tfoot>
+                  )}
                 </table>
               </div>
             </div>
 
             {/* Financial Settlement Breakdown */}
             <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-800/40">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div className="rounded-lg bg-white p-3 border border-slate-200/80 dark:bg-slate-900 dark:border-slate-800">
-                  <p className="text-[11px] font-bold uppercase text-slate-400">{t("Total Purchase Bill", "کل خریداری")}</p>
-                  <p className="mt-1 text-xl font-black text-slate-900 dark:text-white tabular-nums">
-                    {formatMoney(viewingPurchase.totalAmount)}
-                  </p>
-                </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                {Number(viewingPurchase.totalReturnedAmount || 0) > 0 ? (
+                  <>
+                    <div className="rounded-lg bg-white p-3 border border-slate-200/80 dark:bg-slate-900 dark:border-slate-800">
+                      <p className="text-[11px] font-bold uppercase text-slate-400">
+                        {t("Gross Purchase Bill", "اصل خریداری بل")}
+                      </p>
+                      <p className="mt-1 text-base font-bold text-slate-500 line-through tabular-nums">
+                        {formatMoney(Number(viewingPurchase.totalAmount || 0))}
+                      </p>
+                      <p className="text-[11px] text-rose-600 font-semibold mt-0.5">
+                        -Rs {formatMoney(Number(viewingPurchase.totalReturnedAmount || 0))} (واپسی / Ret)
+                      </p>
+                    </div>
+                    <div className="rounded-lg bg-emerald-50/80 p-3 border border-emerald-300 dark:bg-emerald-950/40 dark:border-emerald-800">
+                      <p className="text-[11px] font-bold uppercase text-emerald-800 dark:text-emerald-300">
+                        {t("Net Purchase Bill", "خالص خریداری بل (موجود مال)")}
+                      </p>
+                      <p className="mt-1 text-xl font-black text-emerald-900 dark:text-emerald-100 tabular-nums">
+                        {formatMoney(
+                          Math.max(
+                            0,
+                            Number(viewingPurchase.totalAmount || 0) -
+                              Number(viewingPurchase.totalReturnedAmount || 0)
+                          )
+                        )}
+                      </p>
+                      <p className="text-[10px] text-emerald-700 dark:text-emerald-300 font-medium mt-0.5">
+                        {language === "ur" ? "صرف رکھے ہوئے مال کا بل" : "Bill for retained stock only"}
+                      </p>
+                    </div>
+                  </>
+                ) : (
+                  <div className="rounded-lg bg-white p-3 border border-slate-200/80 dark:bg-slate-900 dark:border-slate-800">
+                    <p className="text-[11px] font-bold uppercase text-slate-400">
+                      {t("Total Purchase Bill", "کل خریداری")}
+                    </p>
+                    <p className="mt-1 text-xl font-black text-slate-900 dark:text-white tabular-nums">
+                      {formatMoney(viewingPurchase.totalAmount)}
+                    </p>
+                  </div>
+                )}
                 <div className="rounded-lg bg-emerald-50 p-3 border border-emerald-200/80 dark:bg-emerald-950/30 dark:border-emerald-900/50">
-                  <p className="text-[11px] font-bold uppercase text-emerald-700 dark:text-emerald-300">{t("Amount Paid", "ادا شدہ رقم")}</p>
+                  <p className="text-[11px] font-bold uppercase text-emerald-700 dark:text-emerald-300">
+                    {t("Amount Paid", "ادا شدہ رقم")}
+                  </p>
                   <p className="mt-1 text-xl font-black text-emerald-900 dark:text-emerald-100 tabular-nums">
                     {formatMoney(viewingPurchase.paidAmount)}
                   </p>
+                  <p className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-0.5">
+                    {viewingPurchase.paymentMethod || "CASH"}
+                  </p>
                 </div>
                 <div className="rounded-lg bg-rose-50 p-3 border border-rose-200/80 dark:bg-rose-950/30 dark:border-rose-900/50">
-                  <p className="text-[11px] font-bold uppercase text-rose-700 dark:text-rose-300">{t("Remaining Balance", "واجب الادا")}</p>
+                  <p className="text-[11px] font-bold uppercase text-rose-700 dark:text-rose-300">
+                    {t("Remaining Balance", "واجب الادا")}
+                  </p>
                   <p className="mt-1 text-xl font-black text-rose-900 dark:text-rose-100 tabular-nums">
                     {formatMoney(viewingPurchase.remainingAmount)}
+                  </p>
+                  <p className="text-[10px] text-rose-600 dark:text-rose-400 mt-0.5 font-medium">
+                    {Number(viewingPurchase.remainingAmount) === 0 ? "No balance due" : "Payable to supplier"}
                   </p>
                 </div>
               </div>

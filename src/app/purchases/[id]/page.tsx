@@ -292,15 +292,26 @@ export default function PurchaseDetailPage() {
                         )}
                       </td>
                       <td className="py-3 px-2 text-center font-bold text-slate-900 dark:text-white tabular-nums">
-                        <div>
-                          <span>{qty.toLocaleString()}</span>{" "}
-                          <span className="text-[10px] text-slate-500 font-semibold uppercase">
-                            {effectiveUom}
-                          </span>
-                        </div>
-                        {returnedQty > 0 && (
-                          <div className="text-[10px] text-rose-600 font-semibold">
-                            (-{returnedQty} ret)
+                        {returnedQty > 0 ? (
+                          <div>
+                            <div className="text-emerald-700 dark:text-emerald-300 font-bold">
+                              {remainingQty.toLocaleString()}{" "}
+                              <span className="text-[10px] uppercase">{effectiveUom}</span>{" "}
+                              <span className="text-[10px] text-emerald-600 font-semibold">(kept)</span>
+                            </div>
+                            <div className="text-[10px] text-slate-400 line-through">
+                              {qty.toLocaleString()} {effectiveUom}
+                            </div>
+                            <div className="text-[10px] text-rose-600 font-semibold">
+                              (-{returnedQty} ret)
+                            </div>
+                          </div>
+                        ) : (
+                          <div>
+                            <span>{qty.toLocaleString()}</span>{" "}
+                            <span className="text-[10px] text-slate-500 font-semibold uppercase">
+                              {effectiveUom}
+                            </span>
                           </div>
                         )}
                       </td>
@@ -310,7 +321,9 @@ export default function PurchaseDetailPage() {
                       <td className="py-3 pl-2 text-right font-bold text-slate-900 dark:text-white tabular-nums">
                         {returnedQty > 0 ? (
                           <div>
-                            <div>{formatMoney(Math.max(0, (qty - returnedQty) * unitCost))}</div>
+                            <div className="text-emerald-700 dark:text-emerald-300 font-bold">
+                              {formatMoney(Math.max(0, (qty - returnedQty) * unitCost))}
+                            </div>
                             <div className="text-[10px] text-slate-400 line-through">
                               {formatMoney(lineTotal)}
                             </div>
@@ -342,6 +355,35 @@ export default function PurchaseDetailPage() {
                   );
                 })}
               </tbody>
+              {purchase.items && purchase.items.length > 0 && (
+                <tfoot className="border-t-2 border-slate-200 dark:border-slate-700 font-semibold text-xs text-slate-700 dark:text-slate-300 bg-slate-50/70 dark:bg-slate-800/50">
+                  <tr>
+                    <td colSpan={2} className="py-2.5 px-3 text-right uppercase tracking-wider font-bold">
+                      {language === "ur" ? "کل تعداد (ٹوٹل پیسز):" : "Stock Piece Summary:"}
+                    </td>
+                    <td className="py-2.5 px-2 text-center font-bold tabular-nums">
+                      <div className="text-emerald-700 dark:text-emerald-300 font-bold">
+                        {purchase.items.reduce(
+                          (acc: number, it: any) =>
+                            acc +
+                            (it.remainingQuantity !== undefined
+                              ? Number(it.remainingQuantity)
+                              : Math.max(0, Number(it.quantity || 0) - Number(it.returnedQuantity || 0))),
+                          0
+                        )}{" "}
+                        <span className="text-[10px] uppercase">Kept</span>
+                      </div>
+                      {purchase.items.some((it: any) => Number(it.returnedQuantity || 0) > 0) && (
+                        <div className="text-[10px] text-slate-400">
+                          (Orig: {purchase.items.reduce((acc: number, it: any) => acc + Number(it.quantity || 0), 0)} | Ret: -
+                          {purchase.items.reduce((acc: number, it: any) => acc + Number(it.returnedQuantity || 0), 0)})
+                        </div>
+                      )}
+                    </td>
+                    <td colSpan={3}></td>
+                  </tr>
+                </tfoot>
+              )}
             </table>
           </div>
         </div>
