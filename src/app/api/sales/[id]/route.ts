@@ -275,7 +275,58 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       return NextResponse.json({ success: false, error: "Invoice not found" }, { status: 404 });
     }
 
-    const newTotal = body.totalAmount !== undefined ? Number(body.totalAmount) : Number(existing.totalAmount);
+    let processedItems: any[] = [];
+    let computedSubtotal = 0;
+    let computedTaxAmount = 0;
+    if (Array.isArray(body.items) && body.items.length > 0) {
+      processedItems = body.items.map((it: any) => {
+        const qty = Number(it.quantity || 1);
+        const price = Number(it.unitPrice || 0);
+        const disc = Number(it.discount || 0);
+        const rate = Number(it.taxRate || 0);
+        const base = Math.max(0, qty * price - disc);
+        const tax = it.taxAmount !== undefined ? Number(it.taxAmount) : (base * rate) / 100;
+        const lineTotal = it.lineTotal !== undefined ? Number(it.lineTotal) : base + tax;
+        computedSubtotal += qty * price;
+        computedTaxAmount += tax;
+        return {
+          productId: it.productId,
+          productName: it.productName || "Product",
+          sku: it.sku || null,
+          hsCode: it.hsCode || null,
+          quantity: qty,
+          unitPrice: price,
+          discount: disc,
+          taxRate: rate,
+          taxAmount: tax,
+          lineTotal: lineTotal,
+          costPrice: Number(it.costPrice || 0),
+        };
+      });
+    }
+
+    const newSubtotal = body.subtotal !== undefined
+      ? Number(body.subtotal)
+      : (processedItems.length > 0 ? computedSubtotal : Number(existing.subtotal || 0));
+
+    const newTax = body.taxAmount !== undefined
+      ? Number(body.taxAmount)
+      : (processedItems.length > 0 ? computedTaxAmount : Number(existing.taxAmount || 0));
+
+    const newPosFee = body.posFee !== undefined
+      ? Number(body.posFee)
+      : Number(existing.posFee || 0);
+
+    const newDiscount = body.discountAmount !== undefined
+      ? Number(body.discountAmount)
+      : Number(existing.discountAmount || 0);
+
+    const newTotal = body.totalAmount !== undefined
+      ? Number(body.totalAmount)
+      : (processedItems.length > 0
+          ? Math.max(0, newSubtotal - newDiscount + newTax + newPosFee)
+          : Number(existing.totalAmount));
+
     const newPaid = body.paidAmount !== undefined ? Number(body.paidAmount) : Number(existing.paidAmount);
     const newRemaining = Math.max(0, newTotal - newPaid);
 
@@ -284,6 +335,29 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       if (newPaid >= newTotal && newTotal > 0) newPaymentStatus = "PAID";
       else if (newPaid > 0) newPaymentStatus = "PARTIAL";
       else newPaymentStatus = "UNPAID";
+    }
+
+    let updatedNotes = body.notes !== undefined ? body.notes : (existing.notes || "");
+    try {
+      let notesObj = JSON.parse(updatedNotes);
+      if (body.customerPhone !== undefined) notesObj.customerPhone = body.customerPhone;
+      if (body.customerAddress !== undefined) notesObj.customerAddress = body.customerAddress;
+      if (body.customerNtn !== undefined) notesObj.customerNtn = body.customerNtn;
+      if (body.customerCnic !== undefined) notesObj.customerCnic = body.customerCnic;
+      if (body.customerStrn !== undefined) notesObj.customerStrn = body.customerStrn;
+      updatedNotes = JSON.stringify(notesObj);
+    } catch {
+      if (body.customerPhone || body.customerAddress || body.customerNtn || body.customerCnic || body.customerStrn) {
+        const notesObj: any = {
+          memo: updatedNotes,
+          customerPhone: body.customerPhone,
+          customerAddress: body.customerAddress,
+          customerNtn: body.customerNtn,
+          customerCnic: body.customerCnic,
+          customerStrn: body.customerStrn,
+        };
+        updatedNotes = JSON.stringify(notesObj);
+      }
     }
 
     const previousSnapshot = {
@@ -299,9 +373,15 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 
     const updateData: any = {
       customerName: body.customerName !== undefined ? body.customerName : existing.customerName,
-      notes: body.notes !== undefined ? body.notes : existing.notes,
+      customerId: body.customerId !== undefined ? (body.customerId || null) : existing.customerId,
+      notes: updatedNotes,
       paymentMethod: body.paymentMethod !== undefined ? body.paymentMethod : existing.paymentMethod,
       paymentStatus: newPaymentStatus,
+      subtotal: newSubtotal,
+      taxAmount: newTax,
+      salesTax: newTax,
+      posFee: newPosFee,
+      discountAmount: newDiscount,
       totalAmount: newTotal,
       paidAmount: newPaid,
       remainingAmount: newRemaining,
@@ -319,9 +399,6 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     if (body.dueDate !== undefined) {
       updateData.dueDate = body.dueDate ? new Date(body.dueDate) : null;
     }
-    if (body.discountAmount !== undefined) {
-      updateData.discountAmount = Number(body.discountAmount);
-    }
     if (body.fbrStatus !== undefined) {
       updateData.fbrStatus = body.fbrStatus;
     }
@@ -333,6 +410,51 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     }
 
     const updatedSale = await prisma.$transaction(async (tx) => {
+      if (processedItems.length > 0) {
+        // Adjust product stock for differences between old and new items
+        const oldQtyByProduct: Record<string, number> = {};
+        for (const oldIt of existing.items || []) {
+          oldQtyByProduct[oldIt.productId] = (oldQtyByProduct[oldIt.productId] || 0) + Number(oldIt.quantity || 0);
+        }
+        const newQtyByProduct: Record<string, number> = {};
+        for (const newIt of processedItems) {
+          newQtyByProduct[newIt.productId] = (newQtyByProduct[newIt.productId] || 0) + Number(newIt.quantity || 0);
+        }
+        const allProductIds = Array.from(new Set([...Object.keys(oldQtyByProduct), ...Object.keys(newQtyByProduct)]));
+        for (const pId of allProductIds) {
+          const oldQ = oldQtyByProduct[pId] || 0;
+          const newQ = newQtyByProduct[pId] || 0;
+          const diff = oldQ - newQ;
+          if (diff !== 0) {
+            try {
+              await tx.product.update({
+                where: { id: pId },
+                data: { currentStock: { increment: diff } },
+              });
+            } catch {}
+          }
+        }
+
+        // Delete old items and insert updated items
+        await tx.saleItem.deleteMany({ where: { saleId: id } });
+        await tx.saleItem.createMany({
+          data: processedItems.map((pi) => ({
+            saleId: id,
+            productId: pi.productId,
+            productName: pi.productName,
+            sku: pi.sku,
+            hsCode: pi.hsCode,
+            quantity: pi.quantity,
+            unitPrice: pi.unitPrice,
+            discount: pi.discount,
+            taxRate: pi.taxRate,
+            taxAmount: pi.taxAmount,
+            lineTotal: pi.lineTotal,
+            costPrice: pi.costPrice,
+          })),
+        });
+      }
+
       const updated = await tx.sale.update({
         where: { id },
         data: updateData,

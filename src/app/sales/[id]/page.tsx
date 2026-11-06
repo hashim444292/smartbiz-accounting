@@ -6,13 +6,14 @@ import { useParams, useRouter } from "next/navigation";
 import { formatMoney } from "@/lib/decimal";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Printer, Download, CheckCircle2, ExternalLink, RotateCcw } from "lucide-react";
+import { ArrowLeft, Printer, Download, CheckCircle2, ExternalLink, RotateCcw, Pencil } from "lucide-react";
 import { BrandPageLoader } from "@/components/ui/loader";
 import { FbrQrCode } from "@/components/ui/FbrQrCode";
 import { useLanguage } from "@/context/LanguageContext";
 import { useAuth } from "@/context/AuthContext";
 import { invalidateCache } from "@/lib/clientCache";
 import { SalesReturnModal } from "@/components/sales/SalesReturnModal";
+import { SalesEditModal } from "@/components/sales/SalesEditModal";
 
 export default function SaleDetailPage() {
   const { t, language } = useLanguage();
@@ -25,6 +26,7 @@ export default function SaleDetailPage() {
   const [isDownloading, setIsDownloading] = useState(false);
   const [isReversing, setIsReversing] = useState(false);
   const [isReturnModalOpen, setIsReturnModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const invoiceRef = useRef<HTMLDivElement>(null);
 
   const fetchSale = useCallback(async () => {
@@ -378,6 +380,18 @@ export default function SaleDetailPage() {
                   </Button>
                 )}
               </>
+            )}
+            {sale.status !== "CANCELLED" && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsEditModalOpen(true)}
+                className="flex items-center gap-1.5 font-semibold text-indigo-700 bg-indigo-50/70 border-indigo-200 hover:bg-indigo-100 hover:border-indigo-300 dark:border-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-300 shadow-2xs"
+                title="Edit all fields and line items of this invoice"
+              >
+                <Pencil className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
+                <span>{language === "ur" ? "انوائس ایڈٹ کریں" : "Edit Invoice"}</span>
+              </Button>
             )}
             {sale.fbrInvoiceNumber && (
               <a
@@ -864,6 +878,26 @@ export default function SaleDetailPage() {
           onClose={() => setIsReturnModalOpen(false)}
           sale={sale}
           onSuccess={handleReturnSuccess}
+        />
+      )}
+
+      {/* Comprehensive Sales Edit Modal */}
+      {isEditModalOpen && sale && (
+        <SalesEditModal
+          isOpen={isEditModalOpen}
+          onClose={() => setIsEditModalOpen(false)}
+          sale={sale}
+          onSuccess={() => {
+            setIsEditModalOpen(false);
+            invalidateCache("/api/sales");
+            invalidateCache("/api/products");
+            invalidateCache("/api/dashboard");
+            fetchSale();
+          }}
+          onDelete={() => {
+            setIsEditModalOpen(false);
+            router.push("/sales");
+          }}
         />
       )}
     </>

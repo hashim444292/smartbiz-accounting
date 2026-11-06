@@ -2789,6 +2789,12 @@ export function storeUpdateSale(
   if (updates.date !== undefined) sale.date = new Date(updates.date).toISOString();
   if (updates.dueDate !== undefined) sale.dueDate = updates.dueDate ? new Date(updates.dueDate).toISOString() : null;
   if (updates.discountAmount !== undefined) sale.discountAmount = Number(updates.discountAmount);
+  if (updates.subtotal !== undefined) sale.subtotal = Number(updates.subtotal);
+  if (updates.taxAmount !== undefined) {
+    sale.taxAmount = Number(updates.taxAmount);
+    sale.salesTax = Number(updates.taxAmount);
+  }
+  if (updates.posFee !== undefined) sale.posFee = Number(updates.posFee);
   if (updates.fbrStatus !== undefined) sale.fbrStatus = updates.fbrStatus;
   if (updates.fbrInvoiceNumber !== undefined) {
     sale.fbrInvoiceNumber = updates.fbrInvoiceNumber;
@@ -2797,20 +2803,77 @@ export function storeUpdateSale(
     }
   }
   if (updates.customerName !== undefined) sale.customerName = updates.customerName;
-  if (updates.notes !== undefined) sale.notes = updates.notes;
+  if (updates.customerId !== undefined) sale.customerId = updates.customerId || null;
   if (updates.paymentMethod !== undefined) sale.paymentMethod = updates.paymentMethod;
   if (updates.paymentStatus !== undefined) sale.paymentStatus = updates.paymentStatus;
   if (updates.paidAmount !== undefined) {
     sale.paidAmount = Number(updates.paidAmount);
-    sale.remainingAmount = Math.max(0, Number(sale.totalAmount) - sale.paidAmount);
   }
   if (updates.totalAmount !== undefined) {
     sale.totalAmount = Number(updates.totalAmount);
-    sale.remainingAmount = Math.max(0, sale.totalAmount - Number(sale.paidAmount || 0));
   }
-  if (updates.items !== undefined) {
-    sale.items = updates.items;
+  sale.remainingAmount = Math.max(0, Number(sale.totalAmount) - Number(sale.paidAmount || 0));
+
+  if (Array.isArray(updates.items) && updates.items.length > 0) {
+    // Inventory reconciliation
+    const oldQtyByProduct: Record<string, number> = {};
+    for (const oldIt of (sale.items || [])) {
+      oldQtyByProduct[oldIt.productId] = (oldQtyByProduct[oldIt.productId] || 0) + Number(oldIt.quantity || 0);
+    }
+    const newQtyByProduct: Record<string, number> = {};
+    for (const newIt of updates.items) {
+      newQtyByProduct[newIt.productId] = (newQtyByProduct[newIt.productId] || 0) + Number(newIt.quantity || 0);
+    }
+    const allPIds = Array.from(new Set([...Object.keys(oldQtyByProduct), ...Object.keys(newQtyByProduct)]));
+    for (const pId of allPIds) {
+      const diff = (oldQtyByProduct[pId] || 0) - (newQtyByProduct[pId] || 0);
+      if (diff !== 0) {
+        const prod = fallbackStore.products.find((p) => p.id === pId);
+        if (prod) prod.currentStock = Number(prod.currentStock || 0) + diff;
+      }
+    }
+
+    sale.items = updates.items.map((it: any, idx: number) => ({
+      id: it.id || `si-${sale.id}-${idx}`,
+      saleId: sale.id,
+      productId: it.productId,
+      productName: it.productName,
+      sku: it.sku || null,
+      hsCode: it.hsCode || null,
+      quantity: Number(it.quantity || 1),
+      unitPrice: Number(it.unitPrice || 0),
+      discount: Number(it.discount || 0),
+      taxRate: Number(it.taxRate || 0),
+      taxAmount: Number(it.taxAmount || 0),
+      lineTotal: Number(it.lineTotal || 0),
+      costPrice: Number(it.costPrice || 0),
+    }));
   }
+
+  // Update notes with customer contact details if provided
+  let updatedNotes = updates.notes !== undefined ? updates.notes : (sale.notes || "");
+  try {
+    let notesObj = JSON.parse(updatedNotes);
+    if (updates.customerPhone !== undefined) notesObj.customerPhone = updates.customerPhone;
+    if (updates.customerAddress !== undefined) notesObj.customerAddress = updates.customerAddress;
+    if (updates.customerNtn !== undefined) notesObj.customerNtn = updates.customerNtn;
+    if (updates.customerCnic !== undefined) notesObj.customerCnic = updates.customerCnic;
+    if (updates.customerStrn !== undefined) notesObj.customerStrn = updates.customerStrn;
+    updatedNotes = JSON.stringify(notesObj);
+  } catch {
+    if (updates.customerPhone || updates.customerAddress || updates.customerNtn || updates.customerCnic || updates.customerStrn) {
+      const notesObj: any = {
+        memo: updatedNotes,
+        customerPhone: updates.customerPhone,
+        customerAddress: updates.customerAddress,
+        customerNtn: updates.customerNtn,
+        customerCnic: updates.customerCnic,
+        customerStrn: updates.customerStrn,
+      };
+      updatedNotes = JSON.stringify(notesObj);
+    }
+  }
+  sale.notes = updatedNotes;
 
   // Stamp Edit Tracking
   sale.isEdited = true;
