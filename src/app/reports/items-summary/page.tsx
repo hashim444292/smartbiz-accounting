@@ -21,7 +21,14 @@ export default function ItemsSummaryPage() {
   const fetchReport = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/reports/items-summary?start=${startDate}&end=${endDate}`);
+      const res = await fetch(`/api/reports/items-summary?start=${startDate}&end=${endDate}&_t=${Date.now()}`, {
+        cache: "no-store",
+        headers: {
+          "Cache-Control": "no-cache",
+          Pragma: "no-cache",
+          ...(activeCompany?.id ? { "x-business-id": activeCompany.id } : {}),
+        },
+      });
       const json = await res.json();
       if (json.success) setReport(json.data);
     } catch (err) {
@@ -33,7 +40,7 @@ export default function ItemsSummaryPage() {
 
   useEffect(() => {
     fetchReport();
-  }, [startDate, endDate]);
+  }, [startDate, endDate, activeCompany?.id]);
 
   const handlePrint = () => {
     window.print();
@@ -90,10 +97,15 @@ export default function ItemsSummaryPage() {
             <ArrowLeft className="h-4 w-4" />
           </Link>
           <div>
-            <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">
-              Items Summary Report
-            </h2>
-            <p className="text-xs text-slate-500">Opening, stock in, stock out, and closing balance by category</p>
+            <div className="flex items-center gap-2">
+              <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">
+                Items Summary Report
+              </h2>
+              <span className="rounded-md bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-[11px] font-bold text-emerald-700 dark:bg-emerald-950/50 dark:border-emerald-800 dark:text-emerald-300">
+                Synced with Physical Stock
+              </span>
+            </div>
+            <p className="text-xs text-slate-500">Opening, stock in, stock out, and closing balance reconciled with inventory</p>
           </div>
         </div>
 
