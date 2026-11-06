@@ -235,6 +235,7 @@ export async function performStockAdjustment(
         ],
       });
     }
+  } else {
     // Stock Decrease (Shrinkage, Damage, Loss)
     const reasonLabel =
       reason === "DAMAGE"

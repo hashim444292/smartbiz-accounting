@@ -84,4 +84,90 @@ describe("Stock Damage, Sales Returns & Custom Date P&L Suite", () => {
     expect(typeof json.data.netProfit).toBe("number");
     expect(Array.isArray(json.data.expenseCategories)).toBe(true);
   });
+
+  it("Task 4: performStockAdjustment correctly executes stock decrease (diff < 0), updates product stock and creates journal entry", async () => {
+    const { performStockAdjustment } = await import("@/services/inventoryService");
+    let updatedProductStock: number | null = null;
+    let createdMovement: any = null;
+    let createdJournal: any = null;
+
+    const mockProduct = {
+      id: "prod-test-damage",
+      businessId,
+      name: "Samsung A55",
+      unit: "pcs",
+      currentStock: 20,
+      averageCost: 5000,
+    };
+
+    const mockAccounts: Record<string, any> = {
+      "5020": { id: "acc-5020", code: "5020", name: "Inventory Shrinkage & Loss" },
+      "1200": { id: "acc-1200", code: "1200", name: "Merchandise Inventory" },
+    };
+
+    const mockTx: any = {
+      product: {
+        findUnique: () => Promise.resolve(mockProduct),
+        update: ({ data }: any) => {
+          updatedProductStock = data.currentStock;
+          return Promise.resolve({ ...mockProduct, currentStock: data.currentStock });
+        },
+      },
+      stockAdjustment: {
+        create: () => Promise.resolve({ id: "adj-test-1" }),
+      },
+      inventoryTransaction: {
+        create: ({ data }: any) => {
+          createdMovement = data;
+          return Promise.resolve({ id: "itx-test-1", ...data });
+        },
+      },
+      business: {
+        findUnique: () => Promise.resolve({ id: businessId, negativeStockPolicy: true }),
+      },
+      accountingPeriod: {
+        findUnique: () => Promise.resolve({ status: "OPEN" }),
+      },
+      account: {
+        findUnique: ({ where }: any) => {
+          const code = where?.businessId_code?.code;
+          return Promise.resolve(mockAccounts[code] || null);
+        },
+        create: ({ data }: any) => Promise.resolve({ id: `acc-${data.code}`, ...data }),
+        update: () => Promise.resolve({}),
+      },
+      entryNumberCounter: {
+        upsert: () => Promise.resolve({ lastNumber: 1 }),
+      },
+      journalEntry: {
+        findMany: () => Promise.resolve([]),
+        findFirst: () => Promise.resolve(null),
+        create: ({ data }: any) => {
+          createdJournal = data;
+          return Promise.resolve({ id: "je-test-1", ...data });
+        },
+      },
+      auditLog: {
+        create: () => Promise.resolve({ id: "audit-1" }),
+      },
+    };
+
+    const res = await performStockAdjustment(mockTx, {
+      businessId,
+      productId: "prod-test-damage",
+      targetStock: 17, // deducting 3 units
+      reason: "DAMAGE",
+      notes: "Broken screen",
+      createdById: "usr-1",
+      createdByName: "Admin",
+    });
+
+    expect(res.status).toBe("ADJUSTED");
+    expect((res as any).newStock?.toNumber()).toBe(17);
+    expect(updatedProductStock).toBe(17);
+    expect(createdMovement).toBeDefined();
+    expect(createdMovement.type).toBe("DAMAGE");
+    expect(createdMovement.quantity).toBe(3);
+    expect(createdJournal).toBeDefined();
+  });
 });

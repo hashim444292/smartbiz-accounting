@@ -52,6 +52,8 @@ export async function GET(req: NextRequest) {
       let priorOut = 0;
       let inQty = 0;
       let outQty = 0;
+      let postIn = 0;
+      let postOut = 0;
 
       for (const t of txs) {
         if (t.type === "OPENING") continue;
@@ -66,10 +68,20 @@ export async function GET(req: NextRequest) {
         } else if (tDate <= endDate) {
           if (isPos) inQty += q;
           if (isNeg) outQty += q;
+        } else {
+          if (isPos) postIn += q;
+          if (isNeg) postOut += q;
         }
       }
 
-      const op = baselineOpening + priorIn - priorOut;
+      const currentStockNum = Number(prod.currentStock || 0);
+      const now = new Date();
+      const isCurrentPeriod = endDate >= now;
+      const closingStock = isCurrentPeriod
+        ? currentStockNum
+        : Math.max(0, currentStockNum - postIn + postOut);
+
+      const op = Math.max(0, closingStock - inQty + outQty);
       const bal = op + inQty - outQty;
 
       const normalizedName = (prod.name || "").trim().toLowerCase();

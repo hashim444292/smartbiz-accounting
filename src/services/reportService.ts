@@ -794,11 +794,12 @@ export async function getItemsSummaryReport(
       openingTxs.reduce((sum, t) => sum + Math.abs(Number(t.quantity)), 0)
     );
 
-    // Opening Stock before sDate: baselineOpening + prior operational IN - prior operational OUT
     let priorIn = 0;
     let priorOut = 0;
     let rangeIn = 0;
     let rangeOut = 0;
+    let postIn = 0;
+    let postOut = 0;
 
     for (const t of prodTx) {
       // "OPENING" is the baseline setup, not an operational inward shipment
@@ -819,10 +820,22 @@ export async function getItemsSummaryReport(
       } else if (tDate <= eDate) {
         if (isPositive) rangeIn += q;
         if (isNegative) rangeOut += q;
+      } else {
+        if (isPositive) postIn += q;
+        if (isNegative) postOut += q;
       }
     }
 
-    const op = baselineOpening + priorIn - priorOut;
+    // Anchor to physical inventory: closing balance at eDate must reconcile with real currentStock
+    const currentStockNum = Number(prod.currentStock || 0);
+    const now = new Date();
+    const isCurrentPeriod = eDate >= now;
+    const closingStock = isCurrentPeriod
+      ? currentStockNum
+      : Math.max(0, currentStockNum - postIn + postOut);
+
+    // Opening Stock before sDate: Opening + IN - OUT = Closing Balance
+    const op = Math.max(0, closingStock - rangeIn + rangeOut);
     const currentBal = op + rangeIn - rangeOut;
 
     // Check if an item with the exact same name already exists in this category (deduplication)
