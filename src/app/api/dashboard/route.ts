@@ -221,7 +221,8 @@ export async function GET(req: NextRequest) {
 
     const reminders: any[] = [];
     for (const s of sales.filter((s) => Number(s.remainingAmount || 0) > 0 && s.paymentStatus !== "PAID")) {
-      const custBal = customers.find((c) => c.id === s.customerId)?.currentBalance || 0;
+      const cust = customers.find((c) => c.id === s.customerId) || s.customer;
+      const custBal = cust?.currentBalance || 0;
       if (s.customerId && Number(custBal) <= 0) continue;
 
       let dueObj = s.dueDate ? new Date(s.dueDate) : new Date(new Date(s.date).getTime() + 7 * 86400000);
@@ -229,14 +230,24 @@ export async function GET(req: NextRequest) {
       const dueMidnight = new Date(dueStr).getTime();
       const diffDays = Math.round((nowMidnight - dueMidnight) / 86400000);
 
+      const grossAmt = Number(s.totalAmount || 0);
+      const paidAmt = Number(s.paidAmount || 0);
+      const remAmt = Number(s.remainingAmount || 0);
+      const name = s.customerName || cust?.name || "Customer";
+      const phone = s.customer?.phone || cust?.phone || null;
+
       reminders.push({
         id: s.id,
         type: "RECEIVABLE",
         referenceNumber: s.invoiceNumber,
         partyId: s.customerId,
-        partyName: s.customerName || "Customer",
-        partyPhone: s.customer?.phone || null,
-        remainingAmount: Number(s.remainingAmount),
+        partyName: name,
+        entityName: name,
+        partyPhone: phone,
+        entityPhone: phone,
+        totalAmount: grossAmt,
+        paidAmount: paidAmt,
+        remainingAmount: remAmt,
         dueDate: dueStr,
         daysOverdue: Math.max(0, diffDays),
         urgency: diffDays > 0 ? "OVERDUE" : (diffDays === 0 ? "DUE_TODAY" : "UPCOMING"),
@@ -244,7 +255,8 @@ export async function GET(req: NextRequest) {
     }
 
     for (const p of purchases.filter((p) => Number(p.remainingAmount || 0) > 0 && p.paymentStatus !== "PAID")) {
-      const supBal = suppliers.find((s) => s.id === p.supplierId)?.currentBalance || 0;
+      const sup = suppliers.find((su) => su.id === p.supplierId) || p.supplier;
+      const supBal = sup?.currentBalance || 0;
       if (p.supplierId && Number(supBal) <= 0) continue;
 
       let dueObj = p.dueDate ? new Date(p.dueDate) : new Date(new Date(p.date).getTime() + 7 * 86400000);
@@ -252,14 +264,24 @@ export async function GET(req: NextRequest) {
       const dueMidnight = new Date(dueStr).getTime();
       const diffDays = Math.round((nowMidnight - dueMidnight) / 86400000);
 
+      const grossAmt = Number(p.totalAmount || 0);
+      const paidAmt = Number(p.paidAmount || 0);
+      const remAmt = Number(p.remainingAmount || 0);
+      const name = p.supplierName || sup?.name || "Supplier";
+      const phone = p.supplier?.phone || sup?.phone || null;
+
       reminders.push({
         id: p.id,
         type: "PAYABLE",
         referenceNumber: p.purchaseNumber,
         partyId: p.supplierId,
-        partyName: p.supplierName || "Supplier",
-        partyPhone: p.supplier?.phone || null,
-        remainingAmount: Number(p.remainingAmount),
+        partyName: name,
+        entityName: name,
+        partyPhone: phone,
+        entityPhone: phone,
+        totalAmount: grossAmt,
+        paidAmount: paidAmt,
+        remainingAmount: remAmt,
         dueDate: dueStr,
         daysOverdue: Math.max(0, diffDays),
         urgency: diffDays > 0 ? "OVERDUE" : (diffDays === 0 ? "DUE_TODAY" : "UPCOMING"),

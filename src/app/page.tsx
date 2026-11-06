@@ -1607,6 +1607,15 @@ export default function DashboardPage() {
                     const isOverdue = reminder.urgency === "OVERDUE";
                     const isDueToday = reminder.urgency === "DUE_TODAY";
 
+                    const rawTotal = Number(reminder.totalAmount ?? (Number(reminder.paidAmount || 0) + Number(reminder.remainingAmount || 0)));
+                    const safeTotal = isNaN(rawTotal) ? Number(reminder.remainingAmount || 0) : rawTotal;
+                    const rawPaid = Number(reminder.paidAmount ?? 0);
+                    const safePaid = isNaN(rawPaid) ? 0 : rawPaid;
+                    const rawRemaining = Number(reminder.remainingAmount ?? 0);
+                    const safeRemaining = isNaN(rawRemaining) ? 0 : rawRemaining;
+                    const displayName = reminder.entityName || reminder.partyName || (isReceivable ? "Customer" : "Supplier");
+                    const displayPhone = reminder.entityPhone || reminder.partyPhone;
+
                     return (
                       <div
                         key={`${reminder.type}-${reminder.id}`}
@@ -1652,18 +1661,18 @@ export default function DashboardPage() {
                           {/* Party Name & Contact */}
                           <div className="mb-2">
                             <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white truncate">
-                              {reminder.entityName}
+                              {displayName}
                             </h4>
                             <div className="flex items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
                               <span>Ref: #{reminder.referenceNumber}</span>
-                              {reminder.entityPhone && (
+                              {displayPhone && (
                                 <a
-                                  href={`tel:${reminder.entityPhone}`}
+                                  href={`tel:${displayPhone}`}
                                   className="inline-flex items-center gap-0.5 text-indigo-600 dark:text-indigo-400 hover:underline"
                                   title={t("Call Phone", "کال کریں")}
                                 >
                                   <Phone className="h-3 w-3" />
-                                  <span>{reminder.entityPhone}</span>
+                                  <span>{displayPhone}</span>
                                 </a>
                               )}
                             </div>
@@ -1674,21 +1683,21 @@ export default function DashboardPage() {
                             <div className="flex justify-between text-slate-600 dark:text-slate-400">
                               <span>{t("Due Date", "وعدہ تاریخ")}:</span>
                               <strong className="text-slate-900 dark:text-slate-200">
-                                {new Date(reminder.dueDate).toLocaleDateString("en-GB", {
+                                {reminder.dueDate ? new Date(reminder.dueDate).toLocaleDateString("en-GB", {
                                   day: "2-digit",
                                   month: "short",
                                   year: "numeric",
-                                })}
+                                }) : "—"}
                               </strong>
                             </div>
                             <div className="flex justify-between text-slate-600 dark:text-slate-400">
                               <span>{t("Total Amount", "کل رقم")}:</span>
-                              <span className="font-mono">Rs {Number(reminder.totalAmount).toLocaleString()}</span>
+                              <span className="font-mono">Rs {safeTotal.toLocaleString()}</span>
                             </div>
                             <div className="flex justify-between text-slate-600 dark:text-slate-400">
                               <span>{t("Paid", "ادا شدہ")}:</span>
                               <span className="font-mono text-emerald-600 dark:text-emerald-400">
-                                Rs {Number(reminder.paidAmount).toLocaleString()}
+                                Rs {safePaid.toLocaleString()}
                               </span>
                             </div>
                           </div>
@@ -1703,7 +1712,7 @@ export default function DashboardPage() {
                                 isReceivable ? "text-emerald-700 dark:text-emerald-400" : "text-rose-700 dark:text-rose-400"
                               }`}
                             >
-                              Rs {Number(reminder.remainingAmount).toLocaleString()}
+                              Rs {safeRemaining.toLocaleString()}
                             </span>
                           </div>
 
