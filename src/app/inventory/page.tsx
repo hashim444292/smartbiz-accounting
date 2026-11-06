@@ -12,6 +12,7 @@ import { useLanguage } from "@/context/LanguageContext";
 import { TableRowsSkeleton } from "@/components/ui/loader";
 import { smartFetch, invalidateCache, useAutoSync } from "@/lib/clientCache";
 import { getProductEffectiveCost } from "@/lib/accountingConstants";
+import { safeOfflineSubmit } from "@/lib/offlineSync";
 
 export default function InventoryPage() {
   const { user, activeCompany, branches, selectedBranch, activeBranchId, isBranchLocked } = useAuth();
@@ -223,28 +224,35 @@ export default function InventoryPage() {
     setDamageSuccessMsg("");
 
     try {
-      const res = await fetch("/api/products/adjust", {
+      const json = await safeOfflineSubmit({
+        endpoint: "/api/products/adjust",
         method: "POST",
         headers: {
-          "Content-Type": "application/json",
           ...(activeCompany?.id ? { "x-business-id": activeCompany.id } : {}),
           ...(activeBranchId ? { "x-branch-id": activeBranchId } : {}),
         },
-        body: JSON.stringify({
+        body: {
           productId: damageProductId,
           deductQuantity: qty,
           reason: damageReason,
           notes: damageNotes || `${damageReason === "DAMAGE" ? "Broken / Damaged stock" : damageReason === "EXPIRY" ? "Expired goods" : damageReason === "WRITE_OFF" ? "Stolen / Lost inventory" : "Stock write-down"} recorded by user`,
           date: damageDate ? new Date(damageDate) : new Date(),
           branchId: activeBranchId || null,
-        }),
+        },
+        actionName: `Stock Loss / Damage: ${prod?.name || "Product"} (-${qty} units)`,
+        businessId: activeCompany?.id,
       });
-      const json = await res.json();
+
       if (json.success) {
-        setDamageSuccessMsg(`Successfully recorded loss of ${qty} units. Stock reduced and financial loss debited to Account 5020.`);
+        if (json.offline) {
+          setDamageSuccessMsg(`Offline Mode: Loss of ${qty} units saved locally. It will auto-sync to Account 5020 when network is connected.`);
+        } else {
+          setDamageSuccessMsg(`Successfully recorded loss of ${qty} units. Stock reduced and financial loss debited to Account 5020.`);
+        }
         invalidateCache("/api/products");
         invalidateCache("/api/inventory/transactions");
         invalidateCache("/api/dashboard");
+        invalidateCache("/api/reports/profit-loss");
         fetchProducts(true);
         fetchTransactions(true);
         setTimeout(() => {

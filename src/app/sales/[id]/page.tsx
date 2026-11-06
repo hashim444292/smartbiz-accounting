@@ -625,7 +625,15 @@ export default function SaleDetailPage() {
                         </>
                       )}
                       <td className="p-2 sm:p-2.5 print:py-1 print:px-1.5 text-right font-bold text-slate-900 tabular-nums">
-                        Rs. {lineTotal.toFixed(2)}
+                        {Number(item.returnedQuantity || 0) > 0 ? (
+                          <div>
+                            <div>Rs. {Math.max(0, (qty - Number(item.returnedQuantity)) * unitPrice).toFixed(2)}</div>
+                            <div className="text-[10px] text-slate-400 line-through">Rs. {lineTotal.toFixed(2)}</div>
+                            <div className="text-[9px] text-rose-600 font-semibold">(-Rs. {(Number(item.returnedQuantity) * unitPrice).toFixed(2)})</div>
+                          </div>
+                        ) : (
+                          <>Rs. {lineTotal.toFixed(2)}</>
+                        )}
                       </td>
                     </tr>
                   );
@@ -684,15 +692,35 @@ export default function SaleDetailPage() {
                 </div>
               )}
 
+              {/* Goods Returned / Credit Note Deduction if partial or full return */}
+              {Number(sale.totalReturnedAmount || 0) > 0 && (
+                <>
+                  <div className="flex justify-between py-0.5 text-rose-600 font-semibold text-xs">
+                    <span>Goods Returned / واپسی:</span>
+                    <span className="tabular-nums font-mono">
+                      -Rs. {Number(sale.totalReturnedAmount).toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between py-0.5 text-slate-500 text-xs">
+                    <span>Gross Invoice Total:</span>
+                    <span className="tabular-nums font-mono line-through">
+                      Rs. {Number(sale.totalAmount).toFixed(2)}
+                    </span>
+                  </div>
+                </>
+              )}
+
               {/* Total Double-Lined Box Matching PDF */}
               <div
                 className={`flex justify-between py-1.5 print:py-1 border-t border-b-2 border-slate-900 text-sm font-black mt-1 ${
                   isTaxInvoice ? "text-[#D32F2F]" : "text-slate-900"
                 }`}
               >
-                <span className="uppercase tracking-wider">TOTAL:</span>
+                <span className="uppercase tracking-wider">
+                  {Number(sale.totalReturnedAmount || 0) > 0 ? "NET TOTAL / قابل ادائیگی:" : "TOTAL:"}
+                </span>
                 <span className="tabular-nums font-mono text-base font-black">
-                  Rs. {Number(sale.totalAmount).toFixed(2)}
+                  Rs. {Math.max(0, Number(sale.totalAmount) - Number(sale.totalReturnedAmount || 0)).toFixed(2)}
                 </span>
               </div>
 

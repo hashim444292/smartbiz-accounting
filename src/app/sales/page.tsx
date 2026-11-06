@@ -633,7 +633,12 @@ export default function SalesPage() {
   const _weekDay    = now.getDay();
   const weekStart   = new Date(now.getFullYear(), now.getMonth(), now.getDate() - _weekDay + (_weekDay === 0 ? -6 : 1), 0, 0, 0, 0);
   const monthStart  = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
-  const sumAmt = (arr: SaleRecord[]) => arr.reduce((a, s) => a + Number(s.totalAmount || 0), 0);
+  const sumAmt = (arr: SaleRecord[]) =>
+    arr.reduce((a, s) => {
+      const gross = Number(s.totalAmount || 0);
+      const ret = Number(s.totalReturnedAmount || 0);
+      return a + Math.max(0, gross - ret);
+    }, 0);
   const sumPd  = (arr: SaleRecord[]) => arr.reduce((a, s) => a + Number(s.paidAmount  || 0), 0);
   const todaySalesData   = postedSales.filter((s) => new Date(s.date) >= todayStart);
   const weekSalesData    = postedSales.filter((s) => new Date(s.date) >= weekStart);
@@ -715,7 +720,23 @@ export default function SalesPage() {
 
   // Calculate Summary metrics on filtered data
   const totalInvoices = filteredSales.length;
-  const filteredTotalGross = useMemo(() => filteredSales.reduce((a, s) => a + Number(s.totalAmount || 0), 0), [filteredSales]);
+  const filteredTotalGross = useMemo(
+    () => filteredSales.reduce((a, s) => a + Number(s.totalAmount || 0), 0),
+    [filteredSales]
+  );
+  const filteredTotalNet = useMemo(
+    () =>
+      filteredSales.reduce((a, s) => {
+        const gross = Number(s.totalAmount || 0);
+        const ret = Number(s.totalReturnedAmount || 0);
+        return a + Math.max(0, gross - ret);
+      }, 0),
+    [filteredSales]
+  );
+  const filteredTotalReturns = useMemo(
+    () => filteredSales.reduce((a, s) => a + Number(s.totalReturnedAmount || 0), 0),
+    [filteredSales]
+  );
   const filteredTotalPaid = useMemo(() => filteredSales.reduce((a, s) => a + Number(s.paidAmount || 0), 0), [filteredSales]);
   const paidCount = filteredSales.filter((s) => s.paymentStatus === "PAID").length;
   const partialCount = filteredSales.filter((s) => s.paymentStatus === "PARTIAL").length;
@@ -738,7 +759,9 @@ export default function SalesPage() {
       "Date",
       "Customer Name",
       "Products Sold",
-      "Total Amount",
+      "Gross Amount",
+      "Returned Amount",
+      "Net Sale Amount",
       "Paid Amount",
       "Remaining Receivable",
       "Payment Status",
@@ -752,6 +775,8 @@ export default function SalesPage() {
       `"${(s.customerName || "").replace(/"/g, '""')}"`,
       `"${(s.items?.map((it: any) => `${it.productName} (${it.quantity} ${(it.uom || it.product?.uom || it.product?.unit || "").toUpperCase() || "PCS"})`).join("; ") || "").replace(/"/g, '""')}"`,
       Number(s.totalAmount || 0).toFixed(2),
+      Number(s.totalReturnedAmount || 0).toFixed(2),
+      Math.max(0, Number(s.totalAmount || 0) - Number(s.totalReturnedAmount || 0)).toFixed(2),
       Number(s.paidAmount || 0).toFixed(2),
       Number(s.remainingAmount || 0).toFixed(2),
       s.paymentStatus || "PAID",
@@ -796,7 +821,12 @@ export default function SalesPage() {
             <p className="text-xs text-slate-500">Generated: {new Date().toLocaleString()}</p>
             <p className="text-xs font-semibold text-slate-700 mt-1">Total Invoices: {totalInvoices}</p>
             <p className="text-sm font-black text-slate-900">
-              Total Sales: {formatMoney(filteredTotalGross)}
+              Total Sales: {formatMoney(filteredTotalNet)}
+              {filteredTotalReturns > 0 && (
+                <span className="text-[10px] text-rose-600 font-semibold ml-1">
+                  (-{formatMoney(filteredTotalReturns)} ret)
+                </span>
+              )}
             </p>
             <p className="text-xs font-bold text-emerald-700">
               Collected: {formatMoney(filteredTotalPaid)}
@@ -933,8 +963,14 @@ export default function SalesPage() {
                 </span>
               </div>
               <p className="mt-1 text-xs text-indigo-900/80 dark:text-indigo-200">
-                {t("Invoices in filter:", "بلز:")} <strong>{filteredSales.length}</strong> | {t("Total Sales:", "کل سیلز:")}{" "}
-                <strong>Rs {filteredSales.reduce((acc, s) => acc + Number(s.totalAmount || 0), 0).toLocaleString()}</strong> | {t("Collected:", "وصول:")}{" "}
+                {t("Invoices in filter:", "بلز:")} <strong>{filteredSales.length}</strong> | {t("Net Sales:", "نیٹ سیلز:")}{" "}
+                <strong>Rs {filteredTotalNet.toLocaleString()}</strong>
+                {filteredTotalReturns > 0 && (
+                  <span className="text-rose-600 dark:text-rose-300 font-medium ml-1">
+                    (-Rs {filteredTotalReturns.toLocaleString()} {t("returns", "واپسی")})
+                  </span>
+                )}{" "}
+                | {t("Collected:", "وصول:")}{" "}
                 <strong>Rs {filteredSales.reduce((acc, s) => acc + Number(s.paidAmount || 0), 0).toLocaleString()}</strong>
               </p>
             </div>
@@ -1281,10 +1317,24 @@ export default function SalesPage() {
                       </p>
                     </div>
 
-                    <div className="text-right space-y-1 shrink-0">
-                      <span className="block font-mono font-bold text-sm text-slate-900 dark:text-white">
-                        {formatMoney(sale.totalAmount)}
-                      </span>
+                    <div className="text-right space-y-0.5 shrink-0">
+                      {sale.totalReturnedAmount && Number(sale.totalReturnedAmount) > 0 ? (
+                        <div>
+                          <span className="block font-mono font-bold text-sm text-slate-900 dark:text-white">
+                            {formatMoney(Math.max(0, Number(sale.totalAmount) - Number(sale.totalReturnedAmount)))}
+                          </span>
+                          <span className="block text-[10px] text-slate-400 line-through">
+                            {formatMoney(sale.totalAmount)}
+                          </span>
+                          <span className="block text-[10px] text-rose-600 font-semibold dark:text-rose-400">
+                            (-{formatMoney(sale.totalReturnedAmount)} {language === "ur" ? "واپس" : "ret"})
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="block font-mono font-bold text-sm text-slate-900 dark:text-white">
+                          {formatMoney(sale.totalAmount)}
+                        </span>
+                      )}
                       <Badge
                         variant={
                           sale.paymentStatus === "PAID"
@@ -1526,7 +1576,21 @@ export default function SalesPage() {
                       </div>
                     </td>
                     <td className="px-4 py-3 text-right font-bold text-slate-900 dark:text-white tabular-nums">
-                      {formatMoney(sale.totalAmount)}
+                      {sale.totalReturnedAmount && Number(sale.totalReturnedAmount) > 0 ? (
+                        <div className="flex flex-col items-end">
+                          <span className="font-bold text-slate-900 dark:text-white">
+                            {formatMoney(Math.max(0, Number(sale.totalAmount) - Number(sale.totalReturnedAmount)))}
+                          </span>
+                          <span className="text-[10px] text-slate-400 line-through">
+                            {formatMoney(sale.totalAmount)}
+                          </span>
+                          <span className="text-[10px] text-rose-600 font-semibold dark:text-rose-400">
+                            (-{formatMoney(sale.totalReturnedAmount)} {language === "ur" ? "واپس" : "ret"})
+                          </span>
+                        </div>
+                      ) : (
+                        formatMoney(sale.totalAmount)
+                      )}
                     </td>
                     <td className="px-4 py-3 text-right text-emerald-600 font-semibold tabular-nums">
                       {formatMoney(sale.paidAmount)}
@@ -1777,7 +1841,15 @@ export default function SalesPage() {
                       : "—"}
                   </td>
                   <td className="py-1.5 px-2 text-right font-black text-slate-900 tabular-nums whitespace-nowrap">
-                    {formatMoney(sale.totalAmount)}
+                    {sale.totalReturnedAmount && Number(sale.totalReturnedAmount) > 0 ? (
+                      <div className="leading-tight">
+                        <div>{formatMoney(Math.max(0, Number(sale.totalAmount) - Number(sale.totalReturnedAmount)))}</div>
+                        <div className="text-[9px] text-slate-500 font-normal line-through">{formatMoney(sale.totalAmount)}</div>
+                        <div className="text-[9px] text-rose-700 font-bold">(-{formatMoney(sale.totalReturnedAmount)})</div>
+                      </div>
+                    ) : (
+                      formatMoney(sale.totalAmount)
+                    )}
                   </td>
                   <td className="py-1.5 px-2 text-right font-bold text-emerald-800 tabular-nums whitespace-nowrap">
                     {formatMoney(sale.paidAmount)}
@@ -1801,13 +1873,21 @@ export default function SalesPage() {
                 Grand Summary ({filteredSales.length} Invoices Filtered):
               </td>
               <td className="py-2.5 px-2 text-right tabular-nums whitespace-nowrap">
-                {formatMoney(filteredTotalGross)}
+                {filteredTotalReturns > 0 ? (
+                  <div className="leading-tight">
+                    <div>{formatMoney(filteredTotalNet)}</div>
+                    <div className="text-[9px] text-slate-500 font-normal line-through">{formatMoney(filteredTotalGross)}</div>
+                    <div className="text-[9px] text-rose-700 font-bold">(-{formatMoney(filteredTotalReturns)})</div>
+                  </div>
+                ) : (
+                  formatMoney(filteredTotalGross)
+                )}
               </td>
               <td className="py-2.5 px-2 text-right tabular-nums whitespace-nowrap text-emerald-800">
                 {formatMoney(filteredTotalPaid)}
               </td>
               <td className="py-2.5 px-2 text-right tabular-nums whitespace-nowrap text-rose-800">
-                {formatMoney(Math.max(0, filteredTotalGross - filteredTotalPaid))}
+                {formatMoney(Math.max(0, filteredTotalNet - filteredTotalPaid))}
               </td>
               <td colSpan={2} className="py-2.5 px-2 text-center text-[10px] text-slate-600">
                 End of Report

@@ -28,6 +28,7 @@ import {
   Languages,
 } from "lucide-react";
 import { DateRangeSelector } from "./DateRangeSelector";
+import { OfflineSyncIndicator } from "@/components/common/OfflineSyncIndicator";
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
 import { useLanguage } from "@/context/LanguageContext";
@@ -537,6 +538,9 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
           >
             <Search className="h-4 w-4" />
           </button>
+
+          {/* Offline Sync & Network Vault Indicator */}
+          <OfflineSyncIndicator />
 
           {/* Global Date Range Selector (Hidden in Platform Admin mode) */}
           {!isPlatformMode && <DateRangeSelector />}

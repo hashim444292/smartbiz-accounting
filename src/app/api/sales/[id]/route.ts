@@ -145,7 +145,10 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
       };
     });
 
-    const totalReturnedAmount = returnHistory.reduce((s: number, r: any) => s + Number(r.totalAmount || 0), 0);
+    let totalReturnedAmount = returnHistory.reduce((s: number, r: any) => s + Number(r.totalAmount || r.returnAmount || 0), 0);
+    if (totalReturnedAmount === 0 && enrichedItems.some((it) => Number(it.returnedQuantity || 0) > 0)) {
+      totalReturnedAmount = enrichedItems.reduce((acc, it) => acc + (Number(it.returnedQuantity || 0) * Number(it.unitPrice || 0)), 0);
+    }
     const isPartialReturn = sale.status !== "CANCELLED" && (totalReturnedAmount > 0 || enrichedItems.some((it) => it.returnedQuantity > 0));
 
     return NextResponse.json({

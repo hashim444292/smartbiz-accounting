@@ -1053,7 +1053,7 @@ export async function getProfitLossReport(params: ProfitLossReportParams): Promi
 
   const branchFilter = branchId ? { branchId } : {};
 
-  const [sales, products, damageTxList, expensesList] = await Promise.all([
+  const [sales, products, damageTxList, expensesList, journal5020Lines] = await Promise.all([
     prisma.sale.findMany({
       where: {
         businessId,
@@ -1069,7 +1069,7 @@ export async function getProfitLossReport(params: ProfitLossReportParams): Promi
     prisma.inventoryTransaction.findMany({
       where: {
         businessId,
-        type: "DAMAGE",
+        type: { in: ["DAMAGE", "ADJUSTMENT", "STOCK_OUT"] },
         date: { gte: startDateTime, lte: endDateTime },
         ...branchFilter,
       },
@@ -1081,6 +1081,16 @@ export async function getProfitLossReport(params: ProfitLossReportParams): Promi
         ...branchFilter,
       },
       include: { category: true },
+    }),
+    prisma.journalLine.findMany({
+      where: {
+        account: { code: "5020", businessId },
+        journalEntry: {
+          businessId,
+          date: { gte: startDateTime, lte: endDateTime },
+        },
+      },
+      select: { debit: true, credit: true },
     }),
   ]);
 
@@ -1114,16 +1124,31 @@ export async function getProfitLossReport(params: ProfitLossReportParams): Promi
     }
   }
 
+  // Auto-sync with General Ledger Account 5020 (The authoritative financial accounting head)
   let inventoryLossDec = new Decimal(0);
-  for (const d of damageTxList) {
-    const cost = toDecimal((d as any).totalCost || 0);
-    if (cost.gt(0)) {
-      inventoryLossDec = inventoryLossDec.add(cost);
-    } else {
-      const q = toDecimal(d.quantity);
-      const uc = toDecimal((d as any).unitCost || 0);
-      inventoryLossDec = inventoryLossDec.add(q.mul(uc));
+  if (journal5020Lines && journal5020Lines.length > 0) {
+    for (const l of journal5020Lines) {
+      inventoryLossDec = inventoryLossDec.add(toDecimal(l.debit)).sub(toDecimal(l.credit));
     }
+  }
+
+  // Also reconcile damage/shrinkage from inventory transactions to guarantee full parity
+  let txLossDec = new Decimal(0);
+  for (const d of damageTxList) {
+    if (d.type === "DAMAGE" || (d.type === "ADJUSTMENT" && Number(d.quantity) < 0) || ((d.notes || "").toLowerCase().includes("loss"))) {
+      const cost = toDecimal((d as any).totalCost || 0);
+      if (cost.gt(0)) {
+        txLossDec = txLossDec.add(cost);
+      } else {
+        const q = toDecimal(Math.abs(Number(d.quantity)));
+        const uc = toDecimal((d as any).unitCost || 0);
+        txLossDec = txLossDec.add(q.mul(uc));
+      }
+    }
+  }
+
+  if (txLossDec.gt(inventoryLossDec)) {
+    inventoryLossDec = txLossDec;
   }
 
   const netSalesDec = grossSalesDec.sub(salesReturnsDec);

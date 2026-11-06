@@ -87,19 +87,37 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // Auto-sync with General Ledger Account 5020 in fallbackStore
     let inventoryLossDec = new Decimal(0);
+    const lines5020 = (fallbackStore.journalEntries || [])
+      .filter((je) => {
+        const jDate = new Date(je.date);
+        return je.businessId === businessId && jDate >= startDateTime && jDate <= endDateTime;
+      })
+      .flatMap((je) => je.lines || [])
+      .filter((l: any) => l.accountCode === "5020");
+
+    for (const l of lines5020) {
+      inventoryLossDec = inventoryLossDec.add(toDecimal(l.debit || 0)).sub(toDecimal(l.credit || 0));
+    }
+
+    let txLossDec = new Decimal(0);
     for (const d of compDamageTx) {
       const txDate = new Date(d.date);
       if (txDate >= startDateTime && txDate <= endDateTime) {
         const cost = toDecimal(d.totalCost || 0);
         if (cost.gt(0)) {
-          inventoryLossDec = inventoryLossDec.add(cost);
+          txLossDec = txLossDec.add(cost);
         } else {
-          const q = toDecimal(d.quantity || 0);
+          const q = toDecimal(Math.abs(Number(d.quantity || 0)));
           const uc = toDecimal(d.unitCost || 0);
-          inventoryLossDec = inventoryLossDec.add(q.mul(uc));
+          txLossDec = txLossDec.add(q.mul(uc));
         }
       }
+    }
+
+    if (txLossDec.gt(inventoryLossDec)) {
+      inventoryLossDec = txLossDec;
     }
 
     const netSalesDec = grossSalesDec.sub(salesReturnsDec);

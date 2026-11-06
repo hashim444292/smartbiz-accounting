@@ -84,7 +84,10 @@ export async function GET(req: NextRequest) {
         };
       });
 
-      const totalReturnedAmount = returnHistory.reduce((acc: number, r: any) => acc + Number(r.totalAmount || 0), 0);
+      let totalReturnedAmount = returnHistory.reduce((acc: number, r: any) => acc + Number(r.totalAmount || r.returnAmount || 0), 0);
+      if (totalReturnedAmount === 0 && enrichedItems.some((it) => Number(it.returnedQuantity || 0) > 0)) {
+        totalReturnedAmount = enrichedItems.reduce((acc, it) => acc + (Number(it.returnedQuantity || 0) * Number(it.unitPrice || 0)), 0);
+      }
       const isPartialReturn = s.status !== "CANCELLED" && (totalReturnedAmount > 0 || enrichedItems.some((it) => it.returnedQuantity > 0));
       const hasReturnableItems = s.status !== "CANCELLED" && enrichedItems.some((it) => it.remainingQuantity > 0);
 
@@ -146,7 +149,10 @@ export async function GET(req: NextRequest) {
         };
       });
 
-      const totalReturnedAmount = returnHistory.reduce((acc: number, r: any) => acc + Number(r.totalAmount || 0), 0);
+      let totalReturnedAmount = returnHistory.reduce((acc: number, r: any) => acc + Number(r.totalAmount || r.returnAmount || 0), 0);
+      if (totalReturnedAmount === 0 && enrichedItems.some((it: any) => Number(it.returnedQuantity || 0) > 0)) {
+        totalReturnedAmount = enrichedItems.reduce((acc: number, it: any) => acc + (Number(it.returnedQuantity || 0) * Number(it.unitPrice || 0)), 0);
+      }
       const isPartialReturn = s.status !== "CANCELLED" && (totalReturnedAmount > 0 || enrichedItems.some((it: any) => it.returnedQuantity > 0));
       const hasReturnableItems = s.status !== "CANCELLED" && enrichedItems.some((it: any) => it.remainingQuantity > 0);
 
