@@ -459,3 +459,402 @@ export async function createAndPostPurchase(input: CreatePurchaseInput) {
     return purchase;
   });
 }
+
+export interface ReturnPurchaseItemInput {
+  itemId?: string;
+  productId: string;
+  quantity: Decimal.Value;
+}
+
+/**
+ * Processes a purchase return / debit note to vendor
+ * - Supports itemized partial return or full return
+ * - Reduces inventory on hand via PURCHASE_RETURN stock movement
+ * - Adjusts supplier payable balance (Debit Note) or processes cash refund if already paid
+ * - Creates balanced double-entry journal (Debit 2010 Payables / Debit 1010 Cash, Credit 1200 Inventory Asset)
+ * - Updates purchase financial totals and appends audit history to notes
+ */
+export async function reversePurchase(
+  purchaseId: string,
+  reason: string = "Merchandise returned to supplier",
+  userId?: string,
+  itemsToReturn?: ReturnPurchaseItemInput[]
+) {
+  return await prisma.$transaction(async (tx) => {
+    const purchase = await tx.purchase.findUnique({
+      where: { id: purchaseId },
+      include: { items: true, business: true, supplier: true },
+    });
+
+    if (!purchase) throw new Error("Purchase bill not found.");
+
+    await assertPeriodOpen(tx, purchase.businessId, new Date());
+
+    // 1. Calculate previously returned quantities from inventory transactions
+    const previousReturns = await tx.inventoryTransaction.findMany({
+      where: { referenceId: purchase.id, type: "PURCHASE_RETURN" },
+    });
+    const alreadyReturnedByProduct: Record<string, Decimal> = {};
+    for (const ret of previousReturns) {
+      alreadyReturnedByProduct[ret.productId] = (alreadyReturnedByProduct[ret.productId] || new Decimal(0)).add(
+        toDecimal(ret.quantity)
+      );
+    }
+
+    // 2. Determine which items and quantities to return in this operation
+    const itemsProcessing: Array<{
+      purchaseItem: typeof purchase.items[0];
+      returnQty: Decimal;
+      lineReturnAmount: Decimal;
+    }> = [];
+
+    if (Array.isArray(itemsToReturn) && itemsToReturn.length > 0) {
+      for (const reqItem of itemsToReturn) {
+        const qty = round4(toDecimal(reqItem.quantity));
+        if (qty.lte(0)) continue;
+
+        const purchaseItem = purchase.items.find(
+          (it) => (reqItem.itemId && it.id === reqItem.itemId) || it.productId === reqItem.productId
+        );
+        if (!purchaseItem) {
+          throw new Error(
+            `Item with product ID ${reqItem.productId} was not found on purchase #${purchase.purchaseNumber}.`
+          );
+        }
+
+        const purchasedQty = toDecimal(purchaseItem.quantity);
+        const alreadyReturned = alreadyReturnedByProduct[purchaseItem.productId] || new Decimal(0);
+        const returnableQty = Decimal.max(0, purchasedQty.sub(alreadyReturned));
+
+        if (qty.gt(returnableQty)) {
+          throw new Error(
+            `Cannot return ${qty} of "${purchaseItem.productName}". Maximum returnable quantity is ${returnableQty} (Purchased: ${purchasedQty}, Already Returned: ${alreadyReturned}).`
+          );
+        }
+
+        const unitCost = toDecimal(purchaseItem.unitCost);
+        const taxRate = toDecimal(purchaseItem.taxRate || 0);
+
+        const subtotalForReturn = qty.mul(unitCost);
+        const taxForReturn = subtotalForReturn.mul(taxRate).div(100);
+        const lineTotalWithTax = subtotalForReturn.add(taxForReturn);
+
+        itemsProcessing.push({
+          purchaseItem,
+          returnQty: qty,
+          lineReturnAmount: lineTotalWithTax,
+        });
+      }
+
+      if (itemsProcessing.length === 0) {
+        throw new Error("No items selected for return. Please specify a quantity greater than zero.");
+      }
+    } else {
+      // Full Return of all remaining returnable items
+      for (const purchaseItem of purchase.items) {
+        const purchasedQty = toDecimal(purchaseItem.quantity);
+        const alreadyReturned = alreadyReturnedByProduct[purchaseItem.productId] || new Decimal(0);
+        const returnableQty = Decimal.max(0, purchasedQty.sub(alreadyReturned));
+        if (returnableQty.lte(0)) continue;
+
+        const unitCost = toDecimal(purchaseItem.unitCost);
+        const taxRate = toDecimal(purchaseItem.taxRate || 0);
+
+        const subtotalForReturn = returnableQty.mul(unitCost);
+        const taxForReturn = subtotalForReturn.mul(taxRate).div(100);
+        const lineTotalWithTax = subtotalForReturn.add(taxForReturn);
+
+        itemsProcessing.push({
+          purchaseItem,
+          returnQty: returnableQty,
+          lineReturnAmount: lineTotalWithTax,
+        });
+      }
+
+      if (itemsProcessing.length === 0) {
+        throw new Error(`All items on purchase bill #${purchase.purchaseNumber} have already been returned.`);
+      }
+    }
+
+    // 3. Compute aggregate return monetary amounts
+    let totalReturnAmount = new Decimal(0);
+    for (const p of itemsProcessing) {
+      totalReturnAmount = totalReturnAmount.add(p.lineReturnAmount);
+    }
+    totalReturnAmount = round2(totalReturnAmount);
+
+    // 4. Reduce inventory on hand via PURCHASE_RETURN stock movement
+    for (const p of itemsProcessing) {
+      await recordStockMovement(tx, {
+        businessId: purchase.businessId,
+        branchId: purchase.branchId || undefined,
+        productId: p.purchaseItem.productId,
+        type: "PURCHASE_RETURN",
+        quantity: p.returnQty,
+        unitCost: p.purchaseItem.unitCost,
+        referenceType: "PURCHASE_RETURN",
+        referenceId: purchase.id,
+        notes: `Purchase Return for #${purchase.purchaseNumber}: ${p.returnQty}x ${p.purchaseItem.productName} (${reason})`,
+        skipPeriodCheck: true,
+        business: purchase.business,
+      });
+    }
+
+    // 5. Rebalance supplier payable & cash refund
+    const currentRemaining = toDecimal(purchase.remainingAmount);
+    const currentPaid = toDecimal(purchase.paidAmount);
+
+    const payableReduction = round2(Decimal.min(currentRemaining, totalReturnAmount));
+    const cashRefund = round2(totalReturnAmount.sub(payableReduction));
+
+    if (purchase.supplierId && payableReduction.gt(0)) {
+      const supplier = await tx.supplier.findUnique({ where: { id: purchase.supplierId } });
+      if (supplier) {
+        const newBal = Decimal.max(0, toDecimal(supplier.currentBalance).sub(payableReduction));
+        await tx.supplier.update({
+          where: { id: purchase.supplierId },
+          data: { currentBalance: newBal.toNumber() },
+        });
+      }
+    }
+
+    const newRemaining = Decimal.max(0, currentRemaining.sub(payableReduction));
+    const newPaid = cashRefund.gt(0) ? Decimal.max(0, currentPaid.sub(cashRefund)) : currentPaid;
+
+    let paymentStatus: PaymentStatus = purchase.paymentStatus;
+    if (newRemaining.isZero() && newPaid.isZero()) {
+      paymentStatus = "UNPAID";
+    } else if (newRemaining.isZero()) {
+      paymentStatus = "PAID";
+    } else if (newPaid.gt(0)) {
+      paymentStatus = "PARTIAL";
+    } else {
+      paymentStatus = "UNPAID";
+    }
+
+    // 6. Update Cash/Bank if cash refund received from supplier
+    if (cashRefund.gt(0)) {
+      let cashBank = await tx.cashBankAccount.findFirst({
+        where: { businessId: purchase.businessId, isDefault: true, isActive: true },
+      });
+      if (!cashBank) {
+        cashBank = await tx.cashBankAccount.findFirst({
+          where: { businessId: purchase.businessId, type: "CASH", isActive: true },
+        });
+      }
+      if (cashBank) {
+        const newBal = toDecimal(cashBank.balance).add(cashRefund);
+        await tx.cashBankAccount.update({
+          where: { id: cashBank.id },
+          data: { balance: newBal.toNumber() },
+        });
+
+        // Record a payment receipt linked to this purchase return
+        await tx.payment.create({
+          data: {
+            businessId: purchase.businessId,
+            branchId: purchase.branchId,
+            type: "RECEIPT",
+            partyType: "SUPPLIER",
+            supplierId: purchase.supplierId,
+            partyName: purchase.supplierName,
+            amount: cashRefund.toNumber(),
+            paymentMethod: purchase.paymentMethod || "CASH",
+            accountId: cashBank.id,
+            referenceNumber: `DN-${purchase.purchaseNumber}`,
+            notes: `Cash Refund from ${purchase.supplierName} for Purchase Return #${purchase.purchaseNumber}`,
+            createdById: userId,
+          },
+        });
+      }
+    }
+
+    // 7. Balanced Double-Entry Journal Entry
+    // Debit Accounts Payable (2010) for payableReduction
+    // Debit Cash/Bank (1010/1020) for cashRefund
+    // Credit Merchandise Inventory (1200) for totalReturnAmount
+    const revLines: Array<{ accountCode: string; debit: Decimal; credit: Decimal; description?: string }> = [];
+    if (payableReduction.gt(0)) {
+      revLines.push({
+        accountCode: "2010",
+        debit: payableReduction,
+        credit: new Decimal(0),
+        description: `Payable Reduction (Debit Note) for Purchase #${purchase.purchaseNumber}`,
+      });
+    }
+    if (cashRefund.gt(0)) {
+      const refundAcc = purchase.paymentMethod === "BANK" ? "1020" : "1010";
+      revLines.push({
+        accountCode: refundAcc,
+        debit: cashRefund,
+        credit: new Decimal(0),
+        description: `Cash Refund from ${purchase.supplierName} for Return #${purchase.purchaseNumber}`,
+      });
+    }
+    revLines.push({
+      accountCode: "1200",
+      debit: new Decimal(0),
+      credit: totalReturnAmount,
+      description: `Merchandise Outward (Purchase Return #${purchase.purchaseNumber})`,
+    });
+
+    await createJournalEntry(tx, {
+      businessId: purchase.businessId,
+      date: new Date(),
+      description: `Purchase Return / Debit Note for Bill #${purchase.purchaseNumber} from ${purchase.supplierName} (${reason}) - Total: Rs ${totalReturnAmount}`,
+      referenceType: "PURCHASE_RETURN",
+      referenceId: purchase.id,
+      createdById: userId,
+      lines: revLines,
+    });
+
+    // 8. Verify whether purchase bill is 100% returned or partially returned
+    let isAllReturned = true;
+    for (const purchaseItem of purchase.items) {
+      const prevRet = alreadyReturnedByProduct[purchaseItem.productId] || new Decimal(0);
+      const thisRet =
+        itemsProcessing.find((p) => p.purchaseItem.productId === purchaseItem.productId)?.returnQty ||
+        new Decimal(0);
+      const totalRetForProd = prevRet.add(thisRet);
+      if (totalRetForProd.lt(toDecimal(purchaseItem.quantity))) {
+        isAllReturned = false;
+        break;
+      }
+    }
+
+    // 9. Track return history in purchase.notes
+    let returnHistory: any[] = [];
+    let cleanNotes = purchase.notes || "";
+    try {
+      if (cleanNotes.includes('"returnHistory":')) {
+        const parsed = JSON.parse(cleanNotes);
+        returnHistory = parsed.returnHistory || [];
+      }
+    } catch {}
+
+    const returnRecord = {
+      returnId: `DN-${Date.now().toString().slice(-6)}`,
+      date: new Date().toISOString(),
+      reason,
+      totalAmount: totalReturnAmount.toNumber(),
+      payableReduction: payableReduction.toNumber(),
+      cashRefund: cashRefund.toNumber(),
+      isAllReturned,
+      items: itemsProcessing.map((p) => ({
+        productId: p.purchaseItem.productId,
+        productName: p.purchaseItem.productName,
+        quantity: p.returnQty.toNumber(),
+        unitCost: Number(p.purchaseItem.unitCost || 0),
+        lineTotal: p.lineReturnAmount.toNumber(),
+      })),
+    };
+    returnHistory.push(returnRecord);
+
+    const updatedNotes = JSON.stringify({
+      returnHistory,
+      lastReturnAt: new Date().toISOString(),
+      lastReturnReason: reason,
+      isAllReturned,
+    });
+
+    await tx.purchase.update({
+      where: { id: purchase.id },
+      data: {
+        paidAmount: newPaid.toNumber(),
+        remainingAmount: newRemaining.toNumber(),
+        paymentStatus,
+        notes: updatedNotes,
+        updatedAt: new Date(),
+      },
+    });
+
+    // 10. Audit Log
+    await createSafeAuditLog(tx, {
+      businessId: purchase.businessId,
+      userId: userId || null,
+      branchId: purchase.branchId,
+      action: isAllReturned ? "REVERSE_PURCHASE" : "PARTIAL_RETURN_PURCHASE",
+      entity: "Purchase",
+      entityId: purchase.id,
+      details: JSON.stringify({
+        purchaseNumber: purchase.purchaseNumber,
+        supplierName: purchase.supplierName,
+        totalReturnAmount: totalReturnAmount.toString(),
+        payableReduction: payableReduction.toString(),
+        cashRefund: cashRefund.toString(),
+        isAllReturned,
+        itemsCount: itemsProcessing.length,
+        reason,
+      }),
+    });
+
+    return {
+      status: isAllReturned ? "REVERSED" : "PARTIALLY_RETURNED",
+      purchaseId,
+      purchaseNumber: purchase.purchaseNumber,
+      totalReturnAmount: totalReturnAmount.toNumber(),
+      totalReturnedAmount: totalReturnAmount.toNumber(),
+      payableReduction: payableReduction.toNumber(),
+      cashRefund: cashRefund.toNumber(),
+      isPartialReturn: !isAllReturned,
+      isAllReturned,
+      returnRecord,
+    };
+  });
+}
+
+export function enrichPurchase(p: any) {
+  let returnHistory: any[] = [];
+  if (p.notes && typeof p.notes === "string") {
+    try {
+      const parsedNotes = JSON.parse(p.notes);
+      if (Array.isArray(parsedNotes.returnHistory)) returnHistory = parsedNotes.returnHistory;
+    } catch {}
+  } else if (Array.isArray((p as any).returnHistory)) {
+    returnHistory = (p as any).returnHistory;
+  }
+
+  const returnedByProd: Record<string, number> = {};
+  for (const rh of returnHistory) {
+    for (const it of rh.items || []) {
+      returnedByProd[it.productId] = (returnedByProd[it.productId] || 0) + Number(it.quantity || 0);
+    }
+  }
+
+  const enrichedItems = (p.items || []).map((it: any) => {
+    const retQty = returnedByProd[it.productId] || 0;
+    const remQty = Math.max(0, Number(it.quantity || 0) - retQty);
+    return {
+      ...it,
+      returnedQuantity: retQty,
+      remainingQuantity: remQty,
+    };
+  });
+
+  let totalReturnedAmount = returnHistory.reduce(
+    (acc: number, r: any) => acc + Number(r.totalAmount || r.returnAmount || 0),
+    0
+  );
+  if (totalReturnedAmount === 0 && enrichedItems.some((it: any) => Number(it.returnedQuantity || 0) > 0)) {
+    totalReturnedAmount = enrichedItems.reduce(
+      (acc: number, it: any) => acc + Number(it.returnedQuantity || 0) * Number(it.unitCost || 0),
+      0
+    );
+  }
+
+  const isAllReturned =
+    enrichedItems.length > 0 && enrichedItems.every((it: any) => Number(it.remainingQuantity || 0) === 0);
+  const isPartialReturn =
+    !isAllReturned && (totalReturnedAmount > 0 || enrichedItems.some((it: any) => it.returnedQuantity > 0));
+  const hasReturnableItems = enrichedItems.some((it: any) => Number(it.remainingQuantity || 0) > 0);
+
+  return {
+    ...p,
+    items: enrichedItems,
+    returnHistory,
+    totalReturnedAmount,
+    isPartialReturn,
+    isAllReturned,
+    hasReturnableItems,
+  };
+}

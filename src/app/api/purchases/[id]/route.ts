@@ -4,6 +4,7 @@ import { getActiveBusinessId } from "@/lib/businessHelper";
 import { fallbackStore, storeUpdatePurchase } from "@/lib/fallbackStore";
 import { getSession } from "@/lib/auth";
 import { createSafeAuditLog } from "@/lib/auditHelper";
+import { enrichPurchase } from "@/services/purchaseService";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +22,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
       return NextResponse.json({ success: false, error: "Purchase not found" }, { status: 404 });
     }
 
-    return NextResponse.json({ success: true, data: purchase });
+    return NextResponse.json({ success: true, data: enrichPurchase(purchase) });
   } catch {
     const businessId = await getActiveBusinessId(req);
     const purchase = fallbackStore.purchases.find((p) => p.id === id && p.businessId === businessId);
@@ -30,7 +31,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
       return NextResponse.json({ success: false, error: "Purchase not found" }, { status: 404 });
     }
 
-    return NextResponse.json({ success: true, data: purchase, fallback: true });
+    return NextResponse.json({ success: true, data: enrichPurchase(purchase), fallback: true });
   }
 }
 

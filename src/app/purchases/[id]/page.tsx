@@ -6,8 +6,9 @@ import { useParams } from "next/navigation";
 import { formatMoney } from "@/lib/decimal";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Printer, Package, CheckCircle2, Building2, Receipt } from "lucide-react";
+import { ArrowLeft, Printer, Package, CheckCircle2, Building2, Receipt, RotateCcw } from "lucide-react";
 import { BrandPageLoader } from "@/components/ui/loader";
+import { PurchaseReturnModal } from "@/components/purchases/PurchaseReturnModal";
 import { useAuth } from "@/context/AuthContext";
 import { useLanguage } from "@/context/LanguageContext";
 
@@ -17,33 +18,39 @@ export default function PurchaseDetailPage() {
   const { t, language } = useLanguage();
   const [purchase, setPurchase] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [isReturnModalOpen, setIsReturnModalOpen] = useState(false);
+
+  const fetchPurchase = async () => {
+    try {
+      const res = await fetch(`/api/purchases/${params.id}`);
+      const json = await res.json();
+      if (json.success) {
+        setPurchase(json.data);
+      } else {
+        // fallback to main purchases list
+        const listRes = await fetch(`/api/purchases`);
+        const listJson = await listRes.json();
+        if (listJson.success) {
+          const found = listJson.data.find(
+            (p: any) => p.id === params.id || p.purchaseNumber === params.id
+          );
+          setPurchase(found);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to load purchase:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    async function fetchPurchase() {
-      try {
-        const res = await fetch(`/api/purchases/${params.id}`);
-        const json = await res.json();
-        if (json.success) {
-          setPurchase(json.data);
-        } else {
-          // fallback to main purchases list
-          const listRes = await fetch(`/api/purchases`);
-          const listJson = await listRes.json();
-          if (listJson.success) {
-            const found = listJson.data.find(
-              (p: any) => p.id === params.id || p.purchaseNumber === params.id
-            );
-            setPurchase(found);
-          }
-        }
-      } catch (err) {
-        console.error("Failed to load purchase:", err);
-      } finally {
-        setLoading(false);
-      }
-    }
     if (params.id) fetchPurchase();
   }, [params.id]);
+
+  const handleReturnSuccess = () => {
+    fetchPurchase();
+  };
 
   if (loading) {
     return (
@@ -78,12 +85,47 @@ export default function PurchaseDetailPage() {
           <span>Back to Purchases</span>
         </Link>
         <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            disabled={purchase.isAllReturned || purchase.hasReturnableItems === false}
+            onClick={() => setIsReturnModalOpen(true)}
+            className="gap-1.5 border-amber-300 text-amber-800 hover:bg-amber-50 dark:border-amber-800 dark:text-amber-300 shadow-sm"
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+            <span>{t("Return Items / Debit Note", "مال واپس کریں / ڈیبٹ نوٹ")}</span>
+          </Button>
           <Button variant="primary" size="sm" onClick={() => window.print()} className="gap-1.5 shadow-sm">
             <Printer className="h-3.5 w-3.5" />
             <span>{t("Print Bill Slip", "پرنٹ واؤچر")}</span>
           </Button>
         </div>
       </div>
+
+      {/* Return Notice Banner */}
+      {purchase.totalReturnedAmount && Number(purchase.totalReturnedAmount) > 0 && (
+        <div className="rounded-2xl border border-rose-300 bg-rose-50 p-4 text-xs text-rose-900 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-200 shadow-xs print:hidden">
+          <div className="flex items-start gap-3">
+            <span className="text-xl">↺</span>
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-sm text-rose-950 dark:text-rose-100">
+                  {purchase.isAllReturned
+                    ? t("Purchase Bill Fully Returned Notice", "مکمل واپس شدہ خریداری انوائس")
+                    : t("Partial Purchase Return Notice", "ترمیم و جزوی واپسی شدہ خریداری بل")}
+                </span>
+                <span className="rounded-md bg-rose-200/80 px-2 py-0.5 text-[10px] font-bold text-rose-900 dark:bg-rose-900/80 dark:text-rose-200">
+                  -Rs {Number(purchase.totalReturnedAmount || 0).toLocaleString()} Returned
+                </span>
+              </div>
+              <p className="text-rose-800 dark:text-rose-300">
+                Merchandise worth <strong>Rs {Number(purchase.totalReturnedAmount || 0).toLocaleString()}</strong> was returned to {purchase.supplierName}. Physical inventory and supplier payable balances have been updated.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Edited Warning Banner */}
       {purchase.isEdited && (
@@ -223,33 +265,82 @@ export default function PurchaseDetailPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                {purchase.items?.map((item: any, i: number) => (
-                  <tr key={i}>
-                    <td className="py-3 text-center text-slate-400">{i + 1}</td>
-                    <td className="py-3 pr-2">
-                      <p className="font-semibold text-slate-800 dark:text-slate-200">
-                        {item.productName}
-                      </p>
-                      {item.sku && <p className="text-[10px] text-slate-400">SKU: {item.sku}</p>}
-                    </td>
-                    <td className="py-3 px-2 text-center font-bold text-slate-900 dark:text-white tabular-nums">
-                      <span>{Number(item.quantity || 0).toLocaleString()}</span>{" "}
-                      <span className="text-[10px] text-slate-500 font-semibold uppercase">{item.product?.uom || item.product?.unit || item.uom || "PCS"}</span>
-                    </td>
-                    <td className="py-3 px-2 text-right tabular-nums text-slate-600 dark:text-slate-300">
-                      {formatMoney(item.unitCost)}
-                    </td>
-                    <td className="py-3 pl-2 text-right font-bold text-slate-900 dark:text-white tabular-nums">
-                      {formatMoney(item.lineTotal)}
-                    </td>
-                    <td className="py-3 text-center">
-                      <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
-                        <CheckCircle2 className="h-3 w-3" />
-                        <span>Verified</span>
-                      </span>
-                    </td>
-                  </tr>
-                ))}
+                {purchase.items?.map((item: any, i: number) => {
+                  const qty = Number(item.quantity || 0);
+                  const returnedQty = Number(item.returnedQuantity || 0);
+                  const remainingQty =
+                    item.remainingQuantity !== undefined
+                      ? Number(item.remainingQuantity)
+                      : Math.max(0, qty - returnedQty);
+                  const unitCost = Number(item.unitCost || 0);
+                  const lineTotal = Number(item.lineTotal || qty * unitCost);
+                  const effectiveUom =
+                    item.product?.uom || item.product?.unit || item.uom || "PCS";
+
+                  return (
+                    <tr key={i}>
+                      <td className="py-3 text-center text-slate-400">{i + 1}</td>
+                      <td className="py-3 pr-2">
+                        <p className="font-semibold text-slate-800 dark:text-slate-200">
+                          {item.productName}
+                        </p>
+                        {item.sku && <p className="text-[10px] text-slate-400">SKU: {item.sku}</p>}
+                        {returnedQty > 0 && (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-rose-700 bg-rose-50 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-900 px-1.5 py-0.5 rounded border border-rose-200 mt-1">
+                            ↺ {returnedQty} {effectiveUom} Returned to Vendor ({remainingQty} kept)
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-3 px-2 text-center font-bold text-slate-900 dark:text-white tabular-nums">
+                        <div>
+                          <span>{qty.toLocaleString()}</span>{" "}
+                          <span className="text-[10px] text-slate-500 font-semibold uppercase">
+                            {effectiveUom}
+                          </span>
+                        </div>
+                        {returnedQty > 0 && (
+                          <div className="text-[10px] text-rose-600 font-semibold">
+                            (-{returnedQty} ret)
+                          </div>
+                        )}
+                      </td>
+                      <td className="py-3 px-2 text-right tabular-nums text-slate-600 dark:text-slate-300">
+                        {formatMoney(unitCost)}
+                      </td>
+                      <td className="py-3 pl-2 text-right font-bold text-slate-900 dark:text-white tabular-nums">
+                        {returnedQty > 0 ? (
+                          <div>
+                            <div>{formatMoney(Math.max(0, (qty - returnedQty) * unitCost))}</div>
+                            <div className="text-[10px] text-slate-400 line-through">
+                              {formatMoney(lineTotal)}
+                            </div>
+                            <div className="text-[9px] text-rose-600 font-semibold">
+                              (-{formatMoney(returnedQty * unitCost)})
+                            </div>
+                          </div>
+                        ) : (
+                          formatMoney(lineTotal)
+                        )}
+                      </td>
+                      <td className="py-3 text-center">
+                        {returnedQty >= qty ? (
+                          <span className="inline-flex items-center gap-1 rounded-md bg-rose-50 px-2 py-0.5 text-[11px] font-semibold text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-200 dark:border-rose-800">
+                            <span>Returned</span>
+                          </span>
+                        ) : returnedQty > 0 ? (
+                          <span className="inline-flex items-center gap-1 rounded-md bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+                            <span>Part. Ret</span>
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                            <CheckCircle2 className="h-3 w-3" />
+                            <span>Verified</span>
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -279,9 +370,32 @@ export default function PurchaseDetailPage() {
               </span>
             </div>
           )}
+          {Number(purchase.totalReturnedAmount || 0) > 0 && (
+            <>
+              <div className="flex justify-between text-rose-600 font-semibold">
+                <span>{t("Merchandise Returned / وینڈر مال واپسی", "وینڈر مال واپسی")}:</span>
+                <span className="tabular-nums">- {formatMoney(purchase.totalReturnedAmount)}</span>
+              </div>
+              <div className="flex justify-between text-slate-400 text-xs">
+                <span>{t("Gross Purchase Total", "ابتدائی بل")}:</span>
+                <span className="tabular-nums line-through">{formatMoney(purchase.totalAmount)}</span>
+              </div>
+            </>
+          )}
           <div className="flex justify-between border-t border-slate-200 pt-2 text-sm font-bold text-slate-900 dark:border-slate-800 dark:text-white">
-            <span>{t("Total Bill", "کل خریداری بل")}:</span>
-            <span className="tabular-nums">{formatMoney(purchase.totalAmount)}</span>
+            <span>
+              {Number(purchase.totalReturnedAmount || 0) > 0
+                ? t("Net Purchase Total", "خالص بل (وینڈر واجب)")
+                : t("Total Bill", "کل خریداری بل")}:
+            </span>
+            <span className="tabular-nums">
+              {formatMoney(
+                Math.max(
+                  0,
+                  Number(purchase.totalAmount) - Number(purchase.totalReturnedAmount || 0)
+                )
+              )}
+            </span>
           </div>
           <div className="flex justify-between text-emerald-600 font-semibold">
             <span>{t("Amount Paid", "ادا شدہ")}:</span>
@@ -292,6 +406,61 @@ export default function PurchaseDetailPage() {
             <span className="tabular-nums">{formatMoney(purchase.remainingAmount)}</span>
           </div>
         </div>
+
+        {/* Debit Note & Purchase Return History Audit Card */}
+        {purchase.returnHistory && purchase.returnHistory.length > 0 && (
+          <div className="border border-amber-200 bg-amber-50/50 dark:border-amber-900/50 dark:bg-amber-950/20 rounded-xl p-4 mt-6 text-xs">
+            <div className="flex items-center justify-between pb-2 border-b border-amber-200/60 dark:border-amber-900/40 mb-3 font-bold text-amber-900 dark:text-amber-200">
+              <div className="flex items-center gap-1.5">
+                <RotateCcw className="h-4 w-4 text-amber-600" />
+                <span>{t("Debit Note & Return Record", "ڈیبٹ نوٹ اور وینڈر مال واپسی ریکارڈ")}</span>
+              </div>
+              <span className="font-mono text-xs text-amber-800 dark:text-amber-300">
+                Total Returned: {formatMoney(purchase.totalReturnedAmount || 0)}
+              </span>
+            </div>
+            <div className="space-y-2">
+              {purchase.returnHistory.map((hist: any, hIdx: number) => (
+                <div
+                  key={hIdx}
+                  className="bg-white/80 dark:bg-slate-900/80 p-3 rounded-lg border border-amber-100 dark:border-amber-900/30 text-slate-700 dark:text-slate-300 space-y-1.5"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-1 text-[11px]">
+                    <div>
+                      <span className="font-semibold text-slate-900 dark:text-white">
+                        {new Date(hist.returnedAt || hist.date).toLocaleString()}
+                      </span>
+                      {hist.reason && (
+                        <span className="text-slate-500 ml-2">
+                          Reason:{" "}
+                          <strong className="text-amber-800 dark:text-amber-300">
+                            {hist.reason}
+                          </strong>
+                        </span>
+                      )}
+                    </div>
+                    <div className="font-mono font-bold text-rose-600">
+                      Returned Value: {formatMoney(hist.totalReturnedAmount || 0)}
+                    </div>
+                  </div>
+                  {hist.items && hist.items.length > 0 && (
+                    <div className="flex flex-wrap gap-2 pt-1 border-t border-slate-100 dark:border-slate-800 text-[10px]">
+                      {hist.items.map((it: any, itIdx: number) => (
+                        <span
+                          key={itIdx}
+                          className="bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded font-mono text-slate-700 dark:text-slate-300"
+                        >
+                          {it.productName || `Item #${itIdx + 1}`}: -{it.quantity} @{" "}
+                          {formatMoney(it.unitCost)}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Physical Stock Signatures */}
         <div className="grid grid-cols-3 gap-6 border-t border-slate-200 mt-10 pt-6 text-xs text-slate-500 dark:border-slate-800">
@@ -319,6 +488,16 @@ export default function PurchaseDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Purchase Return / Debit Note Modal */}
+      {isReturnModalOpen && purchase && (
+        <PurchaseReturnModal
+          isOpen={isReturnModalOpen}
+          onClose={() => setIsReturnModalOpen(false)}
+          purchase={purchase}
+          onSuccess={handleReturnSuccess}
+        />
+      )}
     </div>
   );
 }

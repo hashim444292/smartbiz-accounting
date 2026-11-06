@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { createAndPostPurchase } from "@/services/purchaseService";
+import { createAndPostPurchase, enrichPurchase } from "@/services/purchaseService";
 import { getActiveBusinessId, getActiveBranchId } from "@/lib/businessHelper";
 import { fallbackStore } from "@/lib/fallbackStore";
 import { calculateWeightedAverageCost } from "@/lib/decimal";
@@ -41,7 +41,8 @@ export async function GET(req: NextRequest) {
       include: { supplier: true, items: true, branch: true },
       orderBy: { date: "desc" },
     });
-    return NextResponse.json({ success: true, data: purchases, branchId, isLockedToBranch });
+    const parsedPurchases = purchases.map((p) => enrichPurchase(p));
+    return NextResponse.json({ success: true, data: parsedPurchases, branchId, isLockedToBranch });
   } catch (err) {
     const businessId = await getActiveBusinessId(req);
     const { branchId, isLockedToBranch } = await getActiveBranchId(req);
@@ -58,7 +59,8 @@ export async function GET(req: NextRequest) {
     if (branchId) {
       filtered = filtered.filter((p) => p.branchId === branchId || !p.branchId);
     }
-    return NextResponse.json({ success: true, data: filtered, branchId, isLockedToBranch, fallback: true });
+    const parsedFiltered = filtered.map((p) => enrichPurchase(p));
+    return NextResponse.json({ success: true, data: parsedFiltered, branchId, isLockedToBranch, fallback: true });
   }
 }
 

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import { formatMoney } from "@/lib/decimal";
 import { Badge } from "@/components/ui/badge";
@@ -21,10 +21,12 @@ import {
   FileText,
   RefreshCw,
   BookOpen,
+  RotateCcw,
 } from "lucide-react";
 import { TableRowsSkeleton } from "@/components/ui/loader";
 import { Modal } from "@/components/ui/modal";
 import { Input } from "@/components/ui/input";
+import { PurchaseReturnModal } from "@/components/purchases/PurchaseReturnModal";
 import { useAuth } from "@/context/AuthContext";
 import { useLanguage } from "@/context/LanguageContext";
 import { smartFetch, invalidateCache, useAutoSync } from "@/lib/clientCache";
@@ -45,6 +47,22 @@ export default function PurchasesPage() {
 
   // Inspect / View Bill Slip State
   const [viewingPurchase, setViewingPurchase] = useState<any | null>(null);
+
+  // Purchase Return Modal State
+  const [returnModalPurchase, setReturnModalPurchase] = useState<any | null>(null);
+  const [isReturnModalOpen, setIsReturnModalOpen] = useState(false);
+
+  const handleOpenReturnModal = (p: any) => {
+    setReturnModalPurchase(p);
+    setIsReturnModalOpen(true);
+  };
+
+  const handleReturnSuccess = () => {
+    invalidateCache("/api/purchases");
+    invalidateCache("/api/dashboard");
+    invalidateCache("/api/inventory");
+    fetchPurchases();
+  };
 
   // Edit Purchase State & User Tracking
   const [editingPurchase, setEditingPurchase] = useState<any | null>(null);
@@ -399,6 +417,19 @@ export default function PurchasesPage() {
     (s) => s.id === selectedSupplier || s.name.toLowerCase() === selectedSupplier.toLowerCase()
   );
 
+  const filteredTotalGross = useMemo(
+    () => filtered.reduce((acc, p) => acc + Number(p.totalAmount || 0), 0),
+    [filtered]
+  );
+  const filteredTotalReturns = useMemo(
+    () => filtered.reduce((acc, p) => acc + Number(p.totalReturnedAmount || 0), 0),
+    [filtered]
+  );
+  const filteredTotalNet = useMemo(
+    () => Math.max(0, filteredTotalGross - filteredTotalReturns),
+    [filteredTotalGross, filteredTotalReturns]
+  );
+
   return (
     <div className="space-y-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -512,9 +543,16 @@ export default function PurchasesPage() {
             {t("Total Purchases Value", "کل خریداری مالیت")}
           </p>
           <p className="mt-1 text-2xl font-black text-blue-900 dark:text-blue-100 tabular-nums">
-            {formatMoney(filtered.reduce((acc, p) => acc + Number(p.totalAmount || 0), 0))}
+            {formatMoney(filteredTotalNet)}
           </p>
-          <p className="text-[11px] text-blue-600/70 dark:text-blue-400 mt-0.5">{t("Gross purchased merchandise", "کل خریدا گیا مال")}</p>
+          {filteredTotalReturns > 0 ? (
+            <p className="text-[11px] text-blue-600/70 dark:text-blue-400 mt-0.5 space-x-1 flex items-center flex-wrap gap-1">
+              <span className="line-through text-slate-400 font-mono">Rs {filteredTotalGross.toLocaleString()}</span>
+              <span className="text-rose-600 font-bold dark:text-rose-400">(-Rs {filteredTotalReturns.toLocaleString()} {language === "ur" ? "واپس" : "ret"})</span>
+            </p>
+          ) : (
+            <p className="text-[11px] text-blue-600/70 dark:text-blue-400 mt-0.5">{t("Gross purchased merchandise", "کل خریدا گیا مال")}</p>
+          )}
         </div>
         <div className="rounded-2xl border border-emerald-100 bg-emerald-50/50 p-4 shadow-xs dark:border-emerald-900/40 dark:bg-emerald-950/20">
           <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">
@@ -757,7 +795,21 @@ export default function PurchasesPage() {
                       </div>
                     </td>
                     <td className="px-4 py-3 text-right font-bold text-slate-900 dark:text-white tabular-nums">
-                      {formatMoney(p.totalAmount)}
+                      {p.totalReturnedAmount && Number(p.totalReturnedAmount) > 0 ? (
+                        <div className="flex flex-col items-end">
+                          <span className="font-bold text-slate-900 dark:text-white">
+                            {formatMoney(Math.max(0, Number(p.totalAmount) - Number(p.totalReturnedAmount)))}
+                          </span>
+                          <span className="text-[10px] text-slate-400 line-through">
+                            {formatMoney(p.totalAmount)}
+                          </span>
+                          <span className="text-[10px] text-rose-600 font-semibold dark:text-rose-400">
+                            (-{formatMoney(p.totalReturnedAmount)} {language === "ur" ? "واپس" : "ret"})
+                          </span>
+                        </div>
+                      ) : (
+                        formatMoney(p.totalAmount)
+                      )}
                     </td>
                     <td className="px-4 py-3 text-right text-emerald-600 font-semibold tabular-nums">
                       {formatMoney(p.paidAmount)}
@@ -766,12 +818,39 @@ export default function PurchasesPage() {
                       {formatMoney(p.remainingAmount)}
                     </td>
                     <td className="px-4 py-3 text-center">
-                      <Badge variant={p.paymentStatus === "PAID" ? "success" : p.paymentStatus === "PARTIAL" ? "warning" : "danger"}>
-                        {p.paymentStatus}
-                      </Badge>
+                      <div className="flex flex-col items-center gap-1">
+                        <Badge variant={p.paymentStatus === "PAID" ? "success" : p.paymentStatus === "PARTIAL" ? "warning" : "danger"}>
+                          {p.paymentStatus}
+                        </Badge>
+                        {p.isAllReturned ? (
+                          <span className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.2 text-[9px] font-bold bg-rose-50 text-rose-700 border border-rose-300 dark:bg-rose-950/60 dark:text-rose-300">
+                            ✕ {language === "ur" ? "مکمل واپس" : "Returned"}
+                          </span>
+                        ) : p.isPartialReturn ? (
+                          <span
+                            className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.2 text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-300 dark:bg-amber-950/60 dark:text-amber-300"
+                            title={`Partial return of Rs. ${formatMoney(p.totalReturnedAmount || 0)}`}
+                          >
+                            ↺ {language === "ur" ? "جزوی واپسی" : "Partial Ret"}
+                          </span>
+                        ) : null}
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-right print:hidden">
                       <div className="flex items-center justify-end gap-1.5">
+                        <button
+                          onClick={() => handleOpenReturnModal(p)}
+                          disabled={p.isAllReturned || p.hasReturnableItems === false}
+                          className="flex items-center gap-1 rounded-lg bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-800 hover:bg-amber-100 dark:bg-amber-950/60 dark:text-amber-300 dark:hover:bg-amber-900/60 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                          title={
+                            p.isAllReturned
+                              ? t("All items already returned", "تمام اشیاء پہلے ہی واپس کر دی گئی ہیں")
+                              : t("Return items to vendor / Debit note", "مال واپس کریں / ڈیبٹ نوٹ")
+                          }
+                        >
+                          <RotateCcw className="h-3.5 w-3.5" />
+                          <span>{t("Return", "واپسی")}</span>
+                        </button>
                         <button
                           onClick={() => setViewingPurchase(p)}
                           className="flex items-center gap-1 rounded-lg bg-blue-50 px-2 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-100 dark:bg-blue-950/60 dark:text-blue-300 dark:hover:bg-blue-900/60 transition-colors"
@@ -985,6 +1064,20 @@ export default function PurchasesPage() {
             </div>
 
             <div className="flex justify-end gap-2 pt-2">
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={viewingPurchase.isAllReturned || viewingPurchase.hasReturnableItems === false}
+                onClick={() => {
+                  const target = viewingPurchase;
+                  setViewingPurchase(null);
+                  handleOpenReturnModal(target);
+                }}
+                className="gap-1.5 border-amber-300 text-amber-800 hover:bg-amber-50 dark:border-amber-800 dark:text-amber-300"
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
+                <span>{t("Return Items / Debit Note", "مال واپس کریں / ڈیبٹ نوٹ")}</span>
+              </Button>
               <Button variant="secondary" onClick={() => setViewingPurchase(null)}>
                 {t("Close", "بند کریں")}
               </Button>
@@ -1112,6 +1205,16 @@ export default function PurchasesPage() {
             </div>
           </form>
         </Modal>
+      )}
+
+      {/* Purchase Return / Debit Note Modal */}
+      {isReturnModalOpen && returnModalPurchase && (
+        <PurchaseReturnModal
+          isOpen={isReturnModalOpen}
+          onClose={() => setIsReturnModalOpen(false)}
+          purchase={returnModalPurchase}
+          onSuccess={handleReturnSuccess}
+        />
       )}
     </div>
   );
