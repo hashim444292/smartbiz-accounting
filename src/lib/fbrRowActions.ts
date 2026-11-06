@@ -29,15 +29,16 @@ export function getFbrRowActionVisibility(
 
   const isSuccess = inv.fbrStatus === "SUCCESS" || Boolean(inv.fbrInvoiceNumber);
   const isPending = (!inv.fbrStatus || inv.fbrStatus === "PENDING") && !inv.fbrInvoiceNumber;
+  const isFailed = inv.fbrStatus === "FAILED" && !inv.fbrInvoiceNumber;
   const isFullyPaid = inv.paymentStatus === "PAID" || Number(inv.remainingAmount || 0) <= 0;
-  const isEligibleToHit = isPending && isFullyPaid && !isSuccess;
+  const isEligibleToHit = (isPending || isFailed) && isFullyPaid && !isSuccess;
 
   return {
     showJson: true,
     showViewQr: isSuccess,
     showCreditNote: isSuccess && !isDI,
     showHitFbr: isEligibleToHit,
-    showSettle: !isSuccess && !isEligibleToHit,
+    showSettle: !isSuccess && !isFullyPaid,
     showEdit: !isSuccess,
     showDelete: !isSuccess,
     showReverse: !isDI && inv.status !== "CANCELLED" && !isSuccess,

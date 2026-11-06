@@ -1586,6 +1586,34 @@ async function executeTransmitSaleToFbr(
     ? 0
     : Math.max(0, Number(sale.remainingAmount) + additionalFee);
 
+  let updatedNotes = sale.notes || "";
+  if (transmissionStatus === "FAILED") {
+    try {
+      const parsed = JSON.parse(sale.notes);
+      parsed.fbrError = transmissionMessage;
+      parsed.lastFbrAttempt = new Date().toISOString();
+      updatedNotes = JSON.stringify(parsed);
+    } catch {
+      const cleaned = (sale.notes || "")
+        .replace(/\s*\|?\s*\[FBR Error\]:.*$/, "")
+        .trim();
+      updatedNotes = cleaned
+        ? `${cleaned} | [FBR Error]: ${transmissionMessage}`
+        : `[FBR Error]: ${transmissionMessage}`;
+    }
+  } else if (transmissionStatus === "SUCCESS") {
+    try {
+      const parsed = JSON.parse(sale.notes);
+      delete parsed.fbrError;
+      parsed.lastFbrSuccess = new Date().toISOString();
+      updatedNotes = JSON.stringify(parsed);
+    } catch {
+      updatedNotes = (sale.notes || "")
+        .replace(/\s*\|?\s*\[FBR Error\]:.*$/, "")
+        .trim();
+    }
+  }
+
   try {
     const updated = await prisma.sale.update({
       where: { id: invoiceId },
@@ -1598,6 +1626,7 @@ async function executeTransmitSaleToFbr(
         fbrStatus: transmissionStatus,
         fbrInvoiceNumber: transmissionStatus === "SUCCESS" ? fbrInvNum : null,
         fbrQrCode: transmissionStatus === "SUCCESS" ? fbrQr : null,
+        notes: updatedNotes,
       } as any,
       include: { items: true, customer: true },
     });
@@ -1633,7 +1662,7 @@ async function executeTransmitSaleToFbr(
     console.error("Prisma sale update error after FBR transmission:", dbErr);
     try {
       await prisma.$executeRawUnsafe(
-        `UPDATE "Sale" SET "fbrStatus" = $1, "fbrInvoiceNumber" = $2, "fbrQrCode" = $3, "totalAmount" = $4, "paidAmount" = $5, "remainingAmount" = $6, "paymentStatus" = $7::"PaymentStatus", "posFee" = $8 WHERE id = $9`,
+        `UPDATE "Sale" SET "fbrStatus" = $1, "fbrInvoiceNumber" = $2, "fbrQrCode" = $3, "totalAmount" = $4, "paidAmount" = $5, "remainingAmount" = $6, "paymentStatus" = $7::"PaymentStatus", "posFee" = $8, "notes" = $9 WHERE id = $10`,
         transmissionStatus,
         transmissionStatus === "SUCCESS" ? fbrInvNum : null,
         transmissionStatus === "SUCCESS" ? fbrQr : null,
@@ -1642,6 +1671,7 @@ async function executeTransmitSaleToFbr(
         updatedRemainingAmount,
         isFullyPaid ? "PAID" : sale.paymentStatus,
         isPos ? 1.0 : 0.0,
+        updatedNotes,
         invoiceId
       );
     } catch (rawErr) {
@@ -1657,6 +1687,7 @@ async function executeTransmitSaleToFbr(
     sale.fbrStatus = transmissionStatus;
     sale.fbrInvoiceNumber = transmissionStatus === "SUCCESS" ? fbrInvNum : null;
     sale.fbrQrCode = transmissionStatus === "SUCCESS" ? fbrQr : null;
+    sale.notes = updatedNotes;
 
     return {
       success: transmissionStatus === "SUCCESS",

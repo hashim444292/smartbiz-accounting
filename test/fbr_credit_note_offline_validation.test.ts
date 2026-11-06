@@ -1167,5 +1167,41 @@ describe("Offline Credit Note Engine Validation & Mocked Gateway Harness", () =>
       expect(vis.showSettle).toBe(true);
       expect(vis.showViewQr).toBe(false);
     });
+
+    it("Failed invoice (fbrStatus: FAILED, paymentStatus: PAID) renders Hit/Retry FBR and NEVER Settle & Unlock", () => {
+      // User reported case (INV-2026-00008, INV-2026-00009): paid in full but failed transmission
+      const failedPaid = {
+        invoiceNumber: "INV-2026-00008",
+        status: "POSTED",
+        fbrStatus: "FAILED",
+        fbrInvoiceNumber: null,
+        paymentStatus: "PAID",
+        remainingAmount: 0,
+      };
+
+      const vis = getFbrRowActionVisibility(failedPaid);
+
+      expect(vis.showCreditNote).toBe(false);
+      expect(vis.showReverse).toBe(true);
+      expect(vis.showHitFbr).toBe(true); // Must allow retrying FBR!
+      expect(vis.showSettle).toBe(false); // Must NOT show Settle & Unlock because already 100% paid
+      expect(vis.showViewQr).toBe(false);
+    });
+
+    it("Failed invoice with outstanding balance (fbrStatus: FAILED, paymentStatus: PARTIAL) renders Settle & Unlock", () => {
+      const failedUnpaid = {
+        invoiceNumber: "INV-2026-00009",
+        status: "POSTED",
+        fbrStatus: "FAILED",
+        fbrInvoiceNumber: null,
+        paymentStatus: "PARTIAL",
+        remainingAmount: 500,
+      };
+
+      const vis = getFbrRowActionVisibility(failedUnpaid);
+
+      expect(vis.showHitFbr).toBe(false);
+      expect(vis.showSettle).toBe(true);
+    });
   });
 });

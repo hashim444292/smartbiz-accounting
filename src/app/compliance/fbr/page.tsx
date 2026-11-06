@@ -34,6 +34,7 @@ import {
   CheckCheck,
   Pencil,
   Trash2,
+  AlertTriangle,
 } from "lucide-react";
 import { TableRowsSkeleton } from "@/components/ui/loader";
 import { useAuth } from "@/context/AuthContext";
@@ -52,7 +53,9 @@ export default function FbrCompliancePage() {
   const [complianceData, setComplianceData] = useState<any>(null);
 
   // Search & Filter State
-  const [activeTab, setActiveTab] = useState<"READY" | "AWAITING_PAYMENT" | "SUCCESS" | "ALL" | "SCENARIOS">("READY");
+  const [activeTab, setActiveTab] = useState<
+    "READY" | "AWAITING_PAYMENT" | "FAILED" | "SUCCESS" | "ALL" | "SCENARIOS"
+  >("READY");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
@@ -508,11 +511,24 @@ export default function FbrCompliancePage() {
     let list = allInvoices;
 
     if (activeTab === "READY") {
-      // Fully paid and not yet transmitted to FBR
-      list = list.filter((inv) => (!inv.fbrStatus || inv.fbrStatus === "PENDING") && inv.paymentStatus === "PAID");
+      // Fully paid and not yet successfully transmitted to FBR (includes pending and retryable failed invoices)
+      list = list.filter(
+        (inv) =>
+          (!inv.fbrStatus || inv.fbrStatus === "PENDING" || inv.fbrStatus === "FAILED") &&
+          !inv.fbrInvoiceNumber &&
+          (inv.paymentStatus === "PAID" || Number(inv.remainingAmount || 0) <= 0)
+      );
+    } else if (activeTab === "FAILED") {
+      // Failed during previous FBR transmission
+      list = list.filter((inv) => inv.fbrStatus === "FAILED" && !inv.fbrInvoiceNumber);
     } else if (activeTab === "AWAITING_PAYMENT") {
       // Incomplete payment (Partial or 100% credit) and not yet transmitted to FBR
-      list = list.filter((inv) => (!inv.fbrStatus || inv.fbrStatus === "PENDING") && inv.paymentStatus !== "PAID");
+      list = list.filter(
+        (inv) =>
+          !inv.fbrInvoiceNumber &&
+          inv.paymentStatus !== "PAID" &&
+          Number(inv.remainingAmount || 0) > 0
+      );
     } else if (activeTab === "SUCCESS") {
       // Transmitted & verified on FBR
       list = list.filter((inv) => inv.fbrStatus === "SUCCESS" || Boolean(inv.fbrInvoiceNumber));
@@ -541,14 +557,24 @@ export default function FbrCompliancePage() {
 
   // Counts
   const readyInvoices = allInvoices.filter(
-    (inv) => (!inv.fbrStatus || inv.fbrStatus === "PENDING") && !inv.fbrInvoiceNumber && inv.paymentStatus === "PAID"
+    (inv) =>
+      (!inv.fbrStatus || inv.fbrStatus === "PENDING" || inv.fbrStatus === "FAILED") &&
+      !inv.fbrInvoiceNumber &&
+      (inv.paymentStatus === "PAID" || Number(inv.remainingAmount || 0) <= 0)
+  );
+  const failedInvoices = allInvoices.filter(
+    (inv) => inv.fbrStatus === "FAILED" && !inv.fbrInvoiceNumber
   );
   const awaitingPaymentInvoices = allInvoices.filter(
-    (inv) => (!inv.fbrStatus || inv.fbrStatus === "PENDING") && !inv.fbrInvoiceNumber && inv.paymentStatus !== "PAID"
+    (inv) =>
+      !inv.fbrInvoiceNumber &&
+      inv.paymentStatus !== "PAID" &&
+      Number(inv.remainingAmount || 0) > 0
   );
   const successInvoices = allInvoices.filter((inv) => inv.fbrStatus === "SUCCESS" || Boolean(inv.fbrInvoiceNumber));
 
   const readyCount = readyInvoices.length;
+  const failedCount = failedInvoices.length;
   const awaitingPaymentCount = awaitingPaymentInvoices.length;
   const successCount = successInvoices.length;
   const totalPosFees = isDigitalInvoicing
@@ -1232,6 +1258,23 @@ export default function FbrCompliancePage() {
 
             <button
               onClick={() => {
+                setActiveTab("FAILED");
+                setSelectedIds([]);
+              }}
+              className={`rounded-lg px-3 py-1.5 text-xs font-bold transition flex items-center gap-1.5 ${
+                activeTab === "FAILED"
+                  ? "bg-rose-600 text-white shadow-xs"
+                  : failedCount > 0
+                  ? "bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100"
+                  : "text-slate-600 hover:bg-slate-100"
+              }`}
+            >
+              <AlertTriangle className="h-3.5 w-3.5 text-rose-600" />
+              <span>Failed / Retry ({failedCount})</span>
+            </button>
+
+            <button
+              onClick={() => {
                 setActiveTab("AWAITING_PAYMENT");
                 setSelectedIds([]);
               }}
@@ -1345,6 +1388,14 @@ export default function FbrCompliancePage() {
         </div>
 
         {/* Tab Information Header */}
+        {activeTab === "FAILED" && (
+          <div className="bg-rose-50/80 border-b border-rose-200 px-5 py-2.5 text-xs text-rose-900 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <span className="flex items-center gap-1.5 font-medium">
+              <AlertTriangle className="h-3.5 w-3.5 text-rose-600 shrink-0" />
+              These invoices encountered an error or gateway rejection during previous FBR transmission. Click <strong>"Retry FBR"</strong> on fully paid invoices to re-transmit now!
+            </span>
+          </div>
+        )}
         {activeTab === "AWAITING_PAYMENT" && (
           <div className="bg-amber-50/70 border-b border-amber-200 px-5 py-2.5 text-xs text-amber-900 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <span className="flex items-center gap-1.5 font-medium">
@@ -1548,6 +1599,8 @@ export default function FbrCompliancePage() {
                   <td colSpan={12} className="py-10 text-center text-slate-400">
                     {activeTab === "AWAITING_PAYMENT"
                       ? "No partial or credit invoices pending. All sales are either fully paid or transmitted!"
+                      : activeTab === "FAILED"
+                      ? "No failed invoices! All invoices transmitted successfully or awaiting payment."
                       : activeTab === "READY"
                       ? "No fully paid invoices waiting to hit FBR. All clear!"
                       : "No invoices matching the current filter."}
@@ -1559,13 +1612,24 @@ export default function FbrCompliancePage() {
                   const isPending = (!inv.fbrStatus || inv.fbrStatus === "PENDING") && !inv.fbrInvoiceNumber;
                   const isSuccess = isAlreadyStamped;
                   const isFailed = inv.fbrStatus === "FAILED" && !inv.fbrInvoiceNumber;
-                  const isFullyPaid = inv.paymentStatus === "PAID";
-                  const isPartial = inv.paymentStatus === "PARTIAL";
-                  const isEligibleToHit = isPending && isFullyPaid && !isAlreadyStamped;
+                  const isFullyPaid = inv.paymentStatus === "PAID" || Number(inv.remainingAmount || 0) <= 0;
+                  const isPartial = !isFullyPaid && inv.paymentStatus === "PARTIAL";
+                  const isEligibleToHit = (isPending || isFailed) && isFullyPaid && !isAlreadyStamped;
                   const isSelectable = !isSuccess;
                   const isSelected = selectedIds.includes(inv.id);
                   const isHittingThis = hittingId === inv.id;
                   const actionVis = getFbrRowActionVisibility(inv, { isDigitalInvoicing });
+
+                  let fbrErrorMessage = "";
+                  if (inv.notes) {
+                    try {
+                      const parsed = JSON.parse(inv.notes);
+                      if (parsed.fbrError) fbrErrorMessage = parsed.fbrError;
+                    } catch {
+                      const match = inv.notes.match(/\[FBR Error\]:\s*([^|]+)/);
+                      if (match) fbrErrorMessage = match[1].trim();
+                    }
+                  }
 
                   return (
                     <tr
@@ -1675,28 +1739,40 @@ export default function FbrCompliancePage() {
 
                       {/* FBR Status */}
                       <td className="py-3 px-3 text-center">
-                        <span
-                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full inline-flex items-center gap-1 ${
-                            isSuccess
-                              ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                        <div className="inline-flex flex-col items-center gap-0.5">
+                          <span
+                            className={`text-[10px] font-bold px-2 py-0.5 rounded-full inline-flex items-center gap-1 ${
+                              isSuccess
+                                ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                : isFailed
+                                ? "bg-rose-50 text-rose-700 border border-rose-200"
+                                : isEligibleToHit
+                                ? "bg-indigo-50 text-indigo-800 border border-indigo-200"
+                                : "bg-amber-50 text-amber-800 border border-amber-300"
+                            }`}
+                            title={fbrErrorMessage || undefined}
+                          >
+                            {isSuccess && <Check className="h-3 w-3" />}
+                            {isFailed && <AlertTriangle className="h-3 w-3 text-rose-600" />}
+                            {isEligibleToHit && !isFailed && <Zap className="h-3 w-3 text-indigo-600" />}
+                            {!isEligibleToHit && isPending && <Lock className="h-2.5 w-2.5 text-amber-700" />}
+                            {isSuccess
+                              ? "FBR Stamped"
                               : isFailed
-                              ? "bg-rose-50 text-rose-700 border border-rose-200"
+                              ? (isFullyPaid ? "Failed (Retry)" : "Failed")
                               : isEligibleToHit
-                              ? "bg-indigo-50 text-indigo-800 border border-indigo-200"
-                              : "bg-amber-50 text-amber-800 border border-amber-300"
-                          }`}
-                        >
-                          {isSuccess && <Check className="h-3 w-3" />}
-                          {isEligibleToHit && <Zap className="h-3 w-3 text-indigo-600" />}
-                          {!isEligibleToHit && isPending && <Lock className="h-2.5 w-2.5 text-amber-700" />}
-                          {isSuccess
-                            ? "FBR Stamped"
-                            : isFailed
-                            ? "Failed"
-                            : isEligibleToHit
-                            ? "Ready to Hit"
-                            : "Awaiting Full Pay"}
-                        </span>
+                              ? "Ready to Hit"
+                              : "Awaiting Full Pay"}
+                          </span>
+                          {isFailed && fbrErrorMessage && (
+                            <span
+                              className="text-[9px] text-rose-600 max-w-[130px] truncate font-medium cursor-help"
+                              title={fbrErrorMessage}
+                            >
+                              {fbrErrorMessage}
+                            </span>
+                          )}
+                        </div>
                       </td>
 
                       {/* FBR Reference */}
@@ -1768,10 +1844,24 @@ export default function FbrCompliancePage() {
                               variant="primary"
                               onClick={() => handleHitFbr(inv)}
                               isLoading={isHittingThis}
-                              className="bg-indigo-600 hover:bg-indigo-700 text-xs px-2.5 py-1 shadow-2xs"
+                              className={`${
+                                isFailed
+                                  ? "bg-amber-600 hover:bg-amber-700 text-white font-bold"
+                                  : "bg-indigo-600 hover:bg-indigo-700 text-white"
+                              } text-xs px-2.5 py-1 shadow-2xs`}
+                              title={isFailed ? "Retry FBR transmission" : "Hit FBR Digital Invoicing API"}
                             >
-                              <Zap className="h-3 w-3 mr-1" />
-                              Hit FBR
+                              {isFailed ? (
+                                <>
+                                  <RotateCcw className="h-3 w-3 mr-1" />
+                                  Retry FBR
+                                </>
+                              ) : (
+                                <>
+                                  <Zap className="h-3 w-3 mr-1" />
+                                  Hit FBR
+                                </>
+                              )}
                             </Button>
                           )}
 
