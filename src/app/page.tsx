@@ -1613,6 +1613,8 @@ export default function DashboardPage() {
                     const safePaid = isNaN(rawPaid) ? 0 : rawPaid;
                     const rawRemaining = Number(reminder.remainingAmount ?? 0);
                     const safeRemaining = isNaN(rawRemaining) ? 0 : rawRemaining;
+                    const returnedAmount = Number(reminder.returnedAmount || 0);
+                    const grossAmount = Number(reminder.grossAmount || (safeTotal + returnedAmount));
                     const displayName = reminder.entityName || reminder.partyName || (isReceivable ? "Customer" : "Supplier");
                     const displayPhone = reminder.entityPhone || reminder.partyPhone;
 
@@ -1690,9 +1692,23 @@ export default function DashboardPage() {
                                 }) : "—"}
                               </strong>
                             </div>
-                            <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                            <div className="flex justify-between items-start text-slate-600 dark:text-slate-400">
                               <span>{t("Total Amount", "کل رقم")}:</span>
-                              <span className="font-mono">Rs {safeTotal.toLocaleString()}</span>
+                              <div className="text-right">
+                                <span className="font-mono font-bold text-slate-900 dark:text-slate-100">
+                                  Rs {safeTotal.toLocaleString()}
+                                </span>
+                                {returnedAmount > 0 && (
+                                  <div className="text-[10px] flex items-center justify-end gap-1 mt-0.5">
+                                    <span className="line-through text-slate-400 font-mono">
+                                      Rs {grossAmount.toLocaleString()}
+                                    </span>
+                                    <span className="text-rose-600 font-bold dark:text-rose-400">
+                                      (-Rs {returnedAmount.toLocaleString()} {language === "ur" ? "واپس" : "ret"})
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
                             </div>
                             <div className="flex justify-between text-slate-600 dark:text-slate-400">
                               <span>{t("Paid", "ادا شدہ")}:</span>

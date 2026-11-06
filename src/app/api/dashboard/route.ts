@@ -236,6 +236,20 @@ export async function GET(req: NextRequest) {
       const name = s.customerName || cust?.name || "Customer";
       const phone = s.customer?.phone || cust?.phone || null;
 
+      let returnAmt = 0;
+      if (s.notes && typeof s.notes === "string") {
+        try {
+          const parsed = JSON.parse(s.notes);
+          if (Array.isArray(parsed.returnHistory)) {
+            returnAmt = parsed.returnHistory.reduce((acc: number, r: any) => acc + Number(r.totalAmount || r.returnAmount || 0), 0);
+          }
+        } catch {}
+      }
+      if (returnAmt === 0 && grossAmt - paidAmt > remAmt) {
+        returnAmt = Math.max(0, grossAmt - paidAmt - remAmt);
+      }
+      const netTotalAmt = Math.max(0, grossAmt - returnAmt);
+
       reminders.push({
         id: s.id,
         type: "RECEIVABLE",
@@ -245,7 +259,9 @@ export async function GET(req: NextRequest) {
         entityName: name,
         partyPhone: phone,
         entityPhone: phone,
-        totalAmount: grossAmt,
+        grossAmount: grossAmt,
+        returnedAmount: returnAmt,
+        totalAmount: netTotalAmt,
         paidAmount: paidAmt,
         remainingAmount: remAmt,
         dueDate: dueStr,
@@ -270,6 +286,20 @@ export async function GET(req: NextRequest) {
       const name = p.supplierName || sup?.name || "Supplier";
       const phone = p.supplier?.phone || sup?.phone || null;
 
+      let returnAmt = 0;
+      if (p.notes && typeof p.notes === "string") {
+        try {
+          const parsed = JSON.parse(p.notes);
+          if (Array.isArray(parsed.returnHistory)) {
+            returnAmt = parsed.returnHistory.reduce((acc: number, r: any) => acc + Number(r.totalAmount || r.returnAmount || 0), 0);
+          }
+        } catch {}
+      }
+      if (returnAmt === 0 && grossAmt - paidAmt > remAmt) {
+        returnAmt = Math.max(0, grossAmt - paidAmt - remAmt);
+      }
+      const netTotalAmt = Math.max(0, grossAmt - returnAmt);
+
       reminders.push({
         id: p.id,
         type: "PAYABLE",
@@ -279,7 +309,9 @@ export async function GET(req: NextRequest) {
         entityName: name,
         partyPhone: phone,
         entityPhone: phone,
-        totalAmount: grossAmt,
+        grossAmount: grossAmt,
+        returnedAmount: returnAmt,
+        totalAmount: netTotalAmt,
         paidAmount: paidAmt,
         remainingAmount: remAmt,
         dueDate: dueStr,
