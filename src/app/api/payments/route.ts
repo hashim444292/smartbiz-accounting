@@ -42,9 +42,37 @@ export async function GET(req: NextRequest) {
 
     const activeAccounts = cashBankSummary?.accounts?.length ? cashBankSummary.accounts : accounts;
 
+    const paymentIds = payments.map((p) => p.id);
+    let journalEntries: any[] = [];
+    if (paymentIds.length > 0) {
+      try {
+        journalEntries = await prisma.journalEntry.findMany({
+          where: {
+            businessId,
+            referenceId: { in: paymentIds },
+          },
+          include: {
+            lines: {
+              include: {
+                account: true,
+              },
+            },
+          },
+        });
+      } catch (e) {
+        console.warn("Could not query journal entries for payments:", e);
+      }
+    }
+
+    const journalMap = new Map(journalEntries.map((j) => [j.referenceId, j]));
+    const paymentsWithJournal = payments.map((p) => ({
+      ...p,
+      journalEntry: journalMap.get(p.id) || null,
+    }));
+
     return NextResponse.json({
       success: true,
-      data: payments,
+      data: paymentsWithJournal,
       accounts: activeAccounts,
       summary: cashBankSummary,
       branchId,
@@ -59,9 +87,16 @@ export async function GET(req: NextRequest) {
     if (type) pays = pays.filter((p) => p.type === type);
     if (branchId) pays = pays.filter((p) => p.branchId === branchId);
     const cashBankSummary = storeReconcileCashBankBalances(businessId);
+
+    const journalMap = new Map((fallbackStore.journalEntries || []).map((j: any) => [j.referenceId, j]));
+    const paysWithJournal = pays.map((p) => ({
+      ...p,
+      journalEntry: journalMap.get(p.id) || null,
+    }));
+
     return NextResponse.json({
       success: true,
-      data: pays,
+      data: paysWithJournal,
       accounts: cashBankSummary.accounts,
       summary: cashBankSummary,
       branchId,

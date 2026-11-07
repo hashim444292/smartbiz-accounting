@@ -2,7 +2,7 @@
 
 import React from "react";
 import { Modal } from "@/components/ui/modal";
-import { Printer, Download, CheckCircle2, Building2, Calendar, FileText, ArrowRightLeft } from "lucide-react";
+import { Printer, Download, CheckCircle2, Building2, Calendar, FileText, ArrowRightLeft, ArrowUpRight, ArrowDownLeft } from "lucide-react";
 import { formatMoney } from "@/lib/decimal";
 import { numberToWords } from "@/lib/numberToWords";
 
@@ -59,9 +59,51 @@ export function JournalVoucherModal({ isOpen, onClose, voucher, company }: Journ
   const totalCredit = voucherLines.reduce((acc, l) => acc + Number(l.credit || 0), 0);
   const balanceDiff = Math.round(Math.abs(totalDebit - totalCredit) * 100) / 100;
   const isVoucherBalanced = balanceDiff < 0.01 && voucherLines.length > 0;
-  const isContra = voucher.referenceType === "CONTRA" || voucher.referenceType === "CASH_DEPOSIT" || voucher.referenceType === "TRANSFER";
-  const voucherTitle = isContra ? "CONTRA VOUCHER (کاؤنٹرا واؤچر)" : "JOURNAL VOUCHER (جرنل واؤچر)";
-  const voucherSubTitle = isContra ? "Cash & Bank Contra Transaction / نقد و بینک منتقلی" : "General Journal Entry / روزنامچہ اندراج";
+  const refType = (voucher.referenceType || "").toUpperCase();
+  const entryNum = (voucher.entryNumber || "").toUpperCase();
+
+  const isPayment = refType === "PAYMENT" || refType === "DISBURSEMENT" || entryNum.startsWith("PV");
+  const isReceipt = refType === "RECEIPT" || entryNum.startsWith("RV");
+  const isExpense = refType === "EXPENSE" || entryNum.startsWith("EV");
+  const isContra = refType === "CONTRA" || refType === "CASH_DEPOSIT" || refType === "TRANSFER" || entryNum.startsWith("CV");
+
+  let voucherTitle = "JOURNAL VOUCHER (جرنل واؤچر)";
+  let voucherSubTitle = "General Journal Entry / روزنامچہ اندراج";
+  let voucherBadgeType = "GENERAL";
+  let sign1Title = "Prepared By";
+  let sign1Sub = "تیار کنندہ";
+  let sign2Title = "Checked / Verified By";
+  let sign2Sub = "پڑتال کنندہ";
+  let sign3Title = "Approved By";
+  let sign3Sub = "منظور کنندہ";
+  let sign4Title = "Received / Acknowledged By";
+  let sign4Sub = "وصول کنندہ دستخط";
+
+  if (isPayment) {
+    voucherTitle = "PAYMENT VOUCHER (ادائیگی واؤچر)";
+    voucherSubTitle = "Supplier Disbursement & Payable Settlement / ادائیگی سپلائر و بیباقی واجبات";
+    voucherBadgeType = "PAYMENT";
+    sign4Title = "Supplier / Payee Signature";
+    sign4Sub = "سپلائر / وصول کنندہ دستخط";
+  } else if (isReceipt) {
+    voucherTitle = "RECEIPT VOUCHER (وصولی واؤچر)";
+    voucherSubTitle = "Customer Receipt & Accounts Receivable / وصولی رقم گاہک و کھاتہ اندراج";
+    voucherBadgeType = "RECEIPT";
+    sign4Title = "Customer / Depositor Signature";
+    sign4Sub = "گاہک / ادا کنندہ دستخط";
+  } else if (isExpense) {
+    voucherTitle = "EXPENSE VOUCHER (اخراجات واؤچر)";
+    voucherSubTitle = "Operating Expense Voucher / دفتری و کاروباری اخراجات";
+    voucherBadgeType = "EXPENSE";
+    sign4Title = "Claimant / Paid To";
+    sign4Sub = "وصول کنندہ / بل جمع کنندہ";
+  } else if (isContra) {
+    voucherTitle = "CONTRA VOUCHER (کاؤنٹرا واؤچر)";
+    voucherSubTitle = "Cash & Bank Contra Transaction / نقد و بینک اندرونی منتقلی";
+    voucherBadgeType = "CONTRA";
+    sign4Title = "Deposited / Received By";
+    sign4Sub = "بینک جمع کنندہ / وصول کنندہ";
+  }
 
   const companyName = company?.legalName || company?.name || "SmartBiz Business";
   const formattedDate = new Date(voucher.date).toLocaleDateString("en-PK", {
@@ -367,23 +409,23 @@ export function JournalVoucherModal({ isOpen, onClose, voucher, company }: Journ
             <div class="sign-grid">
               <div class="sign-cell">
                 <div class="sign-line"></div>
-                <div class="sign-title">Prepared By</div>
-                <div class="sign-sub">تیار کنندہ</div>
+                <div class="sign-title">${sign1Title}</div>
+                <div class="sign-sub">${sign1Sub}</div>
               </div>
               <div class="sign-cell">
                 <div class="sign-line"></div>
-                <div class="sign-title">Checked / Verified By</div>
-                <div class="sign-sub">پڑتال کنندہ</div>
+                <div class="sign-title">${sign2Title}</div>
+                <div class="sign-sub">${sign2Sub}</div>
               </div>
               <div class="sign-cell">
                 <div class="sign-line"></div>
-                <div class="sign-title">Approved By</div>
-                <div class="sign-sub">منظور کنندہ</div>
+                <div class="sign-title">${sign3Title}</div>
+                <div class="sign-sub">${sign3Sub}</div>
               </div>
               <div class="sign-cell">
                 <div class="sign-line"></div>
-                <div class="sign-title">Deposited / Received By</div>
-                <div class="sign-sub">بینک جمع کنندہ / وصول کنندہ</div>
+                <div class="sign-title">${sign4Title}</div>
+                <div class="sign-sub">${sign4Sub}</div>
               </div>
             </div>
           </div>
@@ -407,7 +449,15 @@ export function JournalVoucherModal({ isOpen, onClose, voucher, company }: Journ
         <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
           <div className="flex items-center gap-2">
             <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-950/60 dark:text-blue-400">
-              {isContra ? <ArrowRightLeft className="h-4 w-4" /> : <FileText className="h-4 w-4" />}
+              {isContra ? (
+                <ArrowRightLeft className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+              ) : isPayment ? (
+                <ArrowUpRight className="h-4 w-4 text-rose-600 dark:text-rose-400" />
+              ) : isReceipt ? (
+                <ArrowDownLeft className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+              ) : (
+                <FileText className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+              )}
             </span>
             <div>
               <div className="font-mono font-bold text-sm text-blue-600 dark:text-blue-400">
@@ -443,9 +493,15 @@ export function JournalVoucherModal({ isOpen, onClose, voucher, company }: Journ
           <div>
             <div className="text-[10px] font-bold uppercase text-slate-400">Type (قسم)</div>
             <div className="font-semibold text-slate-800 dark:text-slate-200 mt-0.5">
-              <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-bold">
+              <span className={`inline-flex items-center gap-1 font-bold ${
+                isPayment ? "text-rose-600 dark:text-rose-400" :
+                isReceipt ? "text-emerald-600 dark:text-emerald-400" :
+                isExpense ? "text-amber-600 dark:text-amber-400" :
+                isContra ? "text-blue-600 dark:text-blue-400" :
+                "text-purple-600 dark:text-purple-400"
+              }`}>
                 <CheckCircle2 className="h-3 w-3" />
-                {isContra ? "CONTRA" : "GENERAL"}
+                {voucherBadgeType}
               </span>
             </div>
           </div>
@@ -537,23 +593,23 @@ export function JournalVoucherModal({ isOpen, onClose, voucher, company }: Journ
         <div className="grid grid-cols-4 gap-2 pt-4 border-t border-slate-200 text-center dark:border-slate-800">
           <div>
             <div className="h-8 border-b border-dashed border-slate-300 dark:border-slate-700"></div>
-            <div className="text-[10px] font-bold text-slate-600 dark:text-slate-400 mt-1">Prepared By</div>
-            <div className="text-[9px] text-slate-400">تیار کنندہ</div>
+            <div className="text-[10px] font-bold text-slate-600 dark:text-slate-400 mt-1">{sign1Title}</div>
+            <div className="text-[9px] text-slate-400">{sign1Sub}</div>
           </div>
           <div>
             <div className="h-8 border-b border-dashed border-slate-300 dark:border-slate-700"></div>
-            <div className="text-[10px] font-bold text-slate-600 dark:text-slate-400 mt-1">Checked By</div>
-            <div className="text-[9px] text-slate-400">پڑتال کنندہ</div>
+            <div className="text-[10px] font-bold text-slate-600 dark:text-slate-400 mt-1">{sign2Title}</div>
+            <div className="text-[9px] text-slate-400">{sign2Sub}</div>
           </div>
           <div>
             <div className="h-8 border-b border-dashed border-slate-300 dark:border-slate-700"></div>
-            <div className="text-[10px] font-bold text-slate-600 dark:text-slate-400 mt-1">Approved By</div>
-            <div className="text-[9px] text-slate-400">منظور کنندہ</div>
+            <div className="text-[10px] font-bold text-slate-600 dark:text-slate-400 mt-1">{sign3Title}</div>
+            <div className="text-[9px] text-slate-400">{sign3Sub}</div>
           </div>
           <div>
             <div className="h-8 border-b border-dashed border-slate-300 dark:border-slate-700"></div>
-            <div className="text-[10px] font-bold text-slate-600 dark:text-slate-400 mt-1">Bank Depositor</div>
-            <div className="text-[9px] text-slate-400">جمع کنندہ</div>
+            <div className="text-[10px] font-bold text-slate-600 dark:text-slate-400 mt-1">{sign4Title}</div>
+            <div className="text-[9px] text-slate-400">{sign4Sub}</div>
           </div>
         </div>
 
@@ -572,7 +628,7 @@ export function JournalVoucherModal({ isOpen, onClose, voucher, company }: Journ
             className="flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-blue-700 transition"
           >
             <Printer className="h-4 w-4" />
-            <span>Print Journal Voucher</span>
+            <span>Print {voucherBadgeType === "GENERAL" ? "Voucher" : `${voucherBadgeType} Voucher`}</span>
           </button>
         </div>
       </div>

@@ -282,15 +282,169 @@ export default function PaymentsPage() {
   const openVoucherForPayment = (p: any) => {
     const fromAccName = p.account?.name || (accounts.find((a) => a.id === p.accountId)?.name) || "Cash Account";
     const toAccName = p.targetAccount?.name || (accounts.find((a) => a.id === p.targetAccountId)?.name) || "Bank Account";
-    const fromAccCode = p.account?.type === "BANK" ? "1020" : "1010";
-    const toAccCode = p.targetAccount?.type === "BANK" ? "1020" : "1010";
+    const fromAccCode = p.account?.code || (p.account?.type === "BANK" ? "1020" : "1010");
+    const toAccCode = p.targetAccount?.code || (p.targetAccount?.type === "BANK" ? "1020" : "1010");
     const amt = Number(p.amount || 0);
+    const year = new Date(p.date || Date.now()).getFullYear();
+    const shortId = (p.id || "").slice(-4).toUpperCase() || Math.random().toString(36).substring(2, 6).toUpperCase();
 
-    const voucherData: JournalVoucherData = p.journalEntry || {
+    // 1. If payment already has an official journalEntry linked from backend
+    if (p.journalEntry && p.journalEntry.lines && p.journalEntry.lines.length > 0) {
+      const voucherData: JournalVoucherData = {
+        id: p.journalEntry.id || p.id,
+        entryNumber: p.journalEntry.entryNumber || (p.type === "DISBURSEMENT" ? `PV-${year}-${shortId}` : p.type === "RECEIPT" ? `RV-${year}-${shortId}` : `JV-${year}-${shortId}`),
+        date: p.journalEntry.date || p.date,
+        referenceType: p.type === "DISBURSEMENT" ? "PAYMENT" : (p.type || p.journalEntry.referenceType || "GENERAL"),
+        referenceId: p.journalEntry.referenceId || p.id,
+        referenceNumber: p.referenceNumber,
+        description: p.journalEntry.description || p.notes || (p.type === "DISBURSEMENT" ? `Disbursement to ${p.partyName || p.supplier?.name || "Supplier"}` : `Receipt from ${p.partyName || p.customer?.name || "Customer"}`),
+        depositorName: p.createdByName || user?.name,
+        fromAccountName: fromAccName,
+        toAccountName: toAccName,
+        isBalanced: p.journalEntry.isBalanced !== false,
+        status: p.journalEntry.status || "POSTED",
+        lines: p.journalEntry.lines.map((l: any, i: number) => ({
+          id: l.id || `l-${i}`,
+          accountId: l.accountId,
+          accountCode: l.account?.code || l.accountCode || (l.debit > 0 ? "1010" : "2010"),
+          accountName: l.account?.name || l.accountName || "Account",
+          account: l.account || { code: l.accountCode, name: l.accountName },
+          debit: Number(l.debit || 0),
+          credit: Number(l.credit || 0),
+          description: l.description || (l.debit > 0 ? "Debit entry" : "Credit entry"),
+        })),
+      };
+      setSelectedVoucher(voucherData);
+      setShowVoucherModal(true);
+      return;
+    }
+
+    // 2. Dynamic generation based on payment type (Anti-lazy complete double entry)
+    const partyName = p.partyName || p.supplier?.name || p.customer?.name || (p.type === "DISBURSEMENT" ? "Supplier" : "Customer");
+
+    if (p.type === "DISBURSEMENT") {
+      const voucherData: JournalVoucherData = {
+        id: p.id,
+        entryNumber: p.referenceNumber?.startsWith("PV") ? p.referenceNumber : `PV-${year}-${shortId}`,
+        date: p.date,
+        referenceType: "PAYMENT",
+        referenceId: p.id,
+        referenceNumber: p.referenceNumber,
+        description: p.notes || `Payment disbursed to ${partyName} (${p.referenceNumber ? `Ref: ${p.referenceNumber}` : "Accounts Payable Settlement"})`,
+        depositorName: p.createdByName || user?.name,
+        fromAccountName: fromAccName,
+        isBalanced: true,
+        status: "POSTED",
+        lines: [
+          {
+            id: "l-1",
+            accountCode: "2010",
+            accountName: "Accounts Payable (واجب الادا کھاتہ)",
+            account: { code: "2010", name: "Accounts Payable" },
+            debit: amt,
+            credit: 0,
+            description: `Payable settled for ${partyName}`,
+          },
+          {
+            id: "l-2",
+            accountCode: fromAccCode,
+            accountName: fromAccName,
+            account: { code: fromAccCode, name: fromAccName },
+            debit: 0,
+            credit: amt,
+            description: `Disbursed from ${fromAccName}`,
+          },
+        ],
+      };
+      setSelectedVoucher(voucherData);
+      setShowVoucherModal(true);
+      return;
+    }
+
+    if (p.type === "RECEIPT") {
+      const voucherData: JournalVoucherData = {
+        id: p.id,
+        entryNumber: p.referenceNumber?.startsWith("RV") ? p.referenceNumber : `RV-${year}-${shortId}`,
+        date: p.date,
+        referenceType: "RECEIPT",
+        referenceId: p.id,
+        referenceNumber: p.referenceNumber,
+        description: p.notes || `Payment received from ${partyName} (${p.referenceNumber ? `Ref: ${p.referenceNumber}` : "Accounts Receivable Collection"})`,
+        depositorName: p.createdByName || user?.name,
+        toAccountName: fromAccName,
+        isBalanced: true,
+        status: "POSTED",
+        lines: [
+          {
+            id: "l-1",
+            accountCode: fromAccCode,
+            accountName: fromAccName,
+            account: { code: fromAccCode, name: fromAccName },
+            debit: amt,
+            credit: 0,
+            description: `Received into ${fromAccName}`,
+          },
+          {
+            id: "l-2",
+            accountCode: "1100",
+            accountName: "Accounts Receivable (قابلِ وصول کھاتہ)",
+            account: { code: "1100", name: "Accounts Receivable" },
+            debit: 0,
+            credit: amt,
+            description: `Receivable reduction for ${partyName}`,
+          },
+        ],
+      };
+      setSelectedVoucher(voucherData);
+      setShowVoucherModal(true);
+      return;
+    }
+
+    if (p.type === "EXPENSE") {
+      const voucherData: JournalVoucherData = {
+        id: p.id,
+        entryNumber: p.referenceNumber?.startsWith("EV") ? p.referenceNumber : `EV-${year}-${shortId}`,
+        date: p.date,
+        referenceType: "EXPENSE",
+        referenceId: p.id,
+        referenceNumber: p.referenceNumber,
+        description: p.notes || `Operating Expense Payment: ${partyName}`,
+        depositorName: p.createdByName || user?.name,
+        fromAccountName: fromAccName,
+        isBalanced: true,
+        status: "POSTED",
+        lines: [
+          {
+            id: "l-1",
+            accountCode: "5000",
+            accountName: "Operating Expenses (عمومی اخراجات)",
+            account: { code: "5000", name: "Operating Expenses" },
+            debit: amt,
+            credit: 0,
+            description: `Expense - ${p.notes || partyName}`,
+          },
+          {
+            id: "l-2",
+            accountCode: fromAccCode,
+            accountName: fromAccName,
+            account: { code: fromAccCode, name: fromAccName },
+            debit: 0,
+            credit: amt,
+            description: `Paid from ${fromAccName}`,
+          },
+        ],
+      };
+      setSelectedVoucher(voucherData);
+      setShowVoucherModal(true);
+      return;
+    }
+
+    // Default: TRANSFER / CASH_DEPOSIT / CONTRA
+    const voucherData: JournalVoucherData = {
       id: p.id,
-      entryNumber: p.journalEntry?.entryNumber || (p.referenceNumber?.startsWith("CV") || p.referenceNumber?.startsWith("JV") ? p.referenceNumber : `CV-${new Date(p.date || Date.now()).getFullYear()}-${p.id.slice(-4).toUpperCase()}`),
+      entryNumber: p.referenceNumber?.startsWith("CV") || p.referenceNumber?.startsWith("JV") ? p.referenceNumber : `CV-${year}-${shortId}`,
       date: p.date,
-      referenceType: p.paymentMethod === "CASH_DEPOSIT" ? "CONTRA" : "TRANSFER",
+      referenceType: "CONTRA",
       referenceId: p.id,
       referenceNumber: p.referenceNumber,
       description: p.notes || (p.paymentMethod === "CASH_DEPOSIT" ? `Cash sales deposited into ${toAccName}` : `Transfer from ${fromAccName} to ${toAccName}`),
