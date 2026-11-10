@@ -61,6 +61,270 @@ interface LedgerEntry {
   balanceType: "DR" | "CR" | "NIL";
 }
 
+// Helper to extract purchase returns / debit notes from purchase records, notes, and journals
+function extractPurchaseReturns(
+  purchasesList: any[],
+  journalsList: any[] = []
+): Array<{
+  id: string;
+  purchaseId: string;
+  date: Date;
+  refNumber: string;
+  type: string;
+  description: string;
+  amount: number;
+}> {
+  const returns: Array<{
+    id: string;
+    purchaseId: string;
+    date: Date;
+    refNumber: string;
+    type: string;
+    description: string;
+    amount: number;
+  }> = [];
+
+  const seenKeys = new Set<string>();
+
+  purchasesList.forEach((p) => {
+    // 1. From p.returnHistory
+    if (Array.isArray(p.returnHistory)) {
+      p.returnHistory.forEach((r: any, idx: number) => {
+        const amt = Number(r.totalAmount || r.payableReduction || r.amount || 0);
+        if (amt > 0) {
+          const ref = r.returnId || `DN-${p.purchaseNumber}-${idx + 1}`;
+          const key = `${p.id}-${ref}-${amt}`;
+          if (!seenKeys.has(key)) {
+            seenKeys.add(key);
+            returns.push({
+              id: `dn-hist-${p.id}-${idx}`,
+              purchaseId: p.id,
+              date: new Date(r.date || p.date),
+              refNumber: ref,
+              type: "DEBIT NOTE",
+              description: `Purchase Return / Debit Note (${p.purchaseNumber})${r.reason ? ` - ${r.reason}` : ""}`,
+              amount: amt,
+            });
+          }
+        }
+      });
+    }
+
+    // 2. From p.notes JSON string containing returnHistory
+    if (p.notes && typeof p.notes === "string" && p.notes.includes("returnHistory")) {
+      try {
+        const parsed = JSON.parse(p.notes);
+        if (Array.isArray(parsed.returnHistory)) {
+          parsed.returnHistory.forEach((r: any, idx: number) => {
+            const amt = Number(r.totalAmount || r.payableReduction || r.amount || 0);
+            if (amt > 0) {
+              const ref = r.returnId || `DN-${p.purchaseNumber}-${idx + 1}`;
+              const key = `${p.id}-${ref}-${amt}`;
+              if (!seenKeys.has(key)) {
+                seenKeys.add(key);
+                returns.push({
+                  id: `dn-note-${p.id}-${idx}`,
+                  purchaseId: p.id,
+                  date: new Date(r.date || p.date),
+                  refNumber: ref,
+                  type: "DEBIT NOTE",
+                  description: `Purchase Return / Debit Note (${p.purchaseNumber})${r.reason ? ` - ${r.reason}` : ""}`,
+                  amount: amt,
+                });
+              }
+            }
+          });
+        }
+      } catch {}
+    }
+
+    // 3. From journals with referenceType === "PURCHASE_RETURN"
+    journalsList.forEach((j: any) => {
+      const isPurRet =
+        j.referenceType === "PURCHASE_RETURN" ||
+        (j.description && j.description.toLowerCase().includes("purchase return"));
+      const isMatchingPur =
+        j.referenceId === p.id ||
+        (j.description && j.description.includes(p.purchaseNumber)) ||
+        (j.entryNumber && j.entryNumber.includes(p.purchaseNumber));
+
+      if (isPurRet && isMatchingPur) {
+        const ref = j.entryNumber || `DN-${p.purchaseNumber}`;
+        const payLine = (j.lines || []).find(
+          (l: any) => l.account?.code === "2010" || l.accountCode === "2010"
+        );
+        const amt = payLine ? Number(payLine.debit || 0) : Number(j.lines?.[0]?.debit || 0);
+        const key = `${p.id}-${ref}-${amt}`;
+        if (amt > 0 && !seenKeys.has(key)) {
+          seenKeys.add(key);
+          returns.push({
+            id: `dn-jr-${j.id}`,
+            purchaseId: p.id,
+            date: new Date(j.date),
+            refNumber: ref,
+            type: "DEBIT NOTE",
+            description: j.description || `Purchase Return / Debit Note (${p.purchaseNumber})`,
+            amount: amt,
+          });
+        }
+      }
+    });
+
+    // 4. Fallback: if p.totalReturnedAmount > 0 and no returns were collected yet for this purchase
+    if (returns.filter((r) => r.purchaseId === p.id).length === 0 && Number(p.totalReturnedAmount || 0) > 0) {
+      const amt = Number(p.totalReturnedAmount);
+      const ref = `DN-${p.purchaseNumber}`;
+      const key = `${p.id}-${ref}-${amt}`;
+      if (!seenKeys.has(key)) {
+        seenKeys.add(key);
+        returns.push({
+          id: `dn-fallback-${p.id}`,
+          purchaseId: p.id,
+          date: new Date(p.updatedAt || p.date),
+          refNumber: ref,
+          type: "DEBIT NOTE",
+          description: `Purchase Return / Debit Note (${p.purchaseNumber})`,
+          amount: amt,
+        });
+      }
+    }
+  });
+
+  return returns;
+}
+
+// Helper to extract sales returns / credit notes from sale records, notes, and journals
+function extractSaleReturns(
+  salesList: any[],
+  journalsList: any[] = []
+): Array<{
+  id: string;
+  saleId: string;
+  date: Date;
+  refNumber: string;
+  type: string;
+  description: string;
+  amount: number;
+}> {
+  const returns: Array<{
+    id: string;
+    saleId: string;
+    date: Date;
+    refNumber: string;
+    type: string;
+    description: string;
+    amount: number;
+  }> = [];
+
+  const seenKeys = new Set<string>();
+
+  salesList.forEach((s) => {
+    // 1. From s.returnHistory
+    if (Array.isArray(s.returnHistory)) {
+      s.returnHistory.forEach((r: any, idx: number) => {
+        const amt = Number(r.totalAmount || r.returnAmount || r.amount || 0);
+        if (amt > 0) {
+          const ref = r.returnId || `CN-${s.invoiceNumber}-${idx + 1}`;
+          const key = `${s.id}-${ref}-${amt}`;
+          if (!seenKeys.has(key)) {
+            seenKeys.add(key);
+            returns.push({
+              id: `cn-hist-${s.id}-${idx}`,
+              saleId: s.id,
+              date: new Date(r.date || s.date),
+              refNumber: ref,
+              type: "CREDIT NOTE",
+              description: `Sales Return / Credit Note (${s.invoiceNumber})${r.reason ? ` - ${r.reason}` : ""}`,
+              amount: amt,
+            });
+          }
+        }
+      });
+    }
+
+    // 2. From s.notes (JSON string with returnHistory)
+    if (s.notes && typeof s.notes === "string" && s.notes.includes("returnHistory")) {
+      try {
+        const parsed = JSON.parse(s.notes);
+        if (Array.isArray(parsed.returnHistory)) {
+          parsed.returnHistory.forEach((r: any, idx: number) => {
+            const amt = Number(r.totalAmount || r.returnAmount || r.amount || 0);
+            if (amt > 0) {
+              const ref = r.returnId || `CN-${s.invoiceNumber}-${idx + 1}`;
+              const key = `${s.id}-${ref}-${amt}`;
+              if (!seenKeys.has(key)) {
+                seenKeys.add(key);
+                returns.push({
+                  id: `cn-note-${s.id}-${idx}`,
+                  saleId: s.id,
+                  date: new Date(r.date || s.date),
+                  refNumber: ref,
+                  type: "CREDIT NOTE",
+                  description: `Sales Return / Credit Note (${s.invoiceNumber})${r.reason ? ` - ${r.reason}` : ""}`,
+                  amount: amt,
+                });
+              }
+            }
+          });
+        }
+      } catch {}
+    }
+
+    // 3. From journals with referenceType === "SALE_RETURN"
+    journalsList.forEach((j: any) => {
+      const isSaleRet =
+        j.referenceType === "SALE_RETURN" ||
+        (j.description && (j.description.toLowerCase().includes("sales return") || j.description.toLowerCase().includes("credit note")));
+      const isMatchingSale =
+        j.referenceId === s.id ||
+        (j.description && j.description.includes(s.invoiceNumber)) ||
+        (j.entryNumber && j.entryNumber.includes(s.invoiceNumber));
+
+      if (isSaleRet && isMatchingSale) {
+        const ref = j.entryNumber || `CN-${s.invoiceNumber}`;
+        const recLine = (j.lines || []).find(
+          (l: any) => l.account?.code === "1100" || l.accountCode === "1100"
+        );
+        const amt = recLine ? Number(recLine.credit || 0) : Number(j.lines?.[0]?.credit || j.lines?.[0]?.debit || 0);
+        const key = `${s.id}-${ref}-${amt}`;
+        if (amt > 0 && !seenKeys.has(key)) {
+          seenKeys.add(key);
+          returns.push({
+            id: `cn-jr-${j.id}`,
+            saleId: s.id,
+            date: new Date(j.date),
+            refNumber: ref,
+            type: "CREDIT NOTE",
+            description: j.description || `Sales Return / Credit Note (${s.invoiceNumber})`,
+            amount: amt,
+          });
+        }
+      }
+    });
+
+    // 4. Fallback: if s.totalReturnedAmount > 0 and no returns were collected yet for this sale
+    if (returns.filter((r) => r.saleId === s.id).length === 0 && Number(s.totalReturnedAmount || 0) > 0) {
+      const amt = Number(s.totalReturnedAmount);
+      const ref = `CN-${s.invoiceNumber}`;
+      const key = `${s.id}-${ref}-${amt}`;
+      if (!seenKeys.has(key)) {
+        seenKeys.add(key);
+        returns.push({
+          id: `cn-fallback-${s.id}`,
+          saleId: s.id,
+          date: new Date(s.updatedAt || s.date),
+          refNumber: ref,
+          type: "CREDIT NOTE",
+          description: `Sales Return / Credit Note (${s.invoiceNumber})`,
+          amount: amt,
+        });
+      }
+    }
+  });
+
+  return returns;
+}
+
 function AccountingContent() {
   const { activeCompany, user, branches, selectedBranch, activeBranchId } = useAuth();
   const { t, language } = useLanguage();
@@ -442,10 +706,17 @@ function AccountingContent() {
             knownNames.add(norm);
           }
         } else {
-          // If existing supplier has balance 0 but purchases have dues, show accurate balance
+          // Sync supplier balance with actual remaining dues
           const existing = list.find((s) => (s.name || "").toLowerCase().trim() === norm);
-          if (existing && Number(existing.currentBalance || 0) < remForVendor) {
-            existing.currentBalance = remForVendor;
+          if (existing) {
+            const vendorPurchasesList = purchases.filter((x) => (x.supplierName || "").toLowerCase().trim() === norm);
+            const hasPurchases = vendorPurchasesList.length > 0;
+            const allSettled = hasPurchases && vendorPurchasesList.every((x) => Number(x.remainingAmount || 0) === 0);
+            if (allSettled && Number(existing.openingBalance || 0) === 0) {
+              existing.currentBalance = 0;
+            } else if (remForVendor > 0 && (Number(existing.currentBalance || 0) < remForVendor || Number(existing.currentBalance || 0) === 0)) {
+              existing.currentBalance = remForVendor + Number(existing.openingBalance || 0);
+            }
           }
         }
       }
@@ -484,10 +755,17 @@ function AccountingContent() {
             knownNames.add(norm);
           }
         } else {
-          // If existing customer has balance 0 or lower than actual open dues, show true balance
+          // Sync customer balance with actual remaining dues
           const existing = list.find((c) => (c.name || "").toLowerCase().trim() === norm);
-          if (existing && Number(existing.currentBalance || 0) < remForCustomer) {
-            existing.currentBalance = remForCustomer;
+          if (existing) {
+            const customerSalesList = sales.filter((x) => (x.customerName || "").toLowerCase().trim() === norm);
+            const hasSales = customerSalesList.length > 0;
+            const allSettled = hasSales && customerSalesList.every((x) => Number(x.remainingAmount || 0) === 0);
+            if (allSettled && Number(existing.openingBalance || 0) === 0) {
+              existing.currentBalance = 0;
+            } else if (remForCustomer > 0 && (Number(existing.currentBalance || 0) < remForCustomer || Number(existing.currentBalance || 0) === 0)) {
+              existing.currentBalance = remForCustomer + Number(existing.openingBalance || 0);
+            }
           }
         }
       }
@@ -543,13 +821,25 @@ function AccountingContent() {
       const net = isDebitNormal ? debits - credits : credits - debits;
 
       if (a.code === "1100") {
-        const maxRec = Math.max(Math.abs(net), receivablesFromParties, receivablesFromSales, Number(a.balance || 0));
-        return { ...a, balance: maxRec };
+        const openRec = Math.max(receivablesFromParties, receivablesFromSales);
+        if (openRec > 0) {
+          return { ...a, balance: Math.max(Math.abs(net), openRec) };
+        }
+        if (sales.length > 0 && receivablesFromSales === 0 && receivablesFromParties === 0) {
+          return { ...a, balance: 0 };
+        }
+        return { ...a, balance: Math.abs(net) };
       }
 
       if (a.code === "2010") {
-        const maxPay = Math.max(Math.abs(net), payablesFromParties, payablesFromPurchases, Number(a.balance || 0));
-        return { ...a, balance: maxPay };
+        const openPay = Math.max(payablesFromParties, payablesFromPurchases);
+        if (openPay > 0) {
+          return { ...a, balance: Math.max(Math.abs(net), openPay) };
+        }
+        if (purchases.length > 0 && payablesFromPurchases === 0 && payablesFromParties === 0) {
+          return { ...a, balance: 0 };
+        }
+        return { ...a, balance: Math.abs(net) };
       }
 
       if (debits > 0 || credits > 0) {
@@ -694,6 +984,23 @@ function AccountingContent() {
         });
       });
 
+      // C. Purchase Returns / Debit Notes from this supplier (reduces liability - DEBIT)
+      const vendorReturns = extractPurchaseReturns(vendorPurchases, journals);
+
+      vendorReturns.forEach((dn) => {
+        allVendorTx.push({
+          id: dn.id,
+          date: dn.date,
+          refNumber: dn.refNumber,
+          type: "DEBIT NOTE",
+          description: language === "ur"
+            ? `خریداری واپسی / ڈیبٹ نوٹ (${dn.refNumber})`
+            : dn.description,
+          debit: dn.amount,
+          credit: 0,
+        });
+      });
+
       // Sort chronologically ascending
       allVendorTx.sort((a, b) => a.date.getTime() - b.date.getTime());
 
@@ -813,7 +1120,19 @@ function AccountingContent() {
         credit: Number(p.amount || 0), // Receipts decrease receivable (CREDIT)
       }));
 
-      const allCustomerTx = [...customerSales, ...customerPayments];
+      const customerReturns = extractSaleReturns(rawSales, journals).map((cn) => ({
+        id: cn.id,
+        date: cn.date,
+        refNumber: cn.refNumber,
+        type: "CREDIT NOTE",
+        description: language === "ur"
+          ? `سیلز واپسی / کریڈٹ نوٹ (${cn.refNumber})`
+          : cn.description,
+        debit: 0,
+        credit: cn.amount, // Credit Note reduces receivable (CREDIT)
+      }));
+
+      const allCustomerTx = [...customerSales, ...customerPayments, ...customerReturns];
       allCustomerTx.sort((a, b) => a.date.getTime() - b.date.getTime());
 
       // Normal balance of Customer (Asset / Accounts Receivable) is DEBIT:
@@ -905,23 +1224,31 @@ function AccountingContent() {
       journals.forEach((j) => {
         const jDate = new Date(j.date);
         (j.lines || []).forEach((l: any) => {
-            const isGenericDesc =
-              !l.description ||
-              l.description === currentAccount.name ||
-              l.description === "Inventory Shrinkage & Loss" ||
-              l.description === "Merchandise Inventory Write-down";
+          const matchesAccount =
+            l.accountId === currentAccount.id ||
+            l.account?.id === currentAccount.id ||
+            (l.accountCode && String(l.accountCode) === String(currentAccount.code)) ||
+            (l.account?.code && String(l.account.code) === String(currentAccount.code));
 
-            const effectiveDesc = isGenericDesc && j.description ? j.description : (l.description || j.description || currentAccount.name);
+          if (!matchesAccount) return;
 
-            allAccLines.push({
-              id: l.id,
-              date: jDate,
-              refNumber: j.entryNumber,
-              type: j.referenceType === "ADJUSTMENT" ? "STOCK LOSS" : "JOURNAL",
-              description: effectiveDesc,
-              debit: Number(l.debit || 0),
-              credit: Number(l.credit || 0),
-            });
+          const isGenericDesc =
+            !l.description ||
+            l.description === currentAccount.name ||
+            l.description === "Inventory Shrinkage & Loss" ||
+            l.description === "Merchandise Inventory Write-down";
+
+          const effectiveDesc = isGenericDesc && j.description ? j.description : (l.description || j.description || currentAccount.name);
+
+          allAccLines.push({
+            id: l.id,
+            date: jDate,
+            refNumber: j.entryNumber,
+            type: j.referenceType === "ADJUSTMENT" ? "STOCK LOSS" : "JOURNAL",
+            description: effectiveDesc,
+            debit: Number(l.debit || 0),
+            credit: Number(l.credit || 0),
+          });
         });
       });
 
@@ -942,6 +1269,29 @@ function AccountingContent() {
                 description: `Payable to ${p.supplierName} for #${p.purchaseNumber}`,
                 debit: 0,
                 credit: rem,
+              });
+            }
+          }
+        });
+      }
+
+      // Ensure open sales invoices with receivables appear in Account 1100 (Accounts Receivable) ledger
+      if (currentAccount.code === "1100") {
+        sales.forEach((s) => {
+          const rem = Number(s.remainingAmount || 0);
+          if (rem > 0) {
+            const hasJournal = allAccLines.some(
+              (l) => l.refNumber?.includes(s.invoiceNumber) || l.description?.includes(s.invoiceNumber)
+            );
+            if (!hasJournal) {
+              allAccLines.push({
+                id: `sale-due-${s.id}`,
+                date: new Date(s.date),
+                refNumber: s.invoiceNumber,
+                type: "SALES INVOICE",
+                description: `Receivable from ${s.customerName} for #${s.invoiceNumber}`,
+                debit: rem,
+                credit: 0,
               });
             }
           }
@@ -2266,7 +2616,15 @@ function AccountingContent() {
                 <span className="text-[11px] font-bold uppercase text-slate-300">
                   {t("Closing Balance", "اختتامی بقایا")}
                 </span>
-                <Badge variant={ledgerCalculation.closingBalanceType === "CR" ? "danger" : "success"}>
+                <Badge
+                  variant={
+                    ledgerCalculation.closingBalanceType === "NIL"
+                      ? "secondary"
+                      : ledgerCalculation.closingBalanceType === "CR"
+                      ? "danger"
+                      : "success"
+                  }
+                >
                   {ledgerCalculation.closingBalanceType}
                 </Badge>
               </div>
@@ -2274,7 +2632,9 @@ function AccountingContent() {
                 {formatMoney(ledgerCalculation.closingBalance)}
               </p>
               <p className="mt-0.5 text-[10px] text-slate-400">
-                {ledgerType === "VENDOR"
+                {ledgerCalculation.closingBalance === 0 || ledgerCalculation.closingBalanceType === "NIL"
+                  ? t("Fully Settled & Nil Balance", "مکمل بے باق و کلیر")
+                  : ledgerType === "VENDOR"
                   ? ledgerCalculation.closingBalanceType === "CR"
                     ? t("Payable to Vendor", "واجب الادا رقم")
                     : t("Advance Paid", "پیشگی ادا شدہ")
@@ -2377,6 +2737,8 @@ function AccountingContent() {
                             className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${
                               tx.type.includes("PAY") || tx.type.includes("RCPT")
                                 ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300"
+                                : tx.type.includes("NOTE") || tx.type.includes("RETURN")
+                                ? "bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300"
                                 : "bg-indigo-100 text-indigo-800 dark:bg-indigo-950/60 dark:text-indigo-300"
                             }`}
                           >
@@ -2394,7 +2756,11 @@ function AccountingContent() {
                           {formatMoney(tx.runningBalance)}{" "}
                           <span
                             className={`text-[10px] font-bold ${
-                              tx.balanceType === "CR" ? "text-rose-600" : "text-emerald-600"
+                              tx.balanceType === "NIL"
+                                ? "text-slate-500"
+                                : tx.balanceType === "CR"
+                                ? "text-rose-600"
+                                : "text-emerald-600"
                             }`}
                           >
                             {tx.balanceType}

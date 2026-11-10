@@ -133,13 +133,18 @@ export async function reconcileSupplierPayables(
         });
         activeSupId = newSup.id;
       } else {
-        // Ensure current balance reflects at least the remaining open payables
-        const currentBal = toDecimal(existingSupplier.currentBalance || 0);
-        if (currentBal.lt(data.totalRemaining) || currentBal.isZero()) {
-          await prismaClient.supplier.update({
-            where: { id: existingSupplier.id },
-            data: { currentBalance: data.totalRemaining.toNumber() },
-          });
+        // Ensure current balance reflects exact remaining open payables
+        const truePayable = round2(data.totalRemaining).toNumber();
+        const existingNum = Number(existingSupplier.currentBalance || 0);
+        if (Math.abs(existingNum - truePayable) > 0.01) {
+          try {
+            await prismaClient.supplier.update({
+              where: { id: existingSupplier.id },
+              data: { currentBalance: truePayable },
+            });
+          } catch (e) {
+            console.error(`Failed to update supplier balance for ${existingSupplier.id}:`, e);
+          }
         }
       }
 
@@ -354,9 +359,7 @@ export function storeReconcileSupplierPayables(businessId: string): {
       fallbackStore.suppliers.push(sup);
     } else {
       sup.businessId = businessId;
-      if (sup.currentBalance < data.totalRemaining || sup.currentBalance === 0) {
-        sup.currentBalance = data.totalRemaining;
-      }
+      sup.currentBalance = data.totalRemaining;
     }
 
     // Link purchases to this supplier
