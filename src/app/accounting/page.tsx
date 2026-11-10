@@ -185,6 +185,424 @@ function extractSaleReturns(salesList: any[]): Array<{
   return returns;
 }
 
+interface UnifiedSubsidiaryLedgerResult {
+  entity: any;
+  openingBalance: number;
+  openingBalanceType: "DR" | "CR" | "NIL";
+  transactions: LedgerEntry[];
+  periodDebit: number;
+  periodCredit: number;
+  netMovement: number;
+  closingBalance: number;
+  closingBalanceType: "DR" | "CR" | "NIL";
+}
+
+interface SubsidiaryLedgerRawTx {
+  id: string;
+  date: Date;
+  refNumber: string;
+  type: string;
+  description: string;
+  debit: number;
+  credit: number;
+}
+
+function calculateVendorSubsidiaryLedger(
+  supplier: any,
+  allPurchases: any[],
+  allPayments: any[],
+  bounds: { sDate: Date | null; eDate: Date | null },
+  language: string = "en"
+): UnifiedSubsidiaryLedgerResult {
+  if (!supplier) {
+    return {
+      entity: null,
+      openingBalance: 0,
+      openingBalanceType: "NIL",
+      transactions: [],
+      periodDebit: 0,
+      periodCredit: 0,
+      netMovement: 0,
+      closingBalance: 0,
+      closingBalanceType: "NIL",
+    };
+  }
+
+  const normSupName = (supplier.name || "").toLowerCase().trim();
+  const initialProfileOpening = Number(supplier.openingBalance || 0);
+
+  // Purchases for this vendor (excluding cancelled drafts without returns)
+  const vendorPurchases = allPurchases
+    .filter((p: any) => {
+      if (p.supplierId && p.supplierId === supplier.id) return true;
+      if (!p.supplierId && (p.supplierName || "").toLowerCase().trim() === normSupName) return true;
+      return false;
+    })
+    .filter((p: any) => {
+      if (p.status !== "CANCELLED") return true;
+      const hasReturns =
+        (Array.isArray(p.returnHistory) && p.returnHistory.length > 0) ||
+        (typeof p.notes === "string" && p.notes.includes("returnHistory")) ||
+        Number(p.totalReturnedAmount || 0) > 0;
+      return hasReturns;
+    });
+
+  // A. Purchase bills (Credits)
+  const vendorPurchaseLines: SubsidiaryLedgerRawTx[] = vendorPurchases.map((p: any) => ({
+    id: `pur-${p.id}`,
+    date: new Date(p.date),
+    refNumber: p.purchaseNumber,
+    type: "PURCHASE BILL",
+    description: language === "ur"
+      ? `خریداری بل #${p.purchaseNumber}`
+      : `Purchase Bill #${p.purchaseNumber}${p.items?.length ? ` - ${p.items.length} items` : ""}`,
+    debit: 0,
+    credit: Number(p.totalAmount || 0),
+  }));
+
+  // B. Vendor Disbursements (Debits)
+  const vendorPurchaseNumbers = new Set(
+    vendorPurchases.map((vp: any) => (vp.purchaseNumber || "").trim()).filter(Boolean)
+  );
+  const vendorPurchaseIds = new Set(vendorPurchases.map((vp: any) => vp.id));
+
+  const seenPaymentIds = new Set<string>();
+  const vendorPayments: SubsidiaryLedgerRawTx[] = [];
+
+  allPayments.forEach((pm: any) => {
+    if (pm.type !== "DISBURSEMENT") return;
+    if (seenPaymentIds.has(pm.id)) return;
+
+    const hasSupId = pm.supplierId && pm.supplierId === supplier.id;
+    const hasSupName =
+      pm.partyType === "SUPPLIER" &&
+      pm.partyName &&
+      pm.partyName.toLowerCase().trim() === normSupName;
+    const hasRefNumber =
+      pm.referenceNumber &&
+      pm.referenceNumber.trim() !== "" &&
+      vendorPurchaseNumbers.has(pm.referenceNumber.trim());
+    const hasAllocation =
+      Array.isArray(pm.allocations) &&
+      pm.allocations.some((a: any) => vendorPurchaseIds.has(a.purchaseId));
+
+    if (hasSupId || hasSupName || hasRefNumber || hasAllocation) {
+      seenPaymentIds.add(pm.id);
+      vendorPayments.push({
+        id: `pay-${pm.id}`,
+        date: new Date(pm.date),
+        refNumber: pm.referenceNumber || `PMT-${pm.id.slice(0, 6)}`,
+        type: "PAYMENT",
+        description: language === "ur"
+          ? `ادائیگی سپلائر بذریعہ ${pm.paymentMethod || "CASH"}`
+          : `Payment to Supplier via ${pm.paymentMethod || "CASH"}${pm.notes ? ` (${pm.notes})` : ""}`,
+        debit: Number(pm.amount || 0),
+        credit: 0,
+      });
+    }
+  });
+
+  // Reconcile paid amounts on purchases that lack explicit payment records in database
+  const totalDbPayments = vendorPayments.reduce((sum, vp) => sum + vp.debit, 0);
+  const totalPurPaid = vendorPurchases.reduce((sum, p) => sum + Number(p.paidAmount || 0), 0);
+
+  if (totalPurPaid > totalDbPayments) {
+    let unrepresentedShortfall = totalPurPaid - totalDbPayments;
+    vendorPurchases.forEach((p: any) => {
+      const paid = Number(p.paidAmount || 0);
+      if (paid > 0 && unrepresentedShortfall > 0) {
+        const hasLinkedPmt = vendorPayments.some(
+          (vp) => vp.refNumber === p.purchaseNumber || vp.description?.includes(p.purchaseNumber)
+        );
+        if (!hasLinkedPmt) {
+          const allocPaid = Math.min(paid, unrepresentedShortfall);
+          vendorPayments.push({
+            id: `init-pay-pur-${p.id}`,
+            date: new Date(p.date),
+            refNumber: `INIT-${p.purchaseNumber}`,
+            type: "PAYMENT",
+            description: language === "ur"
+              ? `بل ادائیگی (${p.purchaseNumber})`
+              : `Settled on Bill #${p.purchaseNumber}`,
+            debit: allocPaid,
+            credit: 0,
+          });
+          unrepresentedShortfall -= allocPaid;
+        }
+      }
+    });
+  }
+
+  // C. Purchase Returns / Debit Notes (Debits)
+  const vendorReturns = extractPurchaseReturns(vendorPurchases);
+  const vendorReturnLines: SubsidiaryLedgerRawTx[] = vendorReturns.map((dn) => ({
+    id: dn.id,
+    date: dn.date,
+    refNumber: dn.refNumber,
+    type: "DEBIT NOTE",
+    description: language === "ur"
+      ? `خریداری واپسی / ڈیبٹ نوٹ (${dn.refNumber})`
+      : dn.description,
+    debit: dn.amount,
+    credit: 0,
+  }));
+
+  const allTx: SubsidiaryLedgerRawTx[] = [...vendorPurchaseLines, ...vendorPayments, ...vendorReturnLines];
+  allTx.sort((a, b) => a.date.getTime() - b.date.getTime());
+
+  let openingBalance = initialProfileOpening;
+  const periodTx: SubsidiaryLedgerRawTx[] = [];
+
+  allTx.forEach((tx) => {
+    if (bounds.sDate && tx.date < bounds.sDate) {
+      openingBalance = openingBalance + tx.credit - tx.debit;
+    } else if (!bounds.eDate || tx.date <= bounds.eDate) {
+      periodTx.push(tx);
+    }
+  });
+
+  let running = openingBalance;
+  let periodDebit = 0;
+  let periodCredit = 0;
+
+  const formattedLines: LedgerEntry[] = periodTx.map((tx) => {
+    periodDebit += tx.debit;
+    periodCredit += tx.credit;
+    running = running + tx.credit - tx.debit;
+
+    const balanceType: "DR" | "CR" | "NIL" =
+      running > 0.005 ? "CR" : running < -0.005 ? "DR" : "NIL";
+
+    return {
+      id: tx.id,
+      date: tx.date.toISOString(),
+      refNumber: tx.refNumber,
+      type: tx.type,
+      description: tx.description,
+      debit: tx.debit,
+      credit: tx.credit,
+      runningBalance: Math.abs(running),
+      balanceType,
+    };
+  });
+
+  const closingBalance = openingBalance + periodCredit - periodDebit;
+  const closingBalanceType: "DR" | "CR" | "NIL" =
+    closingBalance > 0.005 ? "CR" : closingBalance < -0.005 ? "DR" : "NIL";
+  const openingBalanceType: "DR" | "CR" | "NIL" =
+    openingBalance > 0.005 ? "CR" : openingBalance < -0.005 ? "DR" : "NIL";
+
+  return {
+    entity: supplier,
+    openingBalance: Math.abs(openingBalance),
+    openingBalanceType,
+    transactions: formattedLines,
+    periodDebit,
+    periodCredit,
+    netMovement: periodCredit - periodDebit,
+    closingBalance: Math.abs(closingBalance),
+    closingBalanceType,
+  };
+}
+
+function calculateCustomerSubsidiaryLedger(
+  customer: any,
+  allSales: any[],
+  allPayments: any[],
+  bounds: { sDate: Date | null; eDate: Date | null },
+  language: string = "en"
+): UnifiedSubsidiaryLedgerResult {
+  if (!customer) {
+    return {
+      entity: null,
+      openingBalance: 0,
+      openingBalanceType: "NIL",
+      transactions: [],
+      periodDebit: 0,
+      periodCredit: 0,
+      netMovement: 0,
+      closingBalance: 0,
+      closingBalanceType: "NIL",
+    };
+  }
+
+  const normCustName = (customer.name || "").toLowerCase().trim();
+  const initialProfileOpening = Number(customer.openingBalance || 0);
+
+  // Sales for this customer (excluding cancelled drafts without returns)
+  const customerSales = allSales
+    .filter((s: any) => {
+      if (s.customerId && s.customerId === customer.id) return true;
+      if (!s.customerId && (s.customerName || "").toLowerCase().trim() === normCustName) return true;
+      return false;
+    })
+    .filter((s: any) => {
+      if (s.status !== "CANCELLED") return true;
+      const hasReturns =
+        (Array.isArray(s.returnHistory) && s.returnHistory.length > 0) ||
+        (typeof s.notes === "string" && s.notes.includes("returnHistory")) ||
+        Number(s.totalReturnedAmount || 0) > 0;
+      return hasReturns;
+    });
+
+  // A. Sales Invoices (Debits)
+  const customerSalesLines: SubsidiaryLedgerRawTx[] = customerSales.map((s: any) => ({
+    id: `sale-${s.id}`,
+    date: new Date(s.date),
+    refNumber: s.invoiceNumber,
+    type: "SALES INVOICE",
+    description: s.narration || (language === "ur"
+      ? `سیلز انوائس #${s.invoiceNumber}`
+      : `Sales Invoice #${s.invoiceNumber}`),
+    debit: Number(s.totalAmount || 0),
+    credit: 0,
+  }));
+
+  // B. Customer Receipts (Credits)
+  const customerInvoiceNumbers = new Set(
+    customerSales.map((s: any) => (s.invoiceNumber || "").trim()).filter(Boolean)
+  );
+  const customerSaleIds = new Set(customerSales.map((s: any) => s.id));
+
+  const seenPaymentIds = new Set<string>();
+  const customerPayments: SubsidiaryLedgerRawTx[] = [];
+
+  allPayments.forEach((p: any) => {
+    if (p.type !== "RECEIPT") return;
+    if (seenPaymentIds.has(p.id)) return;
+
+    const hasCustId = p.customerId && p.customerId === customer.id;
+    const hasCustName =
+      p.partyType === "CUSTOMER" &&
+      p.partyName &&
+      p.partyName.toLowerCase().trim() === normCustName;
+    const hasRefNumber =
+      p.referenceNumber &&
+      p.referenceNumber.trim() !== "" &&
+      customerInvoiceNumbers.has(p.referenceNumber.trim());
+    const hasAllocation =
+      Array.isArray(p.allocations) &&
+      p.allocations.some((a: any) => customerSaleIds.has(a.saleId));
+
+    if (hasCustId || hasCustName || hasRefNumber || hasAllocation) {
+      seenPaymentIds.add(p.id);
+      customerPayments.push({
+        id: `pay-${p.id}`,
+        date: new Date(p.date),
+        refNumber: p.referenceNumber || `RCPT-${p.id.slice(0, 6)}`,
+        type: "RECEIPT",
+        description: language === "ur"
+          ? `وصولی گاہک بذریعہ ${p.paymentMethod || "CASH"}`
+          : `Receipt from Customer via ${p.paymentMethod || "CASH"}${p.notes ? ` (${p.notes})` : ""}`,
+        debit: 0,
+        credit: Number(p.amount || 0),
+      });
+    }
+  });
+
+  // Reconcile paid amounts on sales that lack explicit payment records in database
+  const totalDbPayments = customerPayments.reduce((sum, cp) => sum + cp.credit, 0);
+  const totalSalePaid = customerSales.reduce((sum, s) => sum + Number(s.paidAmount || 0), 0);
+
+  if (totalSalePaid > totalDbPayments) {
+    let unrepresentedShortfall = totalSalePaid - totalDbPayments;
+    customerSales.forEach((s: any) => {
+      const paid = Number(s.paidAmount || 0);
+      if (paid > 0 && unrepresentedShortfall > 0) {
+        const hasLinkedPmt = customerPayments.some(
+          (cp) => cp.refNumber === s.invoiceNumber || cp.description?.includes(s.invoiceNumber)
+        );
+        if (!hasLinkedPmt) {
+          const allocPaid = Math.min(paid, unrepresentedShortfall);
+          customerPayments.push({
+            id: `init-pay-sale-${s.id}`,
+            date: new Date(s.date),
+            refNumber: `INIT-${s.invoiceNumber}`,
+            type: "RECEIPT",
+            description: language === "ur"
+              ? `انوائس وصولی (${s.invoiceNumber})`
+              : `Settled on Invoice #${s.invoiceNumber}`,
+            debit: 0,
+            credit: allocPaid,
+          });
+          unrepresentedShortfall -= allocPaid;
+        }
+      }
+    });
+  }
+
+  // C. Sales Returns / Credit Notes (Credits)
+  const customerReturns = extractSaleReturns(customerSales);
+  const customerReturnLines: SubsidiaryLedgerRawTx[] = customerReturns.map((cn) => ({
+    id: cn.id,
+    date: cn.date,
+    refNumber: cn.refNumber,
+    type: "CREDIT NOTE",
+    description: language === "ur"
+      ? `سیلز واپسی / کریڈٹ نوٹ (${cn.refNumber})`
+      : cn.description,
+    debit: 0,
+    credit: cn.amount,
+  }));
+
+  const allTx: SubsidiaryLedgerRawTx[] = [...customerSalesLines, ...customerPayments, ...customerReturnLines];
+  allTx.sort((a, b) => a.date.getTime() - b.date.getTime());
+
+  let openingBalance = initialProfileOpening;
+  const periodTx: SubsidiaryLedgerRawTx[] = [];
+
+  allTx.forEach((tx) => {
+    if (bounds.sDate && tx.date < bounds.sDate) {
+      openingBalance = openingBalance + tx.debit - tx.credit;
+    } else if (!bounds.eDate || tx.date <= bounds.eDate) {
+      periodTx.push(tx);
+    }
+  });
+
+  let running = openingBalance;
+  let periodDebit = 0;
+  let periodCredit = 0;
+
+  const formattedLines: LedgerEntry[] = periodTx.map((tx) => {
+    periodDebit += tx.debit;
+    periodCredit += tx.credit;
+    running = running + tx.debit - tx.credit;
+
+    const balanceType: "DR" | "CR" | "NIL" =
+      running > 0.005 ? "DR" : running < -0.005 ? "CR" : "NIL";
+
+    return {
+      id: tx.id,
+      date: tx.date.toISOString(),
+      refNumber: tx.refNumber,
+      type: tx.type,
+      description: tx.description,
+      debit: tx.debit,
+      credit: tx.credit,
+      runningBalance: Math.abs(running),
+      balanceType,
+    };
+  });
+
+  const closingBalance = openingBalance + periodDebit - periodCredit;
+  const closingBalanceType: "DR" | "CR" | "NIL" =
+    closingBalance > 0.005 ? "DR" : closingBalance < -0.005 ? "CR" : "NIL";
+  const openingBalanceType: "DR" | "CR" | "NIL" =
+    openingBalance > 0.005 ? "DR" : openingBalance < -0.005 ? "CR" : "NIL";
+
+  return {
+    entity: customer,
+    openingBalance: Math.abs(openingBalance),
+    openingBalanceType,
+    transactions: formattedLines,
+    periodDebit,
+    periodCredit,
+    netMovement: periodDebit - periodCredit,
+    closingBalance: Math.abs(closingBalance),
+    closingBalanceType,
+  };
+}
+
 function AccountingContent() {
   const { activeCompany, user, branches, selectedBranch, activeBranchId } = useAuth();
   const { t, language } = useLanguage();
@@ -546,10 +964,6 @@ function AccountingContent() {
       const name = (p.supplierName || "").trim();
       if (name) {
         const norm = name.toLowerCase();
-        const remForVendor = purchases
-          .filter((x) => (x.supplierName || "").toLowerCase().trim() === norm)
-          .reduce((sum, x) => sum + Number(x.remainingAmount || 0), 0);
-
         if (!knownNames.has(norm)) {
           const synthId = p.supplierId || `synth-sup-${norm.replace(/\s+/g, "-")}`;
           if (!knownKeys.has(synthId)) {
@@ -558,32 +972,26 @@ function AccountingContent() {
               name: name,
               businessName: name,
               openingBalance: 0,
-              currentBalance: remForVendor,
+              currentBalance: 0,
               purchases: [],
               payments: [],
             });
             knownKeys.add(synthId);
             knownNames.add(norm);
           }
-        } else {
-          // Sync supplier balance with actual remaining dues
-          const existing = list.find((s) => (s.name || "").toLowerCase().trim() === norm);
-          if (existing) {
-            const vendorPurchasesList = purchases.filter((x) => (x.supplierName || "").toLowerCase().trim() === norm);
-            const hasPurchases = vendorPurchasesList.length > 0;
-            const allSettled = hasPurchases && vendorPurchasesList.every((x) => Number(x.remainingAmount || 0) === 0);
-            if (allSettled && Number(existing.openingBalance || 0) === 0) {
-              existing.currentBalance = 0;
-            } else if (remForVendor > 0 && (Number(existing.currentBalance || 0) < remForVendor || Number(existing.currentBalance || 0) === 0)) {
-              existing.currentBalance = remForVendor + Number(existing.openingBalance || 0);
-            }
-          }
         }
       }
     });
 
-    return list;
-  }, [suppliers, purchases]);
+    return list.map((s) => {
+      const ledger = calculateVendorSubsidiaryLedger(s, purchases, payments, { sDate: null, eDate: null }, language);
+      return {
+        ...s,
+        currentBalance: ledger.closingBalance,
+        balanceType: ledger.closingBalanceType,
+      };
+    });
+  }, [suppliers, purchases, payments, language]);
 
   // Comprehensive customer list ensuring all sales customers appear with accurate open balances
   const effectiveCustomers = useMemo(() => {
@@ -595,10 +1003,6 @@ function AccountingContent() {
       const name = (s.customerName || "").trim();
       if (name) {
         const norm = name.toLowerCase();
-        const remForCustomer = sales
-          .filter((x) => (x.customerName || "").toLowerCase().trim() === norm)
-          .reduce((sum, x) => sum + Number(x.remainingAmount || 0), 0);
-
         if (!knownNames.has(norm)) {
           const synthId = s.customerId || `synth-cust-${norm.replace(/\s+/g, "-")}`;
           if (!knownKeys.has(synthId)) {
@@ -607,32 +1011,26 @@ function AccountingContent() {
               name: name,
               phone: s.customerPhone || "",
               openingBalance: 0,
-              currentBalance: remForCustomer,
+              currentBalance: 0,
               sales: [],
               payments: [],
             });
             knownKeys.add(synthId);
             knownNames.add(norm);
           }
-        } else {
-          // Sync customer balance with actual remaining dues
-          const existing = list.find((c) => (c.name || "").toLowerCase().trim() === norm);
-          if (existing) {
-            const customerSalesList = sales.filter((x) => (x.customerName || "").toLowerCase().trim() === norm);
-            const hasSales = customerSalesList.length > 0;
-            const allSettled = hasSales && customerSalesList.every((x) => Number(x.remainingAmount || 0) === 0);
-            if (allSettled && Number(existing.openingBalance || 0) === 0) {
-              existing.currentBalance = 0;
-            } else if (remForCustomer > 0 && (Number(existing.currentBalance || 0) < remForCustomer || Number(existing.currentBalance || 0) === 0)) {
-              existing.currentBalance = remForCustomer + Number(existing.openingBalance || 0);
-            }
-          }
         }
       }
     });
 
-    return list;
-  }, [customers, sales]);
+    return list.map((c) => {
+      const ledger = calculateCustomerSubsidiaryLedger(c, sales, payments, { sDate: null, eDate: null }, language);
+      return {
+        ...c,
+        currentBalance: ledger.closingBalance,
+        balanceType: ledger.closingBalanceType,
+      };
+    });
+  }, [customers, sales, payments, language]);
 
   // Comprehensive account list ensuring all accounts reflect exact ledger closing balances
   const effectiveAccounts = useMemo(() => {
@@ -663,16 +1061,12 @@ function AccountingContent() {
       });
     });
 
-    const receivablesFromParties = effectiveCustomers.reduce((sum, c) => sum + Number(c.currentBalance || 0), 0);
-    const receivablesFromSales = sales.reduce(
-      (sum, s) => (s.status !== "CANCELLED" ? sum + Number(s.remainingAmount || 0) : sum),
-      0
-    );
-    const payablesFromParties = effectiveSuppliers.reduce((sum, s) => sum + Number(s.currentBalance || 0), 0);
-    const payablesFromPurchases = purchases.reduce(
-      (sum, p) => (p.status !== "CANCELLED" ? sum + Number(p.remainingAmount || 0) : sum),
-      0
-    );
+    const totalCustomerReceivables = effectiveCustomers.reduce((sum, c) => {
+      return c.balanceType === "DR" ? sum + Number(c.currentBalance || 0) : sum;
+    }, 0);
+    const totalSupplierPayables = effectiveSuppliers.reduce((sum, s) => {
+      return s.balanceType === "CR" ? sum + Number(s.currentBalance || 0) : sum;
+    }, 0);
 
     return accounts.map((a) => {
       const isDebitNormal = ["ASSET", "EXPENSE", "COGS"].includes(a.type);
@@ -681,22 +1075,20 @@ function AccountingContent() {
       const net = isDebitNormal ? debits - credits : credits - debits;
 
       if (a.code === "1100") {
-        const openRec = Math.max(receivablesFromParties, receivablesFromSales);
-        if (openRec > 0) {
-          return { ...a, balance: Math.max(Math.abs(net), openRec) };
+        if (totalCustomerReceivables > 0) {
+          return { ...a, balance: totalCustomerReceivables };
         }
-        if (sales.length > 0 && receivablesFromSales === 0 && receivablesFromParties === 0) {
+        if (sales.length > 0 && totalCustomerReceivables === 0) {
           return { ...a, balance: 0 };
         }
         return { ...a, balance: Math.abs(net) };
       }
 
       if (a.code === "2010") {
-        const openPay = Math.max(payablesFromParties, payablesFromPurchases);
-        if (openPay > 0) {
-          return { ...a, balance: Math.max(Math.abs(net), openPay) };
+        if (totalSupplierPayables > 0) {
+          return { ...a, balance: totalSupplierPayables };
         }
-        if (purchases.length > 0 && payablesFromPurchases === 0 && payablesFromParties === 0) {
+        if (purchases.length > 0 && totalSupplierPayables === 0) {
           return { ...a, balance: 0 };
         }
         return { ...a, balance: Math.abs(net) };
@@ -772,374 +1164,10 @@ function AccountingContent() {
 
     if (ledgerType === "VENDOR") {
       const currentSupplier = effectiveSuppliers.find((s) => s.id === selectedEntityId);
-      if (!currentSupplier) {
-        return {
-          entity: null,
-          openingBalance: 0,
-          openingBalanceType: "NIL" as const,
-          transactions: [],
-          periodDebit: 0,
-          periodCredit: 0,
-          netMovement: 0,
-          closingBalance: 0,
-          closingBalanceType: "NIL" as const,
-        };
-      }
-
-      // Initial opening balance from profile
-      const initialProfileOpening = Number(currentSupplier.openingBalance || 0);
-
-      // Raw transactions for this vendor:
-      // A. Purchases from this supplier
-      const vendorPurchases = purchases.filter(
-        (p) => p.supplierId === currentSupplier.id || p.supplierName?.toLowerCase() === currentSupplier.name?.toLowerCase()
-      );
-
-      // Assemble all unified transaction lines
-      interface RawTx {
-        id: string;
-        date: Date;
-        refNumber: string;
-        type: string;
-        description: string;
-        debit: number; // Payments reduce liability
-        credit: number; // Purchase bills increase liability
-      }
-
-      const allVendorTx: RawTx[] = [];
-
-      // A. Purchase bills from this supplier
-      vendorPurchases.forEach((p) => {
-        allVendorTx.push({
-          id: `pur-${p.id}`,
-          date: new Date(p.date),
-          refNumber: p.purchaseNumber,
-          type: "PURCHASE BILL",
-          description: language === "ur"
-            ? `خریداری بل #${p.purchaseNumber}`
-            : `Purchase Bill #${p.purchaseNumber}${p.items?.length ? ` - ${p.items.length} items` : ""}`,
-          debit: 0,
-          credit: Number(p.totalAmount || 0),
-        });
-      });
-
-      // B. Payments (Disbursements) to this supplier
-      const vendorPurchaseNumbers = new Set(
-        vendorPurchases.map((vp) => (vp.purchaseNumber || "").trim()).filter(Boolean)
-      );
-
-      const seenVendorPaymentIds = new Set<string>();
-      const vendorPayments: RawTx[] = [];
-
-      payments.forEach((pm) => {
-        if (pm.type !== "DISBURSEMENT") return;
-        if (seenVendorPaymentIds.has(pm.id)) return;
-
-        const hasSupplierId = pm.supplierId && pm.supplierId === currentSupplier.id;
-        const hasSupplierName =
-          pm.partyType === "SUPPLIER" &&
-          pm.partyName &&
-          pm.partyName.toLowerCase().trim() === (currentSupplier.name || "").toLowerCase().trim();
-        const hasRefNumber =
-          pm.referenceNumber &&
-          pm.referenceNumber.trim() !== "" &&
-          vendorPurchaseNumbers.has(pm.referenceNumber.trim());
-
-        if (hasSupplierId || hasSupplierName || hasRefNumber) {
-          seenVendorPaymentIds.add(pm.id);
-          vendorPayments.push({
-            id: `pay-${pm.id}`,
-            date: new Date(pm.date),
-            refNumber: pm.referenceNumber || `PMT-${pm.id.slice(0, 6)}`,
-            type: "PAYMENT",
-            description: language === "ur"
-              ? `ادائیگی سپلائر بذریعہ ${pm.paymentMethod || "CASH"}`
-              : `Payment to Supplier via ${pm.paymentMethod || "CASH"} ${pm.notes ? `(${pm.notes})` : ""}`,
-            debit: Number(pm.amount || 0),
-            credit: 0,
-          });
-        }
-      });
-
-      // Ensure initial payment on purchase creation is recorded if no separate payment row exists
-      vendorPurchases.forEach((p) => {
-        const paid = Number(p.paidAmount || 0);
-        if (paid > 0) {
-          const hasLinkedPmt = vendorPayments.some(
-            (vp) => vp.refNumber === p.purchaseNumber || vp.description?.includes(p.purchaseNumber)
-          );
-          if (!hasLinkedPmt) {
-            vendorPayments.push({
-              id: `init-pay-pur-${p.id}`,
-              date: new Date(p.date),
-              refNumber: `INIT-${p.purchaseNumber}`,
-              type: "PAYMENT",
-              description: language === "ur"
-                ? `بل ادائیگی (${p.purchaseNumber})`
-                : `Settled on Bill #${p.purchaseNumber}`,
-              debit: paid,
-              credit: 0,
-            });
-          }
-        }
-      });
-
-      vendorPayments.forEach((vp) => allVendorTx.push(vp));
-
-      // C. Purchase Returns / Debit Notes from this supplier (reduces liability - DEBIT)
-      const vendorReturns = extractPurchaseReturns(vendorPurchases);
-
-      vendorReturns.forEach((dn) => {
-        allVendorTx.push({
-          id: dn.id,
-          date: dn.date,
-          refNumber: dn.refNumber,
-          type: "DEBIT NOTE",
-          description: language === "ur"
-            ? `خریداری واپسی / ڈیبٹ نوٹ (${dn.refNumber})`
-            : dn.description,
-          debit: dn.amount,
-          credit: 0,
-        });
-      });
-
-      // Sort chronologically ascending
-      allVendorTx.sort((a, b) => a.date.getTime() - b.date.getTime());
-
-      // Calculate Opening Balance prior to sDate:
-      // Normal balance of Supplier (Liability / Accounts Payable) is CREDIT:
-      // Balance = Initial + Credit (Purchases) - Debit (Payments)
-      let openingBalance = initialProfileOpening;
-      const periodTx: RawTx[] = [];
-
-      allVendorTx.forEach((tx) => {
-        if (sDate && tx.date < sDate) {
-          openingBalance = openingBalance + tx.credit - tx.debit;
-        } else if (!eDate || tx.date <= eDate) {
-          periodTx.push(tx);
-        }
-      });
-
-      // Compute Running Balance for each line in period
-      let running = openingBalance;
-      let periodDebit = 0;
-      let periodCredit = 0;
-
-      const formattedLines: LedgerEntry[] = periodTx.map((tx) => {
-        periodDebit += tx.debit;
-        periodCredit += tx.credit;
-        running = running + tx.credit - tx.debit;
-
-        const balanceType: "DR" | "CR" | "NIL" = running > 0 ? "CR" : running < 0 ? "DR" : "NIL";
-
-        return {
-          id: tx.id,
-          date: tx.date.toISOString(),
-          refNumber: tx.refNumber,
-          type: tx.type,
-          description: tx.description,
-          debit: tx.debit,
-          credit: tx.credit,
-          runningBalance: Math.abs(running),
-          balanceType,
-        };
-      });
-
-      const closingBalance = openingBalance + periodCredit - periodDebit;
-      const closingBalanceType: "DR" | "CR" | "NIL" =
-        closingBalance > 0 ? "CR" : closingBalance < 0 ? "DR" : "NIL";
-      const openingBalanceType: "DR" | "CR" | "NIL" =
-        openingBalance > 0 ? "CR" : openingBalance < 0 ? "DR" : "NIL";
-
-      return {
-        entity: currentSupplier,
-        openingBalance: Math.abs(openingBalance),
-        openingBalanceType,
-        transactions: formattedLines,
-        periodDebit,
-        periodCredit,
-        netMovement: periodCredit - periodDebit,
-        closingBalance: Math.abs(closingBalance),
-        closingBalanceType,
-      };
+      return calculateVendorSubsidiaryLedger(currentSupplier, purchases, payments, dateRangeBounds, language);
     } else if (ledgerType === "CUSTOMER") {
       const currentCustomer = effectiveCustomers.find((c) => c.id === selectedEntityId);
-      if (!currentCustomer) {
-        return {
-          entity: null,
-          openingBalance: 0,
-          openingBalanceType: "NIL" as const,
-          transactions: [],
-          periodDebit: 0,
-          periodCredit: 0,
-          netMovement: 0,
-          closingBalance: 0,
-          closingBalanceType: "NIL" as const,
-        };
-      }
-
-      const initialProfileOpening = Number(currentCustomer.openingBalance || 0);
-
-      // Customer sales & payments with global fallback
-      const rawSales = (currentCustomer.sales && currentCustomer.sales.length > 0)
-        ? currentCustomer.sales
-        : sales.filter(
-            (s) =>
-              s.customerId === currentCustomer.id ||
-              (s.customerName && s.customerName.toLowerCase().trim() === (currentCustomer.name || "").toLowerCase().trim())
-          );
-
-      const customerSales = rawSales.map((s: any) => ({
-        id: `sale-${s.id}`,
-        date: new Date(s.date),
-        refNumber: s.invoiceNumber,
-        type: "SALES INVOICE",
-        description: s.narration || (language === "ur"
-          ? `سیلز انوائس #${s.invoiceNumber}`
-          : `Sales Invoice #${s.invoiceNumber}`),
-        debit: Number(s.totalAmount || 0), // Sales increase receivable (DEBIT)
-        credit: 0,
-      }));
-
-      // B. Payments (Receipts) from this customer
-      const customerInvoiceNumbers = new Set(
-        rawSales.map((rs: any) => (rs.invoiceNumber || "").trim()).filter(Boolean)
-      );
-
-      const seenCustomerPaymentIds = new Set<string>();
-      const customerPayments: Array<{
-        id: string;
-        date: Date;
-        refNumber: string;
-        type: string;
-        description: string;
-        debit: number;
-        credit: number;
-      }> = [];
-
-      payments.forEach((p: any) => {
-        if (p.type !== "RECEIPT") return;
-        if (seenCustomerPaymentIds.has(p.id)) return;
-
-        const hasCustId = p.customerId && p.customerId === currentCustomer.id;
-        const hasCustName =
-          p.partyType === "CUSTOMER" &&
-          p.partyName &&
-          p.partyName.toLowerCase().trim() === (currentCustomer.name || "").toLowerCase().trim();
-        const hasRefNumber =
-          p.referenceNumber &&
-          p.referenceNumber.trim() !== "" &&
-          customerInvoiceNumbers.has(p.referenceNumber.trim());
-
-        if (hasCustId || hasCustName || hasRefNumber) {
-          seenCustomerPaymentIds.add(p.id);
-          customerPayments.push({
-            id: `pay-${p.id}`,
-            date: new Date(p.date),
-            refNumber: p.referenceNumber || `RCPT-${p.id.slice(0, 6)}`,
-            type: "RECEIPT",
-            description: language === "ur"
-              ? `وصولی گاہک بذریعہ ${p.paymentMethod || "CASH"}`
-              : `Receipt from Customer via ${p.paymentMethod || "CASH"} ${p.notes ? `(${p.notes})` : ""}`,
-            debit: 0,
-            credit: Number(p.amount || 0), // Receipts decrease receivable (CREDIT)
-          });
-        }
-      });
-
-      // Ensure initial payment on sale creation is recorded if no separate payment row exists
-      rawSales.forEach((s: any) => {
-        const paid = Number(s.paidAmount || 0);
-        if (paid > 0) {
-          const hasLinkedPmt = customerPayments.some(
-            (cp) => cp.refNumber === s.invoiceNumber || cp.description?.includes(s.invoiceNumber)
-          );
-          if (!hasLinkedPmt) {
-            customerPayments.push({
-              id: `init-pay-sale-${s.id}`,
-              date: new Date(s.date),
-              refNumber: `INIT-${s.invoiceNumber}`,
-              type: "RECEIPT",
-              description: language === "ur"
-                ? `انوائس وصولی (${s.invoiceNumber})`
-                : `Settled on Invoice #${s.invoiceNumber}`,
-              debit: 0,
-              credit: paid,
-            });
-          }
-        }
-      });
-
-      // C. Sales Returns / Credit Notes from this customer (reduces receivable - CREDIT)
-      const customerReturns = extractSaleReturns(rawSales).map((cn) => ({
-        id: cn.id,
-        date: cn.date,
-        refNumber: cn.refNumber,
-        type: "CREDIT NOTE",
-        description: language === "ur"
-          ? `سیلز واپسی / کریڈٹ نوٹ (${cn.refNumber})`
-          : cn.description,
-        debit: 0,
-        credit: cn.amount, // Credit Note reduces receivable (CREDIT)
-      }));
-
-      const allCustomerTx = [...customerSales, ...customerPayments, ...customerReturns];
-      allCustomerTx.sort((a, b) => a.date.getTime() - b.date.getTime());
-
-      // Normal balance of Customer (Asset / Accounts Receivable) is DEBIT:
-      // Balance = Initial + Debit (Sales) - Credit (Receipts)
-      let openingBalance = initialProfileOpening;
-      const periodTx: any[] = [];
-
-      allCustomerTx.forEach((tx) => {
-        if (sDate && tx.date < sDate) {
-          openingBalance = openingBalance + tx.debit - tx.credit;
-        } else if (!eDate || tx.date <= eDate) {
-          periodTx.push(tx);
-        }
-      });
-
-      let running = openingBalance;
-      let periodDebit = 0;
-      let periodCredit = 0;
-
-      const formattedLines: LedgerEntry[] = periodTx.map((tx) => {
-        periodDebit += tx.debit;
-        periodCredit += tx.credit;
-        running = running + tx.debit - tx.credit;
-
-        const balanceType: "DR" | "CR" | "NIL" = running > 0 ? "DR" : running < 0 ? "CR" : "NIL";
-
-        return {
-          id: tx.id,
-          date: tx.date.toISOString(),
-          refNumber: tx.refNumber,
-          type: tx.type,
-          description: tx.description,
-          debit: tx.debit,
-          credit: tx.credit,
-          runningBalance: Math.abs(running),
-          balanceType,
-        };
-      });
-
-      const closingBalance = openingBalance + periodDebit - periodCredit;
-      const closingBalanceType: "DR" | "CR" | "NIL" =
-        closingBalance > 0 ? "DR" : closingBalance < 0 ? "CR" : "NIL";
-      const openingBalanceType: "DR" | "CR" | "NIL" =
-        openingBalance > 0 ? "DR" : openingBalance < 0 ? "CR" : "NIL";
-
-      return {
-        entity: currentCustomer,
-        openingBalance: Math.abs(openingBalance),
-        openingBalanceType,
-        transactions: formattedLines,
-        periodDebit,
-        periodCredit,
-        netMovement: periodDebit - periodCredit,
-        closingBalance: Math.abs(closingBalance),
-        closingBalanceType,
-      };
+      return calculateCustomerSubsidiaryLedger(currentCustomer, sales, payments, dateRangeBounds, language);
     } else {
       // General Ledger Account from Chart of Accounts
       const currentAccount = effectiveAccounts.find((a) => a.id === selectedEntityId) || accounts.find((a) => a.id === selectedEntityId);
@@ -1326,7 +1354,7 @@ function AccountingContent() {
         closingBalanceType,
       };
     }
-  }, [ledgerType, selectedEntityId, dateRangeBounds, effectiveSuppliers, customers, accounts, effectiveAccounts, purchases, payments, journals]);
+  }, [ledgerType, selectedEntityId, dateRangeBounds, effectiveSuppliers, effectiveCustomers, sales, purchases, payments, language, accounts, effectiveAccounts, journals]);
 
   // Filter ledger lines by search box
   const filteredLedgerLines = useMemo(() => {
@@ -2393,13 +2421,13 @@ function AccountingContent() {
                   {ledgerType === "VENDOR" &&
                     effectiveSuppliers.map((s) => (
                       <option key={s.id} value={s.id}>
-                        {s.name} {s.phone ? `(${s.phone})` : ""} — Balance: Rs {Number(s.currentBalance || 0).toLocaleString()}
+                        {s.name} {s.phone ? `(${s.phone})` : ""} — Balance: Rs {Number(s.currentBalance || 0).toLocaleString()} {s.balanceType && s.balanceType !== "NIL" ? s.balanceType : ""}
                       </option>
                     ))}
                   {ledgerType === "CUSTOMER" &&
                     effectiveCustomers.map((c) => (
                       <option key={c.id} value={c.id}>
-                        {c.name} {c.phone ? `(${c.phone})` : ""} — Balance: Rs {Number(c.currentBalance || 0).toLocaleString()}
+                        {c.name} {c.phone ? `(${c.phone})` : ""} — Balance: Rs {Number(c.currentBalance || 0).toLocaleString()} {c.balanceType && c.balanceType !== "NIL" ? c.balanceType : ""}
                       </option>
                     ))}
                   {ledgerType === "ACCOUNT" &&

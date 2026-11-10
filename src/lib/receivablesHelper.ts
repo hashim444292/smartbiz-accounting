@@ -99,13 +99,21 @@ export async function reconcileCustomerReceivables(
       customerMap.set(normKey, entry);
     }
 
-    // Include existing customers with openingBalance who might not have sales yet
+    // Include existing customers with opening balances
     for (const c of existingCustomers) {
       const normKey = (c.name || "").toLowerCase().trim();
-      if (!customerMap.has(normKey)) {
-        const opBal = toDecimal(c.openingBalance || 0);
+      const opBal = toDecimal(c.openingBalance || 0);
+
+      if (customerMap.has(normKey)) {
+        const entry = customerMap.get(normKey)!;
+        if (!entry.knownCustomerId) entry.knownCustomerId = c.id;
+        if (opBal.gt(0)) {
+          entry.totalRemaining = entry.totalRemaining.add(opBal);
+          grandRemaining = grandRemaining.add(opBal);
+        }
+      } else {
         const curBal = toDecimal(c.currentBalance || 0);
-        const effectiveBal = opBal.gt(curBal) ? opBal : curBal;
+        const effectiveBal = curBal.gt(0) ? curBal : opBal;
         customerMap.set(normKey, {
           displayName: c.name,
           knownCustomerId: c.id,
@@ -267,8 +275,16 @@ export function storeReconcileCustomerReceivables(
   // Include existing customers with balances
   for (const c of existingCustomers) {
     const normKey = (c.name || "").toLowerCase().trim();
-    if (!customerMap.has(normKey)) {
-      const bal = Number(c.currentBalance || c.openingBalance || 0);
+    const opBal = Number(c.openingBalance || 0);
+    if (customerMap.has(normKey)) {
+      const entry = customerMap.get(normKey)!;
+      if (!entry.knownCustomerId) entry.knownCustomerId = c.id;
+      if (opBal > 0) {
+        entry.totalRemaining += opBal;
+        grandRemaining += opBal;
+      }
+    } else {
+      const bal = Number(c.currentBalance || opBal || 0);
       customerMap.set(normKey, {
         displayName: c.name,
         knownCustomerId: c.id,

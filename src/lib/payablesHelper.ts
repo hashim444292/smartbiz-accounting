@@ -98,6 +98,37 @@ export async function reconcileSupplierPayables(
       supplierMap.set(normKey, entry);
     }
 
+    // Include existing suppliers with opening balances
+    const existingSuppliersList = await prismaClient.supplier.findMany({
+      where: { businessId },
+    });
+
+    for (const s of existingSuppliersList) {
+      const normKey = (s.name || "").toLowerCase().trim();
+      const opBal = toDecimal(s.openingBalance || 0);
+
+      if (supplierMap.has(normKey)) {
+        const entry = supplierMap.get(normKey)!;
+        if (!entry.knownSupplierId) entry.knownSupplierId = s.id;
+        if (opBal.gt(0)) {
+          entry.totalRemaining = entry.totalRemaining.add(opBal);
+          grandRemaining = grandRemaining.add(opBal);
+        }
+      } else {
+        const curBal = toDecimal(s.currentBalance || 0);
+        const effectiveBal = curBal.gt(0) ? curBal : opBal;
+        supplierMap.set(normKey, {
+          displayName: s.name,
+          knownSupplierId: s.id,
+          totalRemaining: effectiveBal,
+          totalPurchases: new Decimal(0),
+          totalPaid: new Decimal(0),
+          purchaseIds: [],
+        });
+        grandRemaining = grandRemaining.add(effectiveBal);
+      }
+    }
+
     // 3. Reconcile / Auto-provision Supplier records in PostgreSQL
     for (const [normKey, data] of supplierMap.entries()) {
       let existingSupplier: any = null;
@@ -329,6 +360,32 @@ export function storeReconcileSupplierPayables(businessId: string): {
     }
 
     supplierMap.set(normKey, entry);
+  }
+
+  // Include existing suppliers with opening balances
+  const existingSuppliers = fallbackStore.suppliers.filter(
+    (s) => s.businessId === businessId || !s.businessId
+  );
+  for (const s of existingSuppliers) {
+    const normKey = (s.name || "").toLowerCase().trim();
+    const opBal = Number(s.openingBalance || 0);
+    if (supplierMap.has(normKey)) {
+      const entry = supplierMap.get(normKey)!;
+      if (!entry.knownSupplierId) entry.knownSupplierId = s.id;
+      if (opBal > 0) {
+        entry.totalRemaining += opBal;
+        grandRemaining += opBal;
+      }
+    } else {
+      const bal = Number(s.currentBalance || opBal || 0);
+      supplierMap.set(normKey, {
+        displayName: s.name,
+        knownSupplierId: s.id,
+        totalRemaining: bal,
+        purchaseIds: [],
+      });
+      grandRemaining += bal;
+    }
   }
 
   // 1. Reconcile suppliers in fallbackStore
