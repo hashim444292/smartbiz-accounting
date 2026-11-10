@@ -118,8 +118,11 @@ export async function recordCustomerPayment(input: RecordCustomerPaymentInput) {
         // Automatically allocate payment to oldest unpaid / partial sales (FIFO)
         const openSales = await tx.sale.findMany({
           where: {
-            customerId,
             businessId,
+            OR: [
+              { customerId },
+              { customerName: { equals: customer.name, mode: "insensitive" } },
+            ],
             paymentStatus: { in: ["UNPAID", "PARTIAL"] },
           },
           orderBy: { date: "asc" },
@@ -312,8 +315,11 @@ export async function recordSupplierPayment(input: RecordSupplierPaymentInput) {
         // Automatically allocate payment to oldest unpaid / partial purchases (FIFO)
         const openPurchases = await tx.purchase.findMany({
           where: {
-            supplierId,
             businessId,
+            OR: [
+              { supplierId },
+              { supplierName: { equals: supplier.name, mode: "insensitive" } },
+            ],
             paymentStatus: { in: ["UNPAID", "PARTIAL"] },
             remainingAmount: { gt: 0 },
           },

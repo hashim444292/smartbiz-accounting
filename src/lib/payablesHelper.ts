@@ -7,9 +7,61 @@ import { Decimal, round2, toDecimal } from "@/lib/decimal";
  * Takes the maximum of supplier balances and outstanding purchase bills
  * to ensure no orphaned payables evaluate to 0.
  */
+export function extractPurchaseReturns(purchases: any[]): Array<{
+  id: string;
+  purchaseId: string;
+  amount: number;
+}> {
+  const returns: Array<{
+    id: string;
+    purchaseId: string;
+    amount: number;
+  }> = [];
+
+  purchases.forEach((p) => {
+    let parsedHistory: any[] = [];
+    if (Array.isArray(p.returnHistory)) {
+      parsedHistory = p.returnHistory;
+    } else if (typeof p.notes === "string" && p.notes.includes("returnHistory")) {
+      try {
+        const parsed = JSON.parse(p.notes);
+        if (Array.isArray(parsed.returnHistory)) {
+          parsedHistory = parsed.returnHistory;
+        }
+      } catch {}
+    }
+
+    if (parsedHistory.length > 0) {
+      parsedHistory.forEach((ret: any, idx: number) => {
+        const retAmt = Number(ret.totalRefundAmount || ret.totalAmount || ret.amount || 0);
+        if (retAmt > 0) {
+          returns.push({
+            id: `dn-${p.id}-${idx}`,
+            purchaseId: p.id,
+            amount: retAmt,
+          });
+        }
+      });
+    } else if (Number(p.totalReturnedAmount || 0) > 0) {
+      returns.push({
+        id: `dn-tot-${p.id}`,
+        purchaseId: p.id,
+        amount: Number(p.totalReturnedAmount),
+      });
+    }
+  });
+
+  return returns;
+}
+
+/**
+ * Universal safe calculation of Total Payables
+ * Prefers reconciled supplier balances and falls back to purchase remaining
+ * to ensure accuracy after disbursements.
+ */
 export function calculateTotalPayables(suppliers: any[] = [], purchases: any[] = []): number {
   const supplierTotal = (suppliers || []).reduce(
-    (sum, s) => sum + Number(s?.currentBalance || 0),
+    (sum, s) => sum + Math.max(0, Number(s?.currentBalance || 0)),
     0
   );
   const purchaseTotal = (purchases || []).reduce(
@@ -19,12 +71,13 @@ export function calculateTotalPayables(suppliers: any[] = [], purchases: any[] =
     },
     0
   );
-  return Math.max(supplierTotal, purchaseTotal);
+  if (supplierTotal > 0) return supplierTotal;
+  return purchaseTotal;
 }
 
 /**
  * Reconciles and synchronizes supplier balances, purchase links, Account 2010,
- * and double-entry purchase journal entries for a business in PostgreSQL.
+ * and double-entry purchase journal entries for a business in PostgreSQL using complete double-entry subsidiary ledger math.
  */
 export async function reconcileSupplierPayables(
   prismaClient: PrismaClient | typeof import("@/lib/prisma").prisma,
@@ -47,148 +100,176 @@ export async function reconcileSupplierPayables(
         paymentStatus: true,
         paymentMethod: true,
         date: true,
+        updatedAt: true,
+        notes: true,
       },
     });
 
-    if (!purchases || purchases.length === 0) {
-      return { totalPayables: 0, supplierCount: 0 };
-    }
+    // 2. Fetch all supplier disbursement payments
+    const payments = await prismaClient.payment.findMany({
+      where: {
+        businessId,
+        type: "DISBURSEMENT",
+      },
+      select: {
+        id: true,
+        amount: true,
+        supplierId: true,
+        partyName: true,
+        partyType: true,
+        referenceNumber: true,
+        paymentMethod: true,
+        allocations: {
+          select: {
+            purchaseId: true,
+            amount: true,
+          },
+        },
+      },
+    });
 
-    // 2. Group purchases by supplier name (normalized lowercase)
+    // 3. Fetch all registered suppliers
+    const existingSuppliersList = await prismaClient.supplier.findMany({
+      where: { businessId },
+    });
+
     const supplierMap = new Map<
       string,
       {
         displayName: string;
         knownSupplierId: string | null;
-        totalRemaining: Decimal;
-        totalPurchases: Decimal;
-        totalPaid: Decimal;
-        purchaseIds: string[];
+        supplierRecord: any | null;
       }
     >();
 
-    let grandRemaining = new Decimal(0);
+    for (const s of existingSuppliersList) {
+      const normKey = (s.name || "").toLowerCase().trim();
+      supplierMap.set(normKey, {
+        displayName: s.name,
+        knownSupplierId: s.id,
+        supplierRecord: s,
+      });
+    }
 
     for (const p of purchases) {
       const rawName = (p.supplierName || "General Supplier").trim();
       const normKey = rawName.toLowerCase();
-      const rem = toDecimal(p.remainingAmount || 0);
-      const tot = toDecimal(p.totalAmount || 0);
-      const paid = toDecimal(p.paidAmount || 0);
-
-      grandRemaining = grandRemaining.add(rem);
-
-      const entry = supplierMap.get(normKey) || {
-        displayName: rawName,
-        knownSupplierId: p.supplierId || null,
-        totalRemaining: new Decimal(0),
-        totalPurchases: new Decimal(0),
-        totalPaid: new Decimal(0),
-        purchaseIds: [],
-      };
-
-      entry.totalRemaining = entry.totalRemaining.add(rem);
-      entry.totalPurchases = entry.totalPurchases.add(tot);
-      entry.totalPaid = entry.totalPaid.add(paid);
-      entry.purchaseIds.push(p.id);
-      if (!entry.knownSupplierId && p.supplierId) {
-        entry.knownSupplierId = p.supplierId;
+      if (!supplierMap.has(normKey)) {
+        supplierMap.set(normKey, {
+          displayName: rawName,
+          knownSupplierId: p.supplierId || null,
+          supplierRecord: null,
+        });
+      } else if (p.supplierId && !supplierMap.get(normKey)!.knownSupplierId) {
+        supplierMap.get(normKey)!.knownSupplierId = p.supplierId;
       }
-
-      supplierMap.set(normKey, entry);
     }
 
-    // Include existing suppliers with opening balances
-    const existingSuppliersList = await prismaClient.supplier.findMany({
-      where: { businessId },
-    });
+    let grandRemaining = new Decimal(0);
+    let supplierCount = 0;
 
-    for (const s of existingSuppliersList) {
-      const normKey = (s.name || "").toLowerCase().trim();
-      const opBal = toDecimal(s.openingBalance || 0);
+    for (const [normKey, data] of supplierMap.entries()) {
+      supplierCount++;
+      let targetSup: any =
+        data.supplierRecord ||
+        existingSuppliersList.find(
+          (s) => (data.knownSupplierId && s.id === data.knownSupplierId) || s.name.toLowerCase().trim() === normKey
+        );
 
-      if (supplierMap.has(normKey)) {
-        const entry = supplierMap.get(normKey)!;
-        if (!entry.knownSupplierId) entry.knownSupplierId = s.id;
-        if (opBal.gt(0)) {
-          entry.totalRemaining = entry.totalRemaining.add(opBal);
-          grandRemaining = grandRemaining.add(opBal);
+      const suppPurchases = purchases.filter((p) => {
+        const matchesId = targetSup && p.supplierId && p.supplierId === targetSup.id;
+        const matchesName = (p.supplierName || "").toLowerCase().trim() === normKey;
+        return matchesId || matchesName;
+      });
+
+      const suppPurchaseNumbers = new Set(suppPurchases.map((p) => (p.purchaseNumber || "").trim()).filter(Boolean));
+      const suppPurchaseIds = new Set(suppPurchases.map((p) => p.id));
+
+      const seenPaymentIds = new Set<string>();
+      let suppDbPayments = new Decimal(0);
+
+      payments.forEach((pm) => {
+        if (seenPaymentIds.has(pm.id)) return;
+        const matchesId = targetSup && pm.supplierId && pm.supplierId === targetSup.id;
+        const matchesName = pm.partyType === "SUPPLIER" && (pm.partyName || "").toLowerCase().trim() === normKey;
+        const matchesRef = pm.referenceNumber && suppPurchaseNumbers.has(pm.referenceNumber.trim());
+        const matchesAlloc = Array.isArray(pm.allocations) && pm.allocations.some((a: any) => a.purchaseId && suppPurchaseIds.has(a.purchaseId));
+
+        if (matchesId || matchesName || matchesRef || matchesAlloc) {
+          seenPaymentIds.add(pm.id);
+          suppDbPayments = suppDbPayments.add(toDecimal(pm.amount || 0));
+        }
+      });
+
+      const totalPurPaid = suppPurchases.reduce((sum, p) => sum.add(toDecimal(p.paidAmount || 0)), new Decimal(0));
+      const unrepresentedShortfall = Decimal.max(0, totalPurPaid.sub(suppDbPayments));
+
+      const returns = extractPurchaseReturns(suppPurchases);
+      const totalReturns = returns.reduce((sum, r) => sum.add(toDecimal(r.amount || 0)), new Decimal(0));
+
+      const totalPurchasesAmount = suppPurchases.reduce((sum, p) => sum.add(toDecimal(p.totalAmount || 0)), new Decimal(0));
+      const opBal = targetSup ? toDecimal(targetSup.openingBalance || 0) : new Decimal(0);
+      const curBal = targetSup ? toDecimal(targetSup.currentBalance || 0) : new Decimal(0);
+
+      let calcPayable = opBal.add(totalPurchasesAmount).sub(suppDbPayments).sub(unrepresentedShortfall).sub(totalReturns);
+      if (suppPurchases.length === 0 && suppDbPayments.isZero() && curBal.gt(0) && opBal.isZero()) {
+        calcPayable = curBal;
+      }
+
+      const truePayable = round2(calcPayable).toNumber();
+
+      if (truePayable > 0) {
+        grandRemaining = grandRemaining.add(toDecimal(truePayable));
+      }
+
+      let activeSupId = targetSup?.id;
+
+      if (!targetSup) {
+        try {
+          const newSup = await prismaClient.supplier.create({
+            data: {
+              businessId,
+              name: data.displayName,
+              businessName: data.displayName,
+              openingBalance: 0,
+              currentBalance: truePayable,
+              isActive: true,
+            },
+          });
+          activeSupId = newSup.id;
+        } catch {
+          targetSup = await prismaClient.supplier.findFirst({
+            where: { businessId, name: { equals: data.displayName, mode: "insensitive" } },
+          });
+          activeSupId = targetSup?.id;
         }
       } else {
-        const curBal = toDecimal(s.currentBalance || 0);
-        const effectiveBal = curBal.gt(0) ? curBal : opBal;
-        supplierMap.set(normKey, {
-          displayName: s.name,
-          knownSupplierId: s.id,
-          totalRemaining: effectiveBal,
-          totalPurchases: new Decimal(0),
-          totalPaid: new Decimal(0),
-          purchaseIds: [],
-        });
-        grandRemaining = grandRemaining.add(effectiveBal);
-      }
-    }
-
-    // 3. Reconcile / Auto-provision Supplier records in PostgreSQL
-    for (const [normKey, data] of supplierMap.entries()) {
-      let existingSupplier: any = null;
-
-      if (data.knownSupplierId) {
-        existingSupplier = await prismaClient.supplier.findUnique({
-          where: { id: data.knownSupplierId },
-        });
-      }
-
-      if (!existingSupplier) {
-        existingSupplier = await prismaClient.supplier.findFirst({
-          where: {
-            businessId,
-            name: { equals: data.displayName, mode: "insensitive" },
-          },
-        });
-      }
-
-      let activeSupId = existingSupplier?.id;
-
-      if (!existingSupplier) {
-        // Auto-provision supplier record
-        const newSup = await prismaClient.supplier.create({
-          data: {
-            businessId,
-            name: data.displayName,
-            businessName: data.displayName,
-            openingBalance: 0,
-            currentBalance: data.totalRemaining.toNumber(),
-            isActive: true,
-          },
-        });
-        activeSupId = newSup.id;
-      } else {
-        // Ensure current balance reflects exact remaining open payables
-        const truePayable = round2(data.totalRemaining).toNumber();
-        const existingNum = Number(existingSupplier.currentBalance || 0);
+        const existingNum = Number(targetSup.currentBalance || 0);
         if (Math.abs(existingNum - truePayable) > 0.01) {
           try {
             await prismaClient.supplier.update({
-              where: { id: existingSupplier.id },
+              where: { id: targetSup.id },
               data: { currentBalance: truePayable },
             });
           } catch (e) {
-            console.error(`Failed to update supplier balance for ${existingSupplier.id}:`, e);
+            console.error(`Failed to update supplier balance for ${targetSup.id}:`, e);
           }
         }
       }
 
-      // Link any unlinked purchases to this supplier record
+      // Link unlinked purchases to this supplier
       if (activeSupId) {
-        await prismaClient.purchase.updateMany({
-          where: {
-            businessId,
-            id: { in: data.purchaseIds },
-            OR: [{ supplierId: null }, { supplierId: { not: activeSupId } }],
-          },
-          data: { supplierId: activeSupId },
-        });
+        const unlinkedPurchases = suppPurchases.filter((p) => !p.supplierId || p.supplierId !== activeSupId);
+        for (const unlinked of unlinkedPurchases) {
+          try {
+            await prismaClient.purchase.update({
+              where: { id: unlinked.id },
+              data: { supplierId: activeSupId },
+            });
+          } catch (e) {
+            console.error(`Failed to link purchase ${unlinked.id} to supplier ${activeSupId}:`, e);
+          }
+        }
       }
     }
 
@@ -213,8 +294,7 @@ export async function reconcileSupplierPayables(
         },
       });
     } else {
-      const currentAccBal = toDecimal(account2010.balance || 0);
-      if (payablesTotalNum > 0 && (currentAccBal.isZero() || currentAccBal.lt(grandRemaining))) {
+      if (Math.abs(Number(account2010.balance || 0) - payablesTotalNum) > 0.01) {
         await prismaClient.account.update({
           where: { id: account2010.id },
           data: { balance: payablesTotalNum },
@@ -320,85 +400,105 @@ export function storeReconcileSupplierPayables(businessId: string): {
   const purchases = fallbackStore.purchases.filter(
     (p) => p.businessId === businessId && p.status !== "CANCELLED"
   );
-
-  if (!purchases || purchases.length === 0) {
-    const suppliers = fallbackStore.suppliers.filter((s) => s.businessId === businessId);
-    const supTotal = suppliers.reduce((sum, s) => sum + Number(s.currentBalance || 0), 0);
-    return { totalPayables: supTotal, supplierCount: suppliers.length };
-  }
+  const payments = (fallbackStore.payments || []).filter(
+    (p) => p.businessId === businessId && p.type === "DISBURSEMENT"
+  );
+  const existingSuppliers = fallbackStore.suppliers.filter(
+    (s) => s.businessId === businessId || !s.businessId
+  );
 
   const supplierMap = new Map<
     string,
     {
       displayName: string;
       knownSupplierId: string | null;
-      totalRemaining: number;
-      purchaseIds: string[];
+      supplierRecord: any | null;
     }
   >();
 
-  let grandRemaining = 0;
+  for (const s of existingSuppliers) {
+    const normKey = (s.name || "").toLowerCase().trim();
+    supplierMap.set(normKey, {
+      displayName: s.name,
+      knownSupplierId: s.id,
+      supplierRecord: s,
+    });
+  }
 
   for (const p of purchases) {
     const rawName = (p.supplierName || "General Supplier").trim();
     const normKey = rawName.toLowerCase();
-    const rem = Number(p.remainingAmount || 0);
-
-    grandRemaining += rem;
-
-    const entry = supplierMap.get(normKey) || {
-      displayName: rawName,
-      knownSupplierId: p.supplierId || null,
-      totalRemaining: 0,
-      purchaseIds: [] as string[],
-    };
-
-    entry.totalRemaining += rem;
-    entry.purchaseIds.push(p.id);
-    if (!entry.knownSupplierId && p.supplierId) {
-      entry.knownSupplierId = p.supplierId;
-    }
-
-    supplierMap.set(normKey, entry);
-  }
-
-  // Include existing suppliers with opening balances
-  const existingSuppliers = fallbackStore.suppliers.filter(
-    (s) => s.businessId === businessId || !s.businessId
-  );
-  for (const s of existingSuppliers) {
-    const normKey = (s.name || "").toLowerCase().trim();
-    const opBal = Number(s.openingBalance || 0);
-    if (supplierMap.has(normKey)) {
-      const entry = supplierMap.get(normKey)!;
-      if (!entry.knownSupplierId) entry.knownSupplierId = s.id;
-      if (opBal > 0) {
-        entry.totalRemaining += opBal;
-        grandRemaining += opBal;
-      }
-    } else {
-      const bal = Number(s.currentBalance || opBal || 0);
+    if (!supplierMap.has(normKey)) {
       supplierMap.set(normKey, {
-        displayName: s.name,
-        knownSupplierId: s.id,
-        totalRemaining: bal,
-        purchaseIds: [],
+        displayName: rawName,
+        knownSupplierId: p.supplierId || null,
+        supplierRecord: null,
       });
-      grandRemaining += bal;
+    } else if (p.supplierId && !supplierMap.get(normKey)!.knownSupplierId) {
+      supplierMap.get(normKey)!.knownSupplierId = p.supplierId;
     }
   }
 
-  // 1. Reconcile suppliers in fallbackStore
+  let grandRemaining = 0;
+  let supplierCount = 0;
+
   for (const [normKey, data] of supplierMap.entries()) {
-    let sup = fallbackStore.suppliers.find(
-      (s) =>
-        (s.businessId === businessId || !s.businessId) &&
-        (s.id === data.knownSupplierId || s.name.toLowerCase() === normKey)
-    );
+    supplierCount++;
+    let sup =
+      data.supplierRecord ||
+      existingSuppliers.find(
+        (s) =>
+          (s.businessId === businessId || !s.businessId) &&
+          (s.id === data.knownSupplierId || s.name.toLowerCase() === normKey)
+      );
+
+    const suppPurchases = purchases.filter((p) => {
+      const matchesId = sup && p.supplierId && p.supplierId === sup.id;
+      const matchesName = (p.supplierName || "").toLowerCase().trim() === normKey;
+      return matchesId || matchesName;
+    });
+
+    const suppPurchaseNumbers = new Set(suppPurchases.map((p) => (p.purchaseNumber || "").trim()).filter(Boolean));
+    const suppPurchaseIds = new Set(suppPurchases.map((p) => p.id));
+
+    const seenPaymentIds = new Set<string>();
+    let suppDbPayments = 0;
+
+    payments.forEach((pm) => {
+      if (seenPaymentIds.has(pm.id)) return;
+      const matchesId = sup && pm.supplierId && pm.supplierId === sup.id;
+      const matchesName = pm.partyType === "SUPPLIER" && (pm.partyName || "").toLowerCase().trim() === normKey;
+      const matchesRef = pm.referenceNumber && suppPurchaseNumbers.has(pm.referenceNumber.trim());
+      const matchesAlloc = Array.isArray(pm.allocations) && pm.allocations.some((a: any) => a.purchaseId && suppPurchaseIds.has(a.purchaseId));
+
+      if (matchesId || matchesName || matchesRef || matchesAlloc) {
+        seenPaymentIds.add(pm.id);
+        suppDbPayments += Number(pm.amount || 0);
+      }
+    });
+
+    const totalPurPaid = suppPurchases.reduce((sum, p) => sum + Number(p.paidAmount || 0), 0);
+    const unrepresentedShortfall = Math.max(0, totalPurPaid - suppDbPayments);
+
+    const returns = extractPurchaseReturns(suppPurchases);
+    const totalReturns = returns.reduce((sum, r) => sum + Number(r.amount || 0), 0);
+
+    const totalPurchasesAmount = suppPurchases.reduce((sum, p) => sum + Number(p.totalAmount || 0), 0);
+    const opBal = Number(sup?.openingBalance || 0);
+    const curBal = Number(sup?.currentBalance || 0);
+
+    let truePayable = opBal + totalPurchasesAmount - suppDbPayments - unrepresentedShortfall - totalReturns;
+    if (suppPurchases.length === 0 && suppDbPayments === 0 && curBal > 0 && opBal === 0) {
+      truePayable = curBal;
+    }
+
+    if (truePayable > 0) {
+      grandRemaining += truePayable;
+    }
 
     if (!sup) {
       sup = {
-        id: `sup-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        id: data.knownSupplierId || `sup-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
         businessId,
         code: `ACP${String(fallbackStore.suppliers.length + 1).padStart(5, "0")}`,
         name: data.displayName,
@@ -407,7 +507,7 @@ export function storeReconcileSupplierPayables(businessId: string): {
         email: null,
         address: "Karachi, Pakistan",
         openingBalance: 0,
-        currentBalance: data.totalRemaining,
+        currentBalance: truePayable,
         isActive: true,
         purchases: [],
         payments: [],
@@ -416,14 +516,12 @@ export function storeReconcileSupplierPayables(businessId: string): {
       fallbackStore.suppliers.push(sup);
     } else {
       sup.businessId = businessId;
-      sup.currentBalance = data.totalRemaining;
+      sup.currentBalance = truePayable;
     }
 
     // Link purchases to this supplier
-    purchases.forEach((p) => {
-      if (data.purchaseIds.includes(p.id)) {
-        p.supplierId = sup!.id;
-      }
+    suppPurchases.forEach((p) => {
+      p.supplierId = sup!.id;
     });
   }
 

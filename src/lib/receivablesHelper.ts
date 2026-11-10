@@ -7,9 +7,61 @@ import { Decimal, round2, toDecimal } from "@/lib/decimal";
  * Takes the maximum of customer balances and outstanding sales invoices
  * to ensure no orphaned receivables evaluate to 0.
  */
+export function extractSaleReturns(sales: any[]): Array<{
+  id: string;
+  saleId: string;
+  amount: number;
+}> {
+  const returns: Array<{
+    id: string;
+    saleId: string;
+    amount: number;
+  }> = [];
+
+  sales.forEach((s) => {
+    let parsedHistory: any[] = [];
+    if (Array.isArray(s.returnHistory)) {
+      parsedHistory = s.returnHistory;
+    } else if (typeof s.notes === "string" && s.notes.includes("returnHistory")) {
+      try {
+        const parsed = JSON.parse(s.notes);
+        if (Array.isArray(parsed.returnHistory)) {
+          parsedHistory = parsed.returnHistory;
+        }
+      } catch {}
+    }
+
+    if (parsedHistory.length > 0) {
+      parsedHistory.forEach((ret: any, idx: number) => {
+        const retAmt = Number(ret.totalRefundAmount || ret.totalAmount || ret.amount || 0);
+        if (retAmt > 0) {
+          returns.push({
+            id: `cn-${s.id}-${idx}`,
+            saleId: s.id,
+            amount: retAmt,
+          });
+        }
+      });
+    } else if (Number(s.totalReturnedAmount || 0) > 0) {
+      returns.push({
+        id: `cn-tot-${s.id}`,
+        saleId: s.id,
+        amount: Number(s.totalReturnedAmount),
+      });
+    }
+  });
+
+  return returns;
+}
+
+/**
+ * Universal safe calculation of Total Receivables
+ * Prefers reconciled customer balances and falls back to sales remaining
+ * to ensure accuracy after receipts.
+ */
 export function calculateTotalReceivables(customers: any[] = [], sales: any[] = []): number {
   const customerTotal = (customers || []).reduce(
-    (sum, c) => sum + Number(c?.currentBalance || 0),
+    (sum, c) => sum + Math.max(0, Number(c?.currentBalance || 0)),
     0
   );
   const salesTotal = (sales || []).reduce(
@@ -19,12 +71,13 @@ export function calculateTotalReceivables(customers: any[] = [], sales: any[] = 
     },
     0
   );
-  return Math.max(customerTotal, salesTotal);
+  if (customerTotal > 0) return customerTotal;
+  return salesTotal;
 }
 
 /**
  * Reconciles and synchronizes customer balances, sales invoice links, Account 1100 (Accounts Receivable),
- * and customer accounts for a business in PostgreSQL.
+ * and customer accounts for a business in PostgreSQL using complete double-entry subsidiary ledger math.
  */
 export async function reconcileCustomerReceivables(
   prismaClient: PrismaClient | typeof import("@/lib/prisma").prisma,
@@ -35,7 +88,7 @@ export async function reconcileCustomerReceivables(
   try {
     // 1. Fetch all sales for this business
     const sales = await prismaClient.sale.findMany({
-      where: { businessId, status: { not: "CANCELLED" } },
+      where: { businessId },
       select: {
         id: true,
         invoiceNumber: true,
@@ -46,11 +99,37 @@ export async function reconcileCustomerReceivables(
         remainingAmount: true,
         paymentStatus: true,
         paymentMethod: true,
+        status: true,
         date: true,
+        updatedAt: true,
+        notes: true,
       },
     });
 
-    // 2. Fetch all registered customers
+    // 2. Fetch all customer receipt payments
+    const payments = await prismaClient.payment.findMany({
+      where: {
+        businessId,
+        type: "RECEIPT",
+      },
+      select: {
+        id: true,
+        amount: true,
+        customerId: true,
+        partyName: true,
+        partyType: true,
+        referenceNumber: true,
+        paymentMethod: true,
+        allocations: {
+          select: {
+            saleId: true,
+            amount: true,
+          },
+        },
+      },
+    });
+
+    // 3. Fetch all registered customers
     const existingCustomers = await prismaClient.customer.findMany({
       where: { businessId },
     });
@@ -60,82 +139,93 @@ export async function reconcileCustomerReceivables(
       {
         displayName: string;
         knownCustomerId: string | null;
-        totalRemaining: Decimal;
-        totalSales: Decimal;
-        totalPaid: Decimal;
-        saleIds: string[];
+        customerRecord: any | null;
       }
     >();
 
-    let grandRemaining = new Decimal(0);
+    for (const c of existingCustomers) {
+      const normKey = (c.name || "").toLowerCase().trim();
+      customerMap.set(normKey, {
+        displayName: c.name,
+        knownCustomerId: c.id,
+        customerRecord: c,
+      });
+    }
 
-    // Group sales by normalized customer name
     for (const s of sales) {
       const rawName = (s.customerName || "Walk In Customer").trim();
       const normKey = rawName.toLowerCase();
-      const rem = toDecimal(s.remainingAmount || 0);
-      const tot = toDecimal(s.totalAmount || 0);
-      const paid = toDecimal(s.paidAmount || 0);
-
-      grandRemaining = grandRemaining.add(rem);
-
-      const entry = customerMap.get(normKey) || {
-        displayName: rawName,
-        knownCustomerId: s.customerId || null,
-        totalRemaining: new Decimal(0),
-        totalSales: new Decimal(0),
-        totalPaid: new Decimal(0),
-        saleIds: [] as string[],
-      };
-
-      entry.totalRemaining = entry.totalRemaining.add(rem);
-      entry.totalSales = entry.totalSales.add(tot);
-      entry.totalPaid = entry.totalPaid.add(paid);
-      entry.saleIds.push(s.id);
-      if (!entry.knownCustomerId && s.customerId) {
-        entry.knownCustomerId = s.customerId;
-      }
-
-      customerMap.set(normKey, entry);
-    }
-
-    // Include existing customers with opening balances
-    for (const c of existingCustomers) {
-      const normKey = (c.name || "").toLowerCase().trim();
-      const opBal = toDecimal(c.openingBalance || 0);
-
-      if (customerMap.has(normKey)) {
-        const entry = customerMap.get(normKey)!;
-        if (!entry.knownCustomerId) entry.knownCustomerId = c.id;
-        if (opBal.gt(0)) {
-          entry.totalRemaining = entry.totalRemaining.add(opBal);
-          grandRemaining = grandRemaining.add(opBal);
-        }
-      } else {
-        const curBal = toDecimal(c.currentBalance || 0);
-        const effectiveBal = curBal.gt(0) ? curBal : opBal;
+      if (!customerMap.has(normKey)) {
         customerMap.set(normKey, {
-          displayName: c.name,
-          knownCustomerId: c.id,
-          totalRemaining: effectiveBal,
-          totalSales: new Decimal(0),
-          totalPaid: new Decimal(0),
-          saleIds: [] as string[],
+          displayName: rawName,
+          knownCustomerId: s.customerId || null,
+          customerRecord: null,
         });
-        grandRemaining = grandRemaining.add(effectiveBal);
+      } else if (s.customerId && !customerMap.get(normKey)!.knownCustomerId) {
+        customerMap.get(normKey)!.knownCustomerId = s.customerId;
       }
     }
 
+    let grandRemaining = new Decimal(0);
     let customerCount = 0;
 
-    // 3. Upsert / update Customer records and link unlinked sales
+    // 4. Upsert / update Customer records with true subsidiary ledger balances
     for (const [normKey, data] of customerMap.entries()) {
       customerCount++;
-      let targetCust: any = existingCustomers.find(
-        (c) => (data.knownCustomerId && c.id === data.knownCustomerId) || c.name.toLowerCase().trim() === normKey
-      );
+      let targetCust: any =
+        data.customerRecord ||
+        existingCustomers.find(
+          (c) => (data.knownCustomerId && c.id === data.knownCustomerId) || c.name.toLowerCase().trim() === normKey
+        );
 
-      const trueReceivable = round2(data.totalRemaining).toNumber();
+      const custSales = sales.filter((s) => {
+        const matchesId = targetCust && s.customerId && s.customerId === targetCust.id;
+        const matchesName = (s.customerName || "").toLowerCase().trim() === normKey;
+        if (!matchesId && !matchesName) return false;
+        if (s.status !== "CANCELLED") return true;
+        const hasReturns = typeof s.notes === "string" && s.notes.includes("returnHistory");
+        return hasReturns;
+      });
+
+      const custInvoiceNumbers = new Set(custSales.map((s) => (s.invoiceNumber || "").trim()).filter(Boolean));
+      const custSaleIds = new Set(custSales.map((s) => s.id));
+
+      const seenPaymentIds = new Set<string>();
+      let custDbPayments = new Decimal(0);
+
+      payments.forEach((p) => {
+        if (seenPaymentIds.has(p.id)) return;
+        const matchesId = targetCust && p.customerId && p.customerId === targetCust.id;
+        const matchesName = p.partyType === "CUSTOMER" && (p.partyName || "").toLowerCase().trim() === normKey;
+        const matchesRef = p.referenceNumber && custInvoiceNumbers.has(p.referenceNumber.trim());
+        const matchesAlloc = Array.isArray(p.allocations) && p.allocations.some((a: any) => a.saleId && custSaleIds.has(a.saleId));
+
+        if (matchesId || matchesName || matchesRef || matchesAlloc) {
+          seenPaymentIds.add(p.id);
+          custDbPayments = custDbPayments.add(toDecimal(p.amount || 0));
+        }
+      });
+
+      const totalSalePaid = custSales.reduce((sum, s) => sum.add(toDecimal(s.paidAmount || 0)), new Decimal(0));
+      const unrepresentedShortfall = Decimal.max(0, totalSalePaid.sub(custDbPayments));
+
+      const returns = extractSaleReturns(custSales);
+      const totalReturns = returns.reduce((sum, r) => sum.add(toDecimal(r.amount || 0)), new Decimal(0));
+
+      const totalSalesAmount = custSales.reduce((sum, s) => sum.add(toDecimal(s.totalAmount || 0)), new Decimal(0));
+      const opBal = targetCust ? toDecimal(targetCust.openingBalance || 0) : new Decimal(0);
+      const curBal = targetCust ? toDecimal(targetCust.currentBalance || 0) : new Decimal(0);
+
+      let calcReceivable = opBal.add(totalSalesAmount).sub(custDbPayments).sub(unrepresentedShortfall).sub(totalReturns);
+      if (custSales.length === 0 && custDbPayments.isZero() && curBal.gt(0) && opBal.isZero()) {
+        calcReceivable = curBal;
+      }
+
+      const trueReceivable = round2(calcReceivable).toNumber();
+
+      if (trueReceivable > 0) {
+        grandRemaining = grandRemaining.add(toDecimal(trueReceivable));
+      }
 
       if (!targetCust) {
         try {
@@ -154,7 +244,6 @@ export async function reconcileCustomerReceivables(
           });
         }
       } else {
-        // If currentBalance is 0 or less than the real remaining sales amount, auto-heal it
         const existingNum = Number(targetCust.currentBalance || 0);
         if (Math.abs(existingNum - trueReceivable) > 0.01) {
           try {
@@ -170,9 +259,7 @@ export async function reconcileCustomerReceivables(
 
       // Link unlinked sales to this customer
       if (targetCust) {
-        const unlinkedSales = sales.filter(
-          (s) => !s.customerId && (s.customerName || "").toLowerCase().trim() === normKey
-        );
+        const unlinkedSales = custSales.filter((s) => !s.customerId);
         for (const unlinked of unlinkedSales) {
           try {
             await prismaClient.sale.update({
@@ -186,7 +273,7 @@ export async function reconcileCustomerReceivables(
       }
     }
 
-    // 4. Synchronize Account 1100 (Accounts Receivable)
+    // 5. Synchronize Account 1100 (Accounts Receivable)
     const totalReceivables = round2(grandRemaining).toNumber();
     try {
       const acc1100 = await prismaClient.account.findUnique({
@@ -235,6 +322,9 @@ export function storeReconcileCustomerReceivables(
   const sales = fallbackStore.sales.filter(
     (s) => s.businessId === businessId && s.status !== "CANCELLED"
   );
+  const payments = (fallbackStore.payments || []).filter(
+    (p) => p.businessId === businessId && p.type === "RECEIPT"
+  );
   const existingCustomers = fallbackStore.customers.filter((c) => c.businessId === businessId);
 
   const customerMap = new Map<
@@ -242,68 +332,88 @@ export function storeReconcileCustomerReceivables(
     {
       displayName: string;
       knownCustomerId: string | null;
-      totalRemaining: number;
-      saleIds: string[];
+      customerRecord: any | null;
     }
   >();
 
-  let grandRemaining = 0;
+  for (const c of existingCustomers) {
+    const normKey = (c.name || "").toLowerCase().trim();
+    customerMap.set(normKey, {
+      displayName: c.name,
+      knownCustomerId: c.id,
+      customerRecord: c,
+    });
+  }
 
   for (const s of sales) {
     const rawName = (s.customerName || "Walk In Customer").trim();
     const normKey = rawName.toLowerCase();
-    const rem = Number(s.remainingAmount || 0);
-
-    grandRemaining += rem;
-
-    const entry = customerMap.get(normKey) || {
-      displayName: rawName,
-      knownCustomerId: s.customerId || null,
-      totalRemaining: 0,
-      saleIds: [] as string[],
-    };
-
-    entry.totalRemaining += rem;
-    entry.saleIds.push(s.id);
-    if (!entry.knownCustomerId && s.customerId) {
-      entry.knownCustomerId = s.customerId;
-    }
-
-    customerMap.set(normKey, entry);
-  }
-
-  // Include existing customers with balances
-  for (const c of existingCustomers) {
-    const normKey = (c.name || "").toLowerCase().trim();
-    const opBal = Number(c.openingBalance || 0);
-    if (customerMap.has(normKey)) {
-      const entry = customerMap.get(normKey)!;
-      if (!entry.knownCustomerId) entry.knownCustomerId = c.id;
-      if (opBal > 0) {
-        entry.totalRemaining += opBal;
-        grandRemaining += opBal;
-      }
-    } else {
-      const bal = Number(c.currentBalance || opBal || 0);
+    if (!customerMap.has(normKey)) {
       customerMap.set(normKey, {
-        displayName: c.name,
-        knownCustomerId: c.id,
-        totalRemaining: bal,
-        saleIds: [] as string[],
+        displayName: rawName,
+        knownCustomerId: s.customerId || null,
+        customerRecord: null,
       });
-      grandRemaining += bal;
+    } else if (s.customerId && !customerMap.get(normKey)!.knownCustomerId) {
+      customerMap.get(normKey)!.knownCustomerId = s.customerId;
     }
   }
 
+  let grandRemaining = 0;
   let customerCount = 0;
 
   for (const [normKey, data] of customerMap.entries()) {
     customerCount++;
-    let targetCust = existingCustomers.find(
-      (c) => (data.knownCustomerId && c.id === data.knownCustomerId) || c.name.toLowerCase().trim() === normKey
-    );
+    let targetCust =
+      data.customerRecord ||
+      existingCustomers.find(
+        (c) => (data.knownCustomerId && c.id === data.knownCustomerId) || c.name.toLowerCase().trim() === normKey
+      );
 
-    const trueReceivable = data.totalRemaining;
+    const custSales = sales.filter((s) => {
+      const matchesId = targetCust && s.customerId && s.customerId === targetCust.id;
+      const matchesName = (s.customerName || "").toLowerCase().trim() === normKey;
+      return matchesId || matchesName;
+    });
+
+    const custInvoiceNumbers = new Set(custSales.map((s) => (s.invoiceNumber || "").trim()).filter(Boolean));
+    const custSaleIds = new Set(custSales.map((s) => s.id));
+
+    const seenPaymentIds = new Set<string>();
+    let custDbPayments = 0;
+
+    payments.forEach((p) => {
+      if (seenPaymentIds.has(p.id)) return;
+      const matchesId = targetCust && p.customerId && p.customerId === targetCust.id;
+      const matchesName = p.partyType === "CUSTOMER" && (p.partyName || "").toLowerCase().trim() === normKey;
+      const matchesRef = p.referenceNumber && custInvoiceNumbers.has(p.referenceNumber.trim());
+      const matchesAlloc = Array.isArray(p.allocations) && p.allocations.some((a: any) => a.saleId && custSaleIds.has(a.saleId));
+
+      if (matchesId || matchesName || matchesRef || matchesAlloc) {
+        seenPaymentIds.add(p.id);
+        custDbPayments += Number(p.amount || 0);
+      }
+    });
+
+    const totalSalePaid = custSales.reduce((sum, s) => sum + Number(s.paidAmount || 0), 0);
+    const unrepresentedShortfall = Math.max(0, totalSalePaid - custDbPayments);
+
+    const returns = extractSaleReturns(custSales);
+    const totalReturns = returns.reduce((sum, r) => sum + Number(r.amount || 0), 0);
+
+    const totalSalesAmount = custSales.reduce((sum, s) => sum + Number(s.totalAmount || 0), 0);
+    const opBal = Number(targetCust?.openingBalance || 0);
+    const curBal = Number(targetCust?.currentBalance || 0);
+
+    let trueReceivable = opBal + totalSalesAmount - custDbPayments - unrepresentedShortfall - totalReturns;
+    // If party has no sales and no payments, preserve currentBalance if positive
+    if (custSales.length === 0 && custDbPayments === 0 && curBal > 0 && opBal === 0) {
+      trueReceivable = curBal;
+    }
+
+    if (trueReceivable > 0) {
+      grandRemaining += trueReceivable;
+    }
 
     if (!targetCust) {
       targetCust = {
