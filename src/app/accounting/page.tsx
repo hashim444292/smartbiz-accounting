@@ -639,6 +639,31 @@ function calculateCustomerSubsidiaryLedger(
   };
 }
 
+/**
+ * Universal classification of whether an account carries a normal DEBIT balance.
+ * Strictly respects Contra-Revenue (4020, 4030), Contra-Equity (3020), and Contra-Asset heads.
+ */
+function isAccountDebitNormal(acc?: { type?: string; code?: string | number | null; subType?: string | null } | null): boolean {
+  if (!acc || !acc.type) return true;
+  const codeStr = String(acc.code || "").trim();
+  const subTypeLower = (acc.subType || "").toLowerCase();
+
+  // Contra-Revenue accounts (e.g. 4020 Sales Returns & Allowances, 4030 Sales Discounts Allowed) carry normal DEBIT balances
+  if (codeStr === "4020" || codeStr === "4030" || (acc.type === "REVENUE" && subTypeLower.includes("contra"))) {
+    return true;
+  }
+  // Contra-Equity accounts (e.g. 3020 Owner's Drawings) carry normal DEBIT balances
+  if (codeStr === "3020" || (acc.type === "EQUITY" && subTypeLower.includes("drawings"))) {
+    return true;
+  }
+  // Contra-Asset accounts carry normal CREDIT balances
+  if (acc.type === "ASSET" && subTypeLower.includes("contra")) {
+    return false;
+  }
+
+  return ["ASSET", "EXPENSE", "COGS"].includes(acc.type);
+}
+
 function AccountingContent() {
   const { activeCompany, user, branches, selectedBranch, activeBranchId } = useAuth();
   const { t, language } = useLanguage();
@@ -1109,7 +1134,7 @@ function AccountingContent() {
     );
 
     return accounts.map((a) => {
-      const isDebitNormal = ["ASSET", "EXPENSE", "COGS"].includes(a.type);
+      const isDebitNormal = isAccountDebitNormal(a);
       const debits = debitsByAcc.get(a.id) || 0;
       const credits = creditsByAcc.get(a.id) || 0;
       const net = isDebitNormal ? debits - credits : credits - debits;
@@ -1219,7 +1244,7 @@ function AccountingContent() {
         };
       }
 
-      const isDebitNormal = ["ASSET", "EXPENSE", "COGS"].includes(currentAccount.type);
+      const isDebitNormal = isAccountDebitNormal(currentAccount);
 
       // Collect all journal lines for this account
       interface AccLine {
@@ -1679,12 +1704,12 @@ function AccountingContent() {
   }, [journals, journalSearch, journalAccountFilter, journalDateFilter, journalSort]);
 
   const totalDebits = effectiveAccounts
-    .filter((a) => ["ASSET", "EXPENSE", "COGS"].includes(a.type))
-    .reduce((acc, a) => acc + Number(a.balance), 0);
+    .filter((a) => isAccountDebitNormal(a))
+    .reduce((acc, a) => acc + Number(a.balance || 0), 0);
 
   const totalCredits = effectiveAccounts
-    .filter((a) => ["LIABILITY", "EQUITY", "REVENUE"].includes(a.type))
-    .reduce((acc, a) => acc + Number(a.balance), 0);
+    .filter((a) => !isAccountDebitNormal(a))
+    .reduce((acc, a) => acc + Number(a.balance || 0), 0);
 
   const filteredAccounts = useMemo(() => {
     return effectiveAccounts.filter((a) => {
@@ -1714,10 +1739,11 @@ function AccountingContent() {
 
     effectiveAccounts.forEach((a) => {
       const bal = Number(a.balance || 0);
-      if (a.type === "ASSET") assets += bal;
-      else if (a.type === "LIABILITY") liabilities += bal;
-      else if (a.type === "EQUITY") equity += bal;
-      else if (a.type === "REVENUE") revenue += bal;
+      const isContra = a.code === "4020" || a.code === "4030" || a.code === "3020" || (a.subType || "").toLowerCase().includes("contra");
+      if (a.type === "ASSET") assets += isContra ? -bal : bal;
+      else if (a.type === "LIABILITY") liabilities += isContra ? -bal : bal;
+      else if (a.type === "EQUITY") equity += isContra ? -bal : bal;
+      else if (a.type === "REVENUE") revenue += isContra ? -bal : bal;
       else if (a.type === "COGS") cogs += bal;
       else if (a.type === "EXPENSE") expenses += bal;
     });
@@ -2188,8 +2214,8 @@ function AccountingContent() {
                 </h4>
                 <p className="text-xs text-emerald-800/90 dark:text-emerald-300 mt-0.5">
                   {t(
-                    `Total Debits: ${formatMoney(totalDebits)} | Total Credits: ${formatMoney(totalCredits)} | Difference: Rs. 0.00`,
-                    `کل ڈیبٹ: ${formatMoney(totalDebits)} | کل کریڈٹ: ${formatMoney(totalCredits)} | فرق: 0.00 روپے`
+                    `Total Debits: ${formatMoney(totalDebits)} | Total Credits: ${formatMoney(totalCredits)} | Difference: ${formatMoney(Math.abs(totalDebits - totalCredits))}`,
+                    `کل ڈیبٹ: ${formatMoney(totalDebits)} | کل کریڈٹ: ${formatMoney(totalCredits)} | فرق: ${formatMoney(Math.abs(totalDebits - totalCredits))}`
                   )}
                 </p>
               </div>
@@ -3242,7 +3268,7 @@ function AccountingContent() {
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {effectiveAccounts.map((a) => {
-                  const isDebitSide = ["ASSET", "EXPENSE", "COGS"].includes(a.type);
+                  const isDebitSide = isAccountDebitNormal(a);
                   return (
                     <tr key={a.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40">
                       <td className="py-2 font-mono text-slate-500">{a.code}</td>
