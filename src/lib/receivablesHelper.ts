@@ -33,7 +33,15 @@ export function extractSaleReturns(sales: any[]): Array<{
 
     if (parsedHistory.length > 0) {
       parsedHistory.forEach((ret: any, idx: number) => {
-        const retAmt = Number(ret.totalRefundAmount || ret.totalAmount || ret.amount || 0);
+        let retAmt = 0;
+        if (ret.receivableReduction !== undefined) {
+          retAmt = Number(ret.receivableReduction || 0);
+        } else if (ret.cashRefund !== undefined) {
+          retAmt = Math.max(0, Number(ret.totalRefundAmount || ret.totalAmount || ret.amount || 0) - Number(ret.cashRefund || 0));
+        } else {
+          retAmt = Number(ret.totalRefundAmount || ret.totalAmount || ret.amount || 0);
+        }
+
         if (retAmt > 0) {
           returns.push({
             id: `cn-${s.id}-${idx}`,
@@ -216,8 +224,15 @@ export async function reconcileCustomerReceivables(
       const opBal = targetCust ? toDecimal(targetCust.openingBalance || 0) : new Decimal(0);
       const curBal = targetCust ? toDecimal(targetCust.currentBalance || 0) : new Decimal(0);
 
+      const openDues = custSales.reduce((sum, s) => {
+        if (s.status === "CANCELLED") return sum;
+        return sum.add(toDecimal(s.remainingAmount || 0));
+      }, new Decimal(0));
+
       let calcReceivable = opBal.add(totalSalesAmount).sub(custDbPayments).sub(unrepresentedShortfall).sub(totalReturns);
-      if (custSales.length === 0 && custDbPayments.isZero() && curBal.gt(0) && opBal.isZero()) {
+      if (openDues.gt(0) && calcReceivable.lte(0)) {
+        calcReceivable = opBal.add(openDues);
+      } else if (custSales.length === 0 && custDbPayments.isZero() && curBal.gt(0) && opBal.isZero()) {
         calcReceivable = curBal;
       }
 
@@ -405,9 +420,15 @@ export function storeReconcileCustomerReceivables(
     const opBal = Number(targetCust?.openingBalance || 0);
     const curBal = Number(targetCust?.currentBalance || 0);
 
+    const openDues = custSales.reduce((sum, s) => {
+      if (s.status === "CANCELLED") return sum;
+      return sum + Number(s.remainingAmount || 0);
+    }, 0);
+
     let trueReceivable = opBal + totalSalesAmount - custDbPayments - unrepresentedShortfall - totalReturns;
-    // If party has no sales and no payments, preserve currentBalance if positive
-    if (custSales.length === 0 && custDbPayments === 0 && curBal > 0 && opBal === 0) {
+    if (openDues > 0 && trueReceivable <= 0) {
+      trueReceivable = opBal + openDues;
+    } else if (custSales.length === 0 && custDbPayments === 0 && curBal > 0 && opBal === 0) {
       trueReceivable = curBal;
     }
 

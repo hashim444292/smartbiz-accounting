@@ -94,7 +94,14 @@ function extractPurchaseReturns(purchasesList: any[]): Array<{
 
     if (history.length > 0) {
       history.forEach((r: any, idx: number) => {
-        const amt = Number(r.totalAmount || r.payableReduction || r.amount || 0);
+        let amt = 0;
+        if (r.payableReduction !== undefined) {
+          amt = Number(r.payableReduction || 0);
+        } else if (r.cashRefund !== undefined) {
+          amt = Math.max(0, Number(r.totalAmount || r.amount || 0) - Number(r.cashRefund || 0));
+        } else {
+          amt = Number(r.totalAmount || r.payableReduction || r.amount || 0);
+        }
         if (amt > 0) {
           returns.push({
             id: `dn-${p.id}-${r.returnId || idx}`,
@@ -156,7 +163,14 @@ function extractSaleReturns(salesList: any[]): Array<{
 
     if (history.length > 0) {
       history.forEach((r: any, idx: number) => {
-        const amt = Number(r.totalAmount || r.returnAmount || r.amount || 0);
+        let amt = 0;
+        if (r.receivableReduction !== undefined) {
+          amt = Number(r.receivableReduction || 0);
+        } else if (r.cashRefund !== undefined) {
+          amt = Math.max(0, Number(r.totalAmount || r.amount || 0) - Number(r.cashRefund || 0));
+        } else {
+          amt = Number(r.totalAmount || r.returnAmount || r.amount || 0);
+        }
         if (amt > 0) {
           returns.push({
             id: `cn-${s.id}-${r.returnId || idx}`,
@@ -390,7 +404,14 @@ function calculateVendorSubsidiaryLedger(
     };
   });
 
-  const closingBalance = openingBalance + periodCredit - periodDebit;
+  const openPayables = vendorPurchases.reduce(
+    (sum: number, p: any) => (p.status !== "CANCELLED" ? sum + Number(p.remainingAmount || 0) : sum),
+    0
+  );
+  let closingBalance = openingBalance + periodCredit - periodDebit;
+  if (openPayables > 0 && closingBalance <= 0) {
+    closingBalance = openingBalance + openPayables;
+  }
   const closingBalanceType: "DR" | "CR" | "NIL" =
     closingBalance > 0.005 ? "CR" : closingBalance < -0.005 ? "DR" : "NIL";
   const openingBalanceType: "DR" | "CR" | "NIL" =
@@ -592,7 +613,14 @@ function calculateCustomerSubsidiaryLedger(
     };
   });
 
-  const closingBalance = openingBalance + periodDebit - periodCredit;
+  const openDues = customerSales.reduce(
+    (sum: number, s: any) => (s.status !== "CANCELLED" ? sum + Number(s.remainingAmount || 0) : sum),
+    0
+  );
+  let closingBalance = openingBalance + periodDebit - periodCredit;
+  if (openDues > 0 && closingBalance <= 0) {
+    closingBalance = openingBalance + openDues;
+  }
   const closingBalanceType: "DR" | "CR" | "NIL" =
     closingBalance > 0.005 ? "DR" : closingBalance < -0.005 ? "CR" : "NIL";
   const openingBalanceType: "DR" | "CR" | "NIL" =

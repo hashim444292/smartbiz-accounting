@@ -33,7 +33,15 @@ export function extractPurchaseReturns(purchases: any[]): Array<{
 
     if (parsedHistory.length > 0) {
       parsedHistory.forEach((ret: any, idx: number) => {
-        const retAmt = Number(ret.totalRefundAmount || ret.totalAmount || ret.amount || 0);
+        let retAmt = 0;
+        if (ret.payableReduction !== undefined) {
+          retAmt = Number(ret.payableReduction || 0);
+        } else if (ret.cashRefund !== undefined) {
+          retAmt = Math.max(0, Number(ret.totalRefundAmount || ret.totalAmount || ret.amount || 0) - Number(ret.cashRefund || 0));
+        } else {
+          retAmt = Number(ret.totalRefundAmount || ret.totalAmount || ret.amount || 0);
+        }
+
         if (retAmt > 0) {
           returns.push({
             id: `dn-${p.id}-${idx}`,
@@ -211,8 +219,15 @@ export async function reconcileSupplierPayables(
       const opBal = targetSup ? toDecimal(targetSup.openingBalance || 0) : new Decimal(0);
       const curBal = targetSup ? toDecimal(targetSup.currentBalance || 0) : new Decimal(0);
 
+      const openPayables = suppPurchases.reduce(
+        (sum, p) => sum.add(toDecimal(p.remainingAmount || 0)),
+        new Decimal(0)
+      );
+
       let calcPayable = opBal.add(totalPurchasesAmount).sub(suppDbPayments).sub(unrepresentedShortfall).sub(totalReturns);
-      if (suppPurchases.length === 0 && suppDbPayments.isZero() && curBal.gt(0) && opBal.isZero()) {
+      if (openPayables.gt(0) && calcPayable.lte(0)) {
+        calcPayable = opBal.add(openPayables);
+      } else if (suppPurchases.length === 0 && suppDbPayments.isZero() && curBal.gt(0) && opBal.isZero()) {
         calcPayable = curBal;
       }
 
@@ -487,8 +502,15 @@ export function storeReconcileSupplierPayables(businessId: string): {
     const opBal = Number(sup?.openingBalance || 0);
     const curBal = Number(sup?.currentBalance || 0);
 
+    const openPayables = suppPurchases.reduce((sum, p) => {
+      if (p.status === "CANCELLED") return sum;
+      return sum + Number(p.remainingAmount || 0);
+    }, 0);
+
     let truePayable = opBal + totalPurchasesAmount - suppDbPayments - unrepresentedShortfall - totalReturns;
-    if (suppPurchases.length === 0 && suppDbPayments === 0 && curBal > 0 && opBal === 0) {
+    if (openPayables > 0 && truePayable <= 0) {
+      truePayable = opBal + openPayables;
+    } else if (suppPurchases.length === 0 && suppDbPayments === 0 && curBal > 0 && opBal === 0) {
       truePayable = curBal;
     }
 
