@@ -1438,10 +1438,10 @@ export default function CreateSalePage() {
 
         <form onSubmit={handleSubmitInvoice} className="space-y-6 pb-20 lg:pb-0">
           {/* Top Card: Invoice Number, Date, Customer (Buyer), Buyer Tax Status */}
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-6">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 lg:p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <div className="grid grid-cols-1 gap-3.5 sm:gap-4 sm:grid-cols-2 lg:grid-cols-12">
               {/* Column 1: INVOICE NUMBER */}
-              <div className="space-y-1.5">
+              <div className="space-y-1.5 sm:col-span-1 lg:col-span-3 xl:col-span-2">
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
                   {t("Invoice Number", "انوائس نمبر")}
                 </label>
@@ -1457,7 +1457,7 @@ export default function CreateSalePage() {
               </div>
 
               {/* Column 2: INVOICE DATE */}
-              <div className="space-y-1.5">
+              <div className="space-y-1.5 sm:col-span-1 lg:col-span-3 xl:col-span-2">
                 <div className="flex items-center justify-between text-xs font-bold text-slate-700 dark:text-slate-300">
                   <span className="flex items-center gap-1.5">
                     <Calendar className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
@@ -1492,7 +1492,7 @@ export default function CreateSalePage() {
               </div>
 
               {/* Column 3: CUSTOMER (BUYER) * */}
-              <div className="space-y-1.5">
+              <div className="space-y-1.5 sm:col-span-2 lg:col-span-6 xl:col-span-5">
                 <div className="flex items-center justify-between text-xs font-bold text-slate-700 dark:text-slate-300">
                   <span>
                     {t("Customer", "گاہک / کسٹمر")} <span className="text-rose-500">*</span>
@@ -1581,36 +1581,36 @@ export default function CreateSalePage() {
                 </div>
 
                 {/* Selected Customer Pill Preview & Ledger Balance */}
-                <div className="flex items-center justify-between rounded-lg border border-slate-200/80 bg-slate-50 px-2.5 py-1 text-[11px] dark:border-slate-800 dark:bg-slate-800/40">
-                  <div className="flex items-center gap-1.5 truncate">
-                    <span className="font-semibold text-slate-800 dark:text-slate-200 truncate">
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200/80 bg-slate-50 px-2.5 py-1.5 text-[11px] dark:border-slate-800 dark:bg-slate-800/40">
+                  <div className="flex flex-wrap items-center gap-1.5 min-w-0">
+                    <span className="font-semibold text-slate-800 dark:text-slate-200 truncate max-w-[200px] sm:max-w-none">
                       {customerName || (fbrInvoiceType === "DIGITAL_INVOICING" ? "No Customer Selected" : "Walk in")}
                     </span>
                     {selectedCustomer?.ntn ? (
-                      <span className="rounded bg-blue-100 px-1.5 py-0.2 text-[9px] font-bold text-blue-700 dark:bg-blue-950/60 dark:text-blue-300">
+                      <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[9px] font-bold text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 shrink-0">
                         NTN: {selectedCustomer.ntn}
                       </span>
                     ) : (selectedCustomer as any)?.cnic ? (
-                      <span className="rounded bg-slate-200 px-1.5 py-0.2 text-[9px] font-bold text-slate-700 dark:bg-slate-700 dark:text-slate-300">
+                      <span className="rounded bg-slate-200 px-1.5 py-0.5 text-[9px] font-bold text-slate-700 dark:bg-slate-700 dark:text-slate-300 shrink-0">
                         CNIC: {(selectedCustomer as any).cnic}
                       </span>
                     ) : null}
-                    <span className="rounded bg-slate-200 px-1.5 py-0.2 text-[10px] font-semibold text-slate-700 dark:bg-slate-700 dark:text-slate-300">
+                    <span className="rounded bg-slate-200 px-1.5 py-0.5 text-[10px] font-semibold text-slate-700 dark:bg-slate-700 dark:text-slate-300 shrink-0">
                       {buyerTaxStatus === "EXEMPT" ? "Exempt" : buyerTaxStatus === "REGISTERED" ? "Taxpayer" : "Non-taxpayer"}
                     </span>
                   </div>
                   {selectedCustomer ? (
                     Number(selectedCustomer.currentBalance || 0) > 0 ? (
-                      <span className="rounded-md bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-700 border border-amber-200 dark:bg-amber-950/40 dark:border-amber-800 dark:text-amber-300">
+                      <span className="rounded-md bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-700 border border-amber-200 dark:bg-amber-950/40 dark:border-amber-800 dark:text-amber-300 shrink-0">
                         ⚠️ Due: Rs {Number(selectedCustomer.currentBalance).toLocaleString()}
                       </span>
                     ) : (
-                      <span className="rounded-md bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:border-emerald-800 dark:text-emerald-300">
+                      <span className="rounded-md bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:border-emerald-800 dark:text-emerald-300 shrink-0">
                         ✅ No Dues: Rs 0
                       </span>
                     )
                   ) : (
-                    <span className="text-[10px] text-slate-500">
+                    <span className="text-[10px] text-slate-500 shrink-0">
                       {fbrInvoiceType === "DIGITAL_INVOICING" ? "Registration Required" : "Walk-in"}
                     </span>
                   )}
@@ -1705,15 +1705,15 @@ export default function CreateSalePage() {
                 )}
               </div>
 
-              {/* Column 3: BUYER TAX STATUS */}
-              <div className="space-y-1.5">
+              {/* Column 4: BUYER TAX STATUS */}
+              <div className="space-y-1.5 sm:col-span-2 lg:col-span-12 xl:col-span-3">
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
                   {t("Tax Category", "ٹیکس کیٹیگری")}
                 </label>
                 <select
                   value={buyerTaxStatus}
                   onChange={(e) => handleBuyerTaxStatusChange(e.target.value as BuyerTaxStatus)}
-                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 focus:border-blue-500 focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200"
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 focus:border-blue-500 focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 truncate"
                 >
                   {fbrInvoiceType !== "DIGITAL_INVOICING" && (
                     <option value="EXEMPT">{t("Exempt / Regular Consumer (0% Tax)", "عام کسٹمر / چھوٹ (0% Tax)")}</option>
@@ -1837,27 +1837,38 @@ export default function CreateSalePage() {
               </div>
             )}
 
+            {/* Horizontal scroll indicator banner on laptop/smaller screens */}
+            <div className="flex xl:hidden items-center justify-between px-4 py-2 bg-slate-50/90 dark:bg-slate-800/40 border-b border-slate-200/70 dark:border-slate-800 text-[11px] text-slate-500">
+              <span className="flex items-center gap-1.5">
+                <span className="text-blue-600 dark:text-blue-400 font-bold">↔</span>
+                <span>{t("Scroll horizontally to view all item details & amounts", "تمام کالم اور قیمتیں دیکھنے کیلئے دائیں بائیں اسکرول کریں")}</span>
+              </span>
+              <span className="font-mono text-[10px] bg-slate-200/70 dark:bg-slate-700 px-2 py-0.5 rounded text-slate-600 dark:text-slate-300 font-semibold">
+                ↔ Full View
+              </span>
+            </div>
+
             {/* Table */}
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
+            <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-700">
+              <table className="w-full min-w-[1080px] text-left text-xs">
                 <thead className="bg-slate-50/80 border-b border-slate-200 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:bg-slate-800/40 dark:border-slate-800 dark:text-slate-400">
                   <tr>
-                    <th className="py-3 pl-4 pr-2 w-10 text-center">#</th>
+                    <th className="py-3 pl-3 pr-1 w-10 min-w-[40px] text-center">#</th>
                     <th className="py-3 px-3 min-w-[240px]">{t("Product / Item", "آئٹم کا نام")}</th>
-                    <th className="py-3 px-2 w-32 text-center">
+                    <th className="py-3 px-2 w-28 min-w-[115px] text-center">
                       <div className="flex items-center justify-center gap-1">
                         <span>{t("HS Code", "ایچ ایس کوڈ")}</span>
                         <span className="text-[9px] px-1 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300 font-mono font-bold">FBR</span>
                       </div>
                     </th>
-                    <th className="py-3 px-2 w-20 text-center">{t("UOM", "یونٹ")}</th>
-                    <th className="py-3 px-2 w-20 text-center">{t("Qty", "تعداد")}</th>
-                    <th className="py-3 px-2 w-32 text-right">{t("Price", "قیمت")}</th>
-                    <th className="py-3 px-2 w-20 text-center">{t("Discount %", "ڈسکاؤنٹ %")}</th>
-                    <th className="py-3 px-2 w-16 text-center">{t("Tax %", "ٹیکس %")}</th>
-                    <th className="py-3 px-3 w-28 text-right">{t("Taxable", "ٹیکس ایبل")}</th>
-                    <th className="py-3 px-3 w-32 text-right">{t("Total", "کل رقم")}</th>
-                    <th className="py-3 pl-2 pr-4 w-10 text-center"></th>
+                    <th className="py-3 px-2 w-24 min-w-[90px] text-center">{t("UOM", "یونٹ")}</th>
+                    <th className="py-3 px-2 w-20 min-w-[75px] text-center">{t("Qty", "تعداد")}</th>
+                    <th className="py-3 px-2 w-32 min-w-[120px] text-right">{t("Price", "قیمت")}</th>
+                    <th className="py-3 px-2 w-20 min-w-[70px] text-center">{t("Discount %", "ڈسکاؤنٹ %")}</th>
+                    <th className="py-3 px-2 w-16 min-w-[60px] text-center">{t("Tax %", "ٹیکس %")}</th>
+                    <th className="py-3 px-3 w-28 min-w-[105px] text-right whitespace-nowrap">{t("Taxable", "ٹیکس ایبل")}</th>
+                    <th className="py-3 px-3 w-32 min-w-[115px] text-right whitespace-nowrap">{t("Total", "کل رقم")}</th>
+                    <th className="py-3 pl-1 pr-3 w-10 min-w-[40px] text-center"></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -1960,7 +1971,7 @@ export default function CreateSalePage() {
                       </td>
 
                       {/* HS / PCT CODE */}
-                      <td className="py-3 px-2 text-center align-top pt-4">
+                      <td className="py-3 px-2 text-center align-top pt-4 w-28 min-w-[115px]">
                         <div className="space-y-1">
                           <input
                             type="text"
@@ -1970,7 +1981,7 @@ export default function CreateSalePage() {
                             placeholder={orgHsCode || "5201.0090"}
                             list="fbr-hs-code-list"
                             title={t("FBR Harmonized Tariff / PCT Code (e.g. 5208.1100, 5201.0090)", "ایف بی آر ایچ ایس کوڈ")}
-                            className={`w-full rounded-lg border px-2 py-1.5 text-center font-mono text-xs font-semibold focus:outline-none dark:bg-slate-900 ${
+                            className={`w-full min-w-[105px] rounded-lg border px-2 py-1.5 text-center font-mono text-xs font-semibold focus:outline-none dark:bg-slate-900 ${
                               fieldErrors[`item_${idx}_hscode`]
                                 ? "border-rose-400 focus:border-rose-600 bg-rose-50/20 text-rose-700 dark:text-rose-300"
                                 : "border-slate-200 bg-white text-slate-800 focus:border-blue-500 dark:border-slate-700 dark:text-slate-200"
@@ -1985,38 +1996,38 @@ export default function CreateSalePage() {
                       </td>
 
                       {/* UOM */}
-                      <td className="py-3 px-2 text-center align-top pt-4">
+                      <td className="py-3 px-2 text-center align-top pt-4 w-24 min-w-[90px]">
                         <select
                           value={it.uom}
                           onChange={(e) => handleItemFieldChange(idx, "uom", e.target.value)}
-                          className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-center text-xs font-semibold text-slate-800 focus:border-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                          className="w-full min-w-[85px] rounded-lg border border-slate-200 bg-white px-1.5 py-1.5 text-center text-xs font-semibold text-slate-800 focus:border-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
                         >
-                          <option value="PCS">PCS (Pieces / Units)</option>
+                          <option value="PCS">PCS (Pieces)</option>
                           <option value="KG">KG (Kilograms)</option>
                           <option value="MTR">MTR (Meters)</option>
                           <option value="LTR">LTR (Liters)</option>
-                          <option value="BOX">BOX (Boxes / Cartons)</option>
+                          <option value="BOX">BOX (Boxes)</option>
                           <option value="PACK">PACK (Packets)</option>
-                          <option value="TON">TON (Metric Tons)</option>
-                          <option value="BAG">BAG (Bags / Bori)</option>
-                          <option value="DOZEN">DOZEN (12 Units)</option>
+                          <option value="TON">TON (Tons)</option>
+                          <option value="BAG">BAG (Bags)</option>
+                          <option value="DOZEN">DOZEN (12 Pcs)</option>
                           <option value="GRAM">GRAM (Grams)</option>
                           <option value="PAIR">PAIR (Pairs)</option>
-                          <option value="ROLL">ROLL (Rolls / Thaan)</option>
-                          <option value="SQM">SQM (Square Meters)</option>
-                          <option value="UNIT">UNIT (Numbers)</option>
+                          <option value="ROLL">ROLL (Rolls)</option>
+                          <option value="SQM">SQM (Sq. Meters)</option>
+                          <option value="UNIT">UNIT (Units)</option>
                         </select>
                       </td>
 
                       {/* QTY */}
-                      <td className="py-3 px-2 text-center align-top pt-4">
+                      <td className="py-3 px-2 text-center align-top pt-4 w-20 min-w-[75px]">
                         <input
                           type="number"
                           min="1"
                           step="any"
                           value={it.quantity || ""}
                           onChange={(e) => handleItemFieldChange(idx, "quantity", e.target.value)}
-                          className={`w-full rounded-lg border px-2 py-1.5 text-center text-xs font-bold text-slate-900 focus:outline-none dark:bg-slate-900 dark:text-white ${
+                          className={`w-full min-w-[65px] rounded-lg border px-1.5 py-1.5 text-center text-xs font-bold text-slate-900 focus:outline-none dark:bg-slate-900 dark:text-white ${
                             fieldErrors[`item_${idx}_quantity`]
                               ? "border-rose-400 focus:border-rose-600 bg-rose-50/30"
                               : "border-slate-200 focus:border-blue-500 dark:border-slate-700"
@@ -2030,14 +2041,14 @@ export default function CreateSalePage() {
                       </td>
 
                       {/* UNIT PRICE (PKR) */}
-                      <td className="py-3 px-2 text-right align-top pt-4">
+                      <td className="py-3 px-2 text-right align-top pt-4 w-32 min-w-[120px]">
                         <input
                           type="number"
                           min="0"
                           step="any"
                           value={it.unitPrice || ""}
                           onChange={(e) => handleItemFieldChange(idx, "unitPrice", e.target.value)}
-                          className={`w-full rounded-lg border px-2.5 py-1.5 text-right text-xs font-semibold tabular-nums text-slate-900 focus:outline-none dark:bg-slate-900 dark:text-white ${
+                          className={`w-full min-w-[110px] rounded-lg border px-2.5 py-1.5 text-right text-xs font-semibold tabular-nums text-slate-900 focus:outline-none dark:bg-slate-900 dark:text-white ${
                             fieldErrors[`item_${idx}_price`]
                               ? "border-rose-400 focus:border-rose-600 bg-rose-50/30"
                               : "border-slate-200 focus:border-blue-500 dark:border-slate-700"
@@ -2051,7 +2062,7 @@ export default function CreateSalePage() {
                       </td>
 
                       {/* DISC % */}
-                      <td className="py-3 px-2 text-center align-top pt-4">
+                      <td className="py-3 px-2 text-center align-top pt-4 w-20 min-w-[70px]">
                         <input
                           type="number"
                           min="0"
@@ -2059,7 +2070,7 @@ export default function CreateSalePage() {
                           value={it.discountPercent || ""}
                           onChange={(e) => handleItemFieldChange(idx, "discountPercent", e.target.value)}
                           placeholder="0"
-                          className={`w-full rounded-lg border px-2 py-1.5 text-center text-xs font-medium text-slate-800 focus:outline-none dark:bg-slate-900 dark:text-white ${
+                          className={`w-full min-w-[60px] rounded-lg border px-1.5 py-1.5 text-center text-xs font-medium text-slate-800 focus:outline-none dark:bg-slate-900 dark:text-white ${
                             fieldErrors[`item_${idx}_disc`]
                               ? "border-rose-400 focus:border-rose-600 bg-rose-50/30"
                               : "border-slate-200 focus:border-blue-500 dark:border-slate-700"
@@ -2073,24 +2084,24 @@ export default function CreateSalePage() {
                       </td>
 
                       {/* TAX % */}
-                      <td className="py-3 px-2 text-center align-top pt-4">
-                        <div className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 text-center text-xs font-bold text-slate-700 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-300">
+                      <td className="py-3 px-2 text-center align-top pt-4 w-16 min-w-[60px]">
+                        <div className="w-full min-w-[55px] rounded-lg border border-slate-200 bg-slate-50 px-1.5 py-1.5 text-center text-xs font-bold text-slate-700 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-300">
                           {it.taxRate}%
                         </div>
                       </td>
 
                       {/* TAXABLE */}
-                      <td className="py-3 px-3 text-right align-top pt-5 font-semibold text-slate-700 tabular-nums dark:text-slate-300">
+                      <td className="py-3 px-3 text-right align-top pt-5 font-semibold text-slate-700 tabular-nums dark:text-slate-300 w-28 min-w-[105px] whitespace-nowrap">
                         PKR {it.taxableAmount.toLocaleString("en-PK", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </td>
 
                       {/* TOTAL (PKR) */}
-                      <td className="py-3 px-3 text-right align-top pt-5 font-bold text-slate-900 tabular-nums dark:text-white">
+                      <td className="py-3 px-3 text-right align-top pt-5 font-bold text-slate-900 tabular-nums dark:text-white w-32 min-w-[115px] whitespace-nowrap">
                         PKR {it.lineTotal.toLocaleString("en-PK", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </td>
 
                       {/* Trash action */}
-                      <td className="py-3 pl-2 pr-4 text-center align-top pt-4">
+                      <td className="py-3 pl-1 pr-3 text-center align-top pt-4 w-10 min-w-[40px]">
                         <button
                           type="button"
                           disabled={items.length <= 1}
@@ -2117,9 +2128,9 @@ export default function CreateSalePage() {
           </div>
 
           {/* Bottom Grid: Payment Methods & Guarantee (Left) vs Tax & Payment Summary (Right) */}
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-            {/* Left Column (7 cols): Payment Mode Selector + Settlement Method + Guarantee */}
-            <div className="space-y-6 lg:col-span-7">
+          <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
+            {/* Left Column (7 cols on xl): Payment Mode Selector + Settlement Method + Guarantee */}
+            <div className="space-y-6 xl:col-span-7">
               {/* Payment Mode Selector: Full, Partial, Credit Sale */}
               <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 space-y-4">
                 <div className="flex items-center justify-between">
@@ -2388,8 +2399,8 @@ export default function CreateSalePage() {
               </div>
             </div>
 
-            {/* Right Column (5 cols): TAX & PAYMENT SUMMARY */}
-            <div className="lg:col-span-5">
+            {/* Right Column (5 cols on xl): TAX & PAYMENT SUMMARY */}
+            <div className="xl:col-span-5">
               <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 space-y-4">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800">
                   <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200">

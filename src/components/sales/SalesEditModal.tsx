@@ -680,7 +680,7 @@ export function SalesEditModal({
             </div>
 
             <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">
-              <table className="w-full text-left text-xs">
+              <table className="w-full min-w-[760px] text-left text-xs">
                 <thead className="bg-slate-50 dark:bg-slate-900/60 border-b border-slate-200 dark:border-slate-800 text-[11px] font-bold text-slate-600 dark:text-slate-400">
                   <tr>
                     <th className="py-2.5 px-3 w-8">#</th>

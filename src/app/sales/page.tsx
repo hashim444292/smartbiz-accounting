@@ -1349,7 +1349,7 @@ export default function SalesPage() {
 
         {/* Desktop Table View (>= md) */}
         <div className="hidden md:block overflow-x-auto">
-          <table className="w-full text-left text-xs text-slate-600 dark:text-slate-300">
+          <table className="w-full min-w-[980px] text-left text-xs text-slate-600 dark:text-slate-300">
             <thead className="border-b border-slate-200 bg-slate-50/75 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-400">
               <tr>
                 <th className="py-3 px-3 w-8 text-center print:hidden">
