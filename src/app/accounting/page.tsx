@@ -229,7 +229,6 @@ function calculateVendorSubsidiaryLedger(
   }
 
   const normSupName = (supplier.name || "").toLowerCase().trim();
-  const initialProfileOpening = Number(supplier.openingBalance || 0);
 
   // Purchases for this vendor (excluding cancelled drafts without returns)
   const vendorPurchases = allPurchases
@@ -350,6 +349,11 @@ function calculateVendorSubsidiaryLedger(
   const allTx: SubsidiaryLedgerRawTx[] = [...vendorPurchaseLines, ...vendorPayments, ...vendorReturnLines];
   allTx.sort((a, b) => a.date.getTime() - b.date.getTime());
 
+  const rawOpening = Number(supplier.openingBalance || 0);
+  const initialProfileOpening = rawOpening > 0
+    ? rawOpening
+    : (vendorPurchases.length === 0 && vendorPayments.length === 0 ? Number(supplier.currentBalance || 0) : 0);
+
   let openingBalance = initialProfileOpening;
   const periodTx: SubsidiaryLedgerRawTx[] = [];
 
@@ -427,7 +431,6 @@ function calculateCustomerSubsidiaryLedger(
   }
 
   const normCustName = (customer.name || "").toLowerCase().trim();
-  const initialProfileOpening = Number(customer.openingBalance || 0);
 
   // Sales for this customer (excluding cancelled drafts without returns)
   const customerSales = allSales
@@ -547,6 +550,11 @@ function calculateCustomerSubsidiaryLedger(
 
   const allTx: SubsidiaryLedgerRawTx[] = [...customerSalesLines, ...customerPayments, ...customerReturnLines];
   allTx.sort((a, b) => a.date.getTime() - b.date.getTime());
+
+  const rawOpening = Number(customer.openingBalance || 0);
+  const initialProfileOpening = rawOpening > 0
+    ? rawOpening
+    : (customerSales.length === 0 && customerPayments.length === 0 ? Number(customer.currentBalance || 0) : 0);
 
   let openingBalance = initialProfileOpening;
   const periodTx: SubsidiaryLedgerRawTx[] = [];
@@ -961,24 +969,22 @@ function AccountingContent() {
     const knownNames = new Set(list.map((s) => (s.name || "").toLowerCase().trim()));
 
     purchases.forEach((p) => {
-      const name = (p.supplierName || "").trim();
-      if (name) {
-        const norm = name.toLowerCase();
-        if (!knownNames.has(norm)) {
-          const synthId = p.supplierId || `synth-sup-${norm.replace(/\s+/g, "-")}`;
-          if (!knownKeys.has(synthId)) {
-            list.push({
-              id: synthId,
-              name: name,
-              businessName: name,
-              openingBalance: 0,
-              currentBalance: 0,
-              purchases: [],
-              payments: [],
-            });
-            knownKeys.add(synthId);
-            knownNames.add(norm);
-          }
+      const name = (p.supplierName || "").trim() || (language === "ur" ? "عام وینڈر" : "General Supplier");
+      const norm = name.toLowerCase();
+      if (!knownNames.has(norm)) {
+        const synthId = p.supplierId || `synth-sup-${norm.replace(/\s+/g, "-")}`;
+        if (!knownKeys.has(synthId)) {
+          list.push({
+            id: synthId,
+            name: name,
+            businessName: name,
+            openingBalance: 0,
+            currentBalance: 0,
+            purchases: [],
+            payments: [],
+          });
+          knownKeys.add(synthId);
+          knownNames.add(norm);
         }
       }
     });
@@ -1000,24 +1006,22 @@ function AccountingContent() {
     const knownNames = new Set(list.map((c) => (c.name || "").toLowerCase().trim()));
 
     sales.forEach((s) => {
-      const name = (s.customerName || "").trim();
-      if (name) {
-        const norm = name.toLowerCase();
-        if (!knownNames.has(norm)) {
-          const synthId = s.customerId || `synth-cust-${norm.replace(/\s+/g, "-")}`;
-          if (!knownKeys.has(synthId)) {
-            list.push({
-              id: synthId,
-              name: name,
-              phone: s.customerPhone || "",
-              openingBalance: 0,
-              currentBalance: 0,
-              sales: [],
-              payments: [],
-            });
-            knownKeys.add(synthId);
-            knownNames.add(norm);
-          }
+      const name = (s.customerName || "").trim() || (language === "ur" ? "عام گاہک (واک اِن)" : "Walk-in Customer");
+      const norm = name.toLowerCase();
+      if (!knownNames.has(norm)) {
+        const synthId = s.customerId || `synth-cust-${norm.replace(/\s+/g, "-")}`;
+        if (!knownKeys.has(synthId)) {
+          list.push({
+            id: synthId,
+            name: name,
+            phone: s.customerPhone || "",
+            openingBalance: 0,
+            currentBalance: 0,
+            sales: [],
+            payments: [],
+          });
+          knownKeys.add(synthId);
+          knownNames.add(norm);
         }
       }
     });
@@ -1067,6 +1071,14 @@ function AccountingContent() {
     const totalSupplierPayables = effectiveSuppliers.reduce((sum, s) => {
       return s.balanceType === "CR" ? sum + Number(s.currentBalance || 0) : sum;
     }, 0);
+    const salesRemaining = sales.reduce(
+      (sum, s) => (s.status !== "CANCELLED" ? sum + Number(s.remainingAmount || 0) : sum),
+      0
+    );
+    const purchasesRemaining = purchases.reduce(
+      (sum, p) => (p.status !== "CANCELLED" ? sum + Number(p.remainingAmount || 0) : sum),
+      0
+    );
 
     return accounts.map((a) => {
       const isDebitNormal = ["ASSET", "EXPENSE", "COGS"].includes(a.type);
@@ -1075,23 +1087,17 @@ function AccountingContent() {
       const net = isDebitNormal ? debits - credits : credits - debits;
 
       if (a.code === "1100") {
-        if (totalCustomerReceivables > 0) {
-          return { ...a, balance: totalCustomerReceivables };
-        }
-        if (sales.length > 0 && totalCustomerReceivables === 0) {
-          return { ...a, balance: 0 };
-        }
-        return { ...a, balance: Math.abs(net) };
+        const candidateRec = totalCustomerReceivables > 0
+          ? totalCustomerReceivables
+          : Math.max(Number(a.balance || 0), salesRemaining, Math.abs(net));
+        return { ...a, balance: candidateRec };
       }
 
       if (a.code === "2010") {
-        if (totalSupplierPayables > 0) {
-          return { ...a, balance: totalSupplierPayables };
-        }
-        if (purchases.length > 0 && totalSupplierPayables === 0) {
-          return { ...a, balance: 0 };
-        }
-        return { ...a, balance: Math.abs(net) };
+        const candidatePay = totalSupplierPayables > 0
+          ? totalSupplierPayables
+          : Math.max(Number(a.balance || 0), purchasesRemaining, Math.abs(net));
+        return { ...a, balance: candidatePay };
       }
 
       if (debits > 0 || credits > 0) {
@@ -3184,9 +3190,15 @@ function AccountingContent() {
               </p>
             </div>
             <div className="text-right">
-              <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-lg dark:bg-emerald-950/40 dark:text-emerald-300">
-                {t("Balanced", "برابر ہے")}
-              </span>
+              {Math.abs(totalDebits - totalCredits) < 0.01 ? (
+                <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-lg dark:bg-emerald-950/40 dark:text-emerald-300">
+                  {t("Balanced", "برابر ہے")}
+                </span>
+              ) : (
+                <span className="text-xs font-bold text-amber-700 bg-amber-50 px-3 py-1 rounded-lg dark:bg-amber-950/40 dark:text-amber-300">
+                  {t(`Diff: ${formatMoney(Math.abs(totalDebits - totalCredits))}`, `فرق: ${formatMoney(Math.abs(totalDebits - totalCredits))}`)}
+                </span>
+              )}
             </div>
           </div>
 
