@@ -61,11 +61,8 @@ interface LedgerEntry {
   balanceType: "DR" | "CR" | "NIL";
 }
 
-// Helper to extract purchase returns / debit notes from purchase records, notes, and journals
-function extractPurchaseReturns(
-  purchasesList: any[],
-  journalsList: any[] = []
-): Array<{
+// Helper to extract purchase returns / debit notes from purchase records
+function extractPurchaseReturns(purchasesList: any[]): Array<{
   id: string;
   purchaseId: string;
   date: Date;
@@ -84,120 +81,50 @@ function extractPurchaseReturns(
     amount: number;
   }> = [];
 
-  const seenKeys = new Set<string>();
-
   purchasesList.forEach((p) => {
-    // 1. From p.returnHistory
-    if (Array.isArray(p.returnHistory)) {
-      p.returnHistory.forEach((r: any, idx: number) => {
-        const amt = Number(r.totalAmount || r.payableReduction || r.amount || 0);
-        if (amt > 0) {
-          const ref = r.returnId || `DN-${p.purchaseNumber}-${idx + 1}`;
-          const key = `${p.id}-${ref}-${amt}`;
-          if (!seenKeys.has(key)) {
-            seenKeys.add(key);
-            returns.push({
-              id: `dn-hist-${p.id}-${idx}`,
-              purchaseId: p.id,
-              date: new Date(r.date || p.date),
-              refNumber: ref,
-              type: "DEBIT NOTE",
-              description: `Purchase Return / Debit Note (${p.purchaseNumber})${r.reason ? ` - ${r.reason}` : ""}`,
-              amount: amt,
-            });
-          }
-        }
-      });
-    }
-
-    // 2. From p.notes JSON string containing returnHistory
-    if (p.notes && typeof p.notes === "string" && p.notes.includes("returnHistory")) {
+    let history: any[] = [];
+    if (Array.isArray(p.returnHistory) && p.returnHistory.length > 0) {
+      history = p.returnHistory;
+    } else if (p.notes && typeof p.notes === "string" && p.notes.includes("returnHistory")) {
       try {
         const parsed = JSON.parse(p.notes);
-        if (Array.isArray(parsed.returnHistory)) {
-          parsed.returnHistory.forEach((r: any, idx: number) => {
-            const amt = Number(r.totalAmount || r.payableReduction || r.amount || 0);
-            if (amt > 0) {
-              const ref = r.returnId || `DN-${p.purchaseNumber}-${idx + 1}`;
-              const key = `${p.id}-${ref}-${amt}`;
-              if (!seenKeys.has(key)) {
-                seenKeys.add(key);
-                returns.push({
-                  id: `dn-note-${p.id}-${idx}`,
-                  purchaseId: p.id,
-                  date: new Date(r.date || p.date),
-                  refNumber: ref,
-                  type: "DEBIT NOTE",
-                  description: `Purchase Return / Debit Note (${p.purchaseNumber})${r.reason ? ` - ${r.reason}` : ""}`,
-                  amount: amt,
-                });
-              }
-            }
-          });
-        }
+        if (Array.isArray(parsed.returnHistory)) history = parsed.returnHistory;
       } catch {}
     }
 
-    // 3. From journals with referenceType === "PURCHASE_RETURN"
-    journalsList.forEach((j: any) => {
-      const isPurRet =
-        j.referenceType === "PURCHASE_RETURN" ||
-        (j.description && j.description.toLowerCase().includes("purchase return"));
-      const isMatchingPur =
-        j.referenceId === p.id ||
-        (j.description && j.description.includes(p.purchaseNumber)) ||
-        (j.entryNumber && j.entryNumber.includes(p.purchaseNumber));
-
-      if (isPurRet && isMatchingPur) {
-        const ref = j.entryNumber || `DN-${p.purchaseNumber}`;
-        const payLine = (j.lines || []).find(
-          (l: any) => l.account?.code === "2010" || l.accountCode === "2010"
-        );
-        const amt = payLine ? Number(payLine.debit || 0) : Number(j.lines?.[0]?.debit || 0);
-        const key = `${p.id}-${ref}-${amt}`;
-        if (amt > 0 && !seenKeys.has(key)) {
-          seenKeys.add(key);
+    if (history.length > 0) {
+      history.forEach((r: any, idx: number) => {
+        const amt = Number(r.totalAmount || r.payableReduction || r.amount || 0);
+        if (amt > 0) {
           returns.push({
-            id: `dn-jr-${j.id}`,
+            id: `dn-${p.id}-${r.returnId || idx}`,
             purchaseId: p.id,
-            date: new Date(j.date),
-            refNumber: ref,
+            date: new Date(r.date || p.date),
+            refNumber: r.returnId || `DN-${p.purchaseNumber}`,
             type: "DEBIT NOTE",
-            description: j.description || `Purchase Return / Debit Note (${p.purchaseNumber})`,
+            description: `Purchase Return / Debit Note (${p.purchaseNumber})${r.reason ? ` - ${r.reason}` : ""}`,
             amount: amt,
           });
         }
-      }
-    });
-
-    // 4. Fallback: if p.totalReturnedAmount > 0 and no returns were collected yet for this purchase
-    if (returns.filter((r) => r.purchaseId === p.id).length === 0 && Number(p.totalReturnedAmount || 0) > 0) {
-      const amt = Number(p.totalReturnedAmount);
-      const ref = `DN-${p.purchaseNumber}`;
-      const key = `${p.id}-${ref}-${amt}`;
-      if (!seenKeys.has(key)) {
-        seenKeys.add(key);
-        returns.push({
-          id: `dn-fallback-${p.id}`,
-          purchaseId: p.id,
-          date: new Date(p.updatedAt || p.date),
-          refNumber: ref,
-          type: "DEBIT NOTE",
-          description: `Purchase Return / Debit Note (${p.purchaseNumber})`,
-          amount: amt,
-        });
-      }
+      });
+    } else if (Number(p.totalReturnedAmount || 0) > 0) {
+      returns.push({
+        id: `dn-tot-${p.id}`,
+        purchaseId: p.id,
+        date: new Date(p.updatedAt || p.date),
+        refNumber: `DN-${p.purchaseNumber}`,
+        type: "DEBIT NOTE",
+        description: `Purchase Return / Debit Note (${p.purchaseNumber})`,
+        amount: Number(p.totalReturnedAmount),
+      });
     }
   });
 
   return returns;
 }
 
-// Helper to extract sales returns / credit notes from sale records, notes, and journals
-function extractSaleReturns(
-  salesList: any[],
-  journalsList: any[] = []
-): Array<{
+// Helper to extract sales returns / credit notes from sale records
+function extractSaleReturns(salesList: any[]): Array<{
   id: string;
   saleId: string;
   date: Date;
@@ -216,109 +143,42 @@ function extractSaleReturns(
     amount: number;
   }> = [];
 
-  const seenKeys = new Set<string>();
-
   salesList.forEach((s) => {
-    // 1. From s.returnHistory
-    if (Array.isArray(s.returnHistory)) {
-      s.returnHistory.forEach((r: any, idx: number) => {
-        const amt = Number(r.totalAmount || r.returnAmount || r.amount || 0);
-        if (amt > 0) {
-          const ref = r.returnId || `CN-${s.invoiceNumber}-${idx + 1}`;
-          const key = `${s.id}-${ref}-${amt}`;
-          if (!seenKeys.has(key)) {
-            seenKeys.add(key);
-            returns.push({
-              id: `cn-hist-${s.id}-${idx}`,
-              saleId: s.id,
-              date: new Date(r.date || s.date),
-              refNumber: ref,
-              type: "CREDIT NOTE",
-              description: `Sales Return / Credit Note (${s.invoiceNumber})${r.reason ? ` - ${r.reason}` : ""}`,
-              amount: amt,
-            });
-          }
-        }
-      });
-    }
-
-    // 2. From s.notes (JSON string with returnHistory)
-    if (s.notes && typeof s.notes === "string" && s.notes.includes("returnHistory")) {
+    let history: any[] = [];
+    if (Array.isArray(s.returnHistory) && s.returnHistory.length > 0) {
+      history = s.returnHistory;
+    } else if (s.notes && typeof s.notes === "string" && s.notes.includes("returnHistory")) {
       try {
         const parsed = JSON.parse(s.notes);
-        if (Array.isArray(parsed.returnHistory)) {
-          parsed.returnHistory.forEach((r: any, idx: number) => {
-            const amt = Number(r.totalAmount || r.returnAmount || r.amount || 0);
-            if (amt > 0) {
-              const ref = r.returnId || `CN-${s.invoiceNumber}-${idx + 1}`;
-              const key = `${s.id}-${ref}-${amt}`;
-              if (!seenKeys.has(key)) {
-                seenKeys.add(key);
-                returns.push({
-                  id: `cn-note-${s.id}-${idx}`,
-                  saleId: s.id,
-                  date: new Date(r.date || s.date),
-                  refNumber: ref,
-                  type: "CREDIT NOTE",
-                  description: `Sales Return / Credit Note (${s.invoiceNumber})${r.reason ? ` - ${r.reason}` : ""}`,
-                  amount: amt,
-                });
-              }
-            }
-          });
-        }
+        if (Array.isArray(parsed.returnHistory)) history = parsed.returnHistory;
       } catch {}
     }
 
-    // 3. From journals with referenceType === "SALE_RETURN"
-    journalsList.forEach((j: any) => {
-      const isSaleRet =
-        j.referenceType === "SALE_RETURN" ||
-        (j.description && (j.description.toLowerCase().includes("sales return") || j.description.toLowerCase().includes("credit note")));
-      const isMatchingSale =
-        j.referenceId === s.id ||
-        (j.description && j.description.includes(s.invoiceNumber)) ||
-        (j.entryNumber && j.entryNumber.includes(s.invoiceNumber));
-
-      if (isSaleRet && isMatchingSale) {
-        const ref = j.entryNumber || `CN-${s.invoiceNumber}`;
-        const recLine = (j.lines || []).find(
-          (l: any) => l.account?.code === "1100" || l.accountCode === "1100"
-        );
-        const amt = recLine ? Number(recLine.credit || 0) : Number(j.lines?.[0]?.credit || j.lines?.[0]?.debit || 0);
-        const key = `${s.id}-${ref}-${amt}`;
-        if (amt > 0 && !seenKeys.has(key)) {
-          seenKeys.add(key);
+    if (history.length > 0) {
+      history.forEach((r: any, idx: number) => {
+        const amt = Number(r.totalAmount || r.returnAmount || r.amount || 0);
+        if (amt > 0) {
           returns.push({
-            id: `cn-jr-${j.id}`,
+            id: `cn-${s.id}-${r.returnId || idx}`,
             saleId: s.id,
-            date: new Date(j.date),
-            refNumber: ref,
+            date: new Date(r.date || s.date),
+            refNumber: r.returnId || `CN-${s.invoiceNumber}`,
             type: "CREDIT NOTE",
-            description: j.description || `Sales Return / Credit Note (${s.invoiceNumber})`,
+            description: `Sales Return / Credit Note (${s.invoiceNumber})${r.reason ? ` - ${r.reason}` : ""}`,
             amount: amt,
           });
         }
-      }
-    });
-
-    // 4. Fallback: if s.totalReturnedAmount > 0 and no returns were collected yet for this sale
-    if (returns.filter((r) => r.saleId === s.id).length === 0 && Number(s.totalReturnedAmount || 0) > 0) {
-      const amt = Number(s.totalReturnedAmount);
-      const ref = `CN-${s.invoiceNumber}`;
-      const key = `${s.id}-${ref}-${amt}`;
-      if (!seenKeys.has(key)) {
-        seenKeys.add(key);
-        returns.push({
-          id: `cn-fallback-${s.id}`,
-          saleId: s.id,
-          date: new Date(s.updatedAt || s.date),
-          refNumber: ref,
-          type: "CREDIT NOTE",
-          description: `Sales Return / Credit Note (${s.invoiceNumber})`,
-          amount: amt,
-        });
-      }
+      });
+    } else if (Number(s.totalReturnedAmount || 0) > 0) {
+      returns.push({
+        id: `cn-tot-${s.id}`,
+        saleId: s.id,
+        date: new Date(s.updatedAt || s.date),
+        refNumber: `CN-${s.invoiceNumber}`,
+        type: "CREDIT NOTE",
+        description: `Sales Return / Credit Note (${s.invoiceNumber})`,
+        amount: Number(s.totalReturnedAmount),
+      });
     }
   });
 
@@ -935,14 +795,6 @@ function AccountingContent() {
         (p) => p.supplierId === currentSupplier.id || p.supplierName?.toLowerCase() === currentSupplier.name?.toLowerCase()
       );
 
-      // B. Payments to this supplier
-      const vendorPayments = payments.filter(
-        (p) =>
-          p.supplierId === currentSupplier.id ||
-          (p.partyType === "SUPPLIER" && p.partyName?.toLowerCase() === currentSupplier.name?.toLowerCase()) ||
-          vendorPurchases.some((vp) => vp.purchaseNumber === p.referenceNumber)
-      );
-
       // Assemble all unified transaction lines
       interface RawTx {
         id: string;
@@ -956,6 +808,7 @@ function AccountingContent() {
 
       const allVendorTx: RawTx[] = [];
 
+      // A. Purchase bills from this supplier
       vendorPurchases.forEach((p) => {
         allVendorTx.push({
           id: `pur-${p.id}`,
@@ -970,22 +823,71 @@ function AccountingContent() {
         });
       });
 
-      vendorPayments.forEach((pm) => {
-        allVendorTx.push({
-          id: `pay-${pm.id}`,
-          date: new Date(pm.date),
-          refNumber: pm.referenceNumber || `PMT-${pm.id.slice(0, 6)}`,
-          type: "PAYMENT",
-          description: language === "ur"
-            ? `ادائیگی سپلائر بذریعہ ${pm.paymentMethod || "CASH"}`
-            : `Payment to Supplier via ${pm.paymentMethod || "CASH"} ${pm.notes ? `(${pm.notes})` : ""}`,
-          debit: Number(pm.amount || 0),
-          credit: 0,
-        });
+      // B. Payments (Disbursements) to this supplier
+      const vendorPurchaseNumbers = new Set(
+        vendorPurchases.map((vp) => (vp.purchaseNumber || "").trim()).filter(Boolean)
+      );
+
+      const seenVendorPaymentIds = new Set<string>();
+      const vendorPayments: RawTx[] = [];
+
+      payments.forEach((pm) => {
+        if (pm.type !== "DISBURSEMENT") return;
+        if (seenVendorPaymentIds.has(pm.id)) return;
+
+        const hasSupplierId = pm.supplierId && pm.supplierId === currentSupplier.id;
+        const hasSupplierName =
+          pm.partyType === "SUPPLIER" &&
+          pm.partyName &&
+          pm.partyName.toLowerCase().trim() === (currentSupplier.name || "").toLowerCase().trim();
+        const hasRefNumber =
+          pm.referenceNumber &&
+          pm.referenceNumber.trim() !== "" &&
+          vendorPurchaseNumbers.has(pm.referenceNumber.trim());
+
+        if (hasSupplierId || hasSupplierName || hasRefNumber) {
+          seenVendorPaymentIds.add(pm.id);
+          vendorPayments.push({
+            id: `pay-${pm.id}`,
+            date: new Date(pm.date),
+            refNumber: pm.referenceNumber || `PMT-${pm.id.slice(0, 6)}`,
+            type: "PAYMENT",
+            description: language === "ur"
+              ? `ادائیگی سپلائر بذریعہ ${pm.paymentMethod || "CASH"}`
+              : `Payment to Supplier via ${pm.paymentMethod || "CASH"} ${pm.notes ? `(${pm.notes})` : ""}`,
+            debit: Number(pm.amount || 0),
+            credit: 0,
+          });
+        }
       });
 
+      // Ensure initial payment on purchase creation is recorded if no separate payment row exists
+      vendorPurchases.forEach((p) => {
+        const paid = Number(p.paidAmount || 0);
+        if (paid > 0) {
+          const hasLinkedPmt = vendorPayments.some(
+            (vp) => vp.refNumber === p.purchaseNumber || vp.description?.includes(p.purchaseNumber)
+          );
+          if (!hasLinkedPmt) {
+            vendorPayments.push({
+              id: `init-pay-pur-${p.id}`,
+              date: new Date(p.date),
+              refNumber: `INIT-${p.purchaseNumber}`,
+              type: "PAYMENT",
+              description: language === "ur"
+                ? `بل ادائیگی (${p.purchaseNumber})`
+                : `Settled on Bill #${p.purchaseNumber}`,
+              debit: paid,
+              credit: 0,
+            });
+          }
+        }
+      });
+
+      vendorPayments.forEach((vp) => allVendorTx.push(vp));
+
       // C. Purchase Returns / Debit Notes from this supplier (reduces liability - DEBIT)
-      const vendorReturns = extractPurchaseReturns(vendorPurchases, journals);
+      const vendorReturns = extractPurchaseReturns(vendorPurchases);
 
       vendorReturns.forEach((dn) => {
         allVendorTx.push({
@@ -1099,28 +1001,77 @@ function AccountingContent() {
         credit: 0,
       }));
 
-      const rawPayments = (currentCustomer.payments && currentCustomer.payments.length > 0)
-        ? currentCustomer.payments
-        : payments.filter(
-            (p) =>
-              p.customerId === currentCustomer.id ||
-              (p.partyType === "CUSTOMER" && p.partyName && p.partyName.toLowerCase().trim() === (currentCustomer.name || "").toLowerCase().trim()) ||
-              rawSales.some((rs: any) => rs.invoiceNumber === p.referenceNumber)
+      // B. Payments (Receipts) from this customer
+      const customerInvoiceNumbers = new Set(
+        rawSales.map((rs: any) => (rs.invoiceNumber || "").trim()).filter(Boolean)
+      );
+
+      const seenCustomerPaymentIds = new Set<string>();
+      const customerPayments: Array<{
+        id: string;
+        date: Date;
+        refNumber: string;
+        type: string;
+        description: string;
+        debit: number;
+        credit: number;
+      }> = [];
+
+      payments.forEach((p: any) => {
+        if (p.type !== "RECEIPT") return;
+        if (seenCustomerPaymentIds.has(p.id)) return;
+
+        const hasCustId = p.customerId && p.customerId === currentCustomer.id;
+        const hasCustName =
+          p.partyType === "CUSTOMER" &&
+          p.partyName &&
+          p.partyName.toLowerCase().trim() === (currentCustomer.name || "").toLowerCase().trim();
+        const hasRefNumber =
+          p.referenceNumber &&
+          p.referenceNumber.trim() !== "" &&
+          customerInvoiceNumbers.has(p.referenceNumber.trim());
+
+        if (hasCustId || hasCustName || hasRefNumber) {
+          seenCustomerPaymentIds.add(p.id);
+          customerPayments.push({
+            id: `pay-${p.id}`,
+            date: new Date(p.date),
+            refNumber: p.referenceNumber || `RCPT-${p.id.slice(0, 6)}`,
+            type: "RECEIPT",
+            description: language === "ur"
+              ? `وصولی گاہک بذریعہ ${p.paymentMethod || "CASH"}`
+              : `Receipt from Customer via ${p.paymentMethod || "CASH"} ${p.notes ? `(${p.notes})` : ""}`,
+            debit: 0,
+            credit: Number(p.amount || 0), // Receipts decrease receivable (CREDIT)
+          });
+        }
+      });
+
+      // Ensure initial payment on sale creation is recorded if no separate payment row exists
+      rawSales.forEach((s: any) => {
+        const paid = Number(s.paidAmount || 0);
+        if (paid > 0) {
+          const hasLinkedPmt = customerPayments.some(
+            (cp) => cp.refNumber === s.invoiceNumber || cp.description?.includes(s.invoiceNumber)
           );
+          if (!hasLinkedPmt) {
+            customerPayments.push({
+              id: `init-pay-sale-${s.id}`,
+              date: new Date(s.date),
+              refNumber: `INIT-${s.invoiceNumber}`,
+              type: "RECEIPT",
+              description: language === "ur"
+                ? `انوائس وصولی (${s.invoiceNumber})`
+                : `Settled on Invoice #${s.invoiceNumber}`,
+              debit: 0,
+              credit: paid,
+            });
+          }
+        }
+      });
 
-      const customerPayments = rawPayments.map((p: any) => ({
-        id: `pay-${p.id}`,
-        date: new Date(p.date),
-        refNumber: p.referenceNumber || `RCPT-${p.id.slice(0, 6)}`,
-        type: "RECEIPT",
-        description: language === "ur"
-          ? `وصولی گاہک بذریعہ ${p.paymentMethod || "CASH"}`
-          : `Receipt from Customer via ${p.paymentMethod || "CASH"} ${p.notes ? `(${p.notes})` : ""}`,
-        debit: 0,
-        credit: Number(p.amount || 0), // Receipts decrease receivable (CREDIT)
-      }));
-
-      const customerReturns = extractSaleReturns(rawSales, journals).map((cn) => ({
+      // C. Sales Returns / Credit Notes from this customer (reduces receivable - CREDIT)
+      const customerReturns = extractSaleReturns(rawSales).map((cn) => ({
         id: cn.id,
         date: cn.date,
         refNumber: cn.refNumber,
