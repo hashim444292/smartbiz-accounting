@@ -108,15 +108,37 @@ export async function POST(req: NextRequest) {
           }
 
           return response;
+        } else {
+          // Explicit credential rejection for database user
+          const ipRes = recordFailedLogin(ipKey);
+          const emailRes = recordFailedLogin(emailKey);
+          const isBlocked = !ipRes.allowed || !emailRes.allowed;
+          if (isBlocked) {
+            const waitSec = ipRes.retryAfterSeconds || emailRes.retryAfterSeconds || 900;
+            return NextResponse.json(
+              {
+                success: false,
+                error: `Too many failed login attempts. Account temporarily locked. Please try again in ${waitSec} seconds.`,
+              },
+              { status: 429, headers: { "Retry-After": String(waitSec) } }
+            );
+          }
+          return NextResponse.json(
+            { success: false, error: "Invalid email or password" },
+            { status: 401 }
+          );
         }
       }
     } catch {
       // Database offline, check fallbackStore
     }
 
-    // 2. Check in fallbackStore
+    // 2. Check in fallbackStore (only for offline dev/test mocks)
+    const isProd = process.env.NODE_ENV === "production";
     const fallbackUser = fallbackStore.users.find(
-      (u) => u.email.toLowerCase() === cleanEmail && (u.password === password || password === "admin123" || password === "hanif123" || password === "account123" || password === "staff123")
+      (u) =>
+        u.email.toLowerCase() === cleanEmail &&
+        (u.password === password || (!isProd && (password === "admin123" || password === "hanif123" || password === "account123" || password === "staff123")))
     );
 
     if (fallbackUser) {
