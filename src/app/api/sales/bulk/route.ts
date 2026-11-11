@@ -74,17 +74,26 @@ export async function POST(req: NextRequest) {
 
     // 1. Fetch Business Package Type & Settings
     let business: any = null;
+    let packageType = "FULL_SUITE";
     try {
       business = await prisma.business.findUnique({
         where: { id: businessId },
         select: { id: true, name: true, packageType: true, negativeStockPolicy: true, defaultHsCode: true },
       });
+      packageType = business?.packageType || "FULL_SUITE";
+      const pkgSetting = await prisma.appSetting.findFirst({
+        where: { businessId, key: "software_package_type" },
+      });
+      if (pkgSetting?.value) {
+        packageType = pkgSetting.value;
+      }
     } catch {
       business = fallbackStore.companies.find((c) => c.id === businessId) || { packageType: "FULL_SUITE" };
+      packageType = business?.packageType || "FULL_SUITE";
     }
 
     const isFbrInvoicingOnly =
-      business?.packageType === "FBR_INVOICING_ONLY" || body.mode === "DIGITAL_INVOICING";
+      packageType === "FBR_INVOICING_ONLY" || body.mode === "DIGITAL_INVOICING";
 
     // 2. Group rows into invoices (by invoiceNumber if provided, or process individually)
     interface GroupedInvoice {

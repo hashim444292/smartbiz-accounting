@@ -524,11 +524,17 @@ export async function createAndPostSale(input: CreateSaleInput) {
       // 5. Update Cash/Bank account balance if payment was received
       let targetCashBankAccountId = accountId;
       if (paidAmount.gt(0)) {
+        const isBankPay = ["BANK", "BANK_TRANSFER", "ONLINE", "CHEQUE", "POS_DIGITAL"].includes(
+          (paymentMethod || "").toUpperCase()
+        );
         let cashBank = targetCashBankAccountId
           ? await tx.cashBankAccount.findUnique({ where: { id: targetCashBankAccountId } })
           : await tx.cashBankAccount.findFirst({
+              where: { businessId, type: isBankPay ? "BANK" : "CASH", isActive: true },
+            }) ||
+            (await tx.cashBankAccount.findFirst({
               where: { businessId, isDefault: true, isActive: true },
-            });
+            }));
 
         if (!cashBank) {
           // Find any active cash account or create default
@@ -599,8 +605,11 @@ export async function createAndPostSale(input: CreateSaleInput) {
       const journalLines: Array<{ accountCode: string; debit: Decimal; credit: Decimal; description?: string }> = [];
 
       if (paidAmount.gt(0)) {
+        const isBankPay = ["BANK", "BANK_TRANSFER", "ONLINE", "CHEQUE", "POS_DIGITAL"].includes(
+          (paymentMethod || "").toUpperCase()
+        );
         journalLines.push({
-          accountCode: paymentMethod === "BANK" ? "1020" : "1010",
+          accountCode: isBankPay ? "1020" : "1010",
           debit: paidAmount,
           credit: new Decimal(0),
           description: `Payment received for ${itemsSummary} (Inv #${invoiceNumber})`,
@@ -854,7 +863,10 @@ export async function reverseSale(
       revLines.push({ accountCode: "1100", debit: new Decimal(0), credit: receivableReduction }); // Receivables
     }
     if (cashRefund.gt(0)) {
-      const refundAcc = sale.paymentMethod === "BANK" ? "1020" : "1010";
+      const isBankRefund = ["BANK", "BANK_TRANSFER", "ONLINE", "CHEQUE", "POS_DIGITAL"].includes(
+        (sale.paymentMethod || "").toUpperCase()
+      );
+      const refundAcc = isBankRefund ? "1020" : "1010";
       revLines.push({ accountCode: refundAcc, debit: new Decimal(0), credit: cashRefund }); // Cash / Bank Refund
     }
 

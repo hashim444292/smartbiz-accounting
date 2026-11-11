@@ -3449,7 +3449,9 @@ export function storeAddPayment(
   }
 
   // Adjust Cash/Bank account balance
-  const isBank = data.paymentMethod === "BANK";
+  const isBank = ["BANK", "BANK_TRANSFER", "ONLINE", "CHEQUE", "POS_DIGITAL"].includes(
+    (data.paymentMethod || "").toUpperCase()
+  );
   let targetAccountName = "Cash";
   if (data.accountId) {
     const acc = fallbackStore.cashBankAccounts.find((a) => a.id === data.accountId);

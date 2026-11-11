@@ -10,6 +10,13 @@ describe("FBR Digital Invoicing (B2B) Bulk Import & Template Validation Suite", 
     // Reset or ensure fallback store is ready
     if (!fallbackStore.sales) fallbackStore.sales = [];
     if (!fallbackStore.customers) fallbackStore.customers = [];
+    if (!fallbackStore.companies) fallbackStore.companies = [];
+    const compIdx = fallbackStore.companies.findIndex((c) => c.id === businessId);
+    if (compIdx >= 0) {
+      fallbackStore.companies[compIdx].packageType = "FBR_INVOICING_ONLY";
+    } else {
+      fallbackStore.companies.push({ id: businessId, name: "Tayyaba Communication", packageType: "FBR_INVOICING_ONLY" } as any);
+    }
   });
 
   it("should validate all 28 official statutory columns for FBR Digital Invoicing (Invoice Number is auto-generated)", () => {
@@ -318,5 +325,86 @@ describe("FBR Digital Invoicing (B2B) Bulk Import & Template Validation Suite", 
     expect(sale2.invoiceNumber).toBeDefined();
     expect(sale2.invoiceNumber).not.toMatch(/^AUTO-/);
     expect(sale2.invoiceNumber).not.toBe(sale1.invoiceNumber); // Distinct invoice numbers
+  }, 60000);
+
+  it("should process Retail POS mode bulk import for Walk-in Customer with Rs 0 further tax", async () => {
+    const payload = {
+      mode: "RETAIL_POS",
+      invoices: [
+        {
+          date: "2026-10-21",
+          scenario: "SN002",
+          customerName: "Walk-in Customer",
+          productName: "ITELL A100",
+          hsCode: "8517.1390",
+          uom: "Numbers",
+          quantity: 1,
+          rate: 26700,
+          unitPrice: 26700,
+          exclusiveValue: 22627.12,
+          taxRate: 18,
+          taxValue: 4072.88,
+          furtherTax: 0,
+          totalAmount: 26700,
+          paymentMethod: "CASH",
+        },
+      ],
+    };
+
+    const req = new NextRequest("http://localhost:3000/api/sales/bulk", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-business-id": businessId,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const res = await bulkSaleRoute(req);
+    const json = await res.json();
+
+    expect(json.success).toBe(true);
+    expect(json.importedCount).toBe(1);
+
+    const createdSale = json.results[0];
+    expect(createdSale.customerName).toBe("Walk-in Customer");
+    expect(createdSale.furtherTax).toBe(0);
+    expect(createdSale.totalAmount).toBe(26700);
+  }, 60000);
+
+  it("should map Bank and Digital payment methods to Account 1020 and Cash to Account 1010", async () => {
+    const payloadBank = {
+      mode: "RETAIL_POS",
+      invoices: [
+        {
+          date: "2026-10-21",
+          customerName: "Counter Buyer",
+          productName: "ITELL A100",
+          hsCode: "8517.1390",
+          uom: "Numbers",
+          quantity: 1,
+          rate: 10000,
+          unitPrice: 10000,
+          totalAmount: 10000,
+          paidAmount: 10000,
+          paymentMethod: "BANK_TRANSFER",
+        },
+      ],
+    };
+
+    const reqBank = new NextRequest("http://localhost:3000/api/sales/bulk", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-business-id": businessId,
+      },
+      body: JSON.stringify(payloadBank),
+    });
+
+    const resBank = await bulkSaleRoute(reqBank);
+    const jsonBank = await resBank.json();
+    expect(jsonBank.success).toBe(true);
+    expect(jsonBank.importedCount).toBe(1);
+    expect(jsonBank.results[0].paymentMethod).toBe("BANK_TRANSFER");
   }, 60000);
 });

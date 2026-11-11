@@ -914,10 +914,11 @@ export function buildFbrPosPayload(
   const isCreditNote = invoiceType === 3;
   const usin = isCreditNote ? (sale.invoiceNumber?.startsWith("CN-") ? sale.invoiceNumber : `CN-${sale.invoiceNumber}`) : sale.invoiceNumber;
 
+  const normMethod = (sale.paymentMethod || "").toUpperCase();
   const paymentMode =
-    sale.paymentMethod === "BANK" ? 2 :
-    sale.paymentMethod === "CHEQUE" ? 3 :
-    sale.paymentMethod === "ONLINE" ? 4 : 1; // 1 = Cash
+    (normMethod === "BANK" || normMethod === "BANK_TRANSFER") ? 2 :
+    normMethod === "CHEQUE" ? 3 :
+    (normMethod === "ONLINE" || normMethod === "POS_DIGITAL") ? 4 : 1; // 1 = Cash, 2 = Card/Bank, 3 = Cheque, 4 = Online/Digital
 
   let totalQty = 0;
   const items: FbrPosInvoiceItem[] = (sale.items || []).map((item: any, idx: number) => {

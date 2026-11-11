@@ -412,8 +412,11 @@ export async function createAndPostPurchase(input: CreatePurchaseInput) {
     ];
 
     if (paidAmount.gt(0)) {
+      const isBankPay = ["BANK", "BANK_TRANSFER", "ONLINE", "CHEQUE", "POS_DIGITAL"].includes(
+        (paymentMethod || "").toUpperCase()
+      );
       journalLines.push({
-        accountCode: paymentMethod === "BANK" ? "1020" : "1010",
+        accountCode: isBankPay ? "1020" : "1010",
         debit: new Decimal(0),
         credit: paidAmount,
         description: `Payment for ${purchaseItemsSummary} (Bill #${purchaseNumber})`,
@@ -683,7 +686,10 @@ export async function reversePurchase(
       });
     }
     if (cashRefund.gt(0)) {
-      const refundAcc = purchase.paymentMethod === "BANK" ? "1020" : "1010";
+      const isBankRefund = ["BANK", "BANK_TRANSFER", "ONLINE", "CHEQUE", "POS_DIGITAL"].includes(
+        (purchase.paymentMethod || "").toUpperCase()
+      );
+      const refundAcc = isBankRefund ? "1020" : "1010";
       revLines.push({
         accountCode: refundAcc,
         debit: cashRefund,

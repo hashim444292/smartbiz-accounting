@@ -344,7 +344,9 @@ export async function reconcileSupplierPayables(
           if (!existingEntry) {
             const paid = toDecimal(p.paidAmount || 0);
             const tot = toDecimal(p.totalAmount || 0);
-            const isBank = p.paymentMethod === "BANK";
+            const isBank = ["BANK", "BANK_TRANSFER", "ONLINE", "CHEQUE", "POS_DIGITAL"].includes(
+              (p.paymentMethod || "").toUpperCase()
+            );
             const cashBankAccId = isBank ? (account1020?.id || account1010?.id) : (account1010?.id || account1020?.id);
 
             const jLines: Array<{ accountId: string; debit: number; credit: number; description?: string }> = [
