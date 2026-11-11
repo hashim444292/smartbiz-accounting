@@ -1046,38 +1046,46 @@ export default function BulkSalesImportPage() {
             Mode:
           </span>
           <div className="inline-flex rounded-xl bg-slate-100 dark:bg-slate-800 p-1 border border-slate-200 dark:border-slate-700">
-            <button
-              type="button"
-              onClick={() => setImportMode("RETAIL_POS")}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold rounded-lg transition ${
-                importMode === "RETAIL_POS"
-                  ? "bg-emerald-600 text-white shadow-xs"
-                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-              }`}
-            >
-              <span>🛒 Retail POS (Tier-1 POS Sales)</span>
-              {companyFbrType === "TIER1_POS" && (
+            {companyFbrType === "TIER1_POS" ? (
+              <div className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold rounded-lg bg-emerald-600 text-white shadow-xs">
+                <span>🛒 Retail POS (Tier-1 POS Sales)</span>
                 <span className="text-[10px] bg-emerald-700 text-white px-1.5 py-0.2 rounded-full font-semibold">
-                  Auto
+                  Active
                 </span>
-              )}
-            </button>
-            <button
-              type="button"
-              onClick={() => setImportMode("DIGITAL_INVOICING")}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold rounded-lg transition ${
-                importMode === "DIGITAL_INVOICING"
-                  ? "bg-indigo-600 text-white shadow-xs"
-                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-              }`}
-            >
-              <span>🛡️ FBR Digital Invoicing (B2B Tax Invoice)</span>
-              {companyFbrType === "DIGITAL_INVOICING" && (
+              </div>
+            ) : companyFbrType === "DIGITAL_INVOICING" ? (
+              <div className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold rounded-lg bg-indigo-600 text-white shadow-xs">
+                <span>🛡️ FBR Digital Invoicing (B2B Tax Invoice)</span>
                 <span className="text-[10px] bg-indigo-700 text-white px-1.5 py-0.2 rounded-full font-semibold">
-                  Auto
+                  Active
                 </span>
-              )}
-            </button>
+              </div>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setImportMode("RETAIL_POS")}
+                  className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold rounded-lg transition ${
+                    importMode === "RETAIL_POS"
+                      ? "bg-emerald-600 text-white shadow-xs"
+                      : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                  }`}
+                >
+                  <span>🛒 Retail POS (Tier-1 POS Sales)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setImportMode("DIGITAL_INVOICING")}
+                  className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold rounded-lg transition ${
+                    importMode === "DIGITAL_INVOICING"
+                      ? "bg-indigo-600 text-white shadow-xs"
+                      : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                  }`}
+                >
+                  <span>🛡️ FBR Digital Invoicing (B2B Tax Invoice)</span>
+                </button>
+              </>
+            )}
           </div>
 
           {/* Active Company Integration Status */}
