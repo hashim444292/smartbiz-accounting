@@ -144,7 +144,10 @@ export default function BulkSalesImportPage() {
   const isFbrInvoicingOnly = activeCompany?.packageType === "FBR_INVOICING_ONLY";
   const isAccountingOnly = activeCompany?.packageType === "ACCOUNTING_ONLY";
 
-  const [importMode, setImportMode] = useState<"DIGITAL_INVOICING" | "RETAIL_POS">("DIGITAL_INVOICING");
+  const [companyFbrType, setCompanyFbrType] = useState<string>(
+    activeCompany?.integrationType || (activeCompany as any)?.fbrIntegrationType || "TIER1_POS"
+  );
+  const [importMode, setImportMode] = useState<"DIGITAL_INVOICING" | "RETAIL_POS">("RETAIL_POS");
   const [catalogProducts, setCatalogProducts] = useState<any[]>([]);
   const [file, setFile] = useState<File | null>(null);
   const [fileName, setFileName] = useState<string>("");
@@ -160,11 +163,37 @@ export default function BulkSalesImportPage() {
     errors?: any[];
   } | null>(null);
 
+  // Auto-detect company FBR mode from active company profile & live compliance settings
   useEffect(() => {
-    if (activeCompany?.packageType === "FBR_INVOICING_ONLY" || (activeCompany as any)?.fbrInvoiceType === "DIGITAL_INVOICING") {
-      setImportMode("DIGITAL_INVOICING");
+    const rawType = activeCompany?.integrationType || (activeCompany as any)?.fbrIntegrationType;
+    if (rawType) {
+      setCompanyFbrType(rawType);
+      if (rawType === "TIER1_POS") {
+        setImportMode("RETAIL_POS");
+        return;
+      } else if (rawType === "DIGITAL_INVOICING") {
+        setImportMode("DIGITAL_INVOICING");
+        return;
+      }
     }
-  }, [activeCompany]);
+
+    fetch("/api/compliance/fbr")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && data.data?.config) {
+          const liveIt = data.data.config.integrationType;
+          if (liveIt) {
+            setCompanyFbrType(liveIt);
+            if (liveIt === "TIER1_POS") {
+              setImportMode("RETAIL_POS");
+            } else if (liveIt === "DIGITAL_INVOICING") {
+              setImportMode("DIGITAL_INVOICING");
+            }
+          }
+        }
+      })
+      .catch(() => {});
+  }, [activeCompany?.id, activeCompany?.integrationType]);
 
   // Fetch catalog products to verify inventory
   useEffect(() => {
@@ -571,19 +600,26 @@ export default function BulkSalesImportPage() {
       h.toLowerCase().replace(/[^a-z0-9]/g, "")
     );
 
-    const isDigitalFile =
+    // Smart file content detection: check whether rows represent Walk-in / POS retail counter sales
+    const sampleRows = lines.slice(1, 25).join(" ").toLowerCase();
+    const hasWalkinInRows = sampleRows.includes("walk-in") || sampleRows.includes("walk in");
+    const isExplicitPosCompany = companyFbrType === "TIER1_POS";
+
+    // Auto-detect mode: If company is Retail POS, or file has walk-in sales, or importMode is RETAIL_POS
+    const isRetailPosMode = importMode === "RETAIL_POS" || (isExplicitPosCompany && !sampleRows.includes("buyerlegalname")) || hasWalkinInRows;
+
+    let isDigitalFile = !isRetailPosMode && (
+      importMode === "DIGITAL_INVOICING" ||
       normalizedHeaders.some((h) =>
         h.includes("buyerlegalname") ||
         h.includes("buyerregistrationtype") ||
-        h.includes("buyerntn") ||
-        h.includes("buyercnic") ||
-        h.includes("buyerprovince") ||
-        h.includes("furthertax") ||
-        h.includes("tradediscount")
-      ) || importMode === "DIGITAL_INVOICING";
+        h.includes("buyerntn")
+      )
+    );
 
-    if (isDigitalFile && importMode !== "DIGITAL_INVOICING") {
-      setImportMode("DIGITAL_INVOICING");
+    if (isRetailPosMode && importMode !== "RETAIL_POS") {
+      setImportMode("RETAIL_POS");
+      isDigitalFile = false;
     }
 
     const rows: Parsed27Row[] = [];
@@ -669,9 +705,15 @@ export default function BulkSalesImportPage() {
       const rawTaxValue = getVal(["salestaxamount", "taxvalue", "taxamount", "salestax"]);
       const taxValue = rawTaxValue !== "" ? Number(rawTaxValue) : (exclusiveValue * (taxRate / 100));
 
-      const furtherTaxRate = Number(getVal(["furthertax%", "furthertaxrate"]) || (scenario === "SN002" || buyerRegistrationType === "Unregistered" ? 3 : 0));
+      // Further Tax (3%) applies ONLY to B2B corporate supplies to unregistered persons in DIGITAL_INVOICING mode.
+      // In Retail POS (end-consumer counter sales), 3% Further Tax does NOT apply!
+      const furtherTaxRate = isDigitalFile
+        ? Number(getVal(["furthertax%", "furthertaxrate"]) || (scenario === "SN002" || buyerRegistrationType === "Unregistered" ? 3 : 0))
+        : 0;
       const rawFurtherTaxVal = getVal(["furthertaxamount", "furthertaxvalue", "furthertax"]);
-      const furtherTaxValue = rawFurtherTaxVal !== "" ? Number(rawFurtherTaxVal) : (exclusiveValue * (furtherTaxRate / 100));
+      const furtherTaxValue = isDigitalFile
+        ? (rawFurtherTaxVal !== "" ? Number(rawFurtherTaxVal) : (exclusiveValue * (furtherTaxRate / 100)))
+        : 0;
 
       const extraTax = Number(getVal(["extratax%"]) || 0);
       const rawExtraTaxVal = getVal(["extrataxvalue", "extrataxamount", "extratax"]);
@@ -946,30 +988,30 @@ export default function BulkSalesImportPage() {
               </span>
               <span className="text-slate-300">•</span>
               <span className="text-[11px] font-mono text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200">
-                {isFbrInvoicingOnly || importMode === "DIGITAL_INVOICING"
+                {importMode === "DIGITAL_INVOICING"
                   ? "28 Statutory Columns (Auto Inv #)"
                   : "26 POS Columns"}
               </span>
               <span className="text-slate-300">•</span>
               <span
                 className={`text-[11px] font-bold px-2 py-0.5 rounded border ${
-                  isFbrInvoicingOnly
-                    ? "bg-amber-50 text-amber-800 border-amber-200"
-                    : "bg-blue-50 text-blue-800 border-blue-200"
+                  importMode === "DIGITAL_INVOICING"
+                    ? "bg-indigo-50 text-indigo-800 border-indigo-200"
+                    : "bg-emerald-50 text-emerald-800 border-emerald-200"
                 }`}
               >
-                {isFbrInvoicingOnly
-                  ? "Digital Invoicing (Zero Inventory Check)"
-                  : "Accounting & POS (Strict Catalog & Stock Verification)"}
+                {importMode === "DIGITAL_INVOICING"
+                  ? (isFbrInvoicingOnly ? "Digital Invoicing (Zero Inventory Check)" : "B2B Digital Invoicing Mode")
+                  : (isFbrInvoicingOnly ? "Retail POS (Fast Counter Sales)" : "Accounting & POS (Catalog & Stock Sync)")}
               </span>
             </div>
             <h1 className="text-2xl font-bold tracking-tight text-slate-900 font-sans">
               Bulk Upload & Download Sales Invoices
             </h1>
             <p className="text-xs text-slate-500 mt-0.5">
-              {isFbrInvoicingOnly || importMode === "DIGITAL_INVOICING"
+              {importMode === "DIGITAL_INVOICING"
                 ? "Upload spreadsheets with official 28 FBR Digital Invoicing parameters (Scenario, Buyer NTN/CNIC, Province, HS Code, Trade UOM, 18% Sales Tax, 3% Further Tax, SRO). Invoice numbers are auto-generated."
-                : "Upload spreadsheets with full FBR parameters (Scenario, NTN, CNIC, HS Code, UOM, Tax, Extra Tax, Advance Income Tax, SRO)."}
+                : "Upload spreadsheets with Retail POS parameters (Walk-in counter sales allowed, HS Code, UOM, Standard Tax, POS Invoice stamping)."}
             </p>
           </div>
         </div>
@@ -979,11 +1021,9 @@ export default function BulkSalesImportPage() {
             onClick={downloadSampleTemplate}
             className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 shadow-2xs transition"
           >
-            <FileSpreadsheet className={`h-3.5 w-3.5 ${isFbrInvoicingOnly || importMode === "DIGITAL_INVOICING" ? "text-indigo-600" : "text-emerald-600"}`} />
+            <FileSpreadsheet className={`h-3.5 w-3.5 ${importMode === "DIGITAL_INVOICING" ? "text-indigo-600" : "text-emerald-600"}`} />
             <span>
-              {isFbrInvoicingOnly
-                ? "Download Official B2B Template (28 Cols)"
-                : importMode === "DIGITAL_INVOICING"
+              {importMode === "DIGITAL_INVOICING"
                 ? "Download Digital Invoicing Template (28 Cols)"
                 : "Download Retail POS Template (26 Cols)"}
             </span>
@@ -1000,106 +1040,97 @@ export default function BulkSalesImportPage() {
       </div>
 
       {/* Mode Selector & Quick Actions */}
-      {isFbrInvoicingOnly ? (
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3.5 bg-white rounded-2xl border border-indigo-100 shadow-2xs">
-          <div className="flex items-center gap-2.5">
-            <span className="text-xs font-bold text-slate-700 uppercase tracking-wide">
-              Package:
-            </span>
-            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-50 border border-indigo-200 text-xs font-bold text-indigo-700">
-              🛡️ FBR Digital Invoicing (B2B Tax Invoicing)
-            </span>
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 p-3.5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <span className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wide">
+            Mode:
+          </span>
+          <div className="inline-flex rounded-xl bg-slate-100 dark:bg-slate-800 p-1 border border-slate-200 dark:border-slate-700">
+            <button
+              type="button"
+              onClick={() => setImportMode("RETAIL_POS")}
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold rounded-lg transition ${
+                importMode === "RETAIL_POS"
+                  ? "bg-emerald-600 text-white shadow-xs"
+                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+              }`}
+            >
+              <span>🛒 Retail POS (Tier-1 POS Sales)</span>
+              {companyFbrType === "TIER1_POS" && (
+                <span className="text-[10px] bg-emerald-700 text-white px-1.5 py-0.2 rounded-full font-semibold">
+                  Auto
+                </span>
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={() => setImportMode("DIGITAL_INVOICING")}
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold rounded-lg transition ${
+                importMode === "DIGITAL_INVOICING"
+                  ? "bg-indigo-600 text-white shadow-xs"
+                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+              }`}
+            >
+              <span>🛡️ FBR Digital Invoicing (B2B Tax Invoice)</span>
+              {companyFbrType === "DIGITAL_INVOICING" && (
+                <span className="text-[10px] bg-indigo-700 text-white px-1.5 py-0.2 rounded-full font-semibold">
+                  Auto
+                </span>
+              )}
+            </button>
           </div>
 
-          <div className="flex items-center gap-2">
+          {/* Active Company Integration Status */}
+          {activeCompany?.name && (
+            <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/80 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700">
+              <span className={`h-2 w-2 rounded-full ${companyFbrType === "TIER1_POS" ? "bg-emerald-500 animate-pulse" : "bg-indigo-500 animate-pulse"}`} />
+              <span className="font-bold">{activeCompany.name}</span>
+              <span className="text-slate-400">|</span>
+              <span>{companyFbrType === "TIER1_POS" ? "Tier-1 Retail POS" : "B2B Digital Invoicing"}</span>
+            </span>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2">
+          {importMode === "DIGITAL_INVOICING" ? (
             <button
               onClick={downloadDigitalInvoicingTemplate}
               className="inline-flex items-center gap-1.5 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 px-3.5 py-2 rounded-xl transition shadow-2xs"
             >
               <FileSpreadsheet className="h-3.5 w-3.5 text-indigo-600" />
-              Download Official B2B Template (28 Cols)
+              Download B2B Template (28 Cols)
             </button>
-          </div>
+          ) : (
+            <button
+              onClick={downloadRetailPosTemplate}
+              className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-3.5 py-2 rounded-xl transition shadow-2xs"
+            >
+              <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-600" />
+              Download Retail POS Template (26 Cols)
+            </button>
+          )}
         </div>
-      ) : (
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3.5 bg-white rounded-2xl border border-slate-200 shadow-2xs">
-          <div className="flex flex-wrap items-center gap-2.5">
-            <span className="text-xs font-bold text-slate-700 uppercase tracking-wide">
-              Mode:
-            </span>
-            <div className="inline-flex rounded-xl bg-slate-100 p-1 border border-slate-200">
-              <button
-                type="button"
-                onClick={() => setImportMode("DIGITAL_INVOICING")}
-                className={`px-3.5 py-1.5 text-xs font-bold rounded-lg transition ${
-                  importMode === "DIGITAL_INVOICING"
-                    ? "bg-indigo-600 text-white shadow-xs"
-                    : "text-slate-600 hover:text-slate-900"
-                }`}
-              >
-                🛡️ FBR Digital Invoicing (B2B Tax Invoice)
-              </button>
-              <button
-                type="button"
-                onClick={() => setImportMode("RETAIL_POS")}
-                className={`px-3.5 py-1.5 text-xs font-bold rounded-lg transition ${
-                  importMode === "RETAIL_POS"
-                    ? "bg-slate-900 text-white shadow-xs"
-                    : "text-slate-600 hover:text-slate-900"
-                }`}
-              >
-                🛒 Retail POS (Tier-1 POS Sales)
-              </button>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            {importMode === "DIGITAL_INVOICING" ? (
-              <button
-                onClick={downloadDigitalInvoicingTemplate}
-                className="inline-flex items-center gap-1.5 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 px-3 py-1.5 rounded-xl transition"
-              >
-                <FileSpreadsheet className="h-3.5 w-3.5 text-indigo-600" />
-                Download B2B Template (28 Cols)
-              </button>
-            ) : (
-              <button
-                onClick={downloadRetailPosTemplate}
-                className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-3 py-1.5 rounded-xl transition"
-              >
-                <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-600" />
-                Download POS Template (26 Cols)
-              </button>
-            )}
-          </div>
-        </div>
-      )}
+      </div>
 
       {/* Package Rule Banner */}
       <div
         className={`rounded-2xl p-4 border text-xs flex items-start gap-3 ${
           importMode === "DIGITAL_INVOICING"
-            ? "bg-indigo-50/70 border-indigo-200 text-indigo-950"
-            : isFbrInvoicingOnly
-            ? "bg-amber-50/70 border-amber-200 text-amber-900"
-            : "bg-blue-50/70 border-blue-200 text-blue-900"
+            ? "bg-indigo-50/70 border-indigo-200 text-indigo-950 dark:bg-indigo-950/30 dark:border-indigo-900 dark:text-indigo-200"
+            : "bg-emerald-50/70 border-emerald-200 text-emerald-950 dark:bg-emerald-950/30 dark:border-emerald-900 dark:text-emerald-200"
         }`}
       >
-        <Info className="h-5 w-5 shrink-0 mt-0.5 text-indigo-600" />
+        <Info className={`h-5 w-5 shrink-0 mt-0.5 ${importMode === "DIGITAL_INVOICING" ? "text-indigo-600" : "text-emerald-600"}`} />
         <div className="space-y-1">
           <span className="font-bold">
             {importMode === "DIGITAL_INVOICING"
               ? "Statutory FBR Digital Invoicing (B2B) Requirements:"
-              : isFbrInvoicingOnly
-              ? "Simple Digital Invoicing Mode:"
-              : "Accounting & POS Enterprise Mode:"}
+              : "🛒 FBR Tier-1 Retail POS Mode Active:"}
           </span>
           <p className="leading-relaxed">
             {importMode === "DIGITAL_INVOICING"
-              ? "Under FBR Digital Invoicing, multi-item invoices are automatically grouped by Date and Buyer, and official invoice numbers are sequentially generated. Each invoice requires a registered buyer legal name, valid 7-digit NTN (or 13-digit CNIC for unregistered buyers), Province, 4-to-8 digit customs HS code (e.g. 5208.1100), Trade UOM (e.g. MTR, KG, PCS), and standard 18% Sales Tax (+ 3% Further Tax for unregistered buyers). Walk-in counter customers are strictly rejected by PRAL."
-              : isFbrInvoicingOnly
-              ? "In this edition, stock management is disabled. You can import any products freely without registering them in advance. All invoices are stored and queued for FBR compliance."
-              : "In this edition, stock and inventory are fully managed. Every product in the uploaded spreadsheet MUST already exist in your Inventory Catalog (by Name or SKU) to deduct stock and prevent negative discrepancies. Unregistered products will be flagged with an error."}
+              ? "Under FBR Digital Invoicing, multi-item invoices are automatically grouped by Date and Buyer, and official invoice numbers are sequentially generated. Each invoice requires a registered buyer legal name, valid 7-digit NTN (or 13-digit CNIC for unregistered buyers), Province, 4-to-8 digit customs HS code (e.g. 5208.1100), Trade UOM (e.g. MTR, KG, PCS), and standard 18% Sales Tax (+ 3% Further Tax for unregistered corporate buyers). Walk-in counter customers are strictly rejected by PRAL."
+              : "In Retail POS Mode, Walk-in counter customers are 100% permitted. Invoices will be queued for official FBR POS Tier-1 QR stamping. Standard sales tax applies, and retail consumer sales are strictly exempt from B2B 3% Further Tax."}
           </p>
         </div>
       </div>
@@ -1169,14 +1200,14 @@ export default function BulkSalesImportPage() {
         <h3 className="text-base font-bold text-slate-900">
           {fileName
             ? fileName
-            : isFbrInvoicingOnly || importMode === "DIGITAL_INVOICING"
+            : importMode === "DIGITAL_INVOICING"
             ? "Upload FBR Digital Invoicing Spreadsheets (CSV / Excel)"
-            : "Upload CSV / Excel Sales Invoices"}
+            : "Upload Retail POS Spreadsheets (CSV / Excel)"}
         </h3>
         <p className="text-xs text-slate-500 max-w-xl mx-auto mt-1">
-          {isFbrInvoicingOnly || importMode === "DIGITAL_INVOICING"
+          {importMode === "DIGITAL_INVOICING"
             ? "Supports official 28 FBR Digital Invoicing columns: Date, Buyer Legal Name, Registration Type, NTN, CNIC, Province, HS Code, UOM, Qty, Unit Price, 18% Sales Tax, 3% Further Tax, and SRO details (Invoice numbers are auto-generated)."
-            : "Supports official 26 columns: Date, Scenario, Customer Name, NTN, CNIC, HS Code, Product Description, Remarks, UOM, Quantity, Rate, Taxes, Discounts, Advance Tax, and SRO details."}
+            : "Supports official 26 Retail POS columns: Date, Customer Name (Walk-in allowed), Scenario, HS Code, Product Description, Remarks, UOM, Quantity, Rate, Taxes, Discounts, and POS details."}
         </p>
 
         <div className="mt-5 flex items-center justify-center gap-3">
@@ -1196,10 +1227,10 @@ export default function BulkSalesImportPage() {
             onClick={downloadSampleTemplate}
             className="text-xs px-3.5 py-2"
           >
-            <FileSpreadsheet className={`h-4 w-4 mr-1.5 ${isFbrInvoicingOnly || importMode === "DIGITAL_INVOICING" ? "text-indigo-600" : "text-emerald-600"}`} />
-            {isFbrInvoicingOnly || importMode === "DIGITAL_INVOICING"
+            <FileSpreadsheet className={`h-4 w-4 mr-1.5 ${importMode === "DIGITAL_INVOICING" ? "text-indigo-600" : "text-emerald-600"}`} />
+            {importMode === "DIGITAL_INVOICING"
               ? "Download Official B2B Template (28 Cols)"
-              : "Download Sample CSV"}
+              : "Download Retail POS Template (26 Cols)"}
           </Button>
         </div>
       </div>

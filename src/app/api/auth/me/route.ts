@@ -19,20 +19,39 @@ export async function GET(req: NextRequest) {
         if (session.role === "SUPER_ADMIN" || session.role === "ADMIN") {
           accessibleCompanies = await prisma.business.findMany({
             orderBy: { name: "asc" },
+            include: { settings: true },
           });
         } else {
           const memberships = await prisma.businessMember.findMany({
             where: { userId: session.userId },
-            include: { business: true },
+            include: { business: { include: { settings: true } } },
           });
           accessibleCompanies = memberships.map((m: any) => m.business);
         }
+
+        const formatBiz = (b: any) => {
+          if (!b) return b;
+          const sMap: Record<string, string> = {};
+          ((b.settings as any) || []).forEach((s: any) => {
+            sMap[s.key] = s.value;
+          });
+          const intType = sMap["fbr_integration_type"] || (b.packageType === "FBR_INVOICING_ONLY" ? "DIGITAL_INVOICING" : "TIER1_POS");
+          return {
+            ...b,
+            packageType: sMap["software_package_type"] || b.packageType || "FULL_SUITE",
+            integrationType: intType,
+            fbrIntegrationType: intType,
+            fbrPosId: sMap["fbr_pos_id"] || null,
+          };
+        };
+
+        accessibleCompanies = accessibleCompanies.map(formatBiz);
 
         const targetId = activeCookie || session.businessId;
         activeCompany =
           accessibleCompanies.find((c) => c.id === targetId) ||
           accessibleCompanies[0] ||
-          (await prisma.business.findUnique({ where: { id: targetId } }));
+          formatBiz(await prisma.business.findUnique({ where: { id: targetId }, include: { settings: true } }));
       } catch {
         // Fallback store
         if (session.role === "SUPER_ADMIN" || session.role === "ADMIN") {
@@ -46,6 +65,13 @@ export async function GET(req: NextRequest) {
             accessibleCompanies = [fallbackStore.companies[0]];
           }
         }
+
+        accessibleCompanies = accessibleCompanies.map((c: any) => ({
+          ...c,
+          packageType: c.packageType || "FULL_SUITE",
+          integrationType: c.integrationType || (c.packageType === "FBR_INVOICING_ONLY" ? "DIGITAL_INVOICING" : "TIER1_POS"),
+          fbrIntegrationType: c.fbrIntegrationType || c.integrationType || (c.packageType === "FBR_INVOICING_ONLY" ? "DIGITAL_INVOICING" : "TIER1_POS"),
+        }));
 
         const targetId = activeCookie || session.businessId;
         activeCompany =
