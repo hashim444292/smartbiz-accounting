@@ -661,15 +661,21 @@ export default function BulkSalesImportPage() {
       const customerCnic = rawCustomerCnic ? rawCustomerCnic.trim() : undefined;
 
       // When invoice number is omitted from Excel (auto-generated mode):
-      // Group contiguous line items with identical date, buyer, and NTN/CNIC into the same invoice
       let invoiceNumber = rawInvoiceNumber;
       if (!invoiceNumber) {
-        const sig = `${date}_${(customerName || "").toLowerCase().trim()}_${(customerNtn || customerCnic || "").trim()}`;
-        if (sig !== lastBuyerSignature || !sig) {
+        if (!isDigitalFile) {
+          // Strictly 1 Row = 1 Single Invoice in Retail POS (Counter sales)
           autoInvoiceCounter++;
-          lastBuyerSignature = sig;
+          invoiceNumber = `AUTO-${String(autoInvoiceCounter).padStart(5, "0")}`;
+        } else {
+          // Digital Invoicing (B2B): statutory multi-item grouping by date & registered buyer
+          const sig = `${date}_${(customerName || "").toLowerCase().trim()}_${(customerNtn || customerCnic || "").trim()}`;
+          if (sig !== lastBuyerSignature || !sig) {
+            autoInvoiceCounter++;
+            lastBuyerSignature = sig;
+          }
+          invoiceNumber = `AUTO-${String(autoInvoiceCounter).padStart(3, "0")}`;
         }
-        invoiceNumber = `AUTO-${String(autoInvoiceCounter).padStart(3, "0")}`;
       }
 
       const buyerRegistrationType: "Registered" | "Unregistered" =
@@ -1286,15 +1292,15 @@ export default function BulkSalesImportPage() {
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 text-xs">
             <div className="p-3.5 rounded-2xl bg-white border border-slate-200 shadow-2xs">
               <span className="text-[10px] text-slate-400 font-bold uppercase">
-                {effectiveMode === "DIGITAL_INVOICING" ? "Invoices (Grouped)" : "Total Rows"}
+                {effectiveMode === "DIGITAL_INVOICING" ? "Invoices (Grouped)" : "Total Invoices (1 Row = 1 Inv)"}
               </span>
               <p className="text-xl font-bold font-mono text-slate-900 mt-1">
-                {effectiveMode === "DIGITAL_INVOICING" ? distinctInvoicesCount : parsedRows.length}
+                {distinctInvoicesCount}
               </p>
               <span className="text-[10px] text-slate-500">
                 {effectiveMode === "DIGITAL_INVOICING"
                   ? `${parsedRows.length} total line items`
-                  : "In uploaded file"}
+                  : `${parsedRows.length} single POS receipts`}
               </span>
             </div>
 

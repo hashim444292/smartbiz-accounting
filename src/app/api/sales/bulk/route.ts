@@ -212,8 +212,12 @@ function parseSafeDate(input?: string): Date {
       } else if (rawInv.startsWith("AUTO-")) {
         // Group key already determined by frontend CSV parser
         invKey = rawInv;
+      } else if (body.mode === "RETAIL_POS") {
+        // Strictly 1 Row = 1 Single Invoice in Retail POS (Walk-in counter sales)
+        autoGroupIdx++;
+        invKey = `AUTO-POS-${String(autoGroupIdx).padStart(5, "0")}`;
       } else {
-        // Auto-group contiguous rows with matching date + buyer + NTN/CNIC
+        // Auto-group contiguous rows with matching date + buyer + NTN/CNIC (Digital Invoicing / B2B)
         const dateStr = String(row.date || "").trim();
         const buyerName = (row.buyerLegalName || row.buyerName || row.customerName || "").trim().toLowerCase();
         const taxId = (row.customerNtn || row.buyerNtn || row.customerCnic || row.buyerCnic || "").trim();

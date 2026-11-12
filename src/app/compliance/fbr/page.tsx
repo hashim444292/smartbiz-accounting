@@ -1220,7 +1220,7 @@ export default function FbrCompliancePage() {
           </div>
         </div>
 
-        {readyCount > 0 && (
+        {readyCount > 0 && isDigitalInvoicing && (
           <Button
             type="button"
             variant="primary"
