@@ -25,10 +25,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Check authorization: SUPER_ADMIN can switch to any company.
+    // Check authorization: SUPER_ADMIN and ADMIN can switch to any company.
     // Other users can only switch to companies they belong to.
     let isAuthorized =
       session.role === "SUPER_ADMIN" ||
+      session.role === "ADMIN" ||
       session.businessId === businessId ||
       Boolean(session.companyIds?.includes(businessId));
 

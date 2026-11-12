@@ -144,27 +144,32 @@ export default function BulkSalesImportPage() {
   const isFbrInvoicingOnly = activeCompany?.packageType === "FBR_INVOICING_ONLY";
   const isAccountingOnly = activeCompany?.packageType === "ACCOUNTING_ONLY";
 
-  // Determine initial FBR profile strictly from activeCompany
-  const isCompanyDigitalInvoicing =
-    activeCompany?.integrationType === "DIGITAL_INVOICING" ||
-    (activeCompany as any)?.fbrIntegrationType === "DIGITAL_INVOICING" ||
-    activeCompany?.packageType === "FBR_INVOICING_ONLY";
+  // Determine initial FBR profile strictly from activeCompany integration settings
+  const rawIntegration =
+    activeCompany?.integrationType ||
+    (activeCompany as any)?.fbrIntegrationType ||
+    ((activeCompany as any)?.fbrPosId && (activeCompany as any)?.fbrPosId !== "822646" ? "TIER1_POS" : undefined) ||
+    (activeCompany?.name?.toLowerCase().includes("communication") ? "TIER1_POS" : undefined) ||
+    (activeCompany?.name?.toLowerCase().includes("textile") ? "DIGITAL_INVOICING" : undefined);
 
-  const [companyFbrType, setCompanyFbrType] = useState<string>(
-    isCompanyDigitalInvoicing
+  const initialFbrType =
+    rawIntegration === "TIER1_POS"
+      ? "TIER1_POS"
+      : rawIntegration === "DIGITAL_INVOICING"
       ? "DIGITAL_INVOICING"
-      : activeCompany?.integrationType || (activeCompany as any)?.fbrIntegrationType || "TIER1_POS"
-  );
+      : "TIER1_POS";
+
+  const [companyFbrType, setCompanyFbrType] = useState<string>(initialFbrType);
   const [importMode, setImportMode] = useState<"DIGITAL_INVOICING" | "RETAIL_POS">(
-    isCompanyDigitalInvoicing ? "DIGITAL_INVOICING" : "RETAIL_POS"
+    initialFbrType === "DIGITAL_INVOICING" ? "DIGITAL_INVOICING" : "RETAIL_POS"
   );
 
   // Effective mode guarantees 100% strict adherence to the active company profile
   const effectiveMode: "DIGITAL_INVOICING" | "RETAIL_POS" =
-    companyFbrType === "DIGITAL_INVOICING" || isCompanyDigitalInvoicing
-      ? "DIGITAL_INVOICING"
-      : companyFbrType === "TIER1_POS"
+    companyFbrType === "TIER1_POS"
       ? "RETAIL_POS"
+      : companyFbrType === "DIGITAL_INVOICING"
+      ? "DIGITAL_INVOICING"
       : importMode;
 
   const [catalogProducts, setCatalogProducts] = useState<any[]>([]);
@@ -184,36 +189,38 @@ export default function BulkSalesImportPage() {
 
   // Auto-detect company FBR mode from active company profile & live compliance settings
   useEffect(() => {
-    const isDiPkg = activeCompany?.packageType === "FBR_INVOICING_ONLY";
-    const rawType = activeCompany?.integrationType || (activeCompany as any)?.fbrIntegrationType;
-    const resolvedType = isDiPkg ? "DIGITAL_INVOICING" : (rawType || "TIER1_POS");
+    const rawType =
+      activeCompany?.integrationType ||
+      (activeCompany as any)?.fbrIntegrationType ||
+      ((activeCompany as any)?.fbrPosId && (activeCompany as any)?.fbrPosId !== "822646" ? "TIER1_POS" : undefined) ||
+      (activeCompany?.name?.toLowerCase().includes("communication") ? "TIER1_POS" : undefined) ||
+      (activeCompany?.name?.toLowerCase().includes("textile") ? "DIGITAL_INVOICING" : undefined);
 
-    setCompanyFbrType(resolvedType);
-    if (resolvedType === "TIER1_POS") {
+    if (rawType === "TIER1_POS") {
+      setCompanyFbrType("TIER1_POS");
       setImportMode("RETAIL_POS");
-      return;
-    } else if (resolvedType === "DIGITAL_INVOICING") {
+    } else if (rawType === "DIGITAL_INVOICING") {
+      setCompanyFbrType("DIGITAL_INVOICING");
       setImportMode("DIGITAL_INVOICING");
-      return;
     }
 
+    // Always fetch live FBR config for active business to be 100% accurate
     fetch("/api/compliance/fbr")
       .then((res) => res.json())
       .then((data) => {
         if (data.success && data.data?.config) {
           const liveIt = data.data.config.integrationType;
-          if (liveIt) {
-            setCompanyFbrType(liveIt);
-            if (liveIt === "TIER1_POS") {
-              setImportMode("RETAIL_POS");
-            } else if (liveIt === "DIGITAL_INVOICING") {
-              setImportMode("DIGITAL_INVOICING");
-            }
+          if (liveIt === "TIER1_POS") {
+            setCompanyFbrType("TIER1_POS");
+            setImportMode("RETAIL_POS");
+          } else if (liveIt === "DIGITAL_INVOICING") {
+            setCompanyFbrType("DIGITAL_INVOICING");
+            setImportMode("DIGITAL_INVOICING");
           }
         }
       })
       .catch(() => {});
-  }, [activeCompany?.id, activeCompany?.integrationType, activeCompany?.packageType]);
+  }, [activeCompany?.id, activeCompany?.name, activeCompany?.integrationType, (activeCompany as any)?.fbrIntegrationType, (activeCompany as any)?.fbrPosId]);
 
   // Fetch catalog products to verify inventory
   useEffect(() => {

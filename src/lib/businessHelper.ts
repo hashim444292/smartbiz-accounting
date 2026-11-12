@@ -49,13 +49,13 @@ export async function getActiveBusinessId(req?: NextRequest): Promise<string> {
   // 2. Validate candidate business against authenticated user's authorized companies
   let validatedBusinessId: string | null = null;
   if (session) {
-    const isSuperAdmin = session.role === "SUPER_ADMIN";
+    const isPlatformAdmin = session.role === "SUPER_ADMIN" || session.role === "ADMIN";
     const userCompanyIds = Array.isArray(session.companyIds) && session.companyIds.length > 0
       ? session.companyIds
       : (session.businessId ? [session.businessId] : []);
 
     if (candidate) {
-      if (isSuperAdmin || userCompanyIds.includes(candidate)) {
+      if (isPlatformAdmin || userCompanyIds.includes(candidate)) {
         validatedBusinessId = candidate;
       } else if (process.env.DATABASE_URL) {
         try {

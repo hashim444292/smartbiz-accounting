@@ -1084,7 +1084,7 @@ export default function CreateSalePage() {
 
     // Digital Invoicing (FBR DI / B2B) ALWAYS generates a single consolidated invoice.
     // Multi-piece split invoicing is strictly for Retail POS (TIER1_POS) where items are sold in discrete pieces (PCS).
-    const isDigitalInvoice = fbrInvoiceType === "DIGITAL_INVOICING" || activeCompany?.packageType === "FBR_INVOICING_ONLY";
+    const isDigitalInvoice = fbrInvoiceType === "DIGITAL_INVOICING";
     const isDiscretePieceUnit = items.every((it) => {
       const u = (it.uom || "").toUpperCase();
       return u === "PCS" || u === "PIECE" || u === "PIECES" || u === "UNIT" || u === "UNITS" || !u;

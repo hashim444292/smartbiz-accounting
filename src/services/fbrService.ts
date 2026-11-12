@@ -513,9 +513,15 @@ export async function getFbrConfig(businessId: string): Promise<FbrConfig> {
   const token = getSetting("fbr_token") || (business as any)?.token || process.env.FBR_SANDBOX_TOKEN || "";
   const posToken = getSetting("fbr_pos_token") || (business as any)?.posToken || (token.startsWith("7c8ba514") ? token : (token === "N/A" ? "N/A" : "7c8ba514-1b87-37a6-bda7-162c95c4d826"));
   const diToken = getSetting("fbr_di_token") || (business as any)?.diToken || (token.startsWith("121f8deb") ? token : (token === "N/A" ? "N/A" : "121f8deb-bb81-3e13-b49d-87f3b6792fe2"));
-  const integrationType = (getSetting("fbr_integration_type") || (business as any)?.integrationType || "DIGITAL_INVOICING") as "DIGITAL_INVOICING" | "TIER1_POS" | "BOTH";
-  const environment = (getSetting("fbr_env") || (business as any)?.environment || "sandbox") as "sandbox" | "production";
   const posId = getSetting("fbr_pos_id") || (business as any)?.posId || "200871";
+  const integrationType = (
+    getSetting("fbr_integration_type") ||
+    (business as any)?.integrationType ||
+    (business?.name?.toLowerCase().includes("communication") ? "TIER1_POS" : undefined) ||
+    (business?.name?.toLowerCase().includes("textile") ? "DIGITAL_INVOICING" : undefined) ||
+    (posId && posId !== "822646" ? "TIER1_POS" : "DIGITAL_INVOICING")
+  ) as "DIGITAL_INVOICING" | "TIER1_POS" | "BOTH";
+  const environment = (getSetting("fbr_env") || (business as any)?.environment || "sandbox") as "sandbox" | "production";
 
   const scenarioId = getSetting("fbr_scenario_id") || "SN000";
   const autoSync = getSetting("fbr_auto_sync") === "true";

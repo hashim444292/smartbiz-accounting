@@ -170,6 +170,10 @@ export function Sidebar({
   const userRole = user?.role || "STAFF";
   const isPlatformMode = (userRole === "SUPER_ADMIN" || userRole === "ADMIN") && !isInspectingClient;
   const isFbrInvoicingOnly = activeCompany?.packageType === "FBR_INVOICING_ONLY";
+  const isDigitalInvoicing =
+    activeCompany?.integrationType === "DIGITAL_INVOICING" ||
+    (activeCompany as any)?.fbrIntegrationType === "DIGITAL_INVOICING" ||
+    (activeCompany?.name?.toLowerCase().includes("textile") ?? false);
 
   // Stock & Accounts live totals (Inventory, Receivables, Payables)
   const [stockTotals, setStockTotals] = useState<{
@@ -466,7 +470,7 @@ export function Sidebar({
                     const displayName = language === "ur"
                       ? (isFbrInvoicingOnly && item.href === "/reports"
                           ? "سیلز رپورٹس و ڈاؤنلوڈ"
-                          : isFbrInvoicingOnly && item.href === "/customers"
+                          : isDigitalInvoicing && item.href === "/customers"
                           ? "رجسٹرڈ خریدار (DI)"
                           : isFbrInvoicingOnly && item.href === "/products"
                           ? "پروڈکٹس کیٹلاگ"
@@ -475,7 +479,7 @@ export function Sidebar({
                           : (item.nameUrdu || item.name))
                       : (isFbrInvoicingOnly && item.href === "/reports"
                           ? "Sales Reports & Downloads"
-                          : isFbrInvoicingOnly && item.href === "/customers"
+                          : isDigitalInvoicing && item.href === "/customers"
                           ? "Registered Buyers (DI)"
                           : isFbrInvoicingOnly && item.href === "/products"
                           ? "Products & Rates"

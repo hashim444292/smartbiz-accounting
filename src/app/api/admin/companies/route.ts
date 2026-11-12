@@ -43,8 +43,13 @@ export async function GET(req: NextRequest) {
         });
         const fbrToken = fbrMap["fbr_token"] || "";
         const fbrEnv = fbrMap["fbr_env"] || "sandbox";
-        const fbrIntegrationType = fbrMap["fbr_integration_type"] || "DIGITAL_INVOICING";
         const fbrPosId = fbrMap["fbr_pos_id"] || "822646";
+        const fbrIntegrationType =
+          fbrMap["fbr_integration_type"] ||
+          (fbrPosId && fbrPosId !== "822646" ? "TIER1_POS" : undefined) ||
+          (c.name?.toLowerCase().includes("communication") ? "TIER1_POS" : undefined) ||
+          (c.name?.toLowerCase().includes("textile") ? "DIGITAL_INVOICING" : undefined) ||
+          "DIGITAL_INVOICING";
         const fbrScenarioId = fbrMap["fbr_scenario_id"] || "SN000";
         const fbrAutoSync = fbrMap["fbr_auto_sync"] === "true";
 
@@ -75,6 +80,7 @@ export async function GET(req: NextRequest) {
           subscriptionStatus: (c as any).subscriptionStatus || "ACTIVE",
           paymentStatus: c.paymentStatus || "UNPAID",
           packageType: (c as any).packageType || "FULL_SUITE",
+          integrationType: fbrIntegrationType,
           fbrToken,
           fbrEnv,
           fbrIntegrationType,

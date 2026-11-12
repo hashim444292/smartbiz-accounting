@@ -35,7 +35,12 @@ export async function GET(req: NextRequest) {
           ((b.settings as any) || []).forEach((s: any) => {
             sMap[s.key] = s.value;
           });
-          const intType = sMap["fbr_integration_type"] || (b.packageType === "FBR_INVOICING_ONLY" ? "DIGITAL_INVOICING" : "TIER1_POS");
+          const intType =
+            sMap["fbr_integration_type"] ||
+            (sMap["fbr_pos_id"] && sMap["fbr_pos_id"] !== "822646" ? "TIER1_POS" : undefined) ||
+            (b.name?.toLowerCase().includes("communication") ? "TIER1_POS" : undefined) ||
+            (b.name?.toLowerCase().includes("textile") ? "DIGITAL_INVOICING" : undefined) ||
+            "TIER1_POS";
           return {
             ...b,
             packageType: sMap["software_package_type"] || b.packageType || "FULL_SUITE",
@@ -66,12 +71,20 @@ export async function GET(req: NextRequest) {
           }
         }
 
-        accessibleCompanies = accessibleCompanies.map((c: any) => ({
-          ...c,
-          packageType: c.packageType || "FULL_SUITE",
-          integrationType: c.integrationType || (c.packageType === "FBR_INVOICING_ONLY" ? "DIGITAL_INVOICING" : "TIER1_POS"),
-          fbrIntegrationType: c.fbrIntegrationType || c.integrationType || (c.packageType === "FBR_INVOICING_ONLY" ? "DIGITAL_INVOICING" : "TIER1_POS"),
-        }));
+        accessibleCompanies = accessibleCompanies.map((c: any) => {
+          const fallbackInt =
+            c.integrationType ||
+            c.fbrIntegrationType ||
+            (c.name?.toLowerCase().includes("communication") ? "TIER1_POS" : undefined) ||
+            (c.name?.toLowerCase().includes("textile") ? "DIGITAL_INVOICING" : undefined) ||
+            "TIER1_POS";
+          return {
+            ...c,
+            packageType: c.packageType || "FULL_SUITE",
+            integrationType: fallbackInt,
+            fbrIntegrationType: fallbackInt,
+          };
+        });
 
         const targetId = activeCookie || session.businessId;
         activeCompany =
