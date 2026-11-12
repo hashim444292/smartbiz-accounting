@@ -37,10 +37,7 @@ export async function GET(req: NextRequest) {
           });
           const intType =
             sMap["fbr_integration_type"] ||
-            (sMap["fbr_pos_id"] && sMap["fbr_pos_id"] !== "822646" ? "TIER1_POS" : undefined) ||
-            (b.name?.toLowerCase().includes("communication") ? "TIER1_POS" : undefined) ||
-            (b.name?.toLowerCase().includes("textile") ? "DIGITAL_INVOICING" : undefined) ||
-            "TIER1_POS";
+            (sMap["fbr_pos_id"] ? "TIER1_POS" : "DIGITAL_INVOICING");
           return {
             ...b,
             packageType: sMap["software_package_type"] || b.packageType || "FULL_SUITE",
@@ -75,9 +72,7 @@ export async function GET(req: NextRequest) {
           const fallbackInt =
             c.integrationType ||
             c.fbrIntegrationType ||
-            (c.name?.toLowerCase().includes("communication") ? "TIER1_POS" : undefined) ||
-            (c.name?.toLowerCase().includes("textile") ? "DIGITAL_INVOICING" : undefined) ||
-            "TIER1_POS";
+            (c.posId ? "TIER1_POS" : "DIGITAL_INVOICING");
           return {
             ...c,
             packageType: c.packageType || "FULL_SUITE",

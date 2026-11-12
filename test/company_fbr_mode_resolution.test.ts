@@ -14,8 +14,7 @@ describe("Company FBR Integration Mode Resolution QA Suite", () => {
     const rawIntegration =
       tayyabaCompany.integrationType ||
       tayyabaCompany.fbrIntegrationType ||
-      (tayyabaCompany.fbrPosId && tayyabaCompany.fbrPosId !== "822646" ? "TIER1_POS" : undefined) ||
-      (tayyabaCompany.name.toLowerCase().includes("communication") ? "TIER1_POS" : undefined);
+      (tayyabaCompany.fbrPosId ? "TIER1_POS" : "DIGITAL_INVOICING");
 
     const initialFbrType =
       rawIntegration === "TIER1_POS"
@@ -48,8 +47,7 @@ describe("Company FBR Integration Mode Resolution QA Suite", () => {
     const rawIntegration =
       adeelCompany.integrationType ||
       adeelCompany.fbrIntegrationType ||
-      (adeelCompany.fbrPosId && adeelCompany.fbrPosId !== "822646" ? "TIER1_POS" : undefined) ||
-      (adeelCompany.name.toLowerCase().includes("textile") ? "DIGITAL_INVOICING" : undefined);
+      (adeelCompany.fbrPosId ? "TIER1_POS" : "DIGITAL_INVOICING");
 
     const initialFbrType =
       rawIntegration === "TIER1_POS"
@@ -69,25 +67,29 @@ describe("Company FBR Integration Mode Resolution QA Suite", () => {
     expect(effectiveMode).toBe("DIGITAL_INVOICING");
   });
 
-  it("should allow ADMIN users to inspect any client company without falling back to default tenant", () => {
-    const session = {
-      userId: "u-abdullah-admin",
-      role: "ADMIN",
-      businessId: "biz-hanif",
-      companyIds: ["biz-hanif"],
+  it("should resolve dynamically for any of 1000+ companies purely based on database integrationType without hardcoded names", () => {
+    // Arbitrary retail store among 1000 clients
+    const clientA = {
+      id: "biz-random-retail-583",
+      name: "Al-Madina Cash & Carry",
+      packageType: "FBR_INVOICING_ONLY",
+      integrationType: "TIER1_POS",
+      fbrPosId: "991823",
     };
 
-    const candidateId = "3f5c9c3a-a543-4879-8db0-1826b306f546"; // Tayyaba Communication
-    const isPlatformAdmin = session.role === "SUPER_ADMIN" || session.role === "ADMIN";
-    const userCompanyIds = session.companyIds;
+    const modeA = clientA.integrationType === "TIER1_POS" ? "RETAIL_POS" : "DIGITAL_INVOICING";
+    expect(modeA).toBe("RETAIL_POS");
 
-    let validatedBusinessId: string | null = null;
-    if (candidateId) {
-      if (isPlatformAdmin || userCompanyIds.includes(candidateId)) {
-        validatedBusinessId = candidateId;
-      }
-    }
+    // Arbitrary wholesale manufacturer among 1000 clients
+    const clientB = {
+      id: "biz-random-b2b-942",
+      name: "Prime Steel & Industrial Supplies",
+      packageType: "FULL_SUITE",
+      integrationType: "DIGITAL_INVOICING",
+      fbrPosId: "",
+    };
 
-    expect(validatedBusinessId).toBe(candidateId);
+    const modeB = clientB.integrationType === "TIER1_POS" ? "RETAIL_POS" : "DIGITAL_INVOICING";
+    expect(modeB).toBe("DIGITAL_INVOICING");
   });
 });

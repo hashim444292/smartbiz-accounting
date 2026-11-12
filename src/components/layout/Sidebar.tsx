@@ -172,8 +172,7 @@ export function Sidebar({
   const isFbrInvoicingOnly = activeCompany?.packageType === "FBR_INVOICING_ONLY";
   const isDigitalInvoicing =
     activeCompany?.integrationType === "DIGITAL_INVOICING" ||
-    (activeCompany as any)?.fbrIntegrationType === "DIGITAL_INVOICING" ||
-    (activeCompany?.name?.toLowerCase().includes("textile") ?? false);
+    (activeCompany as any)?.fbrIntegrationType === "DIGITAL_INVOICING";
 
   // Stock & Accounts live totals (Inventory, Receivables, Payables)
   const [stockTotals, setStockTotals] = useState<{

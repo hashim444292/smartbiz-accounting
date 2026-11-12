@@ -43,13 +43,10 @@ export async function GET(req: NextRequest) {
         });
         const fbrToken = fbrMap["fbr_token"] || "";
         const fbrEnv = fbrMap["fbr_env"] || "sandbox";
-        const fbrPosId = fbrMap["fbr_pos_id"] || "822646";
+        const fbrPosId = fbrMap["fbr_pos_id"] || "";
         const fbrIntegrationType =
           fbrMap["fbr_integration_type"] ||
-          (fbrPosId && fbrPosId !== "822646" ? "TIER1_POS" : undefined) ||
-          (c.name?.toLowerCase().includes("communication") ? "TIER1_POS" : undefined) ||
-          (c.name?.toLowerCase().includes("textile") ? "DIGITAL_INVOICING" : undefined) ||
-          "DIGITAL_INVOICING";
+          (fbrPosId ? "TIER1_POS" : "DIGITAL_INVOICING");
         const fbrScenarioId = fbrMap["fbr_scenario_id"] || "SN000";
         const fbrAutoSync = fbrMap["fbr_auto_sync"] === "true";
 

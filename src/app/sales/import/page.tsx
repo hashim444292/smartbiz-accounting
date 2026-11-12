@@ -148,9 +148,7 @@ export default function BulkSalesImportPage() {
   const rawIntegration =
     activeCompany?.integrationType ||
     (activeCompany as any)?.fbrIntegrationType ||
-    ((activeCompany as any)?.fbrPosId && (activeCompany as any)?.fbrPosId !== "822646" ? "TIER1_POS" : undefined) ||
-    (activeCompany?.name?.toLowerCase().includes("communication") ? "TIER1_POS" : undefined) ||
-    (activeCompany?.name?.toLowerCase().includes("textile") ? "DIGITAL_INVOICING" : undefined);
+    ((activeCompany as any)?.fbrPosId ? "TIER1_POS" : "DIGITAL_INVOICING");
 
   const initialFbrType =
     rawIntegration === "TIER1_POS"
@@ -192,9 +190,7 @@ export default function BulkSalesImportPage() {
     const rawType =
       activeCompany?.integrationType ||
       (activeCompany as any)?.fbrIntegrationType ||
-      ((activeCompany as any)?.fbrPosId && (activeCompany as any)?.fbrPosId !== "822646" ? "TIER1_POS" : undefined) ||
-      (activeCompany?.name?.toLowerCase().includes("communication") ? "TIER1_POS" : undefined) ||
-      (activeCompany?.name?.toLowerCase().includes("textile") ? "DIGITAL_INVOICING" : undefined);
+      ((activeCompany as any)?.fbrPosId ? "TIER1_POS" : "DIGITAL_INVOICING");
 
     if (rawType === "TIER1_POS") {
       setCompanyFbrType("TIER1_POS");
@@ -220,7 +216,7 @@ export default function BulkSalesImportPage() {
         }
       })
       .catch(() => {});
-  }, [activeCompany?.id, activeCompany?.name, activeCompany?.integrationType, (activeCompany as any)?.fbrIntegrationType, (activeCompany as any)?.fbrPosId]);
+  }, [activeCompany?.id, activeCompany?.integrationType, (activeCompany as any)?.fbrIntegrationType, (activeCompany as any)?.fbrPosId]);
 
   // Fetch catalog products to verify inventory
   useEffect(() => {
