@@ -14,6 +14,7 @@ import { useAuth } from "@/context/AuthContext";
 import { invalidateCache } from "@/lib/clientCache";
 import { SalesReturnModal } from "@/components/sales/SalesReturnModal";
 import { SalesEditModal } from "@/components/sales/SalesEditModal";
+import { extractCreditNoteInfo } from "@/lib/fbrRowActions";
 
 export default function SaleDetailPage() {
   const { t, language } = useLanguage();
@@ -347,40 +348,54 @@ export default function SaleDetailPage() {
             <span>Back to Sales</span>
           </Link>
           <div className="flex items-center gap-2">
-            {sale.status === "CANCELLED" ? (
-              <Badge variant="danger" className="text-xs px-2.5 py-1 font-semibold">
-                {language === "ur" ? "منسوخ / مکمل واپسی شدہ" : "Returned / Cancelled"}
-              </Badge>
-            ) : (
-              <>
-                {sale.isPartialReturn && sale.status === "POSTED" && (
-                  <Badge variant="warning" className="text-xs px-2.5 py-1 font-semibold flex items-center gap-1">
-                    <RotateCcw className="h-3 w-3" />
-                    <span>{language === "ur" ? "جزوی واپسی شدہ" : "Partially Returned"}</span>
-                    <span className="font-mono text-[11px]">(-Rs. {formatMoney(sale.totalReturnedAmount || 0)})</span>
+            {(() => {
+              const cnInfo = extractCreditNoteInfo(sale);
+              if (cnInfo.hasCreditNote) {
+                return (
+                  <span className="inline-flex items-center gap-1.5 rounded-lg border border-purple-200 bg-purple-50 px-2.5 py-1 text-xs font-bold text-purple-800 shadow-2xs">
+                    <RotateCcw className="h-3.5 w-3.5 text-purple-600" />
+                    <span>FBR Credit Note Applied{cnInfo.creditNoteNumber ? `: #${cnInfo.creditNoteNumber}` : ""}</span>
+                  </span>
+                );
+              }
+              if (sale.status === "CANCELLED") {
+                return (
+                  <Badge variant="danger" className="text-xs px-2.5 py-1 font-semibold">
+                    {language === "ur" ? "منسوخ / مکمل واپسی شدہ" : "Returned / Cancelled"}
                   </Badge>
-                )}
-                {sale.status === "POSTED" && sale.hasReturnableItems !== false && !(sale.fbrStatus === "SUCCESS" && (sale.fbrInvoiceNumber?.includes("DI") || isDigitalInvoicing)) && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleInitiateReturn}
-                    disabled={isReversing}
-                    className="flex items-center gap-1.5 font-semibold text-rose-600 hover:text-rose-700 hover:bg-rose-50 border-rose-200 dark:border-rose-900 shadow-2xs"
-                  >
-                    <RotateCcw className={`h-3.5 w-3.5 ${isReversing ? "animate-spin" : ""}`} />
-                    <span>
-                      {isReversing
-                        ? (language === "ur" ? "واپسی جاری..." : "Processing Return...")
-                        : (sale.fbrStatus === "SUCCESS" && sale.fbrInvoiceNumber
-                            ? (language === "ur" ? "FBR واپسی (Credit Note)" : "Return / Credit Note")
-                            : (language === "ur" ? "آئٹم وائز واپسی / Return" : "Return Items / Sale"))
-                      }
-                    </span>
-                  </Button>
-                )}
-              </>
-            )}
+                );
+              }
+              return (
+                <>
+                  {sale.isPartialReturn && sale.status === "POSTED" && (
+                    <Badge variant="warning" className="text-xs px-2.5 py-1 font-semibold flex items-center gap-1">
+                      <RotateCcw className="h-3 w-3" />
+                      <span>{language === "ur" ? "جزوی واپسی شدہ" : "Partially Returned"}</span>
+                      <span className="font-mono text-[11px]">(-Rs. {formatMoney(sale.totalReturnedAmount || 0)})</span>
+                    </Badge>
+                  )}
+                  {sale.status === "POSTED" && sale.hasReturnableItems !== false && !(sale.fbrStatus === "SUCCESS" && (sale.fbrInvoiceNumber?.includes("DI") || isDigitalInvoicing)) && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleInitiateReturn}
+                      disabled={isReversing}
+                      className="flex items-center gap-1.5 font-semibold text-rose-600 hover:text-rose-700 hover:bg-rose-50 border-rose-200 dark:border-rose-900 shadow-2xs"
+                    >
+                      <RotateCcw className={`h-3.5 w-3.5 ${isReversing ? "animate-spin" : ""}`} />
+                      <span>
+                        {isReversing
+                          ? (language === "ur" ? "واپسی جاری..." : "Processing Return...")
+                          : (sale.fbrStatus === "SUCCESS" && sale.fbrInvoiceNumber
+                              ? (language === "ur" ? "FBR واپسی (Credit Note)" : "Return / Credit Note")
+                              : (language === "ur" ? "آئٹم وائز واپسی / Return" : "Return Items / Sale"))
+                        }
+                      </span>
+                    </Button>
+                  )}
+                </>
+              );
+            })()}
             {sale.status !== "CANCELLED" && (
               <Button
                 variant="outline"
@@ -509,24 +524,53 @@ export default function SaleDetailPage() {
                 Document #:{" "}
                 <span className="font-bold text-slate-900 font-mono">{sale.invoiceNumber}</span>
               </p>
-              {sale.status === "CANCELLED" && (
-                <div className="inline-block px-2 py-0.5 text-[11px] font-bold uppercase rounded bg-rose-100 text-rose-800 border border-rose-300">
-                  {language === "ur" ? "منسوخ / واپسی شدہ (CANCELLED / RETURNED)" : "CANCELLED / RETURNED"}
-                </div>
-              )}
+              {(() => {
+                const cnInfo = extractCreditNoteInfo(sale);
+                if (cnInfo.hasCreditNote) {
+                  return (
+                    <div className="inline-block px-2 py-0.5 text-[11px] font-bold uppercase rounded bg-purple-100 text-purple-900 border border-purple-300">
+                      {language === "ur" ? "FBR کریڈٹ نوٹ لاگو شدہ (REVERSED VIA CN)" : "REVERSED VIA FBR CREDIT NOTE"}
+                    </div>
+                  );
+                }
+                if (sale.status === "CANCELLED") {
+                  return (
+                    <div className="inline-block px-2 py-0.5 text-[11px] font-bold uppercase rounded bg-rose-100 text-rose-800 border border-rose-300">
+                      {language === "ur" ? "منسوخ / واپسی شدہ (CANCELLED / RETURNED)" : "CANCELLED / RETURNED"}
+                    </div>
+                  );
+                }
+                return null;
+              })()}
               <p className="text-xs text-slate-600">
                 Date: <span className="font-medium text-slate-800">{formattedDate}</span>
               </p>
-              {realFbrInvoiceNumber ? (
-                <p className="text-xs text-slate-600 font-mono">
-                  FBR Ref:{" "}
-                  <span className="font-bold text-slate-900">{realFbrInvoiceNumber}</span>
-                </p>
-              ) : isTaxInvoice ? (
-                <p className="text-xs text-amber-700 font-mono font-medium">
-                  FBR Ref: <span>Pending Transmission</span>
-                </p>
-              ) : null}
+              {(() => {
+                const cnInfo = extractCreditNoteInfo(sale);
+                if (realFbrInvoiceNumber) {
+                  return (
+                    <div className="flex flex-col gap-0.5">
+                      <p className="text-xs text-slate-600 font-mono">
+                        FBR Ref:{" "}
+                        <span className={cnInfo.hasCreditNote ? "line-through text-slate-400 font-bold" : "font-bold text-slate-900"}>{realFbrInvoiceNumber}</span>
+                      </p>
+                      {cnInfo.hasCreditNote && (
+                        <p className="text-xs text-purple-800 font-mono font-bold">
+                          FBR Credit Note: <span>{cnInfo.creditNoteNumber ? `#${cnInfo.creditNoteNumber}` : "Acknowledged / Reversed"}</span>
+                        </p>
+                      )}
+                    </div>
+                  );
+                }
+                if (isTaxInvoice) {
+                  return (
+                    <p className="text-xs text-amber-700 font-mono font-medium">
+                      FBR Ref: <span>Pending Transmission</span>
+                    </p>
+                  );
+                }
+                return null;
+              })()}
             </div>
           </div>
 

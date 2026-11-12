@@ -118,6 +118,16 @@ export default function FbrCompliancePage() {
   const [isTransmittingCreditNotes, setIsTransmittingCreditNotes] = useState(false);
 
   const handleTransmitCreditNote = async (inv: any) => {
+    const actionVis = getFbrRowActionVisibility(inv, { isDigitalInvoicing });
+    if (actionVis.hasCreditNote) {
+      alert(
+        language === "ur"
+          ? `اس انوائس (#${inv.invoiceNumber}) پر پہلے ہی FBR کریڈٹ نوٹ جاری ہو چکا ہے (${actionVis.creditNoteNumber || ""})۔ ڈپلیکیٹ ارسال کرنا ممنوع ہے۔`
+          : `Invoice #${inv.invoiceNumber} already has an official FBR Credit Note applied (${actionVis.creditNoteNumber || ""}). Duplicate transmission is blocked.`
+      );
+      return;
+    }
+
     const confirmPrompt = language === "ur"
       ? `کیا آپ انوائس #${inv.invoiceNumber} (${inv.fbrInvoiceNumber || ""}) کے لیے FBR پر باقاعدہ Credit Note (InvoiceType 3 - واپسی) ارسال کرنا چاہتے ہیں؟\n\n- اس سے FBR پورٹل پر اس انوائس کی سیلز اور ٹیکس کی رقم مائنس / ریورس ہو جائے گی۔\n- یہ عمل FBR پورٹل پر ڈپلیکیٹ انوائسز کو کینسل کرنے کے لیے استعمال ہوتا ہے۔`
       : `Transmit official FBR Credit Note (InvoiceType 3 - Return) for invoice #${inv.invoiceNumber} (${inv.fbrInvoiceNumber || ""}) to FBR?\n\n- This will reverse the sales and tax on the FBR portal.\n- Used to negate duplicate FBR entries.`;
@@ -1740,30 +1750,40 @@ export default function FbrCompliancePage() {
                       {/* FBR Status */}
                       <td className="py-3 px-3 text-center">
                         <div className="inline-flex flex-col items-center gap-0.5">
-                          <span
-                            className={`text-[10px] font-bold px-2 py-0.5 rounded-full inline-flex items-center gap-1 ${
-                              isSuccess
-                                ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                          {actionVis.hasCreditNote ? (
+                            <span
+                              className="text-[10px] font-bold px-2 py-0.5 rounded-full inline-flex items-center gap-1 bg-purple-50 text-purple-700 border border-purple-200"
+                              title={`Official FBR Credit Note Applied${actionVis.creditNoteNumber ? `: #${actionVis.creditNoteNumber}` : ""}`}
+                            >
+                              <RotateCcw className="h-3 w-3 text-purple-600" />
+                              <span>Credit Note Applied</span>
+                            </span>
+                          ) : (
+                            <span
+                              className={`text-[10px] font-bold px-2 py-0.5 rounded-full inline-flex items-center gap-1 ${
+                                isSuccess
+                                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                  : isFailed
+                                  ? "bg-rose-50 text-rose-700 border border-rose-200"
+                                  : isEligibleToHit
+                                  ? "bg-indigo-50 text-indigo-800 border border-indigo-200"
+                                  : "bg-amber-50 text-amber-800 border border-amber-300"
+                              }`}
+                              title={fbrErrorMessage || undefined}
+                            >
+                              {isSuccess && <Check className="h-3 w-3" />}
+                              {isFailed && <AlertTriangle className="h-3 w-3 text-rose-600" />}
+                              {isEligibleToHit && !isFailed && <Zap className="h-3 w-3 text-indigo-600" />}
+                              {!isEligibleToHit && isPending && <Lock className="h-2.5 w-2.5 text-amber-700" />}
+                              {isSuccess
+                                ? "FBR Stamped"
                                 : isFailed
-                                ? "bg-rose-50 text-rose-700 border border-rose-200"
+                                ? (isFullyPaid ? "Failed (Retry)" : "Failed")
                                 : isEligibleToHit
-                                ? "bg-indigo-50 text-indigo-800 border border-indigo-200"
-                                : "bg-amber-50 text-amber-800 border border-amber-300"
-                            }`}
-                            title={fbrErrorMessage || undefined}
-                          >
-                            {isSuccess && <Check className="h-3 w-3" />}
-                            {isFailed && <AlertTriangle className="h-3 w-3 text-rose-600" />}
-                            {isEligibleToHit && !isFailed && <Zap className="h-3 w-3 text-indigo-600" />}
-                            {!isEligibleToHit && isPending && <Lock className="h-2.5 w-2.5 text-amber-700" />}
-                            {isSuccess
-                              ? "FBR Stamped"
-                              : isFailed
-                              ? (isFullyPaid ? "Failed (Retry)" : "Failed")
-                              : isEligibleToHit
-                              ? "Ready to Hit"
-                              : "Awaiting Full Pay"}
-                          </span>
+                                ? "Ready to Hit"
+                                : "Awaiting Full Pay"}
+                            </span>
+                          )}
                           {isFailed && fbrErrorMessage && (
                             <span
                               className="text-[9px] text-rose-600 max-w-[130px] truncate font-medium cursor-help"
@@ -1777,15 +1797,26 @@ export default function FbrCompliancePage() {
 
                       {/* FBR Reference */}
                       <td className="py-3 px-3 text-center font-mono text-[11px]">
-                        {inv.fbrInvoiceNumber ? (
-                          <span className="text-blue-700 font-semibold">
-                            {inv.fbrInvoiceNumber}
-                          </span>
-                        ) : (
-                          <span className="text-slate-400 text-[10px] italic">
-                            Un-transmitted
-                          </span>
-                        )}
+                        <div className="flex flex-col items-center gap-0.5">
+                          {inv.fbrInvoiceNumber ? (
+                            <span className={actionVis.hasCreditNote ? "text-slate-400 line-through text-[10px]" : "text-blue-700 font-semibold"}>
+                              {inv.fbrInvoiceNumber}
+                            </span>
+                          ) : (
+                            <span className="text-slate-400 text-[10px] italic">
+                              Un-transmitted
+                            </span>
+                          )}
+                          {actionVis.hasCreditNote && actionVis.creditNoteNumber && (
+                            <span
+                              className="text-[10px] font-bold text-purple-700 bg-purple-50 px-1.5 py-0.2 rounded border border-purple-200 inline-flex items-center gap-1 font-sans"
+                              title={`FBR Credit Note Number: ${actionVis.creditNoteNumber}`}
+                            >
+                              <span className="text-[9px] uppercase font-bold text-purple-500">CN:</span>
+                              <span className="font-mono">{actionVis.creditNoteNumber}</span>
+                            </span>
+                          )}
+                        </div>
                       </td>
 
                       {/* Action Button */}
@@ -1824,7 +1855,15 @@ export default function FbrCompliancePage() {
                             </>
                           )}
 
-                          {actionVis.showCreditNote && (
+                          {actionVis.hasCreditNote ? (
+                            <span
+                              className="inline-flex items-center gap-1 rounded-lg border border-purple-200 bg-purple-50 px-2 py-1 text-[11px] font-bold text-purple-800 shadow-2xs cursor-not-allowed opacity-90"
+                              title={`Duplicate prevented: FBR Credit Note already applied (${actionVis.creditNoteNumber || "Reversed"}).`}
+                            >
+                              <CheckCircle2 className="h-3 w-3 text-purple-600" />
+                              <span>CN Applied</span>
+                            </span>
+                          ) : actionVis.showCreditNote ? (
                             <button
                               type="button"
                               onClick={() => handleTransmitCreditNote(inv)}
@@ -1835,7 +1874,7 @@ export default function FbrCompliancePage() {
                               <RotateCcw className={`h-3 w-3 ${transmittingCreditNoteId === inv.id ? "animate-spin text-amber-700" : ""}`} />
                               <span>Credit Note</span>
                             </button>
-                          )}
+                          ) : null}
 
                           {actionVis.showHitFbr && (
                             <Button
@@ -2723,11 +2762,12 @@ export default function FbrCompliancePage() {
                       type="button"
                       onClick={() => {
                         const stamped = (complianceData?.recentInvoices || []).filter((s: any) => s.fbrStatus === "SUCCESS");
-                        setSelectedCreditNoteIds(stamped.map((s: any) => s.id));
+                        const uncredited = stamped.filter((s: any) => !getFbrRowActionVisibility(s, { isDigitalInvoicing }).hasCreditNote);
+                        setSelectedCreditNoteIds(uncredited.map((s: any) => s.id));
                       }}
                       className="px-2.5 py-1 text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100"
                     >
-                      {language === "ur" ? "تمام منتخب کریں" : "Select All"}
+                      {language === "ur" ? "تمام غیر-کریڈٹ شدہ منتخب کریں" : "Select All Uncredited"}
                     </button>
                     <button
                       type="button"
@@ -2762,7 +2802,52 @@ export default function FbrCompliancePage() {
                     }
 
                     return filtered.map((inv: any) => {
+                      const invVis = getFbrRowActionVisibility(inv, { isDigitalInvoicing });
+                      const isCredited = invVis.hasCreditNote;
                       const isSelected = selectedCreditNoteIds.includes(inv.id);
+
+                      if (isCredited) {
+                        return (
+                          <div
+                            key={inv.id}
+                            className="flex items-center justify-between p-2.5 text-xs bg-slate-50/80 opacity-75 cursor-not-allowed select-none"
+                            title={`FBR Credit Note already applied (${invVis.creditNoteNumber || "Reversed"}). Duplicate transmission prevented.`}
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <input
+                                type="checkbox"
+                                checked={false}
+                                disabled={true}
+                                className="rounded border-slate-300 text-slate-300 pointer-events-none opacity-50"
+                              />
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="font-bold text-slate-600 line-through">#{inv.invoiceNumber}</span>
+                                  <span className="text-[10px] font-bold text-purple-700 bg-purple-100/80 px-1.5 py-0.2 rounded border border-purple-200 inline-flex items-center gap-1">
+                                    <CheckCircle2 className="h-2.5 w-2.5 text-purple-600" />
+                                    <span>CN Applied{invVis.creditNoteNumber ? `: ${invVis.creditNoteNumber}` : ""}</span>
+                                  </span>
+                                </div>
+                                <span className="text-[10px] text-slate-400">
+                                  {inv.customer?.name || "Walk-in Customer"}
+                                </span>
+                                <span className="block text-[10px] font-mono text-slate-400 line-through">
+                                  FBR #{inv.fbrInvoiceNumber || "Stamped"}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="text-right shrink-0">
+                              <span className="font-bold text-slate-400 line-through block">
+                                PKR {Number(inv.totalAmount || 0).toLocaleString()}
+                              </span>
+                              <span className="text-[10px] text-purple-600 font-semibold">
+                                Fully Reversed
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      }
+
                       return (
                         <div
                           key={inv.id}
@@ -2835,19 +2920,37 @@ export default function FbrCompliancePage() {
                       }
 
                       const stamped = (complianceData?.recentInvoices || []).filter((s: any) => s.fbrStatus === "SUCCESS");
-                      const matched = stamped.filter((s: any) => {
-                        const inv = (s.invoiceNumber || "").toLowerCase();
-                        const fbr = (s.fbrInvoiceNumber || "").toLowerCase();
-                        return tokens.some((t) => inv === t || fbr === t || inv.endsWith(t) || t.endsWith(inv));
+                      let alreadyCreditedCount = 0;
+                      const validToSelect: string[] = [];
+
+                      tokens.forEach((t) => {
+                        const match = stamped.find((s: any) => {
+                          const inv = (s.invoiceNumber || "").toLowerCase();
+                          const fbr = (s.fbrInvoiceNumber || "").toLowerCase();
+                          return inv === t || fbr === t || inv.endsWith(t) || t.endsWith(inv);
+                        });
+                        if (match) {
+                          const vis = getFbrRowActionVisibility(match, { isDigitalInvoicing });
+                          if (vis.hasCreditNote) {
+                            alreadyCreditedCount++;
+                          } else {
+                            validToSelect.push(match.id);
+                          }
+                        }
                       });
 
-                      const matchedIds = matched.map((s: any) => s.id);
-                      setSelectedCreditNoteIds(Array.from(new Set([...selectedCreditNoteIds, ...matchedIds])));
-                      alert(
-                        language === "ur"
-                          ? `${matchedIds.length} انوائسز مل گئیں اور منتخب کر لی گئیں۔`
-                          : `Successfully matched and selected ${matchedIds.length} invoice(s).`
-                      );
+                      const newSelected = Array.from(new Set([...selectedCreditNoteIds, ...validToSelect]));
+                      setSelectedCreditNoteIds(newSelected);
+
+                      let feedback = language === "ur"
+                        ? `${validToSelect.length} غیر-کریڈٹ شدہ انوائسز منتخب ہو گئیں۔`
+                        : `Successfully selected ${validToSelect.length} uncredited invoice(s).`;
+                      if (alreadyCreditedCount > 0) {
+                        feedback += language === "ur"
+                          ? ` (${alreadyCreditedCount} انوائسز پر پہلے سے کریڈٹ نوٹ لاگو ہے اور ڈپلیکیٹ سے بچنے کے لیے انہیں چھوڑ دیا گیا ہے)`
+                          : ` (${alreadyCreditedCount} invoice(s) already have Credit Notes applied and were skipped to prevent duplicates)`;
+                      }
+                      alert(feedback);
                     }}
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 text-white rounded-lg font-bold text-xs hover:bg-amber-700 transition"
                   >

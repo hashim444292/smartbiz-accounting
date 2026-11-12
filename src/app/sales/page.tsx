@@ -41,6 +41,7 @@ import { SalesEditModal } from "@/components/sales/SalesEditModal";
 import { useAuth } from "@/context/AuthContext";
 import { useLanguage } from "@/context/LanguageContext";
 import { smartFetch, invalidateCache, useAutoSync } from "@/lib/clientCache";
+import { extractCreditNoteInfo } from "@/lib/fbrRowActions";
 
 interface SaleRecord {
   id: string;
@@ -1432,20 +1433,43 @@ export default function SalesPage() {
                           <Link href={`/sales/${sale.id}`} className="hover:underline text-blue-600 dark:text-blue-400 font-bold">
                             {sale.invoiceNumber}
                           </Link>
-                          {!isAccountingOnly && sale.fbrStatus && (
-                            sale.fbrStatus === "SUCCESS" ? (
-                              <span className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.2 text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800">
-                                🏛️ FBR Sync
-                              </span>
-                            ) : sale.fbrStatus === "PENDING" ? (
-                              <span className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.2 text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800">
-                                ⏳ FBR Queue
-                              </span>
-                            ) : sale.fbrStatus === "NOT_APPLICABLE" ? (
-                              <span className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.2 text-[9px] font-bold bg-slate-100 text-slate-600 border border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700">
-                                🏠 Local Sale
-                              </span>
-                            ) : null
+                          {!isAccountingOnly && (
+                            (() => {
+                              const cnInfo = extractCreditNoteInfo(sale);
+                              if (cnInfo.hasCreditNote) {
+                                return (
+                                  <span
+                                    className="inline-flex items-center gap-1 rounded px-1.5 py-0.2 text-[9px] font-bold bg-purple-50 text-purple-700 border border-purple-200 dark:bg-purple-950/60 dark:text-purple-300 dark:border-purple-800"
+                                    title={`Official FBR Credit Note Applied: ${cnInfo.creditNoteNumber || "Reversed"}`}
+                                  >
+                                    <RotateCcw className="h-2.5 w-2.5 text-purple-600" />
+                                    <span>CN Applied{cnInfo.creditNoteNumber ? `: ${cnInfo.creditNoteNumber}` : ""}</span>
+                                  </span>
+                                );
+                              }
+                              if (sale.fbrStatus === "SUCCESS") {
+                                return (
+                                  <span className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.2 text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800">
+                                    🏛️ FBR Sync
+                                  </span>
+                                );
+                              }
+                              if (sale.fbrStatus === "PENDING") {
+                                return (
+                                  <span className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.2 text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800">
+                                    ⏳ FBR Queue
+                                  </span>
+                                );
+                              }
+                              if (sale.fbrStatus === "NOT_APPLICABLE") {
+                                return (
+                                  <span className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.2 text-[9px] font-bold bg-slate-100 text-slate-600 border border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700">
+                                    🏠 Local Sale
+                                  </span>
+                                );
+                              }
+                              return null;
+                            })()
                           )}
                         </div>
                         {sale.isEdited && (
@@ -1594,7 +1618,7 @@ export default function SalesPage() {
                             <ShieldCheck className={`h-3.5 w-3.5 ${transmittingFbrId === sale.id ? "animate-spin text-blue-700" : ""}`} />
                           </button>
                         )}
-                        {sale.status === "POSTED" && sale.hasReturnableItems !== false && !(sale.fbrStatus === "SUCCESS" && Boolean(typeof sale.fbrInvoiceNumber === "string" && (sale.fbrInvoiceNumber.includes("DI") || isDigitalInvoicing))) && (
+                        {sale.status === "POSTED" && sale.hasReturnableItems !== false && !extractCreditNoteInfo(sale).hasCreditNote && !(sale.fbrStatus === "SUCCESS" && Boolean(typeof sale.fbrInvoiceNumber === "string" && (sale.fbrInvoiceNumber.includes("DI") || isDigitalInvoicing))) && (
                           <button
                             onClick={() => handleInitiateReturn(sale)}
                             disabled={reversingId === sale.id}
@@ -1603,6 +1627,14 @@ export default function SalesPage() {
                           >
                             <RotateCcw className={`h-3.5 w-3.5 ${reversingId === sale.id ? "animate-spin text-rose-700" : ""}`} />
                           </button>
+                        )}
+                        {extractCreditNoteInfo(sale).hasCreditNote && (
+                          <span
+                            className="rounded-lg p-1 text-purple-600 opacity-80 cursor-not-allowed"
+                            title={`FBR Credit Note already applied (${extractCreditNoteInfo(sale).creditNoteNumber || "Reversed"}). Duplicate prevented.`}
+                          >
+                            <CheckCircle2 className="h-3.5 w-3.5" />
+                          </span>
                         )}
                         {sale.fbrStatus !== "SUCCESS" && !Boolean(sale.fbrInvoiceNumber) ? (
                           <button

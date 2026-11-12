@@ -1104,7 +1104,7 @@ describe("Offline Credit Note Engine Validation & Mocked Gateway Harness", () =>
       expect(creditNoteButtonCount).toBe(1);
     });
 
-    it("INV-2026-00731 (fbrStatus: SUCCESS, status: PAID) renders exactly ONE Credit Note button and does NOT duplicate", () => {
+    it("INV-2026-00746 (fbrStatus: SUCCESS, status: CANCELLED) renders exactly ONE Credit Note button and no duplicate Reverse", () => {
       // Previously, because status !== 'CANCELLED', the second reversal button also rendered
       // with label 'Credit Note' whenever fbrStatus was SUCCESS, producing TWO Credit Note buttons.
       const inv731 = {
@@ -1128,6 +1128,42 @@ describe("Offline Credit Note Engine Validation & Mocked Gateway Harness", () =>
       // Verify strict singular Credit Note action:
       const creditNoteButtonCount = [vis.showCreditNote].filter(Boolean).length;
       expect(creditNoteButtonCount).toBe(1);
+    });
+
+    it("INV-2026-01081 with applied Credit Note disables Credit Note button to prevent duplicate and exposes creditNoteNumber", () => {
+      const inv1081 = {
+        invoiceNumber: "INV-2026-01081",
+        status: "POSTED",
+        fbrStatus: "SUCCESS",
+        fbrInvoiceNumber: "201327FKFR38402284",
+        paymentStatus: "PAID",
+        remainingAmount: 0,
+        notes: JSON.stringify({
+          remarks: "Walk-in counter sale",
+          fbrCreditNote: {
+            cnInvoiceNumber: "201327FKFU18474629",
+            status: "SUCCESS",
+            timestamp: "2026-11-12T16:19:24.006Z",
+            refUsin: "201327FKFR38402284",
+            invoiceType: 3,
+            responseCode: "100",
+          },
+        }),
+      };
+
+      const vis = getFbrRowActionVisibility(inv1081);
+
+      // Must NOT allow duplicate Credit Note button
+      expect(vis.showCreditNote).toBe(false);
+      expect(vis.hasCreditNote).toBe(true);
+      expect(vis.creditNoteNumber).toBe("201327FKFU18474629");
+      expect(vis.creditNoteStatus).toBe("SUCCESS");
+      expect(vis.showReverse).toBe(false);
+      expect(vis.showViewQr).toBe(true);
+      expect(vis.showJson).toBe(true);
+      expect(vis.showHitFbr).toBe(false);
+      expect(vis.showEdit).toBe(false);
+      expect(vis.showDelete).toBe(false);
     });
 
     it("Unstamped invoice (Ready to Hit) renders Hit FBR and Reverse, but NEVER Credit Note", () => {
