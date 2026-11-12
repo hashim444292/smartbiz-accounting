@@ -375,7 +375,25 @@ function parseSafeDate(input?: string): Date {
         // Auto-link or auto-create Customer with statutory NTN/CNIC/Province profile
         let validCustomerId: string | null = null;
         let resolvedCustomerName = (inv.customerName || "").trim();
-        if (resolvedCustomerName && resolvedCustomerName.toLowerCase() !== "walk-in customer") {
+        const lowerCustName = resolvedCustomerName.toLowerCase();
+        const isWalkin =
+          !resolvedCustomerName ||
+          lowerCustName === "walk-in customer" ||
+          lowerCustName === "walk-in" ||
+          lowerCustName === "walk in" ||
+          lowerCustName.startsWith("walk-in") ||
+          lowerCustName.startsWith("walk in") ||
+          lowerCustName.includes("walk-in") ||
+          lowerCustName.includes("walk in") ||
+          lowerCustName === "cash customer";
+
+        if (body.mode === "DIGITAL_INVOICING" && isWalkin) {
+          throw new Error(
+            `FBR Digital Invoicing requires a registered buyer legal name. Walk-in customers are strictly prohibited in Digital Invoicing.`
+          );
+        }
+
+        if (resolvedCustomerName && !isWalkin) {
           let cust: any = null;
           try {
             cust = await prisma.customer.findFirst({

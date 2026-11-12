@@ -144,10 +144,29 @@ export default function BulkSalesImportPage() {
   const isFbrInvoicingOnly = activeCompany?.packageType === "FBR_INVOICING_ONLY";
   const isAccountingOnly = activeCompany?.packageType === "ACCOUNTING_ONLY";
 
+  // Determine initial FBR profile strictly from activeCompany
+  const isCompanyDigitalInvoicing =
+    activeCompany?.integrationType === "DIGITAL_INVOICING" ||
+    (activeCompany as any)?.fbrIntegrationType === "DIGITAL_INVOICING" ||
+    activeCompany?.packageType === "FBR_INVOICING_ONLY";
+
   const [companyFbrType, setCompanyFbrType] = useState<string>(
-    activeCompany?.integrationType || (activeCompany as any)?.fbrIntegrationType || "TIER1_POS"
+    isCompanyDigitalInvoicing
+      ? "DIGITAL_INVOICING"
+      : activeCompany?.integrationType || (activeCompany as any)?.fbrIntegrationType || "TIER1_POS"
   );
-  const [importMode, setImportMode] = useState<"DIGITAL_INVOICING" | "RETAIL_POS">("RETAIL_POS");
+  const [importMode, setImportMode] = useState<"DIGITAL_INVOICING" | "RETAIL_POS">(
+    isCompanyDigitalInvoicing ? "DIGITAL_INVOICING" : "RETAIL_POS"
+  );
+
+  // Effective mode guarantees 100% strict adherence to the active company profile
+  const effectiveMode: "DIGITAL_INVOICING" | "RETAIL_POS" =
+    companyFbrType === "DIGITAL_INVOICING" || isCompanyDigitalInvoicing
+      ? "DIGITAL_INVOICING"
+      : companyFbrType === "TIER1_POS"
+      ? "RETAIL_POS"
+      : importMode;
+
   const [catalogProducts, setCatalogProducts] = useState<any[]>([]);
   const [file, setFile] = useState<File | null>(null);
   const [fileName, setFileName] = useState<string>("");
@@ -165,16 +184,17 @@ export default function BulkSalesImportPage() {
 
   // Auto-detect company FBR mode from active company profile & live compliance settings
   useEffect(() => {
+    const isDiPkg = activeCompany?.packageType === "FBR_INVOICING_ONLY";
     const rawType = activeCompany?.integrationType || (activeCompany as any)?.fbrIntegrationType;
-    if (rawType) {
-      setCompanyFbrType(rawType);
-      if (rawType === "TIER1_POS") {
-        setImportMode("RETAIL_POS");
-        return;
-      } else if (rawType === "DIGITAL_INVOICING") {
-        setImportMode("DIGITAL_INVOICING");
-        return;
-      }
+    const resolvedType = isDiPkg ? "DIGITAL_INVOICING" : (rawType || "TIER1_POS");
+
+    setCompanyFbrType(resolvedType);
+    if (resolvedType === "TIER1_POS") {
+      setImportMode("RETAIL_POS");
+      return;
+    } else if (resolvedType === "DIGITAL_INVOICING") {
+      setImportMode("DIGITAL_INVOICING");
+      return;
     }
 
     fetch("/api/compliance/fbr")
@@ -193,7 +213,7 @@ export default function BulkSalesImportPage() {
         }
       })
       .catch(() => {});
-  }, [activeCompany?.id, activeCompany?.integrationType]);
+  }, [activeCompany?.id, activeCompany?.integrationType, activeCompany?.packageType]);
 
   // Fetch catalog products to verify inventory
   useEffect(() => {
@@ -492,7 +512,7 @@ export default function BulkSalesImportPage() {
   };
 
   const downloadSampleTemplate = () => {
-    if (importMode === "DIGITAL_INVOICING") {
+    if (effectiveMode === "DIGITAL_INVOICING") {
       downloadDigitalInvoicingTemplate();
     } else {
       downloadRetailPosTemplate();
@@ -600,27 +620,9 @@ export default function BulkSalesImportPage() {
       h.toLowerCase().replace(/[^a-z0-9]/g, "")
     );
 
-    // Smart file content detection: check whether rows represent Walk-in / POS retail counter sales
-    const sampleRows = lines.slice(1, 25).join(" ").toLowerCase();
-    const hasWalkinInRows = sampleRows.includes("walk-in") || sampleRows.includes("walk in");
-    const isExplicitPosCompany = companyFbrType === "TIER1_POS";
-
-    // Auto-detect mode: If company is Retail POS, or file has walk-in sales, or importMode is RETAIL_POS
-    const isRetailPosMode = importMode === "RETAIL_POS" || (isExplicitPosCompany && !sampleRows.includes("buyerlegalname")) || hasWalkinInRows;
-
-    let isDigitalFile = !isRetailPosMode && (
-      importMode === "DIGITAL_INVOICING" ||
-      normalizedHeaders.some((h) =>
-        h.includes("buyerlegalname") ||
-        h.includes("buyerregistrationtype") ||
-        h.includes("buyerntn")
-      )
-    );
-
-    if (isRetailPosMode && importMode !== "RETAIL_POS") {
-      setImportMode("RETAIL_POS");
-      isDigitalFile = false;
-    }
+    // Determine active regime strictly from active company profile and effectiveMode.
+    // An uploaded file NEVER silently alters the company's statutory regime!
+    const isDigitalFile = effectiveMode === "DIGITAL_INVOICING";
 
     const rows: Parsed27Row[] = [];
     let autoInvoiceCounter = 0;
@@ -754,33 +756,45 @@ export default function BulkSalesImportPage() {
       let validationError: string | undefined = undefined;
 
       if (isDigitalFile) {
-        // Digital Invoicing Statutory Rules
+        // Digital Invoicing Statutory Rules (Chapter XIV-BB / Sales Tax Rules 2006)
+        const lowerCust = (customerName || "").trim().toLowerCase();
         const isWalkin =
-          !customerName ||
-          customerName.toLowerCase() === "walk-in customer" ||
-          customerName.toLowerCase() === "walk-in" ||
-          customerName.toLowerCase().startsWith("walk-in") ||
-          customerName.toLowerCase().startsWith("walk in");
+          !lowerCust ||
+          lowerCust === "walk-in customer" ||
+          lowerCust === "walk-in" ||
+          lowerCust === "walk in" ||
+          lowerCust.startsWith("walk-in") ||
+          lowerCust.startsWith("walk in") ||
+          lowerCust.includes("walk-in") ||
+          lowerCust.includes("walk in") ||
+          lowerCust === "cash customer";
 
         const cleanNtn = (customerNtn || "").replace(/[^0-9]/g, "");
         const cleanCnic = (customerCnic || "").replace(/[^0-9]/g, "");
         const isRegistered = buyerRegistrationType === "Registered" || cleanNtn.length >= 7;
 
+        const isExemptScenario =
+          scenario === "SN006" ||
+          scenario === "SN007" ||
+          saleType?.toLowerCase().includes("exempt") ||
+          saleType?.toLowerCase().includes("zero") ||
+          Boolean(sroSchedule && sroItem);
+
         if (isWalkin) {
           isValid = false;
-          validationError = "Walk-in customers are strictly prohibited in FBR Digital Invoicing. A registered buyer legal name is mandatory.";
+          validationError = "Walk-in customers are strictly prohibited in FBR Digital Invoicing (B2B). PRAL requires an identified registered buyer legal name and valid NTN/CNIC.";
         } else if (isRegistered && cleanNtn.length !== 7 && cleanNtn.length !== 8) {
           isValid = false;
           validationError = `Registered buyer "${customerName}" requires a valid 7 or 8-digit NTN (e.g. 7424558).`;
-        } else if (!isRegistered && cleanCnic.length !== 13) {
+        } else if (!isRegistered && cleanCnic.length !== 13 && cleanNtn.length !== 7) {
           isValid = false;
-          validationError = `Unregistered buyer "${customerName}" requires a valid 13-digit CNIC (e.g. 4220112345671).`;
+          validationError = `Unregistered buyer "${customerName}" requires a valid 13-digit CNIC (e.g. 4220112345671) under Section 23 of Sales Tax Act.`;
         } else if (!hsCode || hsCode.replace(/[^0-9]/g, "").length < 4) {
           isValid = false;
           validationError = `Valid 4 to 8 digit HS / PCT Code is required for "${productName}" (e.g. 5208.1100).`;
-        } else if (taxRate <= 0 && scenario !== "SN006" && scenario !== "SN007" && !saleType?.toLowerCase().includes("exempt") && !saleType?.toLowerCase().includes("zero")) {
+        } else if (taxRate <= 0 && !isExemptScenario) {
           isValid = false;
-          validationError = `Digital Invoicing does not permit 0% tax for "${productName}". Standard rate is 18% (or select exempt scenario SN006).`;
+          validationError = `FBR Digital Invoicing does not permit 0% Sales Tax for "${productName}". Standard rate is 18% (or select exempt scenario SN006 / SRO schedule).`;
         } else if (rate <= 0) {
           isValid = false;
           validationError = "Unit Price must be greater than 0.";
@@ -789,7 +803,7 @@ export default function BulkSalesImportPage() {
           validationError = "Quantity must be greater than 0.";
         }
       } else {
-        // POS Mode Rules
+        // Retail POS Mode Rules (Chapter XIV-AA / SRO 1006)
         if (rate <= 0) {
           isValid = false;
           validationError = "Unit Rate must be greater than 0.";
@@ -925,7 +939,7 @@ export default function BulkSalesImportPage() {
       const res = await fetch("/api/sales/bulk", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ invoices: payload, mode: importMode }),
+        body: JSON.stringify({ invoices: payload, mode: effectiveMode }),
       });
 
       const json = await res.json();
@@ -988,19 +1002,19 @@ export default function BulkSalesImportPage() {
               </span>
               <span className="text-slate-300">•</span>
               <span className="text-[11px] font-mono text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200">
-                {importMode === "DIGITAL_INVOICING"
+                {effectiveMode === "DIGITAL_INVOICING"
                   ? "28 Statutory Columns (Auto Inv #)"
                   : "26 POS Columns"}
               </span>
               <span className="text-slate-300">•</span>
               <span
                 className={`text-[11px] font-bold px-2 py-0.5 rounded border ${
-                  importMode === "DIGITAL_INVOICING"
+                  effectiveMode === "DIGITAL_INVOICING"
                     ? "bg-indigo-50 text-indigo-800 border-indigo-200"
                     : "bg-emerald-50 text-emerald-800 border-emerald-200"
                 }`}
               >
-                {importMode === "DIGITAL_INVOICING"
+                {effectiveMode === "DIGITAL_INVOICING"
                   ? (isFbrInvoicingOnly ? "Digital Invoicing (Zero Inventory Check)" : "B2B Digital Invoicing Mode")
                   : (isFbrInvoicingOnly ? "Retail POS (Fast Counter Sales)" : "Accounting & POS (Catalog & Stock Sync)")}
               </span>
@@ -1009,7 +1023,7 @@ export default function BulkSalesImportPage() {
               Bulk Upload & Download Sales Invoices
             </h1>
             <p className="text-xs text-slate-500 mt-0.5">
-              {importMode === "DIGITAL_INVOICING"
+              {effectiveMode === "DIGITAL_INVOICING"
                 ? "Upload spreadsheets with official 28 FBR Digital Invoicing parameters (Scenario, Buyer NTN/CNIC, Province, HS Code, Trade UOM, 18% Sales Tax, 3% Further Tax, SRO). Invoice numbers are auto-generated."
                 : "Upload spreadsheets with Retail POS parameters (Walk-in counter sales allowed, HS Code, UOM, Standard Tax, POS Invoice stamping)."}
             </p>
@@ -1021,9 +1035,9 @@ export default function BulkSalesImportPage() {
             onClick={downloadSampleTemplate}
             className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 shadow-2xs transition"
           >
-            <FileSpreadsheet className={`h-3.5 w-3.5 ${importMode === "DIGITAL_INVOICING" ? "text-indigo-600" : "text-emerald-600"}`} />
+            <FileSpreadsheet className={`h-3.5 w-3.5 ${effectiveMode === "DIGITAL_INVOICING" ? "text-indigo-600" : "text-emerald-600"}`} />
             <span>
-              {importMode === "DIGITAL_INVOICING"
+              {effectiveMode === "DIGITAL_INVOICING"
                 ? "Download Digital Invoicing Template (28 Cols)"
                 : "Download Retail POS Template (26 Cols)"}
             </span>
@@ -1100,7 +1114,7 @@ export default function BulkSalesImportPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          {importMode === "DIGITAL_INVOICING" ? (
+          {effectiveMode === "DIGITAL_INVOICING" ? (
             <button
               onClick={downloadDigitalInvoicingTemplate}
               className="inline-flex items-center gap-1.5 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 px-3.5 py-2 rounded-xl transition shadow-2xs"
@@ -1123,20 +1137,20 @@ export default function BulkSalesImportPage() {
       {/* Package Rule Banner */}
       <div
         className={`rounded-2xl p-4 border text-xs flex items-start gap-3 ${
-          importMode === "DIGITAL_INVOICING"
+          effectiveMode === "DIGITAL_INVOICING"
             ? "bg-indigo-50/70 border-indigo-200 text-indigo-950 dark:bg-indigo-950/30 dark:border-indigo-900 dark:text-indigo-200"
             : "bg-emerald-50/70 border-emerald-200 text-emerald-950 dark:bg-emerald-950/30 dark:border-emerald-900 dark:text-emerald-200"
         }`}
       >
-        <Info className={`h-5 w-5 shrink-0 mt-0.5 ${importMode === "DIGITAL_INVOICING" ? "text-indigo-600" : "text-emerald-600"}`} />
+        <Info className={`h-5 w-5 shrink-0 mt-0.5 ${effectiveMode === "DIGITAL_INVOICING" ? "text-indigo-600" : "text-emerald-600"}`} />
         <div className="space-y-1">
           <span className="font-bold">
-            {importMode === "DIGITAL_INVOICING"
+            {effectiveMode === "DIGITAL_INVOICING"
               ? "Statutory FBR Digital Invoicing (B2B) Requirements:"
               : "🛒 FBR Tier-1 Retail POS Mode Active:"}
           </span>
           <p className="leading-relaxed">
-            {importMode === "DIGITAL_INVOICING"
+            {effectiveMode === "DIGITAL_INVOICING"
               ? "Under FBR Digital Invoicing, multi-item invoices are automatically grouped by Date and Buyer, and official invoice numbers are sequentially generated. Each invoice requires a registered buyer legal name, valid 7-digit NTN (or 13-digit CNIC for unregistered buyers), Province, 4-to-8 digit customs HS code (e.g. 5208.1100), Trade UOM (e.g. MTR, KG, PCS), and standard 18% Sales Tax (+ 3% Further Tax for unregistered corporate buyers). Walk-in counter customers are strictly rejected by PRAL."
               : "In Retail POS Mode, Walk-in counter customers are 100% permitted. Invoices will be queued for official FBR POS Tier-1 QR stamping. Standard sales tax applies, and retail consumer sales are strictly exempt from B2B 3% Further Tax."}
           </p>
@@ -1208,12 +1222,12 @@ export default function BulkSalesImportPage() {
         <h3 className="text-base font-bold text-slate-900">
           {fileName
             ? fileName
-            : importMode === "DIGITAL_INVOICING"
+            : effectiveMode === "DIGITAL_INVOICING"
             ? "Upload FBR Digital Invoicing Spreadsheets (CSV / Excel)"
             : "Upload Retail POS Spreadsheets (CSV / Excel)"}
         </h3>
         <p className="text-xs text-slate-500 max-w-xl mx-auto mt-1">
-          {importMode === "DIGITAL_INVOICING"
+          {effectiveMode === "DIGITAL_INVOICING"
             ? "Supports official 28 FBR Digital Invoicing columns: Date, Buyer Legal Name, Registration Type, NTN, CNIC, Province, HS Code, UOM, Qty, Unit Price, 18% Sales Tax, 3% Further Tax, and SRO details (Invoice numbers are auto-generated)."
             : "Supports official 26 Retail POS columns: Date, Customer Name (Walk-in allowed), Scenario, HS Code, Product Description, Remarks, UOM, Quantity, Rate, Taxes, Discounts, and POS details."}
         </p>
@@ -1235,8 +1249,8 @@ export default function BulkSalesImportPage() {
             onClick={downloadSampleTemplate}
             className="text-xs px-3.5 py-2"
           >
-            <FileSpreadsheet className={`h-4 w-4 mr-1.5 ${importMode === "DIGITAL_INVOICING" ? "text-indigo-600" : "text-emerald-600"}`} />
-            {importMode === "DIGITAL_INVOICING"
+            <FileSpreadsheet className={`h-4 w-4 mr-1.5 ${effectiveMode === "DIGITAL_INVOICING" ? "text-indigo-600" : "text-emerald-600"}`} />
+            {effectiveMode === "DIGITAL_INVOICING"
               ? "Download Official B2B Template (28 Cols)"
               : "Download Retail POS Template (26 Cols)"}
           </Button>
@@ -1250,13 +1264,13 @@ export default function BulkSalesImportPage() {
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 text-xs">
             <div className="p-3.5 rounded-2xl bg-white border border-slate-200 shadow-2xs">
               <span className="text-[10px] text-slate-400 font-bold uppercase">
-                {importMode === "DIGITAL_INVOICING" ? "Invoices (Grouped)" : "Total Rows"}
+                {effectiveMode === "DIGITAL_INVOICING" ? "Invoices (Grouped)" : "Total Rows"}
               </span>
               <p className="text-xl font-bold font-mono text-slate-900 mt-1">
-                {importMode === "DIGITAL_INVOICING" ? distinctInvoicesCount : parsedRows.length}
+                {effectiveMode === "DIGITAL_INVOICING" ? distinctInvoicesCount : parsedRows.length}
               </p>
               <span className="text-[10px] text-slate-500">
-                {importMode === "DIGITAL_INVOICING"
+                {effectiveMode === "DIGITAL_INVOICING"
                   ? `${parsedRows.length} total line items`
                   : "In uploaded file"}
               </span>
@@ -1280,13 +1294,13 @@ export default function BulkSalesImportPage() {
 
             <div className="p-3.5 rounded-2xl bg-white border border-slate-200 shadow-2xs">
               <span className="text-[10px] text-slate-400 font-bold uppercase">
-                {importMode === "DIGITAL_INVOICING" ? "Further Tax (3%)" : "Advance Income Tax"}
+                {effectiveMode === "DIGITAL_INVOICING" ? "Further Tax (3%)" : "Advance Income Tax"}
               </span>
               <p className="text-xl font-bold font-mono text-amber-600 mt-1">
-                Rs {(importMode === "DIGITAL_INVOICING" ? totalFurtherTax : totalAdvanceTax).toLocaleString()}
+                Rs {(effectiveMode === "DIGITAL_INVOICING" ? totalFurtherTax : totalAdvanceTax).toLocaleString()}
               </p>
               <span className="text-[10px] text-amber-700 font-medium">
-                {importMode === "DIGITAL_INVOICING" ? "Sec 3(1A) Unregistered" : "Sec 236G / 236H"}
+                {effectiveMode === "DIGITAL_INVOICING" ? "Sec 3(1A) Unregistered" : "Sec 236G / 236H"}
               </span>
             </div>
 
@@ -1310,7 +1324,7 @@ export default function BulkSalesImportPage() {
                 </span>
               </div>
               <span className="text-[10px] text-indigo-700 mt-0.5 block">
-                {importMode === "DIGITAL_INVOICING"
+                {effectiveMode === "DIGITAL_INVOICING"
                   ? "FBR Digital Invoicing Ready"
                   : isFbrInvoicingOnly
                   ? "Invoicing Ready"
@@ -1374,7 +1388,7 @@ export default function BulkSalesImportPage() {
             <div className="overflow-x-auto max-h-[550px] overflow-y-auto">
               <table className="w-full text-left text-xs text-slate-700">
                 <thead className="sticky top-0 z-10 border-b border-slate-200 bg-slate-50 text-[10px] uppercase font-bold text-slate-500 tracking-wider">
-                  {importMode === "DIGITAL_INVOICING" ? (
+                  {effectiveMode === "DIGITAL_INVOICING" ? (
                     <tr>
                       <th className="py-3 px-3">#</th>
                       <th className="py-3 px-3">Invoice # & Date</th>
@@ -1411,7 +1425,7 @@ export default function BulkSalesImportPage() {
                 </thead>
                 <tbody className="divide-y divide-slate-100 font-sans">
                   {displayedRows.map((row, idx) => {
-                    const isDi = importMode === "DIGITAL_INVOICING";
+                    const isDi = effectiveMode === "DIGITAL_INVOICING";
                     return (
                       <tr
                         key={idx}
