@@ -54,7 +54,7 @@ export default function FbrCompliancePage() {
 
   // Search & Filter State
   const [activeTab, setActiveTab] = useState<
-    "READY" | "AWAITING_PAYMENT" | "FAILED" | "SUCCESS" | "ALL" | "SCENARIOS"
+    "READY" | "AWAITING_PAYMENT" | "FAILED" | "SUCCESS" | "CREDIT_NOTES" | "ALL" | "SCENARIOS"
   >("READY");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -516,6 +516,10 @@ export default function FbrCompliancePage() {
     );
   }, [complianceData]);
 
+  const isDigitalInvoicing =
+    complianceData?.config?.integrationType === "DIGITAL_INVOICING" ||
+    activeCompany?.integrationType === "DIGITAL_INVOICING";
+
   // Invoices filtered by activeTab & search
   const filteredInvoices = useMemo(() => {
     let list = allInvoices;
@@ -542,6 +546,9 @@ export default function FbrCompliancePage() {
     } else if (activeTab === "SUCCESS") {
       // Transmitted & verified on FBR
       list = list.filter((inv) => inv.fbrStatus === "SUCCESS" || Boolean(inv.fbrInvoiceNumber));
+    } else if (activeTab === "CREDIT_NOTES") {
+      // Invoices with official FBR Credit Note applied
+      list = list.filter((inv) => getFbrRowActionVisibility(inv, { isDigitalInvoicing }).hasCreditNote);
     } else if (activeTab === "ALL") {
       list = list.filter((inv) => inv.fbrStatus !== "NOT_APPLICABLE");
     } else if ((activeTab as any) === "SCENARIOS") {
@@ -550,20 +557,29 @@ export default function FbrCompliancePage() {
 
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase().trim();
-      list = list.filter(
-        (inv) =>
+      const matchesSearch = (inv: any) => {
+        const vis = getFbrRowActionVisibility(inv, { isDigitalInvoicing });
+        return Boolean(
           inv.invoiceNumber?.toLowerCase().includes(q) ||
           inv.customerName?.toLowerCase().includes(q) ||
-          inv.fbrInvoiceNumber?.toLowerCase().includes(q)
-      );
+          inv.customer?.name?.toLowerCase().includes(q) ||
+          inv.fbrInvoiceNumber?.toLowerCase().includes(q) ||
+          (vis.creditNoteNumber && vis.creditNoteNumber.toLowerCase().includes(q)) ||
+          (typeof inv.notes === "string" && inv.notes.toLowerCase().includes(q))
+        );
+      };
+
+      const inTab = list.filter(matchesSearch);
+      if (inTab.length > 0) {
+        list = inTab;
+      } else {
+        // Fallback: If not found in current tab, search all invoices so user never gets a false "Not found"
+        list = allInvoices.filter(matchesSearch);
+      }
     }
 
     return list;
-  }, [allInvoices, activeTab, searchQuery]);
-
-  const isDigitalInvoicing =
-    complianceData?.config?.integrationType === "DIGITAL_INVOICING" ||
-    activeCompany?.integrationType === "DIGITAL_INVOICING";
+  }, [allInvoices, activeTab, searchQuery, isDigitalInvoicing]);
 
   // Counts
   const readyInvoices = allInvoices.filter(
@@ -582,11 +598,13 @@ export default function FbrCompliancePage() {
       Number(inv.remainingAmount || 0) > 0
   );
   const successInvoices = allInvoices.filter((inv) => inv.fbrStatus === "SUCCESS" || Boolean(inv.fbrInvoiceNumber));
+  const creditNoteInvoices = allInvoices.filter((inv) => getFbrRowActionVisibility(inv, { isDigitalInvoicing }).hasCreditNote);
 
   const readyCount = readyInvoices.length;
   const failedCount = failedInvoices.length;
   const awaitingPaymentCount = awaitingPaymentInvoices.length;
   const successCount = successInvoices.length;
+  const creditNoteCount = creditNoteInvoices.length;
   const totalPosFees = isDigitalInvoicing
     ? 0.0
     : allInvoices.reduce((sum: number, inv: any) => sum + Number(inv.posFee || 0), 0);
@@ -1150,9 +1168,12 @@ export default function FbrCompliancePage() {
       )}
 
       {/* Status KPI Overview Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
         {/* Card 1: Ready to Hit (Fully Paid) */}
-        <div className="rounded-2xl border border-indigo-200 bg-indigo-50/40 p-4 shadow-xs">
+        <div 
+          onClick={() => { setActiveTab("READY"); setSelectedIds([]); }}
+          className="rounded-2xl border border-indigo-200 bg-indigo-50/40 p-4 shadow-xs cursor-pointer hover:border-indigo-300 transition"
+        >
           <div className="flex items-center justify-between">
             <span className="text-[10px] uppercase font-bold text-indigo-800 tracking-wider">
               Ready to Hit FBR
@@ -1170,7 +1191,10 @@ export default function FbrCompliancePage() {
         </div>
 
         {/* Card 2: Awaiting Full Payment (Partial / Credit) */}
-        <div className="rounded-2xl border border-amber-200 bg-amber-50/50 p-4 shadow-xs">
+        <div 
+          onClick={() => { setActiveTab("AWAITING_PAYMENT"); setSelectedIds([]); }}
+          className="rounded-2xl border border-amber-200 bg-amber-50/50 p-4 shadow-xs cursor-pointer hover:border-amber-300 transition"
+        >
           <div className="flex items-center justify-between">
             <span className="text-[10px] uppercase font-bold text-amber-900 tracking-wider">
               Awaiting Full Payment
@@ -1188,7 +1212,10 @@ export default function FbrCompliancePage() {
         </div>
 
         {/* Card 3: FBR Stamped */}
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4 shadow-xs">
+        <div 
+          onClick={() => { setActiveTab("SUCCESS"); setSelectedIds([]); }}
+          className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4 shadow-xs cursor-pointer hover:border-emerald-300 transition"
+        >
           <span className="text-[10px] uppercase font-bold text-emerald-800 block tracking-wider">
             FBR Stamped (Transmitted)
           </span>
@@ -1200,7 +1227,32 @@ export default function FbrCompliancePage() {
           </span>
         </div>
 
-        {/* Card 4: POS Fees Charged */}
+        {/* Card 4: Credit Notes Applied */}
+        <div 
+          onClick={() => { setActiveTab("CREDIT_NOTES"); setSelectedIds([]); }}
+          className={`rounded-2xl border p-4 shadow-xs cursor-pointer transition ${
+            activeTab === "CREDIT_NOTES"
+              ? "border-purple-400 bg-purple-100/70 ring-2 ring-purple-300"
+              : "border-purple-200 bg-purple-50/50 hover:border-purple-300"
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] uppercase font-bold text-purple-800 tracking-wider">
+              Credit Notes Applied
+            </span>
+            <span className="rounded-full bg-purple-100 text-purple-800 text-[10px] font-bold px-2 py-0.5 border border-purple-300">
+              Reversed
+            </span>
+          </div>
+          <p className="mt-2 text-2xl font-bold font-mono text-purple-900">
+            {creditNoteCount}
+          </p>
+          <span className="text-[10px] text-purple-700 flex items-center gap-1 mt-1 font-medium">
+            <RotateCcw className="h-3 w-3" /> FBR Stamped Reversals (Click to view)
+          </span>
+        </div>
+
+        {/* Card 5: POS Fees Charged */}
         <div className="rounded-2xl border border-blue-200 bg-blue-50/50 p-4 shadow-xs">
           <span className="text-[10px] uppercase font-bold text-blue-800 block tracking-wider">
             {isDigitalInvoicing ? "FBR Service Fee (Digital Invoicing)" : "FBR POS Fees Charged"}
@@ -1311,6 +1363,23 @@ export default function FbrCompliancePage() {
             >
               <CheckCircle2 className="h-3.5 w-3.5 text-emerald-700" />
               <span>Transmitted & Verified ({successCount})</span>
+            </button>
+
+            <button
+              onClick={() => {
+                setActiveTab("CREDIT_NOTES");
+                setSelectedIds([]);
+              }}
+              className={`rounded-lg px-3 py-1.5 text-xs font-bold transition flex items-center gap-1.5 ${
+                activeTab === "CREDIT_NOTES"
+                  ? "bg-purple-600 text-white shadow-xs"
+                  : creditNoteCount > 0
+                  ? "bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100"
+                  : "text-slate-600 hover:bg-slate-100"
+              }`}
+            >
+              <RotateCcw className="h-3.5 w-3.5 text-purple-600" />
+              <span>Credit Notes Applied ({creditNoteCount})</span>
             </button>
 
             <button
@@ -1613,6 +1682,8 @@ export default function FbrCompliancePage() {
                       ? "No failed invoices! All invoices transmitted successfully or awaiting payment."
                       : activeTab === "READY"
                       ? "No fully paid invoices waiting to hit FBR. All clear!"
+                      : activeTab === "CREDIT_NOTES"
+                      ? "No Credit Notes applied yet."
                       : "No invoices matching the current filter."}
                   </td>
                 </tr>

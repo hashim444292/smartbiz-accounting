@@ -374,25 +374,39 @@ export default function SaleDetailPage() {
                       <span className="font-mono text-[11px]">(-Rs. {formatMoney(sale.totalReturnedAmount || 0)})</span>
                     </Badge>
                   )}
-                  {sale.status === "POSTED" && sale.hasReturnableItems !== false && !(sale.fbrStatus === "SUCCESS" && (sale.fbrInvoiceNumber?.includes("DI") || isDigitalInvoicing)) && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleInitiateReturn}
-                      disabled={isReversing}
-                      className="flex items-center gap-1.5 font-semibold text-rose-600 hover:text-rose-700 hover:bg-rose-50 border-rose-200 dark:border-rose-900 shadow-2xs"
-                    >
-                      <RotateCcw className={`h-3.5 w-3.5 ${isReversing ? "animate-spin" : ""}`} />
-                      <span>
-                        {isReversing
-                          ? (language === "ur" ? "واپسی جاری..." : "Processing Return...")
-                          : (sale.fbrStatus === "SUCCESS" && sale.fbrInvoiceNumber
-                              ? (language === "ur" ? "FBR واپسی (Credit Note)" : "Return / Credit Note")
-                              : (language === "ur" ? "آئٹم وائز واپسی / Return" : "Return Items / Sale"))
-                        }
-                      </span>
-                    </Button>
-                  )}
+                  {(() => {
+                    const cnInfo = extractCreditNoteInfo(sale);
+                    if (cnInfo.hasCreditNote) {
+                      return (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-purple-50 text-purple-700 border border-purple-200 shadow-2xs">
+                          <RotateCcw className="h-3.5 w-3.5 text-purple-600" />
+                          <span>FBR Credit Note Applied {cnInfo.creditNoteNumber ? `(#${cnInfo.creditNoteNumber})` : ""}</span>
+                        </span>
+                      );
+                    }
+                    if (sale.status === "POSTED" && sale.hasReturnableItems !== false && !(sale.fbrStatus === "SUCCESS" && (sale.fbrInvoiceNumber?.includes("DI") || isDigitalInvoicing))) {
+                      return (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleInitiateReturn}
+                          disabled={isReversing}
+                          className="flex items-center gap-1.5 font-semibold text-rose-600 hover:text-rose-700 hover:bg-rose-50 border-rose-200 dark:border-rose-900 shadow-2xs"
+                        >
+                          <RotateCcw className={`h-3.5 w-3.5 ${isReversing ? "animate-spin" : ""}`} />
+                          <span>
+                            {isReversing
+                              ? (language === "ur" ? "واپسی جاری..." : "Processing Return...")
+                              : (sale.fbrStatus === "SUCCESS" && sale.fbrInvoiceNumber
+                                  ? (language === "ur" ? "FBR واپسی (Credit Note)" : "Return / Credit Note")
+                                  : (language === "ur" ? "آئٹم وائز واپسی / Return" : "Return Items / Sale"))
+                            }
+                          </span>
+                        </Button>
+                      );
+                    }
+                    return null;
+                  })()}
                 </>
               );
             })()}

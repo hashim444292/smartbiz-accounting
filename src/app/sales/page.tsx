@@ -598,10 +598,14 @@ export default function SalesPage() {
   const filteredSales = sales.filter((s) => {
     // 1. Search text filter
     const q = search.trim().toLowerCase();
+    const cnInfo = extractCreditNoteInfo(s);
     const matchesSearch =
       !q ||
       s.invoiceNumber.toLowerCase().includes(q) ||
       s.customerName.toLowerCase().includes(q) ||
+      (s.fbrInvoiceNumber && s.fbrInvoiceNumber.toLowerCase().includes(q)) ||
+      (cnInfo.creditNoteNumber && cnInfo.creditNoteNumber.toLowerCase().includes(q)) ||
+      (typeof s.notes === "string" && s.notes.toLowerCase().includes(q)) ||
       s.items?.some((it) => it.productName?.toLowerCase().includes(q));
 
     // 2. Customer filter
@@ -1220,16 +1224,33 @@ export default function SalesPage() {
                         >
                           {sale.invoiceNumber}
                         </Link>
-                        {!isAccountingOnly && sale.fbrStatus && (
-                          sale.fbrStatus === "SUCCESS" ? (
-                            <span className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800">
-                              🏛️ FBR Sync
-                            </span>
-                          ) : sale.fbrStatus === "PENDING" ? (
-                            <span className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800">
-                              ⏳ FBR Queue
-                            </span>
-                          ) : null
+                        {!isAccountingOnly && (
+                          (() => {
+                            const cn = extractCreditNoteInfo(sale);
+                            if (cn.hasCreditNote) {
+                              return (
+                                <span className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold bg-purple-50 text-purple-700 border border-purple-200 dark:bg-purple-950/60 dark:text-purple-300 dark:border-purple-800">
+                                  <RotateCcw className="h-2.5 w-2.5 text-purple-600" />
+                                  <span>CN Applied{cn.creditNoteNumber ? `: ${cn.creditNoteNumber}` : ""}</span>
+                                </span>
+                              );
+                            }
+                            if (sale.fbrStatus === "SUCCESS") {
+                              return (
+                                <span className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800">
+                                  🏛️ FBR Sync
+                                </span>
+                              );
+                            }
+                            if (sale.fbrStatus === "PENDING") {
+                              return (
+                                <span className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800">
+                                  ⏳ FBR Queue
+                                </span>
+                              );
+                            }
+                            return null;
+                          })()
                         )}
                         {sale.isEdited && (
                           <span className="inline-flex items-center rounded-md bg-amber-50 px-1 py-0.5 text-[9px] font-semibold text-amber-800 border border-amber-300 dark:bg-amber-950/60 dark:text-amber-300">
@@ -1330,7 +1351,7 @@ export default function SalesPage() {
                       >
                         <Pencil className="h-3.5 w-3.5" />
                       </button>
-                      {sale.status === "POSTED" && sale.hasReturnableItems !== false && !(sale.fbrStatus === "SUCCESS" && Boolean(typeof sale.fbrInvoiceNumber === "string" && (sale.fbrInvoiceNumber.includes("DI") || isDigitalInvoicing))) && (
+                      {sale.status === "POSTED" && sale.hasReturnableItems !== false && !extractCreditNoteInfo(sale).hasCreditNote && !(sale.fbrStatus === "SUCCESS" && Boolean(typeof sale.fbrInvoiceNumber === "string" && (sale.fbrInvoiceNumber.includes("DI") || isDigitalInvoicing))) && (
                         <button
                           onClick={() => handleInitiateReturn(sale)}
                           disabled={reversingId === sale.id}
@@ -1339,6 +1360,14 @@ export default function SalesPage() {
                         >
                           <RotateCcw className={`h-3.5 w-3.5 ${reversingId === sale.id ? "animate-spin text-rose-700" : ""}`} />
                         </button>
+                      )}
+                      {extractCreditNoteInfo(sale).hasCreditNote && (
+                        <span
+                          className="p-1 text-purple-600 opacity-80 cursor-not-allowed"
+                          title={`FBR Credit Note already applied (${extractCreditNoteInfo(sale).creditNoteNumber || "Reversed"}). Duplicate prevented.`}
+                        >
+                          <CheckCircle2 className="h-3.5 w-3.5" />
+                        </span>
                       )}
                     </div>
                   </div>
