@@ -50,7 +50,9 @@ interface BulkRowItem {
   totalIncomeTax?: number;
   totalAmount?: number;
   sroSchedule?: string;
+  sroScheduleNo?: string;
   sroItem?: string;
+  sroItemSerialNo?: string;
   aboveRemarks?: string;
   notes?: string;
   paymentMethod?: string;
@@ -236,7 +238,24 @@ function parseSafeDate(input?: string): Date {
       const prodName = (row.productName || "General Merchandise").trim();
       const qty = Math.max(1, Number(row.quantity || 1));
       const rate = Number(row.rate !== undefined ? row.rate : (row.unitPrice || 0));
-      const taxRate = Number(row.taxRate !== undefined ? row.taxRate : 18.0);
+      const isRowExempt =
+        scenario === "SN006" ||
+        scenario === "SN007" ||
+        saleType?.toLowerCase().includes("exempt") ||
+        saleType?.toLowerCase().includes("zero") ||
+        Boolean(row.sroScheduleNo || row.sroSchedule);
+
+      const taxRate = Number(
+        row.taxRate !== undefined
+          ? row.taxRate
+          : row.taxValue === 0 || isRowExempt
+          ? 0.0
+          : scenario === "SN005"
+          ? 10.0
+          : scenario === "SN024"
+          ? 25.0
+          : 18.0
+      );
       const discountVal = Number(row.discount !== undefined ? row.discount : (row.discountValue || 0));
       const discount2Val = Number(row.discount2Value || 0);
       const extraTax = Number(row.extraTaxValue || row.extraTax || 0);
@@ -351,7 +370,17 @@ function parseSafeDate(input?: string): Date {
           const p = Number(it.unitPrice || 0);
           const d = Number(it.discount || 0);
           const d2 = Number(it.discount2 || 0);
-          const tr = Number(it.taxRate !== undefined ? it.taxRate : 18.0);
+          const isItExempt =
+            (it as any).scenario === "SN006" ||
+            (it as any).scenario === "SN007" ||
+            Boolean((it as any).sroSchedule);
+          const tr = Number(
+            it.taxRate !== undefined
+              ? it.taxRate
+              : it.taxAmount === 0 || isItExempt
+              ? 0.0
+              : 18.0
+          );
           const lineBase = Math.max(0, q * p - d - d2);
           const lineTax = it.taxAmount !== undefined ? Number(it.taxAmount) : (lineBase * (tr / 100));
 

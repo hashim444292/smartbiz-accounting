@@ -781,7 +781,11 @@ export function buildFbrPayload(
   }
 
   const scenarioDef = FBR_DI_SCENARIOS[scenarioId];
-  const isExemptOrZero = scenarioId === "SN006" || scenarioId === "SN007";
+  const isExemptOrZero =
+    scenarioId === "SN006" ||
+    scenarioId === "SN007" ||
+    Boolean(fbrMeta?.sroScheduleNo || fbrMeta?.sroSchedule) ||
+    custTaxMeta.taxStatus === "EXEMPT";
 
   const buyerProvince = customer?.province || custTaxMeta.province || fbrMeta?.buyerProvince || sellerProvince;
   const buyerAddress = customer?.address || custTaxMeta.address || fbrMeta?.buyerAddress || sellerAddress;
@@ -792,14 +796,26 @@ export function buildFbrPayload(
     const discount = Number(item.discount || 0);
     const lineSubtotal = Math.max(0, qty * unitPrice - discount);
 
-    const taxRateVal = Number(item.taxRate !== undefined && item.taxRate !== null ? item.taxRate : (scenarioDef?.defaultRate ?? 18));
-    if (!isExemptOrZero && (taxRateVal <= 0 || isNaN(taxRateVal))) {
+    const itemIsExempt =
+      isExemptOrZero ||
+      Boolean(item.sroScheduleNo || item.sroSchedule) ||
+      Boolean(item.isExempt);
+
+    const taxRateVal = Number(
+      item.taxRate !== undefined && item.taxRate !== null
+        ? item.taxRate
+        : itemIsExempt
+        ? 0
+        : (scenarioDef?.defaultRate ?? 18)
+    );
+
+    if (!itemIsExempt && (taxRateVal <= 0 || isNaN(taxRateVal))) {
       const pName = item.productName || item.product?.name || "Item";
       throw new Error(
-        `Digital Invoicing does not permit 0% tax. Line item #${idx + 1} ("${pName}") must have an applicable sales tax rate greater than 0% (e.g. 18%).`
+        `Digital Invoicing does not permit 0% tax for "${pName}" unless under an Exempt / Zero-Rated scenario (e.g. SN006 / SN007 / SRO Schedule).`
       );
     }
-    const taxAmountVal = isExemptOrZero ? 0 : Number(item.taxAmount ?? (lineSubtotal * (taxRateVal / 100)));
+    const taxAmountVal = (isExemptOrZero || taxRateVal === 0) ? 0 : Number(item.taxAmount ?? (lineSubtotal * (taxRateVal / 100)));
     const totalLineValue = round2(lineSubtotal + taxAmountVal).toNumber();
 
     return {
@@ -812,7 +828,7 @@ export function buildFbrPayload(
         business?.defaultHsCode
       ),
       productDescription: item.productName || item.product?.name || scenarioDef?.productDescription || "Retail Merchandise",
-      rate: isExemptOrZero ? "0%" : `${taxRateVal}%`,
+      rate: (isExemptOrZero || taxRateVal === 0) ? "0%" : `${taxRateVal}%`,
       uoM: formatFbrUom(
         item.uom ||
         item.product?.uom ||

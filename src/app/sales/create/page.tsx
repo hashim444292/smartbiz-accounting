@@ -281,12 +281,9 @@ export default function CreateSalePage() {
       const discAmt = round2(toDecimal(sub).mul(discPct).div(100)).toNumber();
       const taxable = Math.max(0, sub - discAmt);
 
-      // Tax rate based on Buyer Tax Status & Product Tax Profile (Digital Invoicing strictly disallows 0% tax)
-      const isDiMode = fbrInvoiceType === "DIGITAL_INVOICING";
+      // Tax rate based on Buyer Tax Status & Product Tax Profile (Supports variable rates: 18%, 15%, 12%, 10%, 8%, 5%, 1%, 25%, and 0% for exempt)
       let tr = 18;
-      if (isDiMode) {
-        tr = 18;
-      } else if (currentBuyerStatus === "EXEMPT") {
+      if (currentBuyerStatus === "EXEMPT") {
         tr = 0;
       } else if (item.taxRate !== undefined && item.taxRate !== null && !isNaN(Number(item.taxRate))) {
         tr = Number(item.taxRate);
@@ -442,16 +439,13 @@ export default function CreateSalePage() {
     setItems((prevItems) => prevItems.map((it) => recalculateItem(it, effectiveStatus)));
   };
 
-  // When switching to Digital Invoicing mode, automatically ensure no 0% tax exists
+  // When switching to Digital Invoicing mode, recalculate items with effective buyer status if undefined
   useEffect(() => {
     if (fbrInvoiceType === "DIGITAL_INVOICING") {
-      if (buyerTaxStatus === "EXEMPT") {
-        setBuyerTaxStatus("REGISTERED");
-      }
       setItems((prevItems) =>
         prevItems.map((it) => {
-          if (!it.taxRate || it.taxRate <= 0) {
-            return recalculateItem(it, "REGISTERED");
+          if (it.taxRate === undefined || it.taxRate === null) {
+            return recalculateItem(it, buyerTaxStatus);
           }
           return it;
         })
@@ -1005,15 +999,17 @@ export default function CreateSalePage() {
         }
       }
 
-      // Strictly disallow 0% tax in Digital Invoicing
-      items.forEach((it, idx) => {
-        if (!it.taxRate || Number(it.taxRate) <= 0) {
-          errors[`item_${idx}_tax`] = t(
-            `Digital Invoicing does not permit 0% tax. Line item #${idx + 1} ("${it.productName}") must have a valid sales tax rate (e.g. 18%).`,
-            `ڈیجیٹل انوائسنگ میں 0% ٹیکس کی اجازت نہیں ہے۔ آئٹم #${idx + 1} ("${it.productName}") پر ٹیکس ریٹ ہونا لازمی ہے۔`
-          );
-        }
-      });
+      // In Digital Invoicing, 0% tax is only allowed if buyer or supply is marked as EXEMPT
+      if (buyerTaxStatus !== "EXEMPT") {
+        items.forEach((it, idx) => {
+          if (!it.taxRate || Number(it.taxRate) <= 0) {
+            errors[`item_${idx}_tax`] = t(
+              `0% Sales Tax is only permitted for Exempt / Zero-Rated transactions. Please select "Exempt (0% Tax)" buyer status or specify an applicable tax rate (e.g. 18%, 10%, 5%, 1%).`,
+              `0% سیلز ٹیکس صرف استثنیٰ (Exempt) کے تحت جائز ہے۔ برائے مہربانی بائر اسٹیٹس "Exempt" رکھیں یا لاگو ٹیکس ریٹ (جیسے 18%، 10%، 5%) منتخب کریں۔`
+            );
+          }
+        });
+      }
 
       // Strictly require valid HS/PCT Code in Digital Invoicing (prevent irreversible PRAL errors)
       items.forEach((it, idx) => {
@@ -1236,7 +1232,8 @@ export default function CreateSalePage() {
           const overallDiscPerPiece = round2(toDecimal(Number(overallDiscount || 0)).div(totalPieces)).toNumber();
 
           const pieceTaxable = Math.max(0, unitPrice - itemDiscPerPiece - overallDiscPerPiece);
-          const pieceGst = buyerTaxStatus === "EXEMPT" ? 0 : round2(toDecimal(pieceTaxable).mul(0.18)).toNumber();
+          const itemTr = Number(it.taxRate !== undefined && it.taxRate !== null ? it.taxRate : 18);
+          const pieceGst = buyerTaxStatus === "EXEMPT" ? 0 : round2(toDecimal(pieceTaxable).mul(itemTr / 100)).toNumber();
           const pieceFurther = buyerTaxStatus === "UNREGISTERED" ? round2(toDecimal(pieceTaxable).mul(0.03)).toNumber() : 0;
           const piecePosFee = (isAccountingOnly || !postToFbr) ? 0 : (fbrInvoiceType === "TIER1_POS" ? 1.0 : 0.0);
           const pieceTotal = pieceTaxable + pieceGst + pieceFurther + piecePosFee;
@@ -1715,11 +1712,9 @@ export default function CreateSalePage() {
                   onChange={(e) => handleBuyerTaxStatusChange(e.target.value as BuyerTaxStatus)}
                   className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 focus:border-blue-500 focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 truncate"
                 >
-                  {fbrInvoiceType !== "DIGITAL_INVOICING" && (
-                    <option value="EXEMPT">{t("Exempt / Regular Consumer (0% Tax)", "عام کسٹمر / چھوٹ (0% Tax)")}</option>
-                  )}
-                  <option value="REGISTERED">{t("Registered Taxpayer (18% Sales Tax)", "رجسٹرڈ ٹیکس دہندہ (18% Sales Tax)")}</option>
-                  <option value="UNREGISTERED">{t("Unregistered Business (18% + 3% Further Tax)", "غیر رجسٹرڈ بزنس (18% + 3% Further Tax)")}</option>
+                  <option value="REGISTERED">{t("Registered Taxpayer (Standard / Applicable GST)", "رجسٹرڈ ٹیکس دہندہ (لاگو سیلز ٹیکس)")}</option>
+                  <option value="UNREGISTERED">{t("Unregistered Business (Sales Tax + 3% Further Tax)", "غیر رجسٹرڈ بزنس (سیلز ٹیکس + 3% مزید ٹیکس)")}</option>
+                  <option value="EXEMPT">{t("Exempt / Zero-Rated (0% Tax - 6th/5th Schedule)", "مستثنیٰ / زیرو ریٹڈ (0% ٹیکس)")}</option>
                 </select>
               </div>
             </div>
@@ -2084,10 +2079,27 @@ export default function CreateSalePage() {
                       </td>
 
                       {/* TAX % */}
-                      <td className="py-3 px-2 text-center align-top pt-4 w-16 min-w-[60px]">
-                        <div className="w-full min-w-[55px] rounded-lg border border-slate-200 bg-slate-50 px-1.5 py-1.5 text-center text-xs font-bold text-slate-700 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-300">
-                          {it.taxRate}%
-                        </div>
+                      <td className="py-3 px-2 text-center align-top pt-4 w-20 min-w-[70px]">
+                        <input
+                          type="number"
+                          step="0.5"
+                          min="0"
+                          max="100"
+                          value={it.taxRate ?? 18}
+                          onChange={(e) => handleItemFieldChange(idx, "taxRate", parseFloat(e.target.value) || 0)}
+                          list="fbr-tax-rate-presets"
+                          title={t("Applicable Sales Tax Rate % (e.g. 18%, 10%, 5%, 0%)", "لاگو سیلز ٹیکس ریٹ %")}
+                          className={`w-full min-w-[60px] rounded-lg border px-1 py-1.5 text-center font-mono text-xs font-bold focus:outline-none dark:bg-slate-900 ${
+                            fieldErrors[`item_${idx}_tax`]
+                              ? "border-rose-400 bg-rose-50/20 text-rose-700"
+                              : "border-slate-200 bg-white text-slate-800 focus:border-blue-500 dark:border-slate-700 dark:text-slate-200"
+                          }`}
+                        />
+                        {fieldErrors[`item_${idx}_tax`] && (
+                          <p className="mt-1 text-[10px] text-rose-500 font-medium leading-tight">
+                            {fieldErrors[`item_${idx}_tax`]}
+                          </p>
+                        )}
                       </td>
 
                       {/* TAXABLE */}
@@ -2117,13 +2129,24 @@ export default function CreateSalePage() {
               </table>
             </div>
 
-            {/* FBR Harmonized System (HS / PCT) Codes Datalist */}
+            {/* FBR Harmonized System (HS / PCT) Codes & Tax Rate Presets Datalists */}
             <datalist id="fbr-hs-code-list">
               {COMMON_FBR_HS_CODES.map((hs) => (
                 <option key={hs.code} value={hs.code}>
                   {hs.code} — {hs.label}
                 </option>
               ))}
+            </datalist>
+            <datalist id="fbr-tax-rate-presets">
+              <option value="18">18% (Standard GST)</option>
+              <option value="15">15% (Reduced Rate)</option>
+              <option value="12">12% (Reduced Rate)</option>
+              <option value="10">10% (8th Schedule Reduced)</option>
+              <option value="8">8% (Reduced Rate)</option>
+              <option value="5">5% (8th Schedule Reduced)</option>
+              <option value="1">1% (Special Concessional)</option>
+              <option value="25">25% (SRO 297 Luxury)</option>
+              <option value="0">0% (Exempt / Zero-Rated)</option>
             </datalist>
           </div>
 
@@ -2465,7 +2488,7 @@ export default function CreateSalePage() {
                     <div className="flex items-center gap-1.5">
                       <span>Sales Tax (GST)</span>
                       <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-semibold text-blue-800 dark:bg-blue-900/40 dark:text-blue-300">
-                        {buyerTaxStatus === "EXEMPT" ? "8th Sched (0% Tax)" : "18% Standard"}
+                        {buyerTaxStatus === "EXEMPT" ? "Exempt (0% Tax)" : "Applicable GST"}
                       </span>
                     </div>
                     <span className="font-semibold tabular-nums">

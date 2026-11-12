@@ -702,9 +702,40 @@ export default function BulkSalesImportPage() {
       const rawExclusive = getVal(["exclusivevalue", "subtotal", "valuesalesexcludingst"]);
       const exclusiveValue = rawExclusive !== "" ? Number(rawExclusive) : Math.max(0, (quantity * rate) - discountValue - discount2Value);
 
+      // Commercial / SRO & Exemption Check
+      const sroSchedule = getVal(["sroscheduleno", "sroschedule", "sroschedule#"]) || undefined;
+      const sroItem = getVal(["sroitemserialno", "sroitem", "sroitem#"]) || undefined;
+      const aboveRemarks = getVal(["remarksnotes", "aboveremarks", "remarks", "notes"]) || undefined;
+
+      const isExemptScenario =
+        scenario === "SN006" ||
+        scenario === "SN007" ||
+        saleType?.toLowerCase().includes("exempt") ||
+        saleType?.toLowerCase().includes("zero") ||
+        Boolean(sroSchedule || sroItem) ||
+        productRemarks?.toLowerCase().includes("exempt") ||
+        productRemarks?.toLowerCase().includes("6th schedule") ||
+        productRemarks?.toLowerCase().includes("8th schedule") ||
+        productName?.toLowerCase().includes("exempt");
+
       // Taxes (Sales Tax, Further Tax 3%, Extra Tax, Advance Income Tax)
-      const taxRate = Number(getVal(["salestaxrate", "taxrate", "tax%", "gst%"]) || 18);
+      // Supports variable product rates (e.g. 18%, 15%, 12%, 10%, 8%, 5%, 1%, 25%, and 0% for exempt)
+      const rawTaxRateStr = getVal(["salestaxrate", "taxrate", "tax%", "gst%"]);
       const rawTaxValue = getVal(["salestaxamount", "taxvalue", "taxamount", "salestax"]);
+
+      let taxRate: number;
+      if (rawTaxRateStr !== "") {
+        taxRate = Number(rawTaxRateStr);
+      } else if (rawTaxValue === "0" || isExemptScenario) {
+        taxRate = 0;
+      } else if (scenario === "SN005") {
+        taxRate = 10; // Eighth Schedule concessional rate default
+      } else if (scenario === "SN024") {
+        taxRate = 25; // SRO 297 luxury default
+      } else {
+        taxRate = 18; // Default standard rate
+      }
+
       const taxValue = rawTaxValue !== "" ? Number(rawTaxValue) : (exclusiveValue * (taxRate / 100));
 
       // Further Tax (3%) applies ONLY to B2B corporate supplies to unregistered persons in DIGITAL_INVOICING mode.
@@ -732,11 +763,6 @@ export default function BulkSalesImportPage() {
       const totalAmount = rawTotalAmount !== ""
         ? Number(rawTotalAmount)
         : (exclusiveValue + taxValue + furtherTaxValue + extraTaxValue + fedPayable + totalIncomeTax);
-
-      // Commercial / SRO
-      const sroSchedule = getVal(["sroscheduleno", "sroschedule", "sroschedule#"]) || undefined;
-      const sroItem = getVal(["sroitemserialno", "sroitem", "sroitem#"]) || undefined;
-      const aboveRemarks = getVal(["remarksnotes", "aboveremarks", "remarks", "notes"]) || undefined;
 
       const rawPaymentStatus = getVal(["paymentstatus", "paystatus"])?.toUpperCase();
       const paymentStatus: "PAID" | "PARTIAL" | "UNPAID" =
@@ -773,13 +799,6 @@ export default function BulkSalesImportPage() {
         const cleanCnic = (customerCnic || "").replace(/[^0-9]/g, "");
         const isRegistered = buyerRegistrationType === "Registered" || cleanNtn.length >= 7;
 
-        const isExemptScenario =
-          scenario === "SN006" ||
-          scenario === "SN007" ||
-          saleType?.toLowerCase().includes("exempt") ||
-          saleType?.toLowerCase().includes("zero") ||
-          Boolean(sroSchedule && sroItem);
-
         if (isWalkin) {
           isValid = false;
           validationError = "Walk-in customers are strictly prohibited in FBR Digital Invoicing (B2B). PRAL requires an identified registered buyer legal name and valid NTN/CNIC.";
@@ -794,7 +813,7 @@ export default function BulkSalesImportPage() {
           validationError = `Valid 4 to 8 digit HS / PCT Code is required for "${productName}" (e.g. 5208.1100).`;
         } else if (taxRate <= 0 && !isExemptScenario) {
           isValid = false;
-          validationError = `FBR Digital Invoicing does not permit 0% Sales Tax for "${productName}". Standard rate is 18% (or select exempt scenario SN006 / SRO schedule).`;
+          validationError = `FBR Digital Invoicing does not permit 0% Sales Tax for "${productName}" unless under an Exempt / Zero-Rated scenario (e.g. SN006 / SN007 / SRO Schedule). For standard supplies, enter applicable rate (e.g. 18%, 10%, 5%, 1%).`;
         } else if (rate <= 0) {
           isValid = false;
           validationError = "Unit Price must be greater than 0.";
@@ -1024,7 +1043,7 @@ export default function BulkSalesImportPage() {
             </h1>
             <p className="text-xs text-slate-500 mt-0.5">
               {effectiveMode === "DIGITAL_INVOICING"
-                ? "Upload spreadsheets with official 28 FBR Digital Invoicing parameters (Scenario, Buyer NTN/CNIC, Province, HS Code, Trade UOM, 18% Sales Tax, 3% Further Tax, SRO). Invoice numbers are auto-generated."
+                ? "Upload spreadsheets with official 28 FBR Digital Invoicing parameters (Scenario, Buyer NTN/CNIC, Province, HS Code, Trade UOM, Applicable Sales Tax, 3% Further Tax, SRO). Invoice numbers are auto-generated."
                 : "Upload spreadsheets with Retail POS parameters (Walk-in counter sales allowed, HS Code, UOM, Standard Tax, POS Invoice stamping)."}
             </p>
           </div>
@@ -1151,7 +1170,7 @@ export default function BulkSalesImportPage() {
           </span>
           <p className="leading-relaxed">
             {effectiveMode === "DIGITAL_INVOICING"
-              ? "Under FBR Digital Invoicing, multi-item invoices are automatically grouped by Date and Buyer, and official invoice numbers are sequentially generated. Each invoice requires a registered buyer legal name, valid 7-digit NTN (or 13-digit CNIC for unregistered buyers), Province, 4-to-8 digit customs HS code (e.g. 5208.1100), Trade UOM (e.g. MTR, KG, PCS), and standard 18% Sales Tax (+ 3% Further Tax for unregistered corporate buyers). Walk-in counter customers are strictly rejected by PRAL."
+              ? "Under FBR Digital Invoicing, multi-item invoices are automatically grouped by Date and Buyer, and official invoice numbers are sequentially generated. Each invoice requires a registered buyer legal name, valid 7-digit NTN (or 13-digit CNIC for unregistered buyers), Province, 4-to-8 digit customs HS code (e.g. 5208.1100), Trade UOM (e.g. MTR, KG, PCS), and applicable Sales Tax (standard 18%, reduced 1%-15%, or exempt 0% under Schedule). Walk-in counter customers are strictly rejected by PRAL."
               : "In Retail POS Mode, Walk-in counter customers are 100% permitted. Invoices will be queued for official FBR POS Tier-1 QR stamping. Standard sales tax applies, and retail consumer sales are strictly exempt from B2B 3% Further Tax."}
           </p>
         </div>
@@ -1228,7 +1247,7 @@ export default function BulkSalesImportPage() {
         </h3>
         <p className="text-xs text-slate-500 max-w-xl mx-auto mt-1">
           {effectiveMode === "DIGITAL_INVOICING"
-            ? "Supports official 28 FBR Digital Invoicing columns: Date, Buyer Legal Name, Registration Type, NTN, CNIC, Province, HS Code, UOM, Qty, Unit Price, 18% Sales Tax, 3% Further Tax, and SRO details (Invoice numbers are auto-generated)."
+            ? "Supports official 28 FBR Digital Invoicing columns: Date, Buyer Legal Name, Registration Type, NTN, CNIC, Province, HS Code, UOM, Qty, Unit Price, Sales Tax, 3% Further Tax, and SRO details (Invoice numbers are auto-generated)."
             : "Supports official 26 Retail POS columns: Date, Customer Name (Walk-in allowed), Scenario, HS Code, Product Description, Remarks, UOM, Quantity, Rate, Taxes, Discounts, and POS details."}
         </p>
 
@@ -1289,7 +1308,7 @@ export default function BulkSalesImportPage() {
               <p className="text-xl font-bold font-mono text-indigo-600 mt-1">
                 Rs {totalTax.toLocaleString()}
               </p>
-              <span className="text-[10px] text-indigo-700 font-medium">Standard 18%</span>
+              <span className="text-[10px] text-indigo-700 font-medium">Output Tax (GST)</span>
             </div>
 
             <div className="p-3.5 rounded-2xl bg-white border border-slate-200 shadow-2xs">
@@ -1399,7 +1418,7 @@ export default function BulkSalesImportPage() {
                       <th className="py-3 px-3 text-right">Qty</th>
                       <th className="py-3 px-3 text-right">Unit Price</th>
                       <th className="py-3 px-3 text-right">Exclusive Val</th>
-                      <th className="py-3 px-3 text-right">Sales Tax (18%)</th>
+                      <th className="py-3 px-3 text-right">Sales Tax (GST)</th>
                       <th className="py-3 px-3 text-right">Further Tax (3%)</th>
                       <th className="py-3 px-3 text-right">Total Invoice</th>
                       <th className="py-3 px-3 text-center">FBR Status</th>
