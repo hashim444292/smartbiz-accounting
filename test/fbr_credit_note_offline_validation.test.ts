@@ -22,7 +22,7 @@ import {
   storeAddCompany,
 } from "../src/lib/fallbackStore";
 import { POST as complianceRoute } from "../src/app/api/compliance/fbr/route";
-import { getFbrRowActionVisibility } from "../src/lib/fbrRowActions";
+import { getFbrRowActionVisibility, extractCreditNoteInfo } from "../src/lib/fbrRowActions";
 import { NextRequest } from "next/server";
 
 describe("Offline Credit Note Engine Validation & Mocked Gateway Harness", () => {
@@ -1238,6 +1238,53 @@ describe("Offline Credit Note Engine Validation & Mocked Gateway Harness", () =>
 
       expect(vis.showHitFbr).toBe(false);
       expect(vis.showSettle).toBe(true);
+    });
+
+    it("Combined FBR Credit Note + Sales Return notes JSON preserves fbrCreditNote and locks down duplicates", () => {
+      // Simulate notes after both FBR Credit Note and Sales Return reverseSale have executed
+      const combinedNotes = JSON.stringify({
+        fbrCreditNote: {
+          cnInvoiceNumber: "201327FJCN12345678",
+          status: "SUCCESS",
+          stampedAt: "2026-11-14T01:30:00.000Z",
+          reason: "Sales Return / Duplicate Correction",
+        },
+        returnHistory: [
+          {
+            returnId: "RET-1794450000000",
+            returnedAt: "2026-11-14T01:30:01.000Z",
+            reason: "FBR Credit Note: Customer return",
+            returnedAmount: 1500,
+            isAllReturned: true,
+          },
+        ],
+        lastReturn: {
+          returnId: "RET-1794450000000",
+          returnedAmount: 1500,
+        },
+      });
+
+      const invReturned = {
+        invoiceNumber: "INV-2026-00999",
+        status: "CANCELLED",
+        fbrStatus: "SUCCESS",
+        fbrInvoiceNumber: "201327FJEI55320999",
+        paymentStatus: "PAID",
+        remainingAmount: 0,
+        notes: combinedNotes,
+      };
+
+      const creditInfo = extractCreditNoteInfo(invReturned);
+      expect(creditInfo.hasCreditNote).toBe(true);
+      expect(creditInfo.creditNoteNumber).toBe("201327FJCN12345678");
+      expect(creditInfo.creditNoteStatus).toBe("SUCCESS");
+
+      const vis = getFbrRowActionVisibility(invReturned);
+      expect(vis.hasCreditNote).toBe(true);
+      expect(vis.showCreditNote).toBe(false); // Duplicate transmission strictly blocked
+      expect(vis.showReverse).toBe(false);
+      expect(vis.showHitFbr).toBe(false);
+      expect(vis.creditNoteNumber).toBe("201327FJCN12345678");
     });
   });
 });

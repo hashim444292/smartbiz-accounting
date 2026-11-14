@@ -227,7 +227,13 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      const { invoiceId, reason = "Sales Return / Duplicate Correction", creditNoteDate, refUsin } = body;
+      const {
+        invoiceId,
+        reason = "Sales Return / Duplicate Correction",
+        creditNoteDate,
+        refUsin,
+        restockInventory = true,
+      } = body;
 
       let sale: any = null;
       try {
@@ -252,11 +258,33 @@ export async function POST(req: NextRequest) {
       }
 
       const result = await transmitFbrCreditNote(invoiceId, reason, { creditNoteDate, refUsin });
+
+      let salesReturnResult: any = null;
+      if (result.success && (restockInventory === true || restockInventory === "true")) {
+        try {
+          const { reverseSale } = await import("@/services/salesService");
+          salesReturnResult = await reverseSale(
+            invoiceId,
+            `FBR Credit Note (${result.cnInvoiceNumber || "Confirmed"}): ${reason}`,
+            session?.userId
+          );
+        } catch (returnErr: any) {
+          salesReturnResult = {
+            success: false,
+            skipped: returnErr.message?.includes("already cancelled") || false,
+            error: returnErr.message || "Failed to reverse sale and restock inventory",
+          };
+        }
+      }
+
       return NextResponse.json({
         success: result.success,
         data: result,
         cnInvoiceNumber: result.cnInvoiceNumber,
-        message: result.message,
+        message: salesReturnResult?.status === "REVERSED"
+          ? `${result.message} (اسٹاک بحال اور کھاتے ایڈجسٹ ہو گئے)`
+          : result.message,
+        salesReturn: salesReturnResult,
       });
     }
 
@@ -282,7 +310,12 @@ export async function POST(req: NextRequest) {
           { status: 400 }
         );
       }
-      const { invoiceIds = [], reason = "Duplicate Correction / Reversal", creditNoteDate } = body;
+      const {
+        invoiceIds = [],
+        reason = "Duplicate Correction / Reversal",
+        creditNoteDate,
+        restockInventory = true,
+      } = body;
       const results = [];
       const errors = [];
 
@@ -294,7 +327,29 @@ export async function POST(req: NextRequest) {
 
         try {
           const res = await transmitFbrCreditNote(id, reason, { creditNoteDate });
-          results.push(res);
+
+          let salesReturnResult: any = null;
+          if (res.success && (restockInventory === true || restockInventory === "true")) {
+            try {
+              const { reverseSale } = await import("@/services/salesService");
+              salesReturnResult = await reverseSale(
+                id,
+                `FBR Credit Note (${res.cnInvoiceNumber || "Confirmed"}): ${reason}`,
+                session?.userId
+              );
+            } catch (returnErr: any) {
+              salesReturnResult = {
+                success: false,
+                skipped: returnErr.message?.includes("already cancelled") || false,
+                error: returnErr.message || "Failed to reverse sale and restock inventory",
+              };
+            }
+          }
+
+          results.push({
+            ...res,
+            salesReturn: salesReturnResult,
+          });
         } catch (e: any) {
           errors.push({ id, error: e.message });
         }
@@ -304,7 +359,9 @@ export async function POST(req: NextRequest) {
         success: true,
         data: results,
         errors,
-        message: `${results.length} FBR Credit Note(s) transmitted successfully.`,
+        message: `${results.length} FBR Credit Note(s) transmitted successfully.${
+          restockInventory ? " Inventory restocked and accounts updated." : ""
+        }`,
       });
     }
 

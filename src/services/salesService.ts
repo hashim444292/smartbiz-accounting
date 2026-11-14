@@ -907,13 +907,16 @@ export async function reverseSale(
       }
     }
 
-    // 8. Track return history in sale.notes
+    // 8. Track return history in sale.notes while preserving FBR Credit Note metadata
     let returnHistory: any[] = [];
     let cleanNotes = sale.notes || "";
+    let baseNotesObj: any = {};
     try {
-      if (cleanNotes.includes('"returnHistory":')) {
-        const parsed = JSON.parse(cleanNotes);
-        returnHistory = parsed.returnHistory || [];
+      if (typeof sale.notes === "string" && sale.notes.trim().startsWith("{")) {
+        baseNotesObj = JSON.parse(sale.notes);
+        if (Array.isArray(baseNotesObj.returnHistory)) {
+          returnHistory = baseNotesObj.returnHistory;
+        }
       }
     } catch {}
 
@@ -936,7 +939,8 @@ export async function reverseSale(
     returnHistory.push(returnRecord);
 
     const updatedNotes = JSON.stringify({
-      notes: cleanNotes.replace(/\{"returnHistory":.*\}$/, "").trim(),
+      ...baseNotesObj,
+      notes: typeof baseNotesObj.notes === "string" ? baseNotesObj.notes : cleanNotes.replace(/\{"returnHistory":.*\}$/, "").trim(),
       returnHistory,
       lastReturn: returnRecord,
     });

@@ -114,6 +114,7 @@ export default function FbrCompliancePage() {
   const [creditNoteSearch, setCreditNoteSearch] = useState("");
   const [creditNotePastedText, setCreditNotePastedText] = useState("");
   const [selectedCreditNoteIds, setSelectedCreditNoteIds] = useState<string[]>([]);
+  const [creditNoteRestock, setCreditNoteRestock] = useState(true);
   const [transmittingCreditNoteId, setTransmittingCreditNoteId] = useState<string | null>(null);
   const [isTransmittingCreditNotes, setIsTransmittingCreditNotes] = useState(false);
 
@@ -128,46 +129,23 @@ export default function FbrCompliancePage() {
       return;
     }
 
-    const confirmPrompt = language === "ur"
-      ? `کیا آپ انوائس #${inv.invoiceNumber} (${inv.fbrInvoiceNumber || ""}) کے لیے FBR پر باقاعدہ Credit Note (InvoiceType 3 - واپسی) ارسال کرنا چاہتے ہیں؟\n\n- اس سے FBR پورٹل پر اس انوائس کی سیلز اور ٹیکس کی رقم مائنس / ریورس ہو جائے گی۔\n- یہ عمل FBR پورٹل پر ڈپلیکیٹ انوائسز کو کینسل کرنے کے لیے استعمال ہوتا ہے۔`
-      : `Transmit official FBR Credit Note (InvoiceType 3 - Return) for invoice #${inv.invoiceNumber} (${inv.fbrInvoiceNumber || ""}) to FBR?\n\n- This will reverse the sales and tax on the FBR portal.\n- Used to negate duplicate FBR entries.`;
-
-    if (!confirm(confirmPrompt)) return;
-
-    setTransmittingCreditNoteId(inv.id);
-    try {
-      const res = await fetch("/api/compliance/fbr", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "credit_note",
-          invoiceId: inv.id,
-          reason: "Duplicate transmission correction",
-        }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        alert(
-          language === "ur"
-            ? `FBR Credit Note کامیابی سے FBR پر درج ہو گیا!\nCredit Note نمبر: ${data.cnInvoiceNumber || ""}`
-            : `FBR Credit Note transmitted successfully!\nCredit Note #: ${data.cnInvoiceNumber || ""}`
-        );
-        loadCompliance();
-      } else {
-        alert(data.error || data.message || "Failed to transmit Credit Note to FBR");
-      }
-    } catch (err: any) {
-      alert(`Error: ${err.message}`);
-    } finally {
-      setTransmittingCreditNoteId(null);
-    }
+    setSelectedCreditNoteIds([inv.id]);
+    setShowCreditNoteModal(true);
   };
 
   const handleBatchTransmitCreditNotes = async (targetInvoices: any[]) => {
     if (targetInvoices.length === 0) return;
     const confirmPrompt = language === "ur"
-      ? `کیا آپ واقعی ${targetInvoices.length} انوائسز کے لیے FBR پر باقاعدہ Credit Notes (InvoiceType 3) ارسال کرنا چاہتے ہیں؟\n\n- ہر Credit Note 2 سیکنڈ کے وقفے سے FBR گیٹ وے کو ارسال ہو گا۔\n- FBR پورٹل پر ان انوائسز کی ڈپلیکیٹ سیلز ریورس ہو جائے گی۔`
-      : `Transmit official FBR Credit Notes (InvoiceType 3) for ${targetInvoices.length} invoice(s)?\n\n- Each Credit Note will transmit with a 2-second rate-limiting delay.\n- Duplicate liability will be cancelled on FBR.`;
+      ? `کیا آپ واقعی ${targetInvoices.length} انوائسز کے لیے FBR پر باقاعدہ Credit Notes (InvoiceType 3) ارسال کرنا چاہتے ہیں؟\n\n- ہر Credit Note 2 سیکنڈ کے وقفے سے FBR گیٹ وے کو ارسال ہو گا۔\n- FBR پورٹل پر ان انوائسز کی ڈپلیکیٹ سیلز ریورس ہو جائے گی۔${
+          creditNoteRestock
+            ? "\n- گودام کا اسٹاک خودکار بحال ہوگا اور کسٹمر کھاتہ درست ہو جائے گا۔"
+            : "\n- مقامی اسٹاک اور کھاتے تبدیل نہیں ہوں گے۔"
+        }`
+      : `Transmit official FBR Credit Notes (InvoiceType 3) for ${targetInvoices.length} invoice(s)?\n\n- Each Credit Note will transmit with a 2-second rate-limiting delay.\n- Duplicate liability will be cancelled on FBR.${
+          creditNoteRestock
+            ? "\n- Inventory will be automatically restocked and customer ledger balanced."
+            : "\n- Local inventory and ledger will remain unchanged."
+        }`;
 
     if (!confirm(confirmPrompt)) return;
 
@@ -197,7 +175,8 @@ export default function FbrCompliancePage() {
           body: JSON.stringify({
             action: "credit_note",
             invoiceId: inv.id,
-            reason: "Duplicate transmission correction",
+            reason: "Sales Return / Duplicate Correction",
+            restockInventory: creditNoteRestock,
           }),
         });
         const data = await res.json().catch(() => null);
@@ -214,8 +193,12 @@ export default function FbrCompliancePage() {
     setActionMessage({
       type: failCount === 0 ? "success" : "info",
       text: language === "ur"
-        ? `FBR Credit Notes مکمل! کامیاب: ${successCount} انوائسز${failCount > 0 ? `، ناکام: ${failCount}` : ""}`
-        : `FBR Credit Notes completed! Transmitted: ${successCount}${failCount > 0 ? `, Failed: ${failCount}` : ""}`,
+        ? `FBR Credit Notes مکمل! کامیاب: ${successCount} انوائسز${
+            creditNoteRestock ? " (اسٹاک بحال اور کھاتے ایڈجسٹ ہو گئے)" : ""
+          }${failCount > 0 ? `، ناکام: ${failCount}` : ""}`
+        : `FBR Credit Notes completed! Transmitted: ${successCount}${
+            creditNoteRestock ? " (Inventory restocked & ledger balanced)" : ""
+          }${failCount > 0 ? `, Failed: ${failCount}` : ""}`,
     });
     setIsTransmittingCreditNotes(false);
     setSelectedCreditNoteIds([]);
@@ -3031,6 +3014,35 @@ export default function FbrCompliancePage() {
                 </div>
               </div>
             )}
+
+            {/* Restock Inventory & Balance Ledger Toggle Card */}
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-3.5 transition hover:bg-emerald-50">
+              <label className="flex items-start gap-3 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={creditNoteRestock}
+                  onChange={(e) => setCreditNoteRestock(e.target.checked)}
+                  className="mt-1 h-4 w-4 rounded border-emerald-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                />
+                <div className="space-y-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-xs text-emerald-900">
+                      {language === "ur"
+                        ? "گودام کا اسٹاک بحال اور کھاتے ایڈجسٹ کریں (Sales Return)"
+                        : "Restock Inventory & Balance Ledger (Full Sales Return)"}
+                    </span>
+                    <span className="rounded bg-emerald-100 text-emerald-800 text-[10px] font-bold px-1.5 py-0.5 border border-emerald-300">
+                      {language === "ur" ? "تجویز کردہ" : "Recommended"}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-emerald-800/90 leading-relaxed">
+                    {language === "ur"
+                      ? "جب یہ چیک ہو، FBR کریڈٹ نوٹ جاری ہوتے ہی خودکار طور پر تمام پروڈکٹس گودام میں واپس جمع (Restock) ہو جائیں گی اور گاہک کا لیجر / نقد رقم خودکار طور پر ریورس ہو جائے گی۔ (اگر صرف FBR ڈپلیکیٹ انٹری کینسل کرنی ہو تو اسے ان-چیک کریں)۔"
+                      : "When enabled, FBR Credit Note stamping will automatically execute a Sales Return—restocking products into inventory, rebalancing customer receivables / cash, and recording journal entries. (Uncheck if this is solely a duplicate FBR tax cancellation without physical goods return)."}
+                  </p>
+                </div>
+              </label>
+            </div>
 
             {/* Selection Summary Banner */}
             {(() => {
