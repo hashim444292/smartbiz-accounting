@@ -1,12 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { playNotificationBell } from "../src/lib/notificationSound";
+import { playNotificationBell, unlockNotificationAudio } from "../src/lib/notificationSound";
 
 describe("Notification Bell Sound & Read State Verification Suite", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
   });
 
-  it("playNotificationBell executes gracefully in node/SSR environments without throwing", () => {
+  it("playNotificationBell and unlockNotificationAudio execute gracefully in node/SSR environments without throwing", () => {
+    expect(() => unlockNotificationAudio()).not.toThrow();
     expect(() => playNotificationBell()).not.toThrow();
   });
 
@@ -34,15 +35,23 @@ describe("Notification Bell Sound & Read State Verification Suite", () => {
       createOscillator: vi.fn(() => mockOscillator),
       createGain: vi.fn(() => mockGain),
       close: vi.fn().mockResolvedValue(undefined),
+      resume: vi.fn().mockResolvedValue(undefined),
+    };
+
+    const mockAudioInstance = {
+      volume: 1,
+      play: vi.fn().mockResolvedValue(undefined),
     };
 
     // Inject mock into global window
     (global as any).window = {
       AudioContext: vi.fn(() => mockContext),
+      Audio: vi.fn(() => mockAudioInstance),
       addEventListener: vi.fn(),
       removeEventListener: vi.fn(),
     };
 
+    unlockNotificationAudio();
     playNotificationBell();
 
     expect((global as any).window.AudioContext).toHaveBeenCalled();

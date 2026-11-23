@@ -128,10 +128,11 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
   useEffect(() => {
     if (!remindersData) return;
 
-    const totalDue = (remindersData?.overdueCount || 0) + (remindersData?.dueTodayCount || 0);
+    const overdueAndDue = (remindersData?.overdueCount || 0) + (remindersData?.dueTodayCount || 0);
+    const totalCount = overdueAndDue > 0 ? overdueAndDue : (remindersData?.reminders?.length || 0);
     const currentSig = computeRemindersSignature(remindersData);
 
-    if (totalDue > 0 && currentSig) {
+    if (totalCount > 0 && currentSig) {
       let readSig = "";
       try {
         readSig = localStorage.getItem("sb_reminders_read_sig") || "";
@@ -612,12 +613,14 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
               className="relative flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white transition shadow-2xs"
               title={t("Payment Due Reminders", "ادائیگی و وصولی یاد دہانی")}
             >
-              <Bell className={`h-4 w-4 ${!isRemindersRead && remindersData && (remindersData.overdueCount + remindersData.dueTodayCount > 0) ? "text-rose-600 dark:text-rose-400" : ""}`} />
-              {remindersData && (remindersData.overdueCount + remindersData.dueTodayCount > 0) && (
+              <Bell className={`h-4 w-4 ${!isRemindersRead && remindersData && ((remindersData.overdueCount + remindersData.dueTodayCount > 0) || (remindersData.reminders && remindersData.reminders.length > 0)) ? "text-rose-600 dark:text-rose-400" : ""}`} />
+              {remindersData && ((remindersData.overdueCount + remindersData.dueTodayCount > 0) || (remindersData.reminders && remindersData.reminders.length > 0)) && (
                 <span className={`absolute -top-1 -right-1 flex h-4 min-w-[16px] px-1 items-center justify-center rounded-full text-[10px] font-black text-white shadow-xs ${
                   !isRemindersRead ? "bg-rose-600 animate-pulse ring-2 ring-rose-400/40" : "bg-slate-400 dark:bg-slate-600"
                 }`}>
-                  {remindersData.overdueCount + remindersData.dueTodayCount}
+                  {(remindersData.overdueCount + remindersData.dueTodayCount > 0)
+                    ? (remindersData.overdueCount + remindersData.dueTodayCount)
+                    : (remindersData.reminders?.length || 0)}
                 </span>
               )}
             </button>

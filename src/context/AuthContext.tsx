@@ -153,6 +153,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
       const data = await res.json();
       if (data.success) {
+        try {
+          sessionStorage.removeItem("sb_bell_played_session");
+        } catch {}
         setUser(data.user);
         setIsAuthenticated(true);
         await refreshSession();

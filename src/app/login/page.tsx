@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ShieldCheck, Lock, Mail, ArrowRight, Building2, User, Sparkles, AlertCircle } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { unlockNotificationAudio } from "@/lib/notificationSound";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -15,6 +16,7 @@ export default function LoginPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    unlockNotificationAudio();
     setError(null);
     setLoading(true);
 
