@@ -26,6 +26,7 @@ import {
   Clock,
   History,
   Languages,
+  Volume2,
 } from "lucide-react";
 import { DateRangeSelector } from "./DateRangeSelector";
 import { OfflineSyncIndicator } from "@/components/common/OfflineSyncIndicator";
@@ -33,6 +34,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
 import { useLanguage } from "@/context/LanguageContext";
 import { smartFetch } from "@/lib/clientCache";
+import { playNotificationBell } from "@/lib/notificationSound";
 
 export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
   const {
@@ -83,6 +85,23 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
   const [remindersOpen, setRemindersOpen] = useState(false);
   const remindersRef = useRef<HTMLDivElement>(null);
   const [remindersData, setRemindersData] = useState<any>(null);
+  const [isRemindersRead, setIsRemindersRead] = useState<boolean>(true);
+
+  const computeRemindersSignature = (data: any): string => {
+    if (!data || !Array.isArray(data.reminders) || data.reminders.length === 0) return "";
+    return data.reminders.map((r: any) => `${r.type}:${r.id}:${r.urgency}:${r.remainingAmount}`).join("|");
+  };
+
+  const markRemindersAsRead = () => {
+    if (!remindersData) return;
+    const currentSig = computeRemindersSignature(remindersData);
+    if (currentSig) {
+      try {
+        localStorage.setItem("sb_reminders_read_sig", currentSig);
+      } catch {}
+      setIsRemindersRead(true);
+    }
+  };
 
   const fetchReminders = async () => {
     try {
@@ -104,6 +123,41 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
     }, 60000);
     return () => clearInterval(interval);
   }, [activeCompany?.id]);
+
+  // Evaluate unread notification status and play chime on login / unread visit
+  useEffect(() => {
+    if (!remindersData) return;
+
+    const totalDue = (remindersData?.overdueCount || 0) + (remindersData?.dueTodayCount || 0);
+    const currentSig = computeRemindersSignature(remindersData);
+
+    if (totalDue > 0 && currentSig) {
+      let readSig = "";
+      try {
+        readSig = localStorage.getItem("sb_reminders_read_sig") || "";
+      } catch {}
+
+      const isUnread = readSig !== currentSig;
+      setIsRemindersRead(!isUnread);
+
+      // Rule: Jab jab login kia or notification read na kia ho, bell ki awaz aaye
+      if (isUnread) {
+        let playedInSession = false;
+        try {
+          playedInSession = sessionStorage.getItem("sb_bell_played_session") === currentSig;
+        } catch {}
+
+        if (!playedInSession) {
+          playNotificationBell();
+          try {
+            sessionStorage.setItem("sb_bell_played_session", currentSig);
+          } catch {}
+        }
+      }
+    } else {
+      setIsRemindersRead(true);
+    }
+  }, [remindersData]);
 
   // Global Quick Search state (Cmd + K)
   const [searchOpen, setSearchOpen] = useState(false);
@@ -548,13 +602,21 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
           {/* Payment Reminders Notification Bell */}
           <div className="relative" ref={remindersRef}>
             <button
-              onClick={() => setRemindersOpen(!remindersOpen)}
+              onClick={() => {
+                const nextState = !remindersOpen;
+                setRemindersOpen(nextState);
+                if (nextState) {
+                  markRemindersAsRead();
+                }
+              }}
               className="relative flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white transition shadow-2xs"
               title={t("Payment Due Reminders", "ادائیگی و وصولی یاد دہانی")}
             >
-              <Bell className="h-4 w-4" />
+              <Bell className={`h-4 w-4 ${!isRemindersRead && remindersData && (remindersData.overdueCount + remindersData.dueTodayCount > 0) ? "text-rose-600 dark:text-rose-400" : ""}`} />
               {remindersData && (remindersData.overdueCount + remindersData.dueTodayCount > 0) && (
-                <span className="absolute -top-1 -right-1 flex h-4 min-w-[16px] px-1 items-center justify-center rounded-full bg-rose-600 text-[10px] font-black text-white shadow-xs animate-pulse">
+                <span className={`absolute -top-1 -right-1 flex h-4 min-w-[16px] px-1 items-center justify-center rounded-full text-[10px] font-black text-white shadow-xs ${
+                  !isRemindersRead ? "bg-rose-600 animate-pulse ring-2 ring-rose-400/40" : "bg-slate-400 dark:bg-slate-600"
+                }`}>
                   {remindersData.overdueCount + remindersData.dueTodayCount}
                 </span>
               )}
@@ -568,10 +630,32 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
                     <span className="text-xs font-bold text-slate-900 dark:text-white">
                       {t("Payment Reminders", "ادائیگی و وصولی یاد دہانی")}
                     </span>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        playNotificationBell();
+                      }}
+                      className="p-1 rounded-md text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-300 transition"
+                      title={t("Test Bell Sound", "گھنٹی کی آواز چیک کریں")}
+                    >
+                      <Volume2 className="h-3.5 w-3.5" />
+                    </button>
                   </div>
-                  <span className="rounded-full bg-rose-50 px-2 py-0.5 text-[10px] font-bold text-rose-700 dark:bg-rose-950/60 dark:text-rose-300">
-                    {(remindersData?.overdueCount || 0) + (remindersData?.dueTodayCount || 0)} Due
-                  </span>
+                  <div className="flex items-center gap-2">
+                    {!isRemindersRead && (
+                      <button
+                        type="button"
+                        onClick={markRemindersAsRead}
+                        className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline"
+                      >
+                        {t("Mark as read", "پڑھ لیا گیا")}
+                      </button>
+                    )}
+                    <span className="rounded-full bg-rose-50 px-2 py-0.5 text-[10px] font-bold text-rose-700 dark:bg-rose-950/60 dark:text-rose-300">
+                      {(remindersData?.overdueCount || 0) + (remindersData?.dueTodayCount || 0)} Due
+                    </span>
+                  </div>
                 </div>
 
                 <div className="overflow-y-auto py-2 flex-1 space-y-2 max-h-[380px]">
@@ -658,7 +742,10 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
                     <ArrowRight className="h-3 w-3" />
                   </Link>
                   <button
-                    onClick={() => setRemindersOpen(false)}
+                    onClick={() => {
+                      markRemindersAsRead();
+                      setRemindersOpen(false);
+                    }}
                     className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
                   >
                     Dismiss
