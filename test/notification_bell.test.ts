@@ -1,9 +1,20 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { playNotificationBell, unlockNotificationAudio } from "../src/lib/notificationSound";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import {
+  playNotificationBell,
+  unlockNotificationAudio,
+  startNotificationAlarm,
+  stopNotificationAlarm,
+  isAlarmActive,
+} from "../src/lib/notificationSound";
 
 describe("Notification Bell Sound & Read State Verification Suite", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    stopNotificationAlarm();
+  });
+
+  afterEach(() => {
+    stopNotificationAlarm();
   });
 
   it("playNotificationBell and unlockNotificationAudio execute gracefully in node/SSR environments without throwing", () => {
@@ -105,5 +116,46 @@ describe("Notification Bell Sound & Read State Verification Suite", () => {
 
     isUnread = storedReadSig !== sig2;
     expect(isUnread).toBe(true); // Newly unread -> Bell rings on login!
+  });
+
+  it("handles alarm mode lifecycle: startNotificationAlarm, stopNotificationAlarm, and isAlarmActive", () => {
+    vi.useFakeTimers();
+
+    const mockAudioInstance = {
+      volume: 1,
+      play: vi.fn().mockResolvedValue(undefined),
+    };
+
+    (global as any).window = {
+      Audio: vi.fn(() => mockAudioInstance),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    };
+
+    expect(isAlarmActive()).toBe(false);
+
+    // Start alarm mode with 2400ms interval
+    startNotificationAlarm(2400);
+    expect(isAlarmActive()).toBe(true);
+    // Immediate ring
+    expect(mockAudioInstance.play).toHaveBeenCalledTimes(1);
+
+    // Advance 2.4 seconds -> ring 2
+    vi.advanceTimersByTime(2400);
+    expect(mockAudioInstance.play).toHaveBeenCalledTimes(2);
+
+    // Advance another 2.4 seconds -> ring 3
+    vi.advanceTimersByTime(2400);
+    expect(mockAudioInstance.play).toHaveBeenCalledTimes(3);
+
+    // User dismisses / views notifications -> stopNotificationAlarm
+    stopNotificationAlarm();
+    expect(isAlarmActive()).toBe(false);
+
+    // Advance another 5 seconds -> no further calls made
+    vi.advanceTimersByTime(5000);
+    expect(mockAudioInstance.play).toHaveBeenCalledTimes(3);
+
+    vi.useRealTimers();
   });
 });

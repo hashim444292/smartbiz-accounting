@@ -22,6 +22,7 @@ import {
   Monitor,
   Store,
   Bell,
+  BellRing,
   AlertTriangle,
   Clock,
   History,
@@ -34,7 +35,11 @@ import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
 import { useLanguage } from "@/context/LanguageContext";
 import { smartFetch } from "@/lib/clientCache";
-import { playNotificationBell } from "@/lib/notificationSound";
+import {
+  playNotificationBell,
+  startNotificationAlarm,
+  stopNotificationAlarm,
+} from "@/lib/notificationSound";
 
 export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
   const {
@@ -86,6 +91,7 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
   const remindersRef = useRef<HTMLDivElement>(null);
   const [remindersData, setRemindersData] = useState<any>(null);
   const [isRemindersRead, setIsRemindersRead] = useState<boolean>(true);
+  const [isAlarmActive, setIsAlarmActive] = useState<boolean>(false);
 
   const computeRemindersSignature = (data: any): string => {
     if (!data || !Array.isArray(data.reminders) || data.reminders.length === 0) return "";
@@ -93,6 +99,8 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
   };
 
   const markRemindersAsRead = () => {
+    stopNotificationAlarm();
+    setIsAlarmActive(false);
     if (!remindersData) return;
     const currentSig = computeRemindersSignature(remindersData);
     if (currentSig) {
@@ -124,7 +132,7 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
     return () => clearInterval(interval);
   }, [activeCompany?.id]);
 
-  // Evaluate unread notification status and play chime on login / unread visit
+  // Evaluate unread notification status and play alarm on login / unread visit
   useEffect(() => {
     if (!remindersData) return;
 
@@ -141,24 +149,27 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
       const isUnread = readSig !== currentSig;
       setIsRemindersRead(!isUnread);
 
-      // Rule: Jab jab login kia or notification read na kia ho, bell ki awaz aaye
+      // Rule: Agar notification read na kia ho, alarm ke tarha ring karte rahe jab tak seen/dismiss na kare!
       if (isUnread) {
-        let playedInSession = false;
-        try {
-          playedInSession = sessionStorage.getItem("sb_bell_played_session") === currentSig;
-        } catch {}
-
-        if (!playedInSession) {
-          playNotificationBell();
-          try {
-            sessionStorage.setItem("sb_bell_played_session", currentSig);
-          } catch {}
-        }
+        startNotificationAlarm(2400);
+        setIsAlarmActive(true);
+      } else {
+        stopNotificationAlarm();
+        setIsAlarmActive(false);
       }
     } else {
       setIsRemindersRead(true);
+      stopNotificationAlarm();
+      setIsAlarmActive(false);
     }
   }, [remindersData]);
+
+  // Clean up alarm when header unmounts
+  useEffect(() => {
+    return () => {
+      stopNotificationAlarm();
+    };
+  }, []);
 
   // Global Quick Search state (Cmd + K)
   const [searchOpen, setSearchOpen] = useState(false);
@@ -600,6 +611,21 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
           {/* Global Date Range Selector (Hidden in Platform Admin mode) */}
           {!isPlatformMode && <DateRangeSelector />}
 
+          {/* Active Ringing Alarm Pill */}
+          {isAlarmActive && (
+            <button
+              type="button"
+              onClick={() => {
+                markRemindersAsRead();
+              }}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-black shadow-lg shadow-rose-600/30 animate-bounce transition cursor-pointer"
+              title={t("Silence Alarm & Mark Read", "الارم بند کریں اور دیکھا ہوا نشان لگائیں")}
+            >
+              <BellRing className="h-4 w-4 animate-spin" />
+              <span>{t("Stop Alarm", "الارم بند کریں")}</span>
+            </button>
+          )}
+
           {/* Payment Reminders Notification Bell */}
           <div className="relative" ref={remindersRef}>
             <button
@@ -610,10 +636,18 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
                   markRemindersAsRead();
                 }
               }}
-              className="relative flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white transition shadow-2xs"
+              className={`relative flex h-9 w-9 items-center justify-center rounded-xl border transition shadow-2xs ${
+                isAlarmActive
+                  ? "border-rose-400 bg-rose-50 text-rose-600 ring-2 ring-rose-500 ring-offset-1 animate-pulse dark:border-rose-800 dark:bg-rose-950/60 dark:text-rose-300"
+                  : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
+              }`}
               title={t("Payment Due Reminders", "ادائیگی و وصولی یاد دہانی")}
             >
-              <Bell className={`h-4 w-4 ${!isRemindersRead && remindersData && ((remindersData.overdueCount + remindersData.dueTodayCount > 0) || (remindersData.reminders && remindersData.reminders.length > 0)) ? "text-rose-600 dark:text-rose-400" : ""}`} />
+              {isAlarmActive ? (
+                <BellRing className="h-4 w-4 text-rose-600 animate-bounce" />
+              ) : (
+                <Bell className={`h-4 w-4 ${!isRemindersRead && remindersData && ((remindersData.overdueCount + remindersData.dueTodayCount > 0) || (remindersData.reminders && remindersData.reminders.length > 0)) ? "text-rose-600 dark:text-rose-400" : ""}`} />
+              )}
               {remindersData && ((remindersData.overdueCount + remindersData.dueTodayCount > 0) || (remindersData.reminders && remindersData.reminders.length > 0)) && (
                 <span className={`absolute -top-1 -right-1 flex h-4 min-w-[16px] px-1 items-center justify-center rounded-full text-[10px] font-black text-white shadow-xs ${
                   !isRemindersRead ? "bg-rose-600 animate-pulse ring-2 ring-rose-400/40" : "bg-slate-400 dark:bg-slate-600"

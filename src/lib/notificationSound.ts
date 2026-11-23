@@ -8,6 +8,8 @@ import { BELL_CHIME_B64 } from "./bellChimeData";
 
 let sharedAudioCtx: AudioContext | null = null;
 let isAudioUnlocked = false;
+let alarmIntervalTimer: any = null;
+let isAlarmRunning = false;
 
 /**
  * Pre-warm and unlock browser audio.
@@ -85,18 +87,23 @@ export function playNotificationBell(): void {
 
   // Engine 1: HTML5 Audio element with Base64 WAV
   try {
-    const audio = new Audio(BELL_CHIME_B64);
-    audio.volume = 0.9;
-    const playPromise = audio.play();
-    if (playPromise !== undefined) {
-      playPromise
-        .then(() => {
-          audioPlayed = true;
-        })
-        .catch(() => {
-          // Autoplay blocked by browser policy; wait for first interaction
-          queueDeferredChime();
-        });
+    const AudioCtor =
+      (typeof window !== "undefined" && (window as any).Audio) ||
+      (typeof Audio !== "undefined" ? Audio : null);
+    if (AudioCtor) {
+      const audio = new AudioCtor(BELL_CHIME_B64);
+      audio.volume = 0.9;
+      const playPromise = audio.play();
+      if (playPromise !== undefined) {
+        playPromise
+          .then(() => {
+            audioPlayed = true;
+          })
+          .catch(() => {
+            // Autoplay blocked by browser policy; wait for first interaction
+            queueDeferredChime();
+          });
+      }
     }
   } catch {
     // Fall back to Web Audio
@@ -126,9 +133,14 @@ function queueDeferredChime(): void {
     unlockNotificationAudio();
 
     try {
-      const audio = new Audio(BELL_CHIME_B64);
-      audio.volume = 0.9;
-      audio.play().catch(() => {});
+      const AudioCtor =
+        (typeof window !== "undefined" && (window as any).Audio) ||
+        (typeof Audio !== "undefined" ? Audio : null);
+      if (AudioCtor) {
+        const audio = new AudioCtor(BELL_CHIME_B64);
+        audio.volume = 0.9;
+        audio.play().catch(() => {});
+      }
     } catch {}
 
     if (sharedAudioCtx) {
@@ -152,4 +164,45 @@ function queueDeferredChime(): void {
   window.addEventListener("pointerdown", onFirstInteraction, { once: true, passive: true });
   window.addEventListener("keydown", onFirstInteraction, { once: true, passive: true });
   window.addEventListener("click", onFirstInteraction, { once: true, passive: true });
+}
+
+/**
+ * Starts continuous alarm ringing (repeats every 2.4 seconds)
+ * like an alarm clock until stopNotificationAlarm() is explicitly called by user dismissal or viewing.
+ */
+export function startNotificationAlarm(intervalMs = 2400): void {
+  if (typeof window === "undefined") return;
+  if (isAlarmRunning) return;
+
+  isAlarmRunning = true;
+  // Play the first ring immediately
+  playNotificationBell();
+
+  // Then repeat in loop until stopped
+  if (alarmIntervalTimer) clearInterval(alarmIntervalTimer);
+  alarmIntervalTimer = setInterval(() => {
+    if (!isAlarmRunning) {
+      if (alarmIntervalTimer) clearInterval(alarmIntervalTimer);
+      return;
+    }
+    playNotificationBell();
+  }, intervalMs);
+}
+
+/**
+ * Immediately silences the continuous alarm and clears the loop timer.
+ */
+export function stopNotificationAlarm(): void {
+  isAlarmRunning = false;
+  if (alarmIntervalTimer) {
+    clearInterval(alarmIntervalTimer);
+    alarmIntervalTimer = null;
+  }
+}
+
+/**
+ * Check if the alarm is currently ringing.
+ */
+export function isAlarmActive(): boolean {
+  return isAlarmRunning;
 }
