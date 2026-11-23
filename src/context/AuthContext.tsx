@@ -154,7 +154,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const data = await res.json();
       if (data.success) {
         try {
+          sessionStorage.removeItem("sb_session_alarm_handled");
+          sessionStorage.removeItem("sb_session_reminders_read");
           sessionStorage.removeItem("sb_bell_played_session");
+          localStorage.removeItem("sb_reminders_read_sig");
         } catch {}
         setUser(data.user);
         setIsAuthenticated(true);
@@ -178,6 +181,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       await fetch("/api/auth/logout", { method: "POST" });
     } finally {
+      try {
+        sessionStorage.removeItem("sb_session_alarm_handled");
+        sessionStorage.removeItem("sb_session_reminders_read");
+        sessionStorage.removeItem("sb_bell_played_session");
+        localStorage.removeItem("sb_reminders_read_sig");
+      } catch {}
       setUser(null);
       setIsAuthenticated(false);
       router.push("/login");

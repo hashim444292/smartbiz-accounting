@@ -17,6 +17,12 @@ export default function LoginPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     unlockNotificationAudio();
+    try {
+      sessionStorage.removeItem("sb_session_alarm_handled");
+      sessionStorage.removeItem("sb_session_reminders_read");
+      sessionStorage.removeItem("sb_bell_played_session");
+      localStorage.removeItem("sb_reminders_read_sig");
+    } catch {}
     setError(null);
     setLoading(true);
 

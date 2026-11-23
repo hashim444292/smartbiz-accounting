@@ -9,6 +9,7 @@ import { BELL_CHIME_B64 } from "./bellChimeData";
 let sharedAudioCtx: AudioContext | null = null;
 let isAudioUnlocked = false;
 let alarmIntervalTimer: any = null;
+let alarmAutoStopTimer: any = null;
 let isAlarmRunning = false;
 
 /**
@@ -169,8 +170,9 @@ function queueDeferredChime(): void {
 /**
  * Starts continuous alarm ringing (repeats every 2.4 seconds)
  * like an alarm clock until stopNotificationAlarm() is explicitly called by user dismissal or viewing.
+ * Auto-stops after maxDurationMs (default 30 seconds) if left unattended.
  */
-export function startNotificationAlarm(intervalMs = 2400): void {
+export function startNotificationAlarm(intervalMs = 2400, maxDurationMs = 30000): void {
   if (typeof window === "undefined") return;
   if (isAlarmRunning) return;
 
@@ -187,6 +189,14 @@ export function startNotificationAlarm(intervalMs = 2400): void {
     }
     playNotificationBell();
   }, intervalMs);
+
+  // Auto-silence after maxDurationMs if unattended
+  if (alarmAutoStopTimer) clearTimeout(alarmAutoStopTimer);
+  if (maxDurationMs > 0) {
+    alarmAutoStopTimer = setTimeout(() => {
+      stopNotificationAlarm();
+    }, maxDurationMs);
+  }
 }
 
 /**
@@ -197,6 +207,10 @@ export function stopNotificationAlarm(): void {
   if (alarmIntervalTimer) {
     clearInterval(alarmIntervalTimer);
     alarmIntervalTimer = null;
+  }
+  if (alarmAutoStopTimer) {
+    clearTimeout(alarmAutoStopTimer);
+    alarmAutoStopTimer = null;
   }
 }
 

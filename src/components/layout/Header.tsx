@@ -105,7 +105,9 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
     const currentSig = computeRemindersSignature(remindersData);
     if (currentSig) {
       try {
-        localStorage.setItem("sb_reminders_read_sig", currentSig);
+        sessionStorage.setItem("sb_session_reminders_read", currentSig);
+        sessionStorage.setItem("sb_session_alarm_handled", currentSig);
+        localStorage.removeItem("sb_reminders_read_sig");
       } catch {}
       setIsRemindersRead(true);
     }
@@ -141,19 +143,29 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
     const currentSig = computeRemindersSignature(remindersData);
 
     if (totalCount > 0 && currentSig) {
-      let readSig = "";
+      let sessionReadSig = "";
+      let sessionAlarmHandled = "";
       try {
-        readSig = localStorage.getItem("sb_reminders_read_sig") || "";
+        localStorage.removeItem("sb_reminders_read_sig");
+        sessionReadSig = sessionStorage.getItem("sb_session_reminders_read") || "";
+        sessionAlarmHandled = sessionStorage.getItem("sb_session_alarm_handled") || "";
       } catch {}
 
-      const isUnread = readSig !== currentSig;
-      setIsRemindersRead(!isUnread);
+      const isUnreadInSession = sessionReadSig !== currentSig;
+      setIsRemindersRead(!isUnreadInSession);
 
-      // Rule: Agar notification read na kia ho, alarm ke tarha ring karte rahe jab tak seen/dismiss na kare!
-      if (isUnread) {
-        startNotificationAlarm(2400);
+      // Rule:
+      // 1. Jab jab login ho, reminder notification ana chahiye (har login par reminder mile).
+      // 2. Aik session mai 1 bar alarm ring ho jab tak user stop/seen na kare (ya 30s auto-stop).
+      const shouldRingInSession = isUnreadInSession && sessionAlarmHandled !== currentSig;
+
+      if (shouldRingInSession) {
+        startNotificationAlarm(2400, 30000);
         setIsAlarmActive(true);
-      } else {
+        try {
+          sessionStorage.setItem("sb_session_alarm_handled", currentSig);
+        } catch {}
+      } else if (!isUnreadInSession) {
         stopNotificationAlarm();
         setIsAlarmActive(false);
       }
