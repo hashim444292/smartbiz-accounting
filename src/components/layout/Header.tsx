@@ -619,10 +619,10 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
                 markRemindersAsRead();
               }}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-black shadow-lg shadow-rose-600/30 animate-bounce transition cursor-pointer"
-              title={t("Silence Alarm & Mark Read", "الارم بند کریں اور دیکھا ہوا نشان لگائیں")}
+              title={t("Silence Notification & Mark Read", "نوٹیفکیشن بند کریں اور دیکھا ہوا نشان لگائیں")}
             >
               <BellRing className="h-4 w-4 animate-spin" />
-              <span>{t("Stop Alarm", "الارم بند کریں")}</span>
+              <span>{t("Stop Notification", "نوٹیفکیشن بند کریں")}</span>
             </button>
           )}
 
