@@ -1,0 +1,46 @@
+{
+  "name": "accounts360-desktop",
+  "productName": "Accounts360",
+  "version": "1.0.0",
+  "description": "Accounts360 - Offline Business Accounting, POS & Digital Invoicing Suite",
+  "main": "main.cjs",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder --win --x64"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.accounts360.desktop",
+    "productName": "Accounts360",
+    "copyright": "Copyright © 2026 Accounts360",
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/icon.ico",
+      "artifactName": "Accounts360-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Accounts360"
+    }
+  }
+}

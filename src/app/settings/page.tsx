@@ -5,18 +5,21 @@ import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Building2, Users, Shield, History, Check, Percent, Layers, AlertCircle, Save } from "lucide-react";
+import { Building2, Users, Shield, History, Check, Percent, Layers, AlertCircle, Save, Database, Download, Upload, CheckCircle2, RefreshCw } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { BrandPageLoader } from "@/components/ui/loader";
 import { useLanguage } from "@/context/LanguageContext";
 
 export default function SettingsPage() {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const { user, activeCompany, isLoading, refreshSession } = useAuth();
   const isSuperAdmin = user?.role === "SUPER_ADMIN" || user?.role === "ADMIN";
   // FBR API & Digital Invoicing Configuration tab is strictly reserved for Platform Super Admins (hidden from client)
   const canManageFbr = user?.role === "SUPER_ADMIN";
-  const [activeTab, setActiveTab] = useState<"PROFILE" | "DEFAULTS" | "FBR" | "USERS" | "AUDIT">("PROFILE");
+  const [activeTab, setActiveTab] = useState<"PROFILE" | "DEFAULTS" | "FBR" | "USERS" | "AUDIT" | "BACKUP">("PROFILE");
+  const [backupDownloading, setBackupDownloading] = useState(false);
+  const [backupRestoring, setBackupRestoring] = useState(false);
+  const [backupFeedback, setBackupFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [saved, setSaved] = useState(false);
   const [defaultsSaved, setDefaultsSaved] = useState(false);
   const [defaultsError, setDefaultsError] = useState<string | null>(null);
@@ -308,6 +311,16 @@ export default function SettingsPage() {
         >
           <History className="h-4 w-4" />
           <span>Audit Logs</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab("BACKUP")}
+          className={`flex-1 flex items-center justify-center gap-2 rounded-lg py-2 text-xs font-semibold transition ${
+            activeTab === "BACKUP" ? "bg-white text-indigo-700 font-bold shadow-xs" : "text-slate-600 hover:bg-white/60 hover:text-slate-900"
+          }`}
+        >
+          <Database className="h-4 w-4" />
+          <span>{t("Data & Backup", "ڈیٹا و بیک اپ")}</span>
         </button>
       </div>
 
@@ -863,6 +876,179 @@ export default function SettingsPage() {
               ))
             )}
           </div>
+        </div>
+      )}
+
+      {/* TAB 5: BACKUP */}
+      {activeTab === "BACKUP" && (
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-xs space-y-6">
+          <div className="border-b border-slate-100 pb-3">
+            <h3 className="text-sm font-bold text-slate-900">
+              {t("1-Click Database Backup & Restore", "ایک کلک ڈیٹا بیک اپ و بحالی")}
+            </h3>
+            <p className="text-[11px] text-slate-500">
+              {t("Encrypted .sbz snapshots for complete offline ledger safety", "مکمل آف لائن ریکارڈز کے لیے محفوظ .sbz اسنیپ شاٹس")}
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Export Card */}
+            <div className="p-4 rounded-2xl bg-indigo-50/50 border border-indigo-200/60 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 font-bold text-xs text-indigo-950">
+                  <Download className="h-4 w-4 text-indigo-600" />
+                  <span>{t("Export Offline Backup (.sbz)", "مکمل بیک اپ فائل ڈاؤنلوڈ کریں")}</span>
+                </div>
+                <span className="text-[10px] font-mono font-bold text-indigo-600 bg-indigo-100 px-2 py-0.5 rounded-full">
+                  SHA-256
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-600 leading-relaxed">
+                {t(
+                  "Downloads a complete encrypted snapshot of all sales invoices, purchases, customer ledgers, and cash balances to an offline .sbz file.",
+                  "تمام سیلز، خریداری، کسٹمرز لیجر، کیش رجسٹر اور کھاتوں کا مکمل محفوظ بیک اپ تیار کرتا ہے۔"
+                )}
+              </p>
+              <Button
+                type="button"
+                disabled={backupDownloading}
+                onClick={async () => {
+                  setBackupDownloading(true);
+                  setBackupFeedback(null);
+                  try {
+                    const res = await fetch("/api/desktop/backup");
+                    const blob = await res.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = `Accounts360_Backup_${new Date().toISOString().slice(0, 10)}.sbz`;
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                    window.URL.revokeObjectURL(url);
+                    setBackupFeedback({
+                      type: "success",
+                      message: language === "ur" ? "مکمل بیک اپ فائل کامیابی سے ڈاؤنلوڈ ہو گئی ہے۔" : "Complete backup file downloaded successfully.",
+                    });
+                  } catch (err: any) {
+                    setBackupFeedback({ type: "error", message: err.message || "Export failed" });
+                  } finally {
+                    setBackupDownloading(false);
+                  }
+                }}
+                className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs h-9 rounded-xl shadow-xs"
+              >
+                {backupDownloading ? (
+                  <>
+                    <RefreshCw className="h-3.5 w-3.5 animate-spin mr-1.5" />
+                    {t("Exporting Complete Database...", "بیک اپ تیار ہو رہا ہے...")}
+                  </>
+                ) : (
+                  <>
+                    <Download className="h-3.5 w-3.5 mr-1.5" />
+                    {t("Export Backup File Now", "ابھی بیک اپ فائل نکالیں")}
+                  </>
+                )}
+              </Button>
+            </div>
+
+            {/* Restore Card */}
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 font-bold text-xs text-slate-800">
+                  <Upload className="h-4 w-4 text-slate-600" />
+                  <span>{t("Restore Database from File", "فائل سے ڈیٹا بحال کریں")}</span>
+                </div>
+                <span className="text-[10px] text-slate-400 font-mono">
+                  Checksum Verified
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500 leading-relaxed">
+                {t(
+                  "Restore your accounting ledger from a previously exported .sbz backup file. Verified against cryptographic checksum before applying.",
+                  "پہلے سے محفوظ شدہ بیک اپ فائل منتخب کر کے تمام ڈیٹا بحال کریں۔ سسٹم خودکار طور پر فائل کے درست ہونے کی تصدیق کرے گا۔"
+                )}
+              </p>
+              <label className="block">
+                <input
+                  type="file"
+                  accept=".sbz,.json"
+                  disabled={backupRestoring}
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    if (!confirm(language === "ur" ? "کیا آپ واقعی یہ بیک اپ بحال کرنا چاہتے ہیں؟" : "Are you sure you want to restore this backup file?")) {
+                      e.target.value = "";
+                      return;
+                    }
+                    setBackupRestoring(true);
+                    setBackupFeedback(null);
+                    try {
+                      const text = await file.text();
+                      const res = await fetch("/api/desktop/backup", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: text,
+                      });
+                      const json = await res.json();
+                      if (json.success) {
+                        setBackupFeedback({
+                          type: "success",
+                          message: language === "ur" ? "ڈیٹا بیس کامیابی سے بحال ہو گیا!" : "Database successfully restored!",
+                        });
+                        setTimeout(() => window.location.reload(), 1500);
+                      } else {
+                        setBackupFeedback({ type: "error", message: json.error || "Restore failed" });
+                      }
+                    } catch (err: any) {
+                      setBackupFeedback({ type: "error", message: err.message || "Network error" });
+                    } finally {
+                      setBackupRestoring(false);
+                      e.target.value = "";
+                    }
+                  }}
+                  className="hidden"
+                  id="settings-sbz-restore-input"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={backupRestoring}
+                  onClick={() => document.getElementById("settings-sbz-restore-input")?.click()}
+                  className="w-full border-slate-300 text-slate-700 font-bold text-xs h-9 rounded-xl hover:bg-slate-100"
+                >
+                  {backupRestoring ? (
+                    <>
+                      <RefreshCw className="h-3.5 w-3.5 animate-spin mr-1.5" />
+                      {t("Restoring Database...", "ڈیٹا بحال ہو رہا ہے...")}
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="h-3.5 w-3.5 mr-1.5" />
+                      {t("Select .sbz Backup File to Restore", "بیک اپ فائل منتخب کریں")}
+                    </>
+                  )}
+                </Button>
+              </label>
+            </div>
+          </div>
+
+          {backupFeedback && (
+            <div
+              className={`p-3 rounded-xl text-xs font-semibold flex items-start gap-2 ${
+                backupFeedback.type === "success"
+                  ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                  : "bg-red-50 text-red-800 border border-red-200"
+              }`}
+            >
+              {backupFeedback.type === "success" ? (
+                <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600 mt-0.5" />
+              ) : (
+                <AlertCircle className="h-4 w-4 shrink-0 text-red-600 mt-0.5" />
+              )}
+              <span>{backupFeedback.message}</span>
+            </div>
+          )}
         </div>
       )}
     </div>
