@@ -1937,7 +1937,7 @@ export default function CreateSalePage() {
           </div>
 
           {/* Line Items Table Section */}
-          <div className="rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 overflow-hidden">
+          <div className="rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 relative">
             {/* Table Header Section Bar */}
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-4 dark:border-slate-800">
               <div className="flex items-center gap-3">
@@ -1980,7 +1980,7 @@ export default function CreateSalePage() {
             </div>
 
             {/* Table */}
-            <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-700">
+            <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-700 min-h-[380px] pb-32">
               <table className="w-full min-w-[1080px] text-left text-xs">
                 <thead className="bg-slate-50/80 border-b border-slate-200 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:bg-slate-800/40 dark:border-slate-800 dark:text-slate-400">
                   <tr>
@@ -2009,14 +2009,19 @@ export default function CreateSalePage() {
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {items.map((it, idx) => (
-                    <tr key={idx} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition">
+                    <tr
+                      key={idx}
+                      className={`hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition ${
+                        activeSearchRow === idx ? "relative z-[60]" : "relative z-0"
+                      }`}
+                    >
                       {/* # Index */}
                       <td className="py-3 pl-4 pr-2 text-center font-semibold text-slate-400">
                         {idx + 1}
                       </td>
 
                       {/* ITEM DESCRIPTION & UNIFIED SEARCHABLE COMBBOX (Task 1) */}
-                      <td className="py-3 px-3 space-y-1">
+                      <td className={`py-3 px-3 space-y-1 ${activeSearchRow === idx ? "relative z-[70]" : ""}`}>
                         <div className="relative">
                           <div className="flex items-center gap-1.5">
                             <div className="relative flex-1">
@@ -2111,10 +2116,17 @@ export default function CreateSalePage() {
 
                           {/* Live Floating Typeahead Search Dropdown */}
                           {activeSearchRow === idx && (
-                            <div
-                              className="absolute left-0 right-0 top-full mt-1 z-50 max-h-64 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900 animate-in fade-in slide-in-from-top-1 duration-150"
-                              onMouseDown={(e) => e.preventDefault()}
-                            >
+                            <>
+                              {/* Backdrop to dismiss on click outside */}
+                              <div
+                                className="fixed inset-0 z-[80]"
+                                onClick={() => setActiveSearchRow(null)}
+                              />
+
+                              <div
+                                className="absolute left-0 top-full mt-1.5 z-[100] w-[360px] sm:w-[460px] max-h-80 overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900 ring-2 ring-blue-500/30 animate-in fade-in slide-in-from-top-1 duration-150"
+                                onMouseDown={(e) => e.stopPropagation()}
+                              >
                               <div className="sticky top-0 bg-slate-100 dark:bg-slate-800 px-3 py-1.5 text-[10px] font-bold text-slate-500 dark:text-slate-400 flex items-center justify-between border-b border-slate-200 dark:border-slate-700">
                                 <span className="flex items-center gap-1">
                                   <Search className="h-3 w-3 text-blue-600" />
@@ -2168,7 +2180,8 @@ export default function CreateSalePage() {
                                 </div>
                               )}
                             </div>
-                          )}
+                          </>
+                        )}
                         </div>
 
                         {fieldErrors[`item_${idx}_product`] && (
