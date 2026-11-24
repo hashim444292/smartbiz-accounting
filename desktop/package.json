@@ -3,6 +3,7 @@
   "productName": "Accounts360",
   "version": "1.0.0",
   "description": "Accounts360 - Offline Business Accounting, POS & Digital Invoicing Suite",
+  "author": "Accounts360 Systems",
   "main": "main.cjs",
   "private": true,
   "scripts": {
@@ -22,6 +23,11 @@
     "directories": {
       "output": "dist"
     },
+    "files": [
+      "main.cjs",
+      "preload.cjs",
+      "assets/**/*"
+    ],
     "win": {
       "target": [
         {
@@ -32,6 +38,7 @@
         }
       ],
       "icon": "assets/icon.ico",
+      "signAndEditExecutable": false,
       "artifactName": "Accounts360-Setup-${version}.${ext}"
     },
     "nsis": {

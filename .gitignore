@@ -29,11 +29,15 @@ yarn-error.log*
 .env*.production
 
 # vercel
-.vercel
+# desktop builds
+desktop/node_modules/
+desktop/dist/
 FBR_ReadOnly_Audit_Export/
 
 # typescript
 *.tsbuildinfo
 next-env.d.ts
 
-.vercel
+# desktop builds
+desktop/node_modules/
+desktop/dist/
