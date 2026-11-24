@@ -358,7 +358,7 @@ export function Sidebar({
             const filteredItems = group.items.filter((item) => {
               // 1. Company-level module gating
               if (item.moduleKey) {
-                if (isAccountingOnly && (item.moduleKey === "pos" || item.moduleKey === "compliance")) {
+                if (isAccountingOnly && item.moduleKey === "compliance") {
                   return false;
                 }
                 if (isFbrInvoicingOnly) {
@@ -476,6 +476,8 @@ export function Sidebar({
                           ? "پروڈکٹس کیٹلاگ"
                           : isFbrInvoicingOnly && item.href === "/products/create"
                           ? "+ نیا پروڈکٹ شامل کریں"
+                          : isAccountingOnly && item.href === "/sales/create"
+                          ? "نئی سیل انوائس"
                           : (item.nameUrdu || item.name))
                       : (isFbrInvoicingOnly && item.href === "/reports"
                           ? "Sales Reports & Downloads"
@@ -485,6 +487,8 @@ export function Sidebar({
                           ? "Products & Rates"
                           : isFbrInvoicingOnly && item.href === "/products/create"
                           ? "+ Add Product"
+                          : isAccountingOnly && item.href === "/sales/create"
+                          ? "Create Sale Invoice"
                           : item.name);
 
                     let itemBadge = item.badge;

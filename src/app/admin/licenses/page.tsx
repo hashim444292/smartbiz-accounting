@@ -804,7 +804,7 @@ export default function DesktopLicensesPage() {
                           <span className="text-[10px] font-black text-indigo-600 uppercase">Standard</span>
                         </div>
                         <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                          Complete accounting ledger, sales billing, customer receipts, 80mm thermal & A4 print, inventory. (Zero FBR complexity).
+                          Cash Drawer & Cash Book, Full Double-Entry Ledger, Sales & Purchase Returns (Restocking & Balance Refund), 80mm Thermal & A4 Print. (Zero FBR complexity).
                         </p>
                       </div>
                     </label>
@@ -831,7 +831,7 @@ export default function DesktopLicensesPage() {
                           <span className="text-[10px] font-black text-emerald-600 uppercase">Popular</span>
                         </div>
                         <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                          Quick retail cashier counter, barcode scanner, thermal receipt, cash drawer + full double-entry ledger & FBR POS stamping.
+                          Retail Cashier Counter, Barcode Scanner, Cash Drawer, Counter Returns & Credit Notes, 80mm Thermal Slips, FBR POS QR + Full Double-Entry Ledger.
                         </p>
                       </div>
                     </label>

@@ -7,13 +7,27 @@ import { Header } from "./Header";
 import { BottomNav } from "./BottomNav";
 import { DateRangeProvider } from "@/context/DateRangeContext";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
+import DesktopActivationGate, { DesktopLicenseState } from "@/components/desktop/DesktopActivationGate";
 
 function ShellContent({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [desktopLicense, setDesktopLicense] = useState<DesktopLicenseState | null>(null);
   const pathname = usePathname();
   const isLoginPage = pathname === "/login";
   const { user, activeCompany, switchUser, isInspectingClient, exitInspection } = useAuth();
+
+  useEffect(() => {
+    // Check if running in offline desktop environment
+    fetch("/api/desktop/license")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.success && data.isDesktop) {
+          setDesktopLicense(data);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     try {
@@ -96,6 +110,11 @@ function ShellContent({ children }: { children: React.ReactNode }) {
         </div>
         <main className="flex-1 p-3.5 sm:p-5 lg:p-6 pb-24 lg:pb-8 max-w-7xl w-full mx-auto overflow-x-clip print:p-0 print:m-0 print:max-w-none print:w-full print:overflow-visible">{children}</main>
         <BottomNav onOpenMenu={() => setSidebarOpen(true)} />
+
+        {/* Desktop Activation Gate: Enforces offline hardware lock on desktop installations */}
+        {desktopLicense?.isDesktop && (!desktopLicense.isActivated || desktopLicense.isExpired) && (
+          <DesktopActivationGate onActivated={() => window.location.reload()} />
+        )}
       </div>
     </div>
   );
