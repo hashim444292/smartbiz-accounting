@@ -109,7 +109,7 @@ export default function DashboardPage() {
       router.replace("/login");
       return;
     }
-    if (!isLoading && (user?.role === "SUPER_ADMIN" || user?.role === "ADMIN") && !isInspectingClient) {
+    if (!isLoading && user?.role === "SUPER_ADMIN" && user?.platformRole === "SUPER_ADMIN" && !user?.businessId && !isInspectingClient) {
       router.replace("/admin");
     }
   }, [user, isInspectingClient, isLoading, router]);

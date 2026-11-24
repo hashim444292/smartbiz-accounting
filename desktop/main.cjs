@@ -141,16 +141,20 @@ async function startLocalServer(port) {
   log(`[DesktopMain] CWD: ${serverCwd}`);
   log(`[DesktopMain] Executable: ${process.execPath}`);
 
+  const serverEnv = { ...process.env };
+  delete serverEnv.DATABASE_URL;
+
   serverProcess = spawn(process.execPath, [serverScript], {
     cwd: serverCwd,
     env: {
-      ...process.env,
+      ...serverEnv,
       ELECTRON_RUN_AS_NODE: "1",
       PORT: String(port),
       HOSTNAME: "127.0.0.1",
       ACCOUNTS360_DESKTOP: "true",
       DESKTOP_MODE: "true",
       NODE_ENV: "production",
+      DATABASE_URL: "",
     },
     stdio: ["ignore", "pipe", "pipe"],
     windowsHide: true,

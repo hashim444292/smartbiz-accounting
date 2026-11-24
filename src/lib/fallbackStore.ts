@@ -2106,7 +2106,7 @@ function initializeState(): StoreState {
     },
   ];
 
-  return {
+  const baseState = {
     business: companies[0],
     activeBusinessId: "biz-101",
     companies,
@@ -2139,6 +2139,42 @@ function initializeState(): StoreState {
     subscriptionPayments,
     branches: branches || [],
   };
+
+  // Hydrate desktop database state if smartbiz.db exists on disk (Node server-side only)
+  if (typeof window === "undefined") {
+    try {
+      const nodeRequire = eval("require");
+      const { readDesktopDatabaseState } = nodeRequire("./desktopDatabase");
+      const desktopDb = readDesktopDatabaseState();
+      if (desktopDb && desktopDb.business && desktopDb.companies && desktopDb.companies.length > 0) {
+        const activeBiz = desktopDb.business;
+        const dProducts = desktopDb.products || [];
+        const dCustomers = desktopDb.customers || [];
+        const dSuppliers = desktopDb.suppliers || [];
+        const dAccounts = desktopDb.accounts || [];
+
+        return {
+          ...baseState,
+          business: activeBiz,
+          activeBusinessId: activeBiz.id,
+          companies: [...desktopDb.companies, ...companies.filter((c: any) => c.id !== activeBiz.id)],
+          users: [...(desktopDb.users || []), ...users],
+          accounts: [...dAccounts, ...accounts.filter((a: any) => a.businessId !== activeBiz.id)],
+          cashBankAccounts: [...(desktopDb.cashBankAccounts || []), ...cashBankAccounts.filter((cb: any) => cb.businessId !== activeBiz.id)],
+          categories: [...(desktopDb.categories || []), ...categories.filter((cat: any) => cat.businessId !== activeBiz.id)],
+          products: [...dProducts, ...products.filter((p: any) => p.businessId !== activeBiz.id)],
+          customers: [...dCustomers, ...customers.filter((c: any) => c.businessId !== activeBiz.id)],
+          suppliers: [...dSuppliers, ...suppliers.filter((s: any) => s.businessId !== activeBiz.id)],
+          sales: [...(desktopDb.sales || []), ...sales.filter((s: any) => s.businessId !== activeBiz.id)],
+          purchases: [...(desktopDb.purchases || []), ...purchases.filter((p: any) => p.businessId !== activeBiz.id)],
+          payments: [...(desktopDb.payments || []), ...payments.filter((pay: any) => pay.businessId !== activeBiz.id)],
+          expenses: [...(desktopDb.expenses || []), ...expenses.filter((e: any) => e.businessId !== activeBiz.id)],
+        };
+      }
+    } catch {}
+  }
+
+  return baseState;
 }
 
 declare global {

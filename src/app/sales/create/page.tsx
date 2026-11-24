@@ -34,10 +34,13 @@ import {
   Calendar,
   Globe,
   Search,
+  ChevronDown,
+  History,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useLanguage } from "@/context/LanguageContext";
 import { smartFetch, invalidateCache } from "@/lib/clientCache";
+import ProductPriceHistoryModal from "@/components/sales/ProductPriceHistoryModal";
 
 interface ProductOption {
   id: string;
@@ -47,6 +50,7 @@ interface ProductOption {
   unit?: string;
   sellingPrice: number;
   purchasePrice?: number;
+  averageCost?: number;
   currentStock: number;
   hsCode?: string | null;
   categoryId?: string | null;
@@ -80,8 +84,9 @@ interface SaleLineItem {
   sku: string;
   hsCode: string;
   uom: string;
-  quantity: number;
+  quantity: number | "";
   unitPrice: number;
+  costPrice?: number;
   discountPercent: number;
   discountAmount: number;
   taxRate: number;
@@ -265,6 +270,18 @@ export default function CreateSalePage() {
   const [batchSavedResult, setBatchSavedResult] = useState<any | null>(null);
   const [isProcessingSplit, setIsProcessingSplit] = useState<boolean>(false);
 
+  // Search & Typeahead State
+  const [activeSearchRow, setActiveSearchRow] = useState<number | null>(null);
+  const [focusedRowIndex, setFocusedRowIndex] = useState<number | null>(null);
+
+  // Price & Rate Intelligence Modal State [F2]
+  const [priceHistoryModalOpen, setPriceHistoryModalOpen] = useState(false);
+  const [priceHistoryTarget, setPriceHistoryTarget] = useState<{
+    index: number;
+    productId: string;
+    productName: string;
+  } | null>(null);
+
   // Selected Customer Object
   const selectedCustomer = useMemo(() => {
     return customers.find((c) => c.id === customerId) || null;
@@ -273,11 +290,12 @@ export default function CreateSalePage() {
   // Helper to calculate line item numbers
   const recalculateItem = useCallback(
     (item: Partial<SaleLineItem>, currentBuyerStatus: BuyerTaxStatus): SaleLineItem => {
-      const q = Math.max(0, Number(item.quantity || 1));
+      const isBlankQty = item.quantity === "" || item.quantity === undefined || item.quantity === null;
+      const qNum = isBlankQty ? 0 : Math.max(0, Number(item.quantity));
       const p = Math.max(0, Number(item.unitPrice || 0));
       const discPct = Math.min(100, Math.max(0, Number(item.discountPercent || 0)));
 
-      const sub = q * p;
+      const sub = qNum * p;
       const discAmt = round2(toDecimal(sub).mul(discPct).div(100)).toNumber();
       const taxable = Math.max(0, sub - discAmt);
 
@@ -299,8 +317,9 @@ export default function CreateSalePage() {
         sku: item.sku || "",
         hsCode: item.hsCode || orgHsCode,
         uom: item.uom || "PCS",
-        quantity: q,
+        quantity: isBlankQty ? ("" as any) : qNum,
         unitPrice: p,
+        costPrice: Number(item.costPrice || 0),
         discountPercent: discPct,
         discountAmount: discAmt,
         taxRate: tr,
@@ -310,7 +329,7 @@ export default function CreateSalePage() {
         availableStock: item.availableStock || 0,
       };
     },
-    [orgHsCode, fbrInvoiceType]
+    [orgHsCode]
   );
 
   // Load Initial Metadata, Products, Customers
@@ -377,50 +396,24 @@ export default function CreateSalePage() {
         const custList: CustomerOption[] = custJson.data || [];
         setCustomers(custList);
 
-        // Pre-fill initial item
-        if (prodList.length > 0) {
-          const firstProd =
-            prodList.find((p) => p.name.toLowerCase().includes("galaxy") || p.name.toLowerCase().includes("s25")) ||
-            prodList[0];
-
-          const firstProdTaxRate =
-            firstProd.salesTax !== undefined && firstProd.salesTax !== null
-              ? Number(firstProd.salesTax)
-              : (firstProd.taxProfile?.includes("0%") ? 0 : 18);
-
-          const initialItem = recalculateItem(
-            {
-              productId: firstProd.id,
-              productName: firstProd.name,
-              sku: firstProd.sku || "SKU-" + firstProd.id,
-              hsCode: firstProd.hsCode || currentOrgHs,
-              uom: (firstProd.uom || firstProd.unit || "PCS").toUpperCase(),
-              quantity: 1,
-              unitPrice: Number(firstProd.sellingPrice || 285000),
-              discountPercent: 0,
-              availableStock: Number(firstProd.currentStock || 10),
-              taxRate: firstProdTaxRate,
-            },
-            "EXEMPT"
-          );
-          setItems([initialItem]);
-        } else {
-          const initialItem = recalculateItem(
-            {
-              productId: "",
-              productName: "Commercial Merchandise Item",
-              sku: "SKU-ITEM-01",
-              hsCode: currentOrgHs,
-              uom: "PCS",
-              quantity: 1,
-              unitPrice: 1000,
-              discountPercent: 0,
-              availableStock: 50,
-            },
-            "EXEMPT"
-          );
-          setItems([initialItem]);
-        }
+        // Pre-fill initial row with unselected product and blank quantity (Task 1 & Task 2)
+        const initialItem = recalculateItem(
+          {
+            productId: "",
+            productName: "",
+            sku: "",
+            hsCode: currentOrgHs || "8517.13",
+            uom: "PCS",
+            quantity: "" as any,
+            unitPrice: 0,
+            costPrice: 0,
+            discountPercent: 0,
+            availableStock: 0,
+            taxRate: 18,
+          },
+          "EXEMPT"
+        );
+        setItems([initialItem]);
       } catch (err) {
         console.error("Failed to load sales invoice options:", err);
       } finally {
@@ -513,6 +506,11 @@ export default function CreateSalePage() {
         ? Number(prod.salesTax)
         : (prod.taxProfile?.includes("0%") ? 0 : 18);
 
+    const cost =
+      Number(prod.averageCost || 0) > 0
+        ? Number(prod.averageCost)
+        : Number(prod.purchasePrice || 0);
+
     setItems((prev) => {
       const next = [...prev];
       next[index] = recalculateItem(
@@ -523,6 +521,7 @@ export default function CreateSalePage() {
           sku: prod.sku || `PRD-${prod.id}`,
           uom: (prod.uom || prod.unit || "PCS").toUpperCase(),
           unitPrice: Number(prod.sellingPrice || 0),
+          costPrice: cost,
           hsCode: prod.hsCode || orgHsCode,
           taxRate: prodTaxRate,
           availableStock: Number(prod.currentStock || 0),
@@ -531,7 +530,139 @@ export default function CreateSalePage() {
       );
       return next;
     });
+
+    // Auto-focus quantity input after selecting product from dropdown
+    setTimeout(() => {
+      document.getElementById(`qty-input-${index}`)?.focus();
+    }, 50);
   };
+
+  // Select product for a row from Typeahead search combobox
+  const selectProductForRow = useCallback(
+    (index: number, prod: ProductOption) => {
+      clearFieldError(`item_${index}_product`);
+      clearFieldError("items");
+
+      const prodTaxRate =
+        prod.salesTax !== undefined && prod.salesTax !== null
+          ? Number(prod.salesTax)
+          : prod.taxProfile?.includes("0%")
+          ? 0
+          : 18;
+
+      const cost =
+        Number(prod.averageCost || 0) > 0
+          ? Number(prod.averageCost)
+          : Number(prod.purchasePrice || 0);
+
+      setItems((prev) => {
+        const next = [...prev];
+        next[index] = recalculateItem(
+          {
+            ...next[index],
+            productId: prod.id,
+            productName: prod.name,
+            sku: prod.sku || `PRD-${prod.id}`,
+            uom: (prod.uom || prod.unit || "PCS").toUpperCase(),
+            unitPrice: Number(prod.sellingPrice || 0),
+            costPrice: cost,
+            hsCode: prod.hsCode || orgHsCode,
+            taxRate: prodTaxRate,
+            availableStock: Number(prod.currentStock || 0),
+          },
+          buyerTaxStatus
+        );
+        return next;
+      });
+
+      setActiveSearchRow(null);
+
+      // Auto focus on Quantity column
+      setTimeout(() => {
+        document.getElementById(`qty-input-${index}`)?.focus();
+      }, 50);
+    },
+    [buyerTaxStatus, orgHsCode, recalculateItem]
+  );
+
+  // Matching products for Typeahead Search
+  const matchingProducts = useMemo(() => {
+    if (activeSearchRow === null || !items[activeSearchRow]) return [];
+    const q = (items[activeSearchRow].productName || "").trim().toLowerCase();
+    if (!q) {
+      return products.slice(0, 20);
+    }
+    return products
+      .filter((p) => {
+        const nameMatch = p.name.toLowerCase().includes(q);
+        const skuMatch = p.sku ? p.sku.toLowerCase().includes(q) : false;
+        return nameMatch || skuMatch;
+      })
+      .slice(0, 25);
+  }, [activeSearchRow, items, products]);
+
+  // Open Price & Rate Intelligence Modal [F2]
+  const openPriceHistory = useCallback(
+    (index: number) => {
+      const item = items[index];
+      if (!item || !item.productId) {
+        alert(
+          t(
+            "Please select a product from catalog first to view price history.",
+            "براہ کرم ریٹ ہسٹری دیکھنے کے لیے پہلے پروڈکٹ منتخب کریں۔"
+          )
+        );
+        return;
+      }
+      setPriceHistoryTarget({
+        index,
+        productId: item.productId,
+        productName: item.productName || "Product",
+      });
+      setPriceHistoryModalOpen(true);
+    },
+    [items, t]
+  );
+
+  // Apply rate selected from history modal
+  const handleSelectPriceFromHistory = (selectedPrice: number) => {
+    if (priceHistoryTarget !== null) {
+      handleItemFieldChange(priceHistoryTarget.index, "unitPrice", selectedPrice);
+      setPriceHistoryModalOpen(false);
+      setTimeout(() => {
+        document.getElementById(`price-input-${priceHistoryTarget.index}`)?.focus();
+      }, 100);
+    }
+  };
+
+  // Global [F2] Keyboard Shortcut Listener for Rate Intelligence
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "F2") {
+        e.preventDefault();
+        // If a row is focused and has a selected product, open for that row
+        if (focusedRowIndex !== null && items[focusedRowIndex]?.productId) {
+          openPriceHistory(focusedRowIndex);
+          return;
+        }
+        // Else find first row with a valid productId
+        const firstValidIdx = items.findIndex((it) => it.productId);
+        if (firstValidIdx >= 0) {
+          openPriceHistory(firstValidIdx);
+        } else {
+          alert(
+            t(
+              "Please select a product first to view its price history (F2).",
+              "پہلے کوئی پروڈکٹ منتخب کریں تاکہ F2 پریس کرنے پر ریٹ ہسٹری دکھائی دے سکے۔"
+            )
+          );
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [focusedRowIndex, items, openPriceHistory, t]);
 
   // Filter products for the Manage Products modal
   const filteredManageProducts = useMemo(() => {
@@ -633,26 +764,21 @@ export default function CreateSalePage() {
     });
   };
 
-  // Add Item Row
+  // Add Item Row (Task 1 & 2: Starts with blank product and blank quantity)
   const handleAddItem = () => {
-    const defaultProd = products[0];
-    const defaultProdTaxRate = defaultProd
-      ? (defaultProd.salesTax !== undefined && defaultProd.salesTax !== null
-          ? Number(defaultProd.salesTax)
-          : (defaultProd.taxProfile?.includes("0%") ? 0 : 18))
-      : 18;
     const newItem = recalculateItem(
       {
-        productId: defaultProd ? defaultProd.id : "",
-        productName: defaultProd ? defaultProd.name : "",
-        sku: defaultProd?.sku || "",
-        hsCode: defaultProd?.hsCode || orgHsCode,
-        uom: (defaultProd?.uom || defaultProd?.unit || "PCS").toUpperCase(),
-        quantity: 1,
-        unitPrice: defaultProd ? Number(defaultProd.sellingPrice || 0) : 0,
+        productId: "",
+        productName: "",
+        sku: "",
+        hsCode: orgHsCode || "8517.13",
+        uom: "PCS",
+        quantity: "" as any,
+        unitPrice: 0,
+        costPrice: 0,
         discountPercent: 0,
-        availableStock: defaultProd ? Number(defaultProd.currentStock || 0) : 10,
-        taxRate: defaultProdTaxRate,
+        availableStock: 0,
+        taxRate: buyerTaxStatus === "EXEMPT" ? 0 : 18,
       },
       buyerTaxStatus
     );
@@ -666,7 +792,10 @@ export default function CreateSalePage() {
   };
 
   // Financial Calculations
-  const grossSubtotal = items.reduce((acc, it) => acc + it.quantity * it.unitPrice, 0);
+  const grossSubtotal = items.reduce(
+    (acc, it) => acc + (Number(it.quantity) || 0) * (Number(it.unitPrice) || 0),
+    0
+  );
   const totalItemDiscounts = items.reduce((acc, it) => acc + it.discountAmount, 0);
   const totalDiscount = totalItemDiscounts + Number(overallDiscount || 0);
   const taxableAmount = Math.max(0, grossSubtotal - totalDiscount);
@@ -735,26 +864,23 @@ export default function CreateSalePage() {
     setInvoiceSplitMode("CONSOLIDATED");
     setError(null);
 
-    if (products.length > 0) {
-      const defaultProd = products[0];
-      const initialItem = recalculateItem(
-        {
-          productId: defaultProd.id,
-          productName: defaultProd.name,
-          sku: defaultProd.sku || "SKU-" + defaultProd.id,
-          hsCode: defaultProd.hsCode || orgHsCode,
-          uom: (defaultProd.uom || defaultProd.unit || "PCS").toUpperCase(),
-          quantity: 1,
-          unitPrice: Number(defaultProd.sellingPrice || 0),
-          discountPercent: 0,
-          availableStock: Number(defaultProd.currentStock || 10),
-        },
-        initialTaxStatus
-      );
-      setItems([initialItem]);
-    } else {
-      setItems([]);
-    }
+    const initialItem = recalculateItem(
+      {
+        productId: "",
+        productName: "",
+        sku: "",
+        hsCode: orgHsCode || "8517.13",
+        uom: "PCS",
+        quantity: "" as any,
+        unitPrice: 0,
+        costPrice: 0,
+        discountPercent: 0,
+        availableStock: 0,
+        taxRate: initialTaxStatus === "EXEMPT" ? 0 : 18,
+      },
+      initialTaxStatus
+    );
+    setItems([initialItem]);
   }, [products, orgHsCode, recalculateItem, fbrInvoiceType]);
 
   // Change payment mode handler
@@ -964,8 +1090,8 @@ export default function CreateSalePage() {
         if (!it.productName.trim()) {
           errors[`item_${idx}_product`] = t(`Item #${idx + 1} name is required`, `آئٹم #${idx + 1} کا نام درج کریں`);
         }
-        if (Number(it.quantity) <= 0 || isNaN(Number(it.quantity))) {
-          errors[`item_${idx}_quantity`] = t(`Item #${idx + 1} quantity must be greater than 0`, `آئٹم #${idx + 1} کی مقدار 0 سے زیادہ ہونی چاہیے`);
+        if (it.quantity === "" || Number(it.quantity) <= 0 || isNaN(Number(it.quantity))) {
+          errors[`item_${idx}_quantity`] = t(`Item #${idx + 1}: Quantity add karo`, `آئٹم #${idx + 1} کی مقدار درج کریں (Quantity add karo)`);
         }
         if (Number(it.unitPrice) < 0 || isNaN(Number(it.unitPrice))) {
           errors[`item_${idx}_price`] = t(`Item #${idx + 1} price cannot be negative`, `آئٹم #${idx + 1} کی قیمت منفی نہیں ہو سکتی`);
@@ -1138,9 +1264,10 @@ export default function CreateSalePage() {
           items: items.map((it) => ({
             productId: it.productId || (products[0]?.id ?? "prod-default"),
             productName: it.productName,
-            quantity: it.quantity,
+            quantity: Number(it.quantity || 0),
             uom: it.uom || "PCS",
-            unitPrice: it.unitPrice,
+            unitPrice: Number(it.unitPrice || 0),
+            costPrice: Number(it.costPrice || 0),
             discount: it.discountAmount,
             taxRate: it.taxRate,
             hsCode: it.hsCode ? it.hsCode.trim() : (orgHsCode || "5201.0090"),
@@ -1266,7 +1393,8 @@ export default function CreateSalePage() {
                   productName: it.productName,
                   quantity: 1,
                   uom: it.uom || "PCS",
-                  unitPrice: it.unitPrice,
+                  unitPrice: Number(it.unitPrice || 0),
+                  costPrice: Number(it.costPrice || 0),
                   discount: itemDiscPerPiece,
                   taxRate: it.taxRate,
                   hsCode: it.hsCode ? it.hsCode.trim() : (orgHsCode || "5201.0090"),
@@ -1433,7 +1561,15 @@ export default function CreateSalePage() {
           </div>
         )}
 
-        <form onSubmit={handleSubmitInvoice} className="space-y-6 pb-20 lg:pb-0">
+        <form
+          onSubmit={handleSubmitInvoice}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && (e.target as HTMLElement).tagName === "INPUT") {
+              e.preventDefault();
+            }
+          }}
+          className="space-y-6 pb-20 lg:pb-0"
+        >
           {/* Top Card: Invoice Number, Date, Customer (Buyer), Buyer Tax Status */}
           <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 lg:p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
             <div className="grid grid-cols-1 gap-3.5 sm:gap-4 sm:grid-cols-2 lg:grid-cols-12">
@@ -1858,7 +1994,12 @@ export default function CreateSalePage() {
                     </th>
                     <th className="py-3 px-2 w-24 min-w-[90px] text-center">{t("UOM", "یونٹ")}</th>
                     <th className="py-3 px-2 w-20 min-w-[75px] text-center">{t("Qty", "تعداد")}</th>
-                    <th className="py-3 px-2 w-32 min-w-[120px] text-right">{t("Price", "قیمت")}</th>
+                    <th className="py-3 px-2 w-36 min-w-[140px] text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <span>{t("Price", "قیمت")}</span>
+                        <span className="text-[9px] px-1 py-0.5 rounded bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300 font-mono font-bold">F2</span>
+                      </div>
+                    </th>
                     <th className="py-3 px-2 w-20 min-w-[70px] text-center">{t("Discount %", "ڈسکاؤنٹ %")}</th>
                     <th className="py-3 px-2 w-16 min-w-[60px] text-center">{t("Tax %", "ٹیکس %")}</th>
                     <th className="py-3 px-3 w-28 min-w-[105px] text-right whitespace-nowrap">{t("Taxable", "ٹیکس ایبل")}</th>
@@ -1874,89 +2015,170 @@ export default function CreateSalePage() {
                         {idx + 1}
                       </td>
 
-                      {/* ITEM DESCRIPTION & CATALOG */}
-                      <td className="py-3 px-3 space-y-1.5">
-                        <input
-                          type="text"
-                          value={it.productName}
-                          onChange={(e) => handleItemFieldChange(idx, "productName", e.target.value)}
-                          placeholder={t("Type item name or pick from catalog...", "آئٹم کا نام لکھیں یا لسٹ سے چنیں...")}
-                          className={`w-full rounded-lg border px-2.5 py-1.5 text-xs font-semibold text-slate-900 focus:outline-none dark:bg-slate-900 dark:text-white ${
-                            fieldErrors[`item_${idx}_product`]
-                              ? "border-rose-400 focus:border-rose-600 bg-rose-50/20"
-                              : "border-slate-200 focus:border-blue-500 dark:border-slate-700"
-                          }`}
-                        />
+                      {/* ITEM DESCRIPTION & UNIFIED SEARCHABLE COMBBOX (Task 1) */}
+                      <td className="py-3 px-3 space-y-1">
+                        <div className="relative">
+                          <div className="flex items-center gap-1.5">
+                            <div className="relative flex-1">
+                              <input
+                                id={`product-name-input-${idx}`}
+                                type="text"
+                                value={it.productName}
+                                onFocus={() => {
+                                  setFocusedRowIndex(idx);
+                                  setActiveSearchRow(idx);
+                                }}
+                                onChange={(e) => {
+                                  handleItemFieldChange(idx, "productName", e.target.value);
+                                  setActiveSearchRow(idx);
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") {
+                                    e.preventDefault();
+                                    const query = (it.productName || "").trim().toLowerCase();
+                                    if (query.length > 0 && matchingProducts.length > 0 && !it.productId) {
+                                      selectProductForRow(idx, matchingProducts[0]);
+                                    } else {
+                                      document.getElementById(`qty-input-${idx}`)?.focus();
+                                    }
+                                  } else if (e.key === "Escape") {
+                                    setActiveSearchRow(null);
+                                  }
+                                }}
+                                placeholder={t("Type item name (e.g. '7', 'stand')...", "آئٹم کا نام لکھیں یا منتخب کریں...")}
+                                className={`w-full rounded-lg border pl-2.5 pr-8 py-1.5 text-xs font-semibold text-slate-900 focus:outline-none dark:bg-slate-900 dark:text-white ${
+                                  fieldErrors[`item_${idx}_product`]
+                                    ? "border-rose-400 focus:border-rose-600 bg-rose-50/20"
+                                    : "border-slate-200 focus:border-blue-500 dark:border-slate-700"
+                                }`}
+                                autoComplete="off"
+                              />
+
+                              {/* Dropdown Chevron Toggle inside Input */}
+                              <button
+                                type="button"
+                                tabIndex={-1}
+                                onClick={() => setActiveSearchRow(activeSearchRow === idx ? null : idx)}
+                                className="absolute right-2 top-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                              >
+                                <ChevronDown className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+
+                            {/* + Add New Product Button */}
+                            <button
+                              type="button"
+                              title={t("Add New Product to Catalog", "کیٹلاگ میں نیا پروڈکٹ شامل کریں")}
+                              onClick={() => {
+                                setActiveItemIndexForProduct(idx);
+                                setNewProductForm({
+                                  name: it.productName || "",
+                                  sku: `SKU-${Math.floor(1000 + Math.random() * 9000)}`,
+                                  categoryId: categories[0]?.id || "",
+                                  uom: it.uom || "PCS",
+                                  sellingPrice: it.unitPrice ? String(it.unitPrice) : "",
+                                  purchasePrice: "",
+                                  openingQuantity: "10",
+                                  hsCode: it.hsCode || orgHsCode,
+                                });
+                                setProductSaveError(null);
+                                setIsAddProductModalOpen(true);
+                              }}
+                              className="rounded-lg border border-blue-200 bg-blue-50 p-1.5 text-blue-600 hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-300 shrink-0 shadow-xs"
+                            >
+                              <Plus className="h-3.5 w-3.5" />
+                            </button>
+
+                            {/* Delete Product from Catalog (if selected) */}
+                            {it.productId && it.productId !== "" && (
+                              <button
+                                type="button"
+                                title={t("Delete this product from catalog", "اس پروڈکٹ کو کیٹلاگ سے حذف کریں")}
+                                onClick={() => {
+                                  const found = products.find((p) => p.id === it.productId);
+                                  setProductToDelete({
+                                    id: it.productId,
+                                    name: found?.name || it.productName || "Product",
+                                  });
+                                  setIsDeleteProductConfirmOpen(true);
+                                }}
+                                className="rounded-lg border border-rose-200 bg-rose-50 p-1.5 text-rose-600 hover:bg-rose-100 hover:text-rose-700 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-400 shrink-0 transition"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            )}
+                          </div>
+
+                          {/* Live Floating Typeahead Search Dropdown */}
+                          {activeSearchRow === idx && (
+                            <div
+                              className="absolute left-0 right-0 top-full mt-1 z-50 max-h-64 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900 animate-in fade-in slide-in-from-top-1 duration-150"
+                              onMouseDown={(e) => e.preventDefault()}
+                            >
+                              <div className="sticky top-0 bg-slate-100 dark:bg-slate-800 px-3 py-1.5 text-[10px] font-bold text-slate-500 dark:text-slate-400 flex items-center justify-between border-b border-slate-200 dark:border-slate-700">
+                                <span className="flex items-center gap-1">
+                                  <Search className="h-3 w-3 text-blue-600" />
+                                  {t("Select / Search Product", "پروڈکٹ منتخب کریں")} ({matchingProducts.length})
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => setActiveSearchRow(null)}
+                                  className="text-slate-400 hover:text-slate-600 text-xs px-1"
+                                >
+                                  ✕
+                                </button>
+                              </div>
+
+                              {matchingProducts.length === 0 ? (
+                                <div className="p-3 text-center text-xs text-slate-500 dark:text-slate-400">
+                                  <p className="font-semibold">{t("No catalog match found", "کیٹلاگ میں کوئی آئٹم نہیں ملا")}</p>
+                                  <p className="text-[10px] text-slate-400 mt-0.5">
+                                    {t("Press Tab / Enter to use this custom product name", "کسٹم نام کے ساتھ جاری رکھنے کے لیے Tab یا Enter دبائیں")}
+                                  </p>
+                                </div>
+                              ) : (
+                                <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                                  {matchingProducts.map((prod) => (
+                                    <div
+                                      key={prod.id}
+                                      onClick={() => selectProductForRow(idx, prod)}
+                                      className="p-2.5 hover:bg-blue-50/70 dark:hover:bg-blue-950/40 cursor-pointer transition flex items-center justify-between text-left group"
+                                    >
+                                      <div className="space-y-0.5 min-w-0 pr-2">
+                                        <div className="text-xs font-bold text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 truncate">
+                                          {prod.name}
+                                        </div>
+                                        <div className="text-[10px] text-slate-400 flex items-center gap-2">
+                                          {prod.sku && <span className="font-mono bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">{prod.sku}</span>}
+                                          <span>Stock: <strong className="text-slate-700 dark:text-slate-300">{prod.currentStock ?? 0} {prod.uom || prod.unit || "pcs"}</strong></span>
+                                        </div>
+                                      </div>
+                                      <div className="text-right shrink-0">
+                                        <div className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                                          Rs. {Number(prod.sellingPrice || 0).toLocaleString()}
+                                        </div>
+                                        {(prod.purchasePrice || prod.averageCost) && (
+                                          <div className="text-[9px] text-slate-400">
+                                            Cost: Rs. {Number(prod.averageCost || prod.purchasePrice || 0).toLocaleString()}
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+
                         {fieldErrors[`item_${idx}_product`] && (
                           <p className="text-[10px] font-semibold text-rose-500">
                             {fieldErrors[`item_${idx}_product`]}
                           </p>
                         )}
 
-                        {/* Product Dropdown Selector with Quick Add & Delete */}
-                        <div className="flex items-center gap-1.5">
-                          <select
-                            value={it.productId}
-                            onChange={(e) => handleProductSelect(idx, e.target.value)}
-                            className="w-full rounded-md border border-slate-200 bg-slate-50/80 px-2 py-1 text-[11px] text-slate-600 focus:border-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 truncate"
-                          >
-                            <option value="">{t("Select from catalog...", "کیٹلاگ سے منتخب کریں...")}</option>
-                            {products.map((p) => (
-                              <option key={p.id} value={p.id}>
-                                {p.name} {p.sku ? `(${p.sku})` : ""} — Rs. {p.sellingPrice?.toLocaleString()} ({p.currentStock ?? 0} {p.uom || p.unit || "pcs"})
-                              </option>
-                            ))}
-                            <option value="__ADD_NEW__" className="font-bold text-blue-600">
-                              ➕ {t("+ Create New Product", "+ نیا پروڈکٹ بنائیں")}
-                            </option>
-                            <option value="__MANAGE_PRODUCTS__" className="font-bold text-rose-600 dark:text-rose-400">
-                              🗑️ {t("Manage / Delete Catalog Products...", "پروڈکٹس مینیج یا ڈیلیٹ کریں...")}
-                            </option>
-                          </select>
-
-                          <button
-                            type="button"
-                            title={t("Add New Product to Catalog", "کیٹلاگ میں نیا پروڈکٹ شامل کریں")}
-                            onClick={() => {
-                              setActiveItemIndexForProduct(idx);
-                              setNewProductForm({
-                                name: it.productName || "",
-                                sku: `SKU-${Math.floor(1000 + Math.random() * 9000)}`,
-                                categoryId: categories[0]?.id || "",
-                                uom: it.uom || "PCS",
-                                sellingPrice: it.unitPrice ? String(it.unitPrice) : "",
-                                purchasePrice: "",
-                                openingQuantity: "10",
-                                hsCode: it.hsCode || orgHsCode,
-                              });
-                              setProductSaveError(null);
-                              setIsAddProductModalOpen(true);
-                            }}
-                            className="rounded-md border border-blue-200 bg-blue-50 p-1 text-blue-600 hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-300 shrink-0"
-                          >
-                            <Plus className="h-3.5 w-3.5" />
-                          </button>
-
-                          {it.productId && it.productId !== "" && (
-                            <button
-                              type="button"
-                              title={t("Delete this product from catalog", "اس پروڈکٹ کو کیٹلاگ سے حذف کریں")}
-                              onClick={() => {
-                                const found = products.find((p) => p.id === it.productId);
-                                setProductToDelete({
-                                  id: it.productId,
-                                  name: found?.name || it.productName || "Product",
-                                });
-                                setIsDeleteProductConfirmOpen(true);
-                              }}
-                              className="rounded-md border border-rose-200 bg-rose-50 p-1 text-rose-600 hover:bg-rose-100 hover:text-rose-700 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-400 shrink-0 transition"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
-                          )}
-                        </div>
-
-                        <div className="text-[10px] text-slate-400 flex items-center gap-2">
+                        {/* Product Meta Badges (Single Compact Line) */}
+                        <div className="text-[10px] text-slate-400 flex items-center gap-2 pt-0.5">
                           {it.availableStock > 0 && (
                             <span>{t("Stock:", "اسٹاک:")} <strong className="text-slate-600 dark:text-slate-300">{it.availableStock} {it.uom}</strong></span>
                           )}
@@ -1971,6 +2193,7 @@ export default function CreateSalePage() {
                           <input
                             type="text"
                             value={it.hsCode || ""}
+                            onFocus={() => setFocusedRowIndex(idx)}
                             onChange={(e) => handleItemFieldChange(idx, "hsCode", e.target.value)}
                             onBlur={() => handleHsCodeBlur(idx)}
                             placeholder={orgHsCode || "5201.0090"}
@@ -1994,6 +2217,7 @@ export default function CreateSalePage() {
                       <td className="py-3 px-2 text-center align-top pt-4 w-24 min-w-[90px]">
                         <select
                           value={it.uom}
+                          onFocus={() => setFocusedRowIndex(idx)}
                           onChange={(e) => handleItemFieldChange(idx, "uom", e.target.value)}
                           className="w-full min-w-[85px] rounded-lg border border-slate-200 bg-white px-1.5 py-1.5 text-center text-xs font-semibold text-slate-800 focus:border-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
                         >
@@ -2014,56 +2238,119 @@ export default function CreateSalePage() {
                         </select>
                       </td>
 
-                      {/* QTY */}
+                      {/* QTY (Task 2 & 3: Blank by default, Enter moves to Price) */}
                       <td className="py-3 px-2 text-center align-top pt-4 w-20 min-w-[75px]">
                         <input
+                          id={`qty-input-${idx}`}
                           type="number"
                           min="1"
                           step="any"
-                          value={it.quantity || ""}
-                          onChange={(e) => handleItemFieldChange(idx, "quantity", e.target.value)}
+                          value={it.quantity === "" ? "" : it.quantity}
+                          onFocus={() => setFocusedRowIndex(idx)}
+                          onChange={(e) => handleItemFieldChange(idx, "quantity", e.target.value === "" ? "" : e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              document.getElementById(`price-input-${idx}`)?.focus();
+                            }
+                          }}
+                          placeholder="0"
                           className={`w-full min-w-[65px] rounded-lg border px-1.5 py-1.5 text-center text-xs font-bold text-slate-900 focus:outline-none dark:bg-slate-900 dark:text-white ${
                             fieldErrors[`item_${idx}_quantity`]
-                              ? "border-rose-400 focus:border-rose-600 bg-rose-50/30"
+                              ? "border-rose-500 focus:border-rose-600 bg-rose-50/40 text-rose-900 ring-2 ring-rose-200"
                               : "border-slate-200 focus:border-blue-500 dark:border-slate-700"
                           }`}
                         />
                         {fieldErrors[`item_${idx}_quantity`] && (
-                          <p className="text-[9px] font-semibold text-rose-500 text-center mt-0.5">
+                          <p className="text-[9px] font-bold text-rose-600 dark:text-rose-400 text-center mt-1 bg-rose-50 dark:bg-rose-950/60 py-0.5 px-1 rounded border border-rose-200 dark:border-rose-900">
                             {fieldErrors[`item_${idx}_quantity`]}
                           </p>
                         )}
                       </td>
 
-                      {/* UNIT PRICE (PKR) */}
-                      <td className="py-3 px-2 text-right align-top pt-4 w-32 min-w-[120px]">
-                        <input
-                          type="number"
-                          min="0"
-                          step="any"
-                          value={it.unitPrice || ""}
-                          onChange={(e) => handleItemFieldChange(idx, "unitPrice", e.target.value)}
-                          className={`w-full min-w-[110px] rounded-lg border px-2.5 py-1.5 text-right text-xs font-semibold tabular-nums text-slate-900 focus:outline-none dark:bg-slate-900 dark:text-white ${
-                            fieldErrors[`item_${idx}_price`]
-                              ? "border-rose-400 focus:border-rose-600 bg-rose-50/30"
-                              : "border-slate-200 focus:border-blue-500 dark:border-slate-700"
-                          }`}
-                        />
-                        {fieldErrors[`item_${idx}_price`] && (
-                          <p className="text-[9px] font-semibold text-rose-500 text-right mt-0.5">
-                            {fieldErrors[`item_${idx}_price`]}
-                          </p>
-                        )}
+                      {/* UNIT PRICE (PKR) (Task 4 & 5: Custom price, Loss tracking, Rate history modal [F2], Enter moves to Disc) */}
+                      <td className="py-3 px-2 text-right align-top pt-4 w-36 min-w-[140px]">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-1">
+                            <input
+                              id={`price-input-${idx}`}
+                              type="number"
+                              min="0"
+                              step="any"
+                              value={it.unitPrice || ""}
+                              onFocus={() => setFocusedRowIndex(idx)}
+                              onChange={(e) => handleItemFieldChange(idx, "unitPrice", e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  e.preventDefault();
+                                  document.getElementById(`disc-input-${idx}`)?.focus();
+                                }
+                              }}
+                              className={`w-full rounded-lg border px-2 py-1.5 text-right text-xs font-semibold tabular-nums text-slate-900 focus:outline-none dark:bg-slate-900 dark:text-white ${
+                                fieldErrors[`item_${idx}_price`]
+                                  ? "border-rose-400 focus:border-rose-600 bg-rose-50/30"
+                                  : "border-slate-200 focus:border-blue-500 dark:border-slate-700"
+                              }`}
+                            />
+                            {/* Rate History Shortcut [F2] */}
+                            <button
+                              type="button"
+                              title={t("View Rate & Purchase History [F2]", "ریٹ اور خریداری کی ہسٹری دیکھیں [F2]")}
+                              onClick={() => openPriceHistory(idx)}
+                              className="rounded-md border border-purple-200 bg-purple-50 p-1.5 text-purple-700 hover:bg-purple-100 dark:border-purple-800 dark:bg-purple-950/50 dark:text-purple-300 shrink-0 transition"
+                            >
+                              <History className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+
+                          {/* Loss / Below Cost Warning Pill (Task 4) */}
+                          {it.costPrice && it.costPrice > 0 && it.unitPrice !== undefined && it.unitPrice !== null && Number(it.unitPrice) > 0 && Number(it.unitPrice) < it.costPrice && (
+                            <div className="text-[10px] font-bold text-rose-700 dark:text-rose-300 bg-rose-100/90 dark:bg-rose-950/70 border border-rose-300 dark:border-rose-800 px-1.5 py-0.5 rounded text-right whitespace-nowrap">
+                              ⚠️ {t("Loss:", "نقصان:")} Rs. {(it.costPrice - Number(it.unitPrice)).toLocaleString()}/u
+                              <span className="block text-[8px] font-normal text-rose-600 dark:text-rose-400">
+                                ({t("Cost:", "لاگت:")} Rs. {it.costPrice.toLocaleString()})
+                              </span>
+                            </div>
+                          )}
+
+                          {/* Normal Profit Info (when selling above cost) */}
+                          {it.costPrice && it.costPrice > 0 && Number(it.unitPrice) >= it.costPrice && (
+                            <div className="text-[9px] text-emerald-600 dark:text-emerald-400 text-right pr-0.5 font-medium">
+                              ✓ Profit: Rs. {(Number(it.unitPrice) - it.costPrice).toLocaleString()}/u
+                            </div>
+                          )}
+
+                          {fieldErrors[`item_${idx}_price`] && (
+                            <p className="text-[9px] font-semibold text-rose-500 text-right mt-0.5">
+                              {fieldErrors[`item_${idx}_price`]}
+                            </p>
+                          )}
+                        </div>
                       </td>
 
-                      {/* DISC % */}
+                      {/* DISC % (Task 3: Enter moves to next row or adds item) */}
                       <td className="py-3 px-2 text-center align-top pt-4 w-20 min-w-[70px]">
                         <input
+                          id={`disc-input-${idx}`}
                           type="number"
                           min="0"
                           max="100"
                           value={it.discountPercent || ""}
+                          onFocus={() => setFocusedRowIndex(idx)}
                           onChange={(e) => handleItemFieldChange(idx, "discountPercent", e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              if (idx === items.length - 1) {
+                                handleAddItem();
+                                setTimeout(() => {
+                                  document.getElementById(`product-name-input-${idx + 1}`)?.focus();
+                                }, 60);
+                              } else {
+                                document.getElementById(`product-name-input-${idx + 1}`)?.focus();
+                              }
+                            }
+                          }}
                           placeholder="0"
                           className={`w-full min-w-[60px] rounded-lg border px-1.5 py-1.5 text-center text-xs font-medium text-slate-800 focus:outline-none dark:bg-slate-900 dark:text-white ${
                             fieldErrors[`item_${idx}_disc`]
@@ -2081,12 +2368,27 @@ export default function CreateSalePage() {
                       {/* TAX % */}
                       <td className="py-3 px-2 text-center align-top pt-4 w-20 min-w-[70px]">
                         <input
+                          id={`tax-input-${idx}`}
                           type="number"
                           step="0.5"
                           min="0"
                           max="100"
                           value={it.taxRate ?? 18}
+                          onFocus={() => setFocusedRowIndex(idx)}
                           onChange={(e) => handleItemFieldChange(idx, "taxRate", parseFloat(e.target.value) || 0)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              if (idx === items.length - 1) {
+                                handleAddItem();
+                                setTimeout(() => {
+                                  document.getElementById(`product-name-input-${idx + 1}`)?.focus();
+                                }, 60);
+                              } else {
+                                document.getElementById(`product-name-input-${idx + 1}`)?.focus();
+                              }
+                            }
+                          }}
                           list="fbr-tax-rate-presets"
                           title={t("Applicable Sales Tax Rate % (e.g. 18%, 10%, 5%, 0%)", "لاگو سیلز ٹیکس ریٹ %")}
                           className={`w-full min-w-[60px] rounded-lg border px-1 py-1.5 text-center font-mono text-xs font-bold focus:outline-none dark:bg-slate-900 ${
@@ -3613,6 +3915,17 @@ export default function CreateSalePage() {
           </div>
         </Modal>
       )}
+
+      {/* Price & Rate Intelligence Modal [F2] */}
+      <ProductPriceHistoryModal
+        isOpen={priceHistoryModalOpen}
+        onClose={() => setPriceHistoryModalOpen(false)}
+        productId={priceHistoryTarget?.productId || ""}
+        productName={priceHistoryTarget?.productName || ""}
+        customerId={customerId || undefined}
+        customerName={selectedCustomer?.name || (walkInName.trim() ? walkInName : undefined)}
+        onSelectPrice={handleSelectPriceFromHistory}
+      />
     </div>
   );
 }

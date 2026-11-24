@@ -79,8 +79,8 @@ export async function getActiveBusinessId(req?: NextRequest): Promise<string> {
     validatedBusinessId = candidate;
   }
 
-  // 3. Verify existence in DB if configured
-  if (process.env.DATABASE_URL) {
+  // 3. Verify existence in DB if configured (skipped in offline desktop mode)
+  if (process.env.DATABASE_URL && process.env.DESKTOP_MODE !== "true" && process.env.ACCOUNTS360_DESKTOP !== "true") {
     try {
       if (validatedBusinessId) {
         const exists = await prisma.business.findUnique({

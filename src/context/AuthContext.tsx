@@ -163,8 +163,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setIsAuthenticated(true);
         await refreshSession();
 
-        // Role-based redirect
-        if (data.user.role === "SUPER_ADMIN") {
+        // Role-based redirect (Only cloud platform super-admin goes to multi-tenant /admin)
+        if (data.user.role === "SUPER_ADMIN" && data.user.platformRole === "SUPER_ADMIN" && !data.user.businessId) {
           router.push("/admin");
         } else {
           router.push("/");
