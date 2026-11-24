@@ -273,7 +273,8 @@ export default function CreateSalePage() {
   // Search & Typeahead State
   const [activeSearchRow, setActiveSearchRow] = useState<number | null>(null);
   const [focusedRowIndex, setFocusedRowIndex] = useState<number | null>(null);
-  const [dropdownCoords, setDropdownCoords] = useState<{ top: number; left: number; width: number } | null>(null);
+  const [highlightedProductIndex, setHighlightedProductIndex] = useState<number>(0);
+  const [dropdownCoords, setDropdownCoords] = useState<{ top: number; left: number; width: number; maxHeight: number } | null>(null);
 
   // Price & Bill Intelligence Modal State [F1 / F2]
   const [priceHistoryModalOpen, setPriceHistoryModalOpen] = useState(false);
@@ -603,16 +604,21 @@ export default function CreateSalePage() {
       .slice(0, 25);
   }, [activeSearchRow, items, products]);
 
-  // Open Product Search Dropdown with floating positioning
+  // Open Product Search Dropdown with floating positioning directly below the input
   const updateDropdownCoords = useCallback((index: number) => {
     const el = document.getElementById(`product-name-input-${index}`);
     if (el) {
       const rect = el.getBoundingClientRect();
-      const fitsBelow = rect.bottom + 300 <= window.innerHeight;
+      const spaceBelow = window.innerHeight - rect.bottom - 10;
+      const openBelow = spaceBelow >= 120 || spaceBelow >= rect.top - 10;
+      const maxHeight = openBelow
+        ? Math.min(220, Math.max(120, spaceBelow))
+        : Math.min(220, Math.max(120, rect.top - 14));
       setDropdownCoords({
-        top: fitsBelow ? rect.bottom + 4 : Math.max(10, rect.top - 300),
-        left: Math.max(8, Math.min(rect.left, window.innerWidth - 420)),
-        width: Math.max(rect.width, 380),
+        top: openBelow ? rect.bottom + 4 : Math.max(8, rect.top - maxHeight - 4),
+        left: Math.max(8, Math.min(rect.left, window.innerWidth - 350)),
+        width: Math.max(rect.width, 330),
+        maxHeight,
       });
     }
   }, []);
@@ -621,6 +627,7 @@ export default function CreateSalePage() {
     (index: number) => {
       setFocusedRowIndex(index);
       setActiveSearchRow(index);
+      setHighlightedProductIndex(0);
       updateDropdownCoords(index);
       setTimeout(() => updateDropdownCoords(index), 20);
     },
@@ -2088,20 +2095,54 @@ export default function CreateSalePage() {
                                 onFocus={() => openProductDropdown(idx)}
                                 onChange={(e) => {
                                   handleItemFieldChange(idx, "productName", e.target.value);
+                                  setHighlightedProductIndex(0);
                                   openProductDropdown(idx);
                                 }}
                                 onKeyDown={(e) => {
-                                  if (e.key === "Enter") {
+                                  if (e.key === "ArrowDown") {
                                     e.preventDefault();
-                                    const query = (it.productName || "").trim().toLowerCase();
-                                    if (query.length > 0 && matchingProducts.length > 0 && !it.productId) {
-                                      selectProductForRow(idx, matchingProducts[0]);
-                                      setDropdownCoords(null);
-                                    } else {
-                                      setActiveSearchRow(null);
-                                      setDropdownCoords(null);
-                                      document.getElementById(`qty-input-${idx}`)?.focus();
+                                    if (activeSearchRow !== idx) {
+                                      openProductDropdown(idx);
+                                    } else if (matchingProducts.length > 0) {
+                                      setHighlightedProductIndex((prev) => {
+                                        const next = Math.min(prev + 1, matchingProducts.length - 1);
+                                        setTimeout(
+                                          () => document.getElementById(`product-option-${next}`)?.scrollIntoView({ block: "nearest" }),
+                                          0
+                                        );
+                                        return next;
+                                      });
                                     }
+                                  } else if (e.key === "ArrowUp") {
+                                    e.preventDefault();
+                                    if (activeSearchRow === idx && matchingProducts.length > 0) {
+                                      setHighlightedProductIndex((prev) => {
+                                        const next = Math.max(prev - 1, 0);
+                                        setTimeout(
+                                          () => document.getElementById(`product-option-${next}`)?.scrollIntoView({ block: "nearest" }),
+                                          0
+                                        );
+                                        return next;
+                                      });
+                                    }
+                                  } else if (e.key === "Enter") {
+                                    e.preventDefault();
+                                    if (activeSearchRow === idx && matchingProducts.length > 0) {
+                                      const selectedProd = matchingProducts[highlightedProductIndex] || matchingProducts[0];
+                                      const alreadyExactMatch =
+                                        it.productId &&
+                                        selectedProd &&
+                                        it.productId === selectedProd.id &&
+                                        (it.productName || "").trim().toLowerCase() === (selectedProd.name || "").trim().toLowerCase();
+                                      if (!alreadyExactMatch) {
+                                        selectProductForRow(idx, selectedProd);
+                                        setDropdownCoords(null);
+                                        return;
+                                      }
+                                    }
+                                    setActiveSearchRow(null);
+                                    setDropdownCoords(null);
+                                    document.getElementById(`qty-input-${idx}`)?.focus();
                                   } else if (e.key === "Escape") {
                                     setActiveSearchRow(null);
                                     setDropdownCoords(null);
@@ -2464,14 +2505,15 @@ export default function CreateSalePage() {
                     top: `${dropdownCoords.top}px`,
                     left: `${dropdownCoords.left}px`,
                     width: `${dropdownCoords.width}px`,
+                    maxHeight: `${dropdownCoords.maxHeight}px`,
                   }}
-                  className="z-[9999] max-h-80 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900 ring-2 ring-blue-500/30 animate-in fade-in duration-100"
+                  className="z-[9999] overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-xl dark:border-slate-700 dark:bg-slate-900 ring-1 ring-blue-500/30"
                   onMouseDown={(e) => e.stopPropagation()}
                 >
-                  <div className="sticky top-0 bg-slate-100 dark:bg-slate-800 px-3 py-1.5 text-[10px] font-bold text-slate-500 dark:text-slate-400 flex items-center justify-between border-b border-slate-200 dark:border-slate-700">
+                  <div className="sticky top-0 bg-slate-100 dark:bg-slate-800 px-2.5 py-1 text-[10px] font-bold text-slate-500 dark:text-slate-400 flex items-center justify-between border-b border-slate-200 dark:border-slate-700">
                     <span className="flex items-center gap-1">
                       <Search className="h-3 w-3 text-blue-600" />
-                      {t("Select / Search Product", "پروڈکٹ منتخب کریں")} ({matchingProducts.length})
+                      {t("Products", "پروڈکٹس")} ({matchingProducts.length}) • ↑↓ Enter
                     </span>
                     <button
                       type="button"
@@ -2486,7 +2528,7 @@ export default function CreateSalePage() {
                   </div>
 
                   {matchingProducts.length === 0 ? (
-                    <div className="p-3 text-center text-xs text-slate-500 dark:text-slate-400">
+                    <div className="p-2.5 text-center text-xs text-slate-500 dark:text-slate-400">
                       <p className="font-semibold">{t("No catalog match found", "کیٹلاگ میں کوئی آئٹم نہیں ملا")}</p>
                       <p className="text-[10px] text-slate-400 mt-0.5">
                         {t("Press Tab / Enter to use this custom product name", "کسٹم نام کے ساتھ جاری رکھنے کے لیے Tab یا Enter دبائیں")}
@@ -2494,38 +2536,41 @@ export default function CreateSalePage() {
                     </div>
                   ) : (
                     <div className="divide-y divide-slate-100 dark:divide-slate-800">
-                      {matchingProducts.map((prod) => (
-                        <div
-                          key={prod.id}
-                          onClick={() => {
-                            if (activeSearchRow !== null) {
-                              selectProductForRow(activeSearchRow, prod);
-                              setDropdownCoords(null);
-                            }
-                          }}
-                          className="p-2.5 hover:bg-blue-50/70 dark:hover:bg-blue-950/40 cursor-pointer transition flex items-center justify-between text-left group"
-                        >
-                          <div className="space-y-0.5 min-w-0 pr-2">
-                            <div className="text-xs font-bold text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 truncate">
+                      {matchingProducts.map((prod, pIdx) => {
+                        const isHighlighted = pIdx === highlightedProductIndex;
+                        return (
+                          <div
+                            id={`product-option-${pIdx}`}
+                            key={prod.id}
+                            onMouseEnter={() => setHighlightedProductIndex(pIdx)}
+                            onClick={() => {
+                              if (activeSearchRow !== null) {
+                                selectProductForRow(activeSearchRow, prod);
+                                setDropdownCoords(null);
+                              }
+                            }}
+                            className={`px-2.5 py-1.5 cursor-pointer transition flex items-center justify-between gap-2 text-left ${
+                              isHighlighted
+                                ? "bg-blue-50 dark:bg-blue-950/60 border-l-2 border-blue-600"
+                                : "hover:bg-slate-50 dark:hover:bg-slate-800/40"
+                            }`}
+                          >
+                            <span
+                              className={`text-xs font-semibold truncate flex-1 ${
+                                isHighlighted ? "text-blue-700 dark:text-blue-300" : "text-slate-900 dark:text-white"
+                              }`}
+                            >
                               {prod.name}
-                            </div>
-                            <div className="text-[10px] text-slate-400 flex items-center gap-2">
-                              {prod.sku && <span className="font-mono bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">{prod.sku}</span>}
-                              <span>Stock: <strong className="text-slate-700 dark:text-slate-300">{prod.currentStock ?? 0} {prod.uom || prod.unit || "pcs"}</strong></span>
-                            </div>
-                          </div>
-                          <div className="text-right shrink-0">
-                            <div className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                            </span>
+                            <span className="text-[10px] text-slate-500 dark:text-slate-400 shrink-0 tabular-nums">
+                              Qty: <strong className="text-slate-700 dark:text-slate-200">{prod.currentStock ?? 0}</strong>
+                            </span>
+                            <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 shrink-0 tabular-nums min-w-[70px] text-right">
                               Rs. {Number(prod.sellingPrice || 0).toLocaleString()}
-                            </div>
-                            {(prod.purchasePrice || prod.averageCost) && (
-                              <div className="text-[9px] text-slate-400">
-                                Cost: Rs. {Number(prod.averageCost || prod.purchasePrice || 0).toLocaleString()}
-                              </div>
-                            )}
+                            </span>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>
