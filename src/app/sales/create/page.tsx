@@ -449,12 +449,23 @@ export default function CreateSalePage() {
     }
   }, [fbrInvoiceType, buyerTaxStatus, recalculateItem]);
 
-  // Keyboard shortcut Alt+A to add item
+  // Keyboard shortcuts: Alt+A (add item), F9 / Ctrl+Enter (save & post), F8 (print)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.altKey && (e.key === "a" || e.key === "A")) {
         e.preventDefault();
         handleAddItem();
+      } else if (e.key === "F9" || ((e.ctrlKey || e.metaKey) && e.key === "Enter")) {
+        e.preventDefault();
+        (document.getElementById("sales-create-form") as HTMLFormElement | null)?.requestSubmit();
+      } else if (e.key === "F8") {
+        e.preventDefault();
+        const form = document.getElementById("sales-create-form") as HTMLFormElement | null;
+        if (form) {
+          form.requestSubmit();
+        } else {
+          window.print();
+        }
       }
     };
     window.addEventListener("keydown", handleKeyDown);
@@ -1610,6 +1621,7 @@ export default function CreateSalePage() {
         )}
 
         <form
+          id="sales-create-form"
           onSubmit={handleSubmitInvoice}
           onKeyDown={(e) => {
             if (e.key === "Enter" && (e.target as HTMLElement).tagName === "INPUT") {

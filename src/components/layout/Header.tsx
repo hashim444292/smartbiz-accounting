@@ -28,8 +28,10 @@ import {
   History,
   Languages,
   Volume2,
+  Keyboard,
 } from "lucide-react";
 import { DateRangeSelector } from "./DateRangeSelector";
+import { KeyboardShortcutsModal } from "./KeyboardShortcutsModal";
 import { OfflineSyncIndicator } from "@/components/common/OfflineSyncIndicator";
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
@@ -183,8 +185,9 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
     };
   }, []);
 
-  // Global Quick Search state (Cmd + K)
+  // Global Quick Search state (Cmd + K) & Keyboard Shortcuts Modal (F10 / Shift+?)
   const [searchOpen, setSearchOpen] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<{
     invoices: any[];
@@ -220,20 +223,62 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Keyboard shortcut for Global Search (Cmd + K or Ctrl + K)
+  // Global Keyboard Shortcuts: Search (Ctrl/Cmd+K), Shortcuts Help (F10 / Shift+?), and Alt+Key Navigation
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
-      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
         setSearchOpen((prev) => !prev);
+        return;
       }
-      if (e.key === "Escape" && searchOpen) {
-        setSearchOpen(false);
+
+      if (e.key === "F10") {
+        e.preventDefault();
+        setShortcutsOpen((prev) => !prev);
+        return;
+      }
+
+      const target = e.target as HTMLElement | null;
+      const isTyping =
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.tagName === "SELECT" ||
+          target.isContentEditable);
+
+      if (e.key === "?" && !isTyping && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        setShortcutsOpen((prev) => !prev);
+        return;
+      }
+
+      if (e.key === "Escape") {
+        if (searchOpen) setSearchOpen(false);
+        if (shortcutsOpen) setShortcutsOpen(false);
+        return;
+      }
+
+      // Alt + Key Global Navigation (safe from browser Ctrl shortcuts)
+      if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
+        const key = e.key.toLowerCase();
+        const routeMap: Record<string, string> = {
+          d: "/",
+          s: "/sales/create",
+          p: "/purchases/create",
+          c: "/payments",
+          e: "/expenses",
+          i: "/inventory",
+          r: "/reports",
+        };
+        if (routeMap[key]) {
+          e.preventDefault();
+          router.push(routeMap[key]);
+        }
       }
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [searchOpen]);
+  }, [searchOpen, shortcutsOpen, router]);
 
   // Focus input when modal opens
   useEffect(() => {
@@ -637,6 +682,16 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
               <span>{t("Stop Notification", "نوٹیفکیشن بند کریں")}</span>
             </button>
           )}
+
+          {/* Keyboard Shortcuts Guide Trigger (Minimal Icon Only, Zero Clutter) */}
+          <button
+            type="button"
+            onClick={() => setShortcutsOpen(true)}
+            className="hidden sm:flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-indigo-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-indigo-400 transition shadow-2xs"
+            title={t("Keyboard Shortcuts (F10 or Shift+?)", "کی بورڈ شارٹ کٹس (F10)")}
+          >
+            <Keyboard className="h-4 w-4" />
+          </button>
 
           {/* Payment Reminders Notification Bell */}
           <div className="relative" ref={remindersRef}>
@@ -1286,6 +1341,12 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
           </div>
         </div>
       )}
+
+      {/* Global Keyboard Shortcuts Cheat Sheet Modal */}
+      <KeyboardShortcutsModal
+        isOpen={shortcutsOpen}
+        onClose={() => setShortcutsOpen(false)}
+      />
     </>
   );
 }

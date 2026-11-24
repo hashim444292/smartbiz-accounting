@@ -229,6 +229,29 @@ export default function CreatePurchasePage() {
     setItems(newItems);
   };
 
+  // Keyboard shortcuts: Alt+A (add item), F9 / Ctrl+Enter (save bill), F8 (save/print)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.altKey && (e.key === "a" || e.key === "A")) {
+        e.preventDefault();
+        handleAddItem();
+      } else if (e.key === "F9" || ((e.ctrlKey || e.metaKey) && e.key === "Enter")) {
+        e.preventDefault();
+        (document.getElementById("purchase-create-form") as HTMLFormElement | null)?.requestSubmit();
+      } else if (e.key === "F8") {
+        e.preventDefault();
+        const form = document.getElementById("purchase-create-form") as HTMLFormElement | null;
+        if (form) {
+          form.requestSubmit();
+        } else {
+          window.print();
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [products]);
+
   const handleAddItem = (prodIdToSelect?: string) => {
     if (products.length === 0) {
       alert("No products found in catalog. Please create products in Products & Rates first.");
@@ -583,7 +606,7 @@ export default function CreatePurchasePage() {
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form id="purchase-create-form" onSubmit={handleSubmit} className="space-y-6">
         {/* Supplier & Bill Metadata */}
         <Card className="shadow-xs border-slate-200 bg-white dark:bg-slate-900">
           <CardHeader className="flex flex-row items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
