@@ -34,28 +34,26 @@ const publicSrc = path.join(rootDir, "public");
 const publicDest = path.join(standaloneDir, "public");
 const staticSrc = path.join(rootDir, ".next", "static");
 const staticDest = path.join(standaloneDir, ".next", "static");
+const desktopServerDir = path.join(desktopDir, "server");
 
-function copyDirRecursiveSync(src, dest) {
-  if (!fs.existsSync(src)) return;
-  fs.mkdirSync(dest, { recursive: true });
-  const entries = fs.readdirSync(src, { withFileTypes: true });
-  for (const entry of entries) {
-    const srcPath = path.join(src, entry.name);
-    const destPath = path.join(dest, entry.name);
-    if (entry.isDirectory()) {
-      copyDirRecursiveSync(srcPath, destPath);
-    } else {
-      fs.copyFileSync(srcPath, destPath);
-    }
-  }
+if (fs.existsSync(publicSrc)) {
+  fs.cpSync(publicSrc, publicDest, { recursive: true, force: true });
 }
-
-copyDirRecursiveSync(publicSrc, publicDest);
-copyDirRecursiveSync(staticSrc, staticDest);
+if (fs.existsSync(staticSrc)) {
+  fs.cpSync(staticSrc, staticDest, { recursive: true, force: true });
+}
 console.log("✓ Assets successfully copied to .next/standalone.");
 
-// 3. Ensure icon assets exist
-console.log("\n🎨 Step 3: Verifying application icon assets...");
+// 3. Synchronize standalone folder to desktop/server for electron-builder extraResources
+console.log("\n📂 Step 3: Copying standalone server to desktop/server for packaging...");
+if (fs.existsSync(desktopServerDir)) {
+  fs.rmSync(desktopServerDir, { recursive: true, force: true });
+}
+fs.cpSync(standaloneDir, desktopServerDir, { recursive: true, force: true });
+console.log("✓ Standalone server copied to desktop/server.");
+
+// 4. Ensure icon assets exist
+console.log("\n🎨 Step 4: Verifying application icon assets...");
 const iconPath = path.join(desktopDir, "assets", "icon.ico");
 if (!fs.existsSync(iconPath)) {
   console.log("Generating icon.ico...");
@@ -63,14 +61,6 @@ if (!fs.existsSync(iconPath)) {
 }
 console.log("✓ Icon verified.");
 
-// 4. Instructions for final packaging
 console.log("\n=================================================");
 console.log("🎉 Standalone Server & Assets are 100% Prepared!");
 console.log("=================================================");
-console.log("\nTo test run the desktop application locally:");
-console.log("  cd desktop && npx electron .");
-console.log("\nTo produce the final single-click Accounts360-Setup.exe installer:");
-console.log("  cd desktop && npx electron-builder --win --x64");
-console.log("\nThe resulting installer will be created at:");
-console.log("  desktop/dist/Accounts360-Setup-1.0.0.exe");
-console.log("=================================================\n");

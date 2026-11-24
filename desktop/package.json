@@ -28,6 +28,15 @@
       "preload.cjs",
       "assets/**/*"
     ],
+    "extraResources": [
+      {
+        "from": "server",
+        "to": "server",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
     "win": {
       "target": [
         {

@@ -32,6 +32,7 @@ yarn-error.log*
 # desktop builds
 desktop/node_modules/
 desktop/dist/
+desktop/server/
 FBR_ReadOnly_Audit_Export/
 
 # typescript
@@ -41,3 +42,4 @@ next-env.d.ts
 # desktop builds
 desktop/node_modules/
 desktop/dist/
+desktop/server/
