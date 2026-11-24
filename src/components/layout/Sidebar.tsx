@@ -116,6 +116,7 @@ const PLATFORM_ADMIN_GROUPS: NavGroup[] = [
     items: [
       { name: "Admin Dashboard", href: "/admin", icon: LayoutDashboard },
       { name: "Client Companies & MRR", href: "/admin/companies", icon: Building2 },
+      { name: "Desktop Licenses", nameUrdu: "ڈیسک ٹاپ لائسنس", href: "/admin/licenses", icon: KeyRound },
       { name: "User Accounts & Roles", href: "/admin/users", icon: UserCheck },
       { name: "Activity Log", href: "/audit-logs", icon: History },
       { name: "Platform Settings & Audit", href: "/settings", icon: Settings },

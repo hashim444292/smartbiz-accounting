@@ -18,6 +18,7 @@ import {
   DollarSign,
   Calendar,
   History,
+  KeyRound,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -142,6 +143,13 @@ export default function AdminDashboardPage() {
             >
               <Plus className="h-4 w-4" />
               <span>New Company</span>
+            </Link>
+            <Link
+              href="/admin/licenses"
+              className="inline-flex items-center justify-center gap-1.5 sm:gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 px-3.5 sm:px-4 py-2.5 text-xs font-bold text-white shadow-lg transition"
+            >
+              <KeyRound className="h-4 w-4" />
+              <span>Desktop Licenses</span>
             </Link>
             {user?.role === "SUPER_ADMIN" || user?.role === "ADMIN" ? (
               <Link
