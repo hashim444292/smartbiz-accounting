@@ -2143,7 +2143,7 @@ export default function CreateSalePage() {
                                     setActiveSearchRow(null);
                                     setDropdownCoords(null);
                                     document.getElementById(`qty-input-${idx}`)?.focus();
-                                  } else if (e.key === "Escape") {
+                                  } else if (e.key === "Escape" || e.key === "Tab") {
                                     setActiveSearchRow(null);
                                     setDropdownCoords(null);
                                   }
