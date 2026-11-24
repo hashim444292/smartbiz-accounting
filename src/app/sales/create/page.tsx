@@ -273,11 +273,13 @@ export default function CreateSalePage() {
   // Search & Typeahead State
   const [activeSearchRow, setActiveSearchRow] = useState<number | null>(null);
   const [focusedRowIndex, setFocusedRowIndex] = useState<number | null>(null);
+  const [dropdownCoords, setDropdownCoords] = useState<{ top: number; left: number; width: number } | null>(null);
 
-  // Price & Rate Intelligence Modal State [F2]
+  // Price & Bill Intelligence Modal State [F1 / F2]
   const [priceHistoryModalOpen, setPriceHistoryModalOpen] = useState(false);
+  const [priceHistoryInitialTab, setPriceHistoryInitialTab] = useState<"PURCHASE" | "SALE">("SALE");
   const [priceHistoryTarget, setPriceHistoryTarget] = useState<{
-    index: number;
+    index: number | null;
     productId: string;
     productName: string;
   } | null>(null);
@@ -601,68 +603,107 @@ export default function CreateSalePage() {
       .slice(0, 25);
   }, [activeSearchRow, items, products]);
 
-  // Open Price & Rate Intelligence Modal [F2]
-  const openPriceHistory = useCallback(
-    (index: number) => {
-      const item = items[index];
-      if (!item || !item.productId) {
-        alert(
-          t(
-            "Please select a product from catalog first to view price history.",
-            "براہ کرم ریٹ ہسٹری دیکھنے کے لیے پہلے پروڈکٹ منتخب کریں۔"
-          )
-        );
-        return;
-      }
-      setPriceHistoryTarget({
-        index,
-        productId: item.productId,
-        productName: item.productName || "Product",
+  // Open Product Search Dropdown with floating positioning
+  const updateDropdownCoords = useCallback((index: number) => {
+    const el = document.getElementById(`product-name-input-${index}`);
+    if (el) {
+      const rect = el.getBoundingClientRect();
+      const fitsBelow = rect.bottom + 300 <= window.innerHeight;
+      setDropdownCoords({
+        top: fitsBelow ? rect.bottom + 4 : Math.max(10, rect.top - 300),
+        left: Math.max(8, Math.min(rect.left, window.innerWidth - 420)),
+        width: Math.max(rect.width, 380),
       });
+    }
+  }, []);
+
+  const openProductDropdown = useCallback(
+    (index: number) => {
+      setFocusedRowIndex(index);
+      setActiveSearchRow(index);
+      updateDropdownCoords(index);
+      setTimeout(() => updateDropdownCoords(index), 20);
+    },
+    [updateDropdownCoords]
+  );
+
+  // Keep dropdown attached to the input on scroll or resize
+  useEffect(() => {
+    if (activeSearchRow === null) return;
+    const handleScrollOrResize = () => {
+      updateDropdownCoords(activeSearchRow);
+    };
+    window.addEventListener("scroll", handleScrollOrResize, true);
+    window.addEventListener("resize", handleScrollOrResize);
+    return () => {
+      window.removeEventListener("scroll", handleScrollOrResize, true);
+      window.removeEventListener("resize", handleScrollOrResize);
+    };
+  }, [activeSearchRow, updateDropdownCoords]);
+
+  // Open Price & Rate Intelligence Modal [F1: Purchases, F2: Sales]
+  const openHistoryModal = useCallback(
+    (tab: "PURCHASE" | "SALE" = "SALE", index?: number | null) => {
+      const targetIdx =
+        index !== undefined && index !== null
+          ? index
+          : focusedRowIndex !== null
+          ? focusedRowIndex
+          : items.findIndex((it) => it.productId) >= 0
+          ? items.findIndex((it) => it.productId)
+          : null;
+
+      const item = targetIdx !== null ? items[targetIdx] : null;
+
+      if (item && item.productId) {
+        setPriceHistoryTarget({
+          index: targetIdx,
+          productId: item.productId,
+          productName: item.productName || "Product",
+        });
+      } else {
+        setPriceHistoryTarget({
+          index: targetIdx,
+          productId: "",
+          productName: "",
+        });
+      }
+
+      setPriceHistoryInitialTab(tab);
       setPriceHistoryModalOpen(true);
     },
-    [items, t]
+    [focusedRowIndex, items]
   );
 
   // Apply rate selected from history modal
   const handleSelectPriceFromHistory = (selectedPrice: number) => {
-    if (priceHistoryTarget !== null) {
+    if (priceHistoryTarget !== null && priceHistoryTarget.index !== null) {
       handleItemFieldChange(priceHistoryTarget.index, "unitPrice", selectedPrice);
       setPriceHistoryModalOpen(false);
       setTimeout(() => {
         document.getElementById(`price-input-${priceHistoryTarget.index}`)?.focus();
       }, 100);
+    } else if (items.length > 0) {
+      handleItemFieldChange(0, "unitPrice", selectedPrice);
+      setPriceHistoryModalOpen(false);
     }
   };
 
-  // Global [F2] Keyboard Shortcut Listener for Rate Intelligence
+  // Global [F1] and [F2] Shortcuts (Context-aware: particular product or recent 5 bills)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "F2") {
+      if (e.key === "F1") {
         e.preventDefault();
-        // If a row is focused and has a selected product, open for that row
-        if (focusedRowIndex !== null && items[focusedRowIndex]?.productId) {
-          openPriceHistory(focusedRowIndex);
-          return;
-        }
-        // Else find first row with a valid productId
-        const firstValidIdx = items.findIndex((it) => it.productId);
-        if (firstValidIdx >= 0) {
-          openPriceHistory(firstValidIdx);
-        } else {
-          alert(
-            t(
-              "Please select a product first to view its price history (F2).",
-              "پہلے کوئی پروڈکٹ منتخب کریں تاکہ F2 پریس کرنے پر ریٹ ہسٹری دکھائی دے سکے۔"
-            )
-          );
-        }
+        openHistoryModal("PURCHASE", focusedRowIndex);
+      } else if (e.key === "F2") {
+        e.preventDefault();
+        openHistoryModal("SALE", focusedRowIndex);
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [focusedRowIndex, items, openPriceHistory, t]);
+  }, [focusedRowIndex, openHistoryModal]);
 
   // Filter products for the Manage Products modal
   const filteredManageProducts = useMemo(() => {
@@ -1980,7 +2021,7 @@ export default function CreateSalePage() {
             </div>
 
             {/* Table */}
-            <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-700 min-h-[380px] pb-32">
+            <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-700">
               <table className="w-full min-w-[1080px] text-left text-xs">
                 <thead className="bg-slate-50/80 border-b border-slate-200 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:bg-slate-800/40 dark:border-slate-800 dark:text-slate-400">
                   <tr>
@@ -1994,10 +2035,25 @@ export default function CreateSalePage() {
                     </th>
                     <th className="py-3 px-2 w-24 min-w-[90px] text-center">{t("UOM", "یونٹ")}</th>
                     <th className="py-3 px-2 w-20 min-w-[75px] text-center">{t("Qty", "تعداد")}</th>
-                    <th className="py-3 px-2 w-36 min-w-[140px] text-right">
-                      <div className="flex items-center justify-end gap-1">
+                    <th className="py-3 px-2 w-44 min-w-[160px] text-right">
+                      <div className="flex items-center justify-end gap-1.5">
                         <span>{t("Price", "قیمت")}</span>
-                        <span className="text-[9px] px-1 py-0.5 rounded bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300 font-mono font-bold">F2</span>
+                        <button
+                          type="button"
+                          title={t("View Purchase Bills [F1]", "خریداری بلز دیکھیں [F1]")}
+                          onClick={() => openHistoryModal("PURCHASE", focusedRowIndex)}
+                          className="text-[9px] px-1.5 py-0.5 rounded bg-blue-100 hover:bg-blue-200 text-blue-700 dark:bg-blue-950 dark:hover:bg-blue-900 dark:text-blue-300 font-mono font-bold transition cursor-pointer"
+                        >
+                          F1 Bills
+                        </button>
+                        <button
+                          type="button"
+                          title={t("View Sales Invoices & Rate [F2]", "فروخت انوائسز اور ریٹ دیکھیں [F2]")}
+                          onClick={() => openHistoryModal("SALE", focusedRowIndex)}
+                          className="text-[9px] px-1.5 py-0.5 rounded bg-purple-100 hover:bg-purple-200 text-purple-700 dark:bg-purple-950 dark:hover:bg-purple-900 dark:text-purple-300 font-mono font-bold transition cursor-pointer"
+                        >
+                          F2 Sales
+                        </button>
                       </div>
                     </th>
                     <th className="py-3 px-2 w-20 min-w-[70px] text-center">{t("Discount %", "ڈسکاؤنٹ %")}</th>
@@ -2020,8 +2076,8 @@ export default function CreateSalePage() {
                         {idx + 1}
                       </td>
 
-                      {/* ITEM DESCRIPTION & UNIFIED SEARCHABLE COMBBOX (Task 1) */}
-                      <td className={`py-3 px-3 space-y-1 ${activeSearchRow === idx ? "relative z-[70]" : ""}`}>
+                      {/* ITEM DESCRIPTION & UNIFIED SEARCHABLE INPUT (Task 1) */}
+                      <td className="py-3 px-3 space-y-1">
                         <div className="relative">
                           <div className="flex items-center gap-1.5">
                             <div className="relative flex-1">
@@ -2029,13 +2085,10 @@ export default function CreateSalePage() {
                                 id={`product-name-input-${idx}`}
                                 type="text"
                                 value={it.productName}
-                                onFocus={() => {
-                                  setFocusedRowIndex(idx);
-                                  setActiveSearchRow(idx);
-                                }}
+                                onFocus={() => openProductDropdown(idx)}
                                 onChange={(e) => {
                                   handleItemFieldChange(idx, "productName", e.target.value);
-                                  setActiveSearchRow(idx);
+                                  openProductDropdown(idx);
                                 }}
                                 onKeyDown={(e) => {
                                   if (e.key === "Enter") {
@@ -2043,11 +2096,15 @@ export default function CreateSalePage() {
                                     const query = (it.productName || "").trim().toLowerCase();
                                     if (query.length > 0 && matchingProducts.length > 0 && !it.productId) {
                                       selectProductForRow(idx, matchingProducts[0]);
+                                      setDropdownCoords(null);
                                     } else {
+                                      setActiveSearchRow(null);
+                                      setDropdownCoords(null);
                                       document.getElementById(`qty-input-${idx}`)?.focus();
                                     }
                                   } else if (e.key === "Escape") {
                                     setActiveSearchRow(null);
+                                    setDropdownCoords(null);
                                   }
                                 }}
                                 placeholder={t("Type item name (e.g. '7', 'stand')...", "آئٹم کا نام لکھیں یا منتخب کریں...")}
@@ -2063,7 +2120,14 @@ export default function CreateSalePage() {
                               <button
                                 type="button"
                                 tabIndex={-1}
-                                onClick={() => setActiveSearchRow(activeSearchRow === idx ? null : idx)}
+                                onClick={() => {
+                                  if (activeSearchRow === idx) {
+                                    setActiveSearchRow(null);
+                                    setDropdownCoords(null);
+                                  } else {
+                                    openProductDropdown(idx);
+                                  }
+                                }}
                                 className="absolute right-2 top-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
                               >
                                 <ChevronDown className="h-3.5 w-3.5" />
@@ -2113,75 +2177,6 @@ export default function CreateSalePage() {
                               </button>
                             )}
                           </div>
-
-                          {/* Live Floating Typeahead Search Dropdown */}
-                          {activeSearchRow === idx && (
-                            <>
-                              {/* Backdrop to dismiss on click outside */}
-                              <div
-                                className="fixed inset-0 z-[80]"
-                                onClick={() => setActiveSearchRow(null)}
-                              />
-
-                              <div
-                                className="absolute left-0 top-full mt-1.5 z-[100] w-[360px] sm:w-[460px] max-h-80 overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900 ring-2 ring-blue-500/30 animate-in fade-in slide-in-from-top-1 duration-150"
-                                onMouseDown={(e) => e.stopPropagation()}
-                              >
-                              <div className="sticky top-0 bg-slate-100 dark:bg-slate-800 px-3 py-1.5 text-[10px] font-bold text-slate-500 dark:text-slate-400 flex items-center justify-between border-b border-slate-200 dark:border-slate-700">
-                                <span className="flex items-center gap-1">
-                                  <Search className="h-3 w-3 text-blue-600" />
-                                  {t("Select / Search Product", "پروڈکٹ منتخب کریں")} ({matchingProducts.length})
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={() => setActiveSearchRow(null)}
-                                  className="text-slate-400 hover:text-slate-600 text-xs px-1"
-                                >
-                                  ✕
-                                </button>
-                              </div>
-
-                              {matchingProducts.length === 0 ? (
-                                <div className="p-3 text-center text-xs text-slate-500 dark:text-slate-400">
-                                  <p className="font-semibold">{t("No catalog match found", "کیٹلاگ میں کوئی آئٹم نہیں ملا")}</p>
-                                  <p className="text-[10px] text-slate-400 mt-0.5">
-                                    {t("Press Tab / Enter to use this custom product name", "کسٹم نام کے ساتھ جاری رکھنے کے لیے Tab یا Enter دبائیں")}
-                                  </p>
-                                </div>
-                              ) : (
-                                <div className="divide-y divide-slate-100 dark:divide-slate-800">
-                                  {matchingProducts.map((prod) => (
-                                    <div
-                                      key={prod.id}
-                                      onClick={() => selectProductForRow(idx, prod)}
-                                      className="p-2.5 hover:bg-blue-50/70 dark:hover:bg-blue-950/40 cursor-pointer transition flex items-center justify-between text-left group"
-                                    >
-                                      <div className="space-y-0.5 min-w-0 pr-2">
-                                        <div className="text-xs font-bold text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 truncate">
-                                          {prod.name}
-                                        </div>
-                                        <div className="text-[10px] text-slate-400 flex items-center gap-2">
-                                          {prod.sku && <span className="font-mono bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">{prod.sku}</span>}
-                                          <span>Stock: <strong className="text-slate-700 dark:text-slate-300">{prod.currentStock ?? 0} {prod.uom || prod.unit || "pcs"}</strong></span>
-                                        </div>
-                                      </div>
-                                      <div className="text-right shrink-0">
-                                        <div className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
-                                          Rs. {Number(prod.sellingPrice || 0).toLocaleString()}
-                                        </div>
-                                        {(prod.purchasePrice || prod.averageCost) && (
-                                          <div className="text-[9px] text-slate-400">
-                                            Cost: Rs. {Number(prod.averageCost || prod.purchasePrice || 0).toLocaleString()}
-                                          </div>
-                                        )}
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          </>
-                        )}
                         </div>
 
                         {fieldErrors[`item_${idx}_product`] && (
@@ -2281,8 +2276,8 @@ export default function CreateSalePage() {
                         )}
                       </td>
 
-                      {/* UNIT PRICE (PKR) (Task 4 & 5: Custom price, Loss tracking, Rate history modal [F2], Enter moves to Disc) */}
-                      <td className="py-3 px-2 text-right align-top pt-4 w-36 min-w-[140px]">
+                      {/* UNIT PRICE (PKR) (Task 4 & 5: Custom price, Loss tracking, Dual [F1] / [F2] history modal, Enter moves to Disc) */}
+                      <td className="py-3 px-2 text-right align-top pt-4 w-44 min-w-[160px]">
                         <div className="space-y-1">
                           <div className="flex items-center gap-1">
                             <input
@@ -2305,14 +2300,23 @@ export default function CreateSalePage() {
                                   : "border-slate-200 focus:border-blue-500 dark:border-slate-700"
                               }`}
                             />
-                            {/* Rate History Shortcut [F2] */}
+                            {/* [F1] Purchase Bills History Shortcut */}
                             <button
                               type="button"
-                              title={t("View Rate & Purchase History [F2]", "ریٹ اور خریداری کی ہسٹری دیکھیں [F2]")}
-                              onClick={() => openPriceHistory(idx)}
-                              className="rounded-md border border-purple-200 bg-purple-50 p-1.5 text-purple-700 hover:bg-purple-100 dark:border-purple-800 dark:bg-purple-950/50 dark:text-purple-300 shrink-0 transition"
+                              title={t("View Purchase Bills History [F1]", "خریداری بلز ہسٹری دیکھیں [F1]")}
+                              onClick={() => openHistoryModal("PURCHASE", idx)}
+                              className="rounded-md border border-blue-200 bg-blue-50 px-1.5 py-1 text-[10px] font-bold text-blue-700 hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-950/50 dark:text-blue-300 shrink-0 transition"
                             >
-                              <History className="h-3.5 w-3.5" />
+                              F1
+                            </button>
+                            {/* [F2] Sales Invoices History Shortcut */}
+                            <button
+                              type="button"
+                              title={t("View Sales Invoices & Rate History [F2]", "فروخت انوائسز اور ریٹ ہسٹری دیکھیں [F2]")}
+                              onClick={() => openHistoryModal("SALE", idx)}
+                              className="rounded-md border border-purple-200 bg-purple-50 px-1.5 py-1 text-[10px] font-bold text-purple-700 hover:bg-purple-100 dark:border-purple-800 dark:bg-purple-950/50 dark:text-purple-300 shrink-0 transition"
+                            >
+                              F2
                             </button>
                           </div>
 
@@ -2443,6 +2447,90 @@ export default function CreateSalePage() {
                 </tbody>
               </table>
             </div>
+
+            {/* Viewport-fixed floating dropdown that overlaps over anything below without expanding card or getting clipped */}
+            {activeSearchRow !== null && dropdownCoords !== null && (
+              <>
+                <div
+                  className="fixed inset-0 z-[9998] bg-transparent"
+                  onClick={() => {
+                    setActiveSearchRow(null);
+                    setDropdownCoords(null);
+                  }}
+                />
+                <div
+                  style={{
+                    position: "fixed",
+                    top: `${dropdownCoords.top}px`,
+                    left: `${dropdownCoords.left}px`,
+                    width: `${dropdownCoords.width}px`,
+                  }}
+                  className="z-[9999] max-h-80 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900 ring-2 ring-blue-500/30 animate-in fade-in duration-100"
+                  onMouseDown={(e) => e.stopPropagation()}
+                >
+                  <div className="sticky top-0 bg-slate-100 dark:bg-slate-800 px-3 py-1.5 text-[10px] font-bold text-slate-500 dark:text-slate-400 flex items-center justify-between border-b border-slate-200 dark:border-slate-700">
+                    <span className="flex items-center gap-1">
+                      <Search className="h-3 w-3 text-blue-600" />
+                      {t("Select / Search Product", "پروڈکٹ منتخب کریں")} ({matchingProducts.length})
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveSearchRow(null);
+                        setDropdownCoords(null);
+                      }}
+                      className="text-slate-400 hover:text-slate-600 text-xs px-1"
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  {matchingProducts.length === 0 ? (
+                    <div className="p-3 text-center text-xs text-slate-500 dark:text-slate-400">
+                      <p className="font-semibold">{t("No catalog match found", "کیٹلاگ میں کوئی آئٹم نہیں ملا")}</p>
+                      <p className="text-[10px] text-slate-400 mt-0.5">
+                        {t("Press Tab / Enter to use this custom product name", "کسٹم نام کے ساتھ جاری رکھنے کے لیے Tab یا Enter دبائیں")}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                      {matchingProducts.map((prod) => (
+                        <div
+                          key={prod.id}
+                          onClick={() => {
+                            if (activeSearchRow !== null) {
+                              selectProductForRow(activeSearchRow, prod);
+                              setDropdownCoords(null);
+                            }
+                          }}
+                          className="p-2.5 hover:bg-blue-50/70 dark:hover:bg-blue-950/40 cursor-pointer transition flex items-center justify-between text-left group"
+                        >
+                          <div className="space-y-0.5 min-w-0 pr-2">
+                            <div className="text-xs font-bold text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 truncate">
+                              {prod.name}
+                            </div>
+                            <div className="text-[10px] text-slate-400 flex items-center gap-2">
+                              {prod.sku && <span className="font-mono bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">{prod.sku}</span>}
+                              <span>Stock: <strong className="text-slate-700 dark:text-slate-300">{prod.currentStock ?? 0} {prod.uom || prod.unit || "pcs"}</strong></span>
+                            </div>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <div className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                              Rs. {Number(prod.sellingPrice || 0).toLocaleString()}
+                            </div>
+                            {(prod.purchasePrice || prod.averageCost) && (
+                              <div className="text-[9px] text-slate-400">
+                                Cost: Rs. {Number(prod.averageCost || prod.purchasePrice || 0).toLocaleString()}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
 
             {/* FBR Harmonized System (HS / PCT) Codes & Tax Rate Presets Datalists */}
             <datalist id="fbr-hs-code-list">
@@ -3929,7 +4017,7 @@ export default function CreateSalePage() {
         </Modal>
       )}
 
-      {/* Price & Rate Intelligence Modal [F2] */}
+      {/* Price & Bill Intelligence Modal [F1 / F2] */}
       <ProductPriceHistoryModal
         isOpen={priceHistoryModalOpen}
         onClose={() => setPriceHistoryModalOpen(false)}
@@ -3937,6 +4025,7 @@ export default function CreateSalePage() {
         productName={priceHistoryTarget?.productName || ""}
         customerId={customerId || undefined}
         customerName={selectedCustomer?.name || (walkInName.trim() ? walkInName : undefined)}
+        initialTab={priceHistoryInitialTab}
         onSelectPrice={handleSelectPriceFromHistory}
       />
     </div>
