@@ -274,7 +274,7 @@ export default function CreateSalePage() {
   const [activeSearchRow, setActiveSearchRow] = useState<number | null>(null);
   const [focusedRowIndex, setFocusedRowIndex] = useState<number | null>(null);
   const [highlightedProductIndex, setHighlightedProductIndex] = useState<number>(0);
-  const [dropdownCoords, setDropdownCoords] = useState<{ top: number; left: number; width: number; maxHeight: number } | null>(null);
+  const [dropdownCoords, setDropdownCoords] = useState<{ top?: number; bottom?: number; left: number; width: number; maxHeight: number } | null>(null);
 
   // Price & Bill Intelligence Modal State [F1 / F2]
   const [priceHistoryModalOpen, setPriceHistoryModalOpen] = useState(false);
@@ -615,18 +615,19 @@ export default function CreateSalePage() {
       .slice(0, 25);
   }, [activeSearchRow, items, products]);
 
-  // Open Product Search Dropdown with floating positioning directly below the input
+  // Open Product Search Dropdown with floating positioning directly below (or anchored bottom-up if near viewport bottom)
   const updateDropdownCoords = useCallback((index: number) => {
     const el = document.getElementById(`product-name-input-${index}`);
     if (el) {
       const rect = el.getBoundingClientRect();
       const spaceBelow = window.innerHeight - rect.bottom - 10;
-      const openBelow = spaceBelow >= 120 || spaceBelow >= rect.top - 10;
+      const openBelow = spaceBelow >= 100 || spaceBelow >= rect.top - 10;
       const maxHeight = openBelow
-        ? Math.min(220, Math.max(120, spaceBelow))
-        : Math.min(220, Math.max(120, rect.top - 14));
+        ? Math.min(220, Math.max(90, spaceBelow))
+        : Math.min(220, Math.max(90, rect.top - 14));
       setDropdownCoords({
-        top: openBelow ? rect.bottom + 4 : Math.max(8, rect.top - maxHeight - 4),
+        top: openBelow ? rect.bottom + 4 : undefined,
+        bottom: openBelow ? undefined : window.innerHeight - rect.top + 4,
         left: Math.max(8, Math.min(rect.left, window.innerWidth - 350)),
         width: Math.max(rect.width, 330),
         maxHeight,
@@ -2514,7 +2515,8 @@ export default function CreateSalePage() {
                 <div
                   style={{
                     position: "fixed",
-                    top: `${dropdownCoords.top}px`,
+                    top: dropdownCoords.top !== undefined ? `${dropdownCoords.top}px` : "auto",
+                    bottom: dropdownCoords.bottom !== undefined ? `${dropdownCoords.bottom}px` : "auto",
                     left: `${dropdownCoords.left}px`,
                     width: `${dropdownCoords.width}px`,
                     maxHeight: `${dropdownCoords.maxHeight}px`,
