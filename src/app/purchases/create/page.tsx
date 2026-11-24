@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { formatMoney } from "@/lib/decimal";
@@ -26,6 +26,7 @@ import {
   ShieldCheck,
   Building2,
   Calendar,
+  ChevronDown,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useLanguage } from "@/context/LanguageContext";
@@ -35,7 +36,7 @@ import { smartFetch, invalidateCache } from "@/lib/clientCache";
 interface PurchaseItem {
   productId: string;
   productName: string;
-  quantity: number;
+  quantity: number | "";
   unitCost: number;
   previousCost: number;
   currentStock: number;
@@ -93,6 +94,9 @@ export default function CreatePurchasePage() {
 
   // Quick search term for filtering the catalog items
   const [productSearchTerm, setProductSearchTerm] = useState("");
+  const [activeSearchRow, setActiveSearchRow] = useState<number | null>(null);
+  const [highlightedProductIndex, setHighlightedProductIndex] = useState<number>(0);
+  const [dropdownCoords, setDropdownCoords] = useState<{ top: number; left: number; width: number; maxHeight: number } | null>(null);
 
   const loadData = async () => {
     setLoading(true);
@@ -123,26 +127,43 @@ export default function CreatePurchasePage() {
 
       if (prods.length > 0) {
         const queryProdId = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("productId") : null;
-        const initialProd = (queryProdId && prods.find((p) => p.id === queryProdId)) || prods[0];
-        const cost = Number(initialProd.purchasePrice || initialProd.costPrice || initialProd.averageCost || 0);
-        const sellPrice = Number(initialProd.sellingPrice || initialProd.retailPrice || 0);
-        const stock = Number(initialProd.currentStock || 0);
-
-        setItems([
-          {
-            productId: initialProd.id,
-            productName: initialProd.name,
-            quantity: 1,
-            unitCost: cost,
-            previousCost: cost,
-            currentStock: stock,
-            previousSellingPrice: sellPrice,
-            newSellingPrice: sellPrice,
-            updateCatalogPrice: true,
-            lineTotal: cost,
-          },
-        ]);
-        setPaidAmount(cost);
+        const initialProd = queryProdId ? prods.find((p) => p.id === queryProdId) : null;
+        if (initialProd) {
+          const cost = Number(initialProd.purchasePrice || initialProd.costPrice || initialProd.averageCost || 0);
+          const sellPrice = Number(initialProd.sellingPrice || initialProd.retailPrice || 0);
+          const stock = Number(initialProd.currentStock || 0);
+          setItems([
+            {
+              productId: initialProd.id,
+              productName: initialProd.name,
+              quantity: "",
+              unitCost: cost,
+              previousCost: cost,
+              currentStock: stock,
+              previousSellingPrice: sellPrice,
+              newSellingPrice: sellPrice,
+              updateCatalogPrice: true,
+              lineTotal: 0,
+            },
+          ]);
+        } else {
+          // Start with blank product & blank quantity (POS/Wholesale style)
+          setItems([
+            {
+              productId: "",
+              productName: "",
+              quantity: "",
+              unitCost: 0,
+              previousCost: 0,
+              currentStock: 0,
+              previousSellingPrice: 0,
+              newSellingPrice: 0,
+              updateCatalogPrice: true,
+              lineTotal: 0,
+            },
+          ]);
+        }
+        setPaidAmount(0);
       } else {
         setItems([]);
       }
@@ -169,45 +190,128 @@ export default function CreatePurchasePage() {
     );
   }, [products, productSearchTerm]);
 
-  const handleProductChange = (index: number, prodId: string) => {
-    const newItems = [...items];
-    const prod = products.find((p) => p.id === prodId);
-    if (prod) {
+  const matchingProducts = useMemo(() => {
+    if (activeSearchRow === null || !items[activeSearchRow]) return [];
+    const q = (items[activeSearchRow].productName || "").trim().toLowerCase();
+    if (!q) return products.slice(0, 25);
+    return products
+      .filter(
+        (p) =>
+          p.name?.toLowerCase().includes(q) ||
+          (p.sku ? p.sku.toLowerCase().includes(q) : false) ||
+          (p.barcode ? p.barcode.toLowerCase().includes(q) : false)
+      )
+      .slice(0, 25);
+  }, [activeSearchRow, items, products]);
+
+  const updateDropdownCoords = useCallback((index: number) => {
+    const el = document.getElementById(`purchase-product-input-${index}`);
+    if (el) {
+      const rect = el.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom - 10;
+      const openBelow = spaceBelow >= 120 || spaceBelow >= rect.top - 10;
+      const maxHeight = openBelow
+        ? Math.min(220, Math.max(120, spaceBelow))
+        : Math.min(220, Math.max(120, rect.top - 14));
+      setDropdownCoords({
+        top: openBelow ? rect.bottom + 4 : Math.max(8, rect.top - maxHeight - 4),
+        left: Math.max(8, Math.min(rect.left, window.innerWidth - 350)),
+        width: Math.max(rect.width, 330),
+        maxHeight,
+      });
+    }
+  }, []);
+
+  const openProductDropdown = useCallback(
+    (index: number) => {
+      setActiveSearchRow(index);
+      setHighlightedProductIndex(0);
+      updateDropdownCoords(index);
+      setTimeout(() => updateDropdownCoords(index), 20);
+    },
+    [updateDropdownCoords]
+  );
+
+  useEffect(() => {
+    if (activeSearchRow === null) return;
+    const handleScrollOrResize = () => updateDropdownCoords(activeSearchRow);
+    window.addEventListener("scroll", handleScrollOrResize, true);
+    window.addEventListener("resize", handleScrollOrResize);
+    return () => {
+      window.removeEventListener("scroll", handleScrollOrResize, true);
+      window.removeEventListener("resize", handleScrollOrResize);
+    };
+  }, [activeSearchRow, updateDropdownCoords]);
+
+  const selectProductForRow = useCallback(
+    (index: number, prod: any) => {
       const cost = Number(prod.purchasePrice || prod.costPrice || prod.averageCost || 0);
       const sellPrice = Number(prod.sellingPrice || prod.retailPrice || 0);
       const stock = Number(prod.currentStock || 0);
-      const qty = Number(newItems[index]?.quantity || 1);
 
-      newItems[index] = {
-        ...newItems[index],
-        productId: prod.id,
-        productName: prod.name,
-        quantity: qty,
-        unitCost: cost,
-        previousCost: cost,
-        currentStock: stock,
-        previousSellingPrice: sellPrice,
-        newSellingPrice: sellPrice,
-        updateCatalogPrice: true,
-        lineTotal: qty * cost,
+      setItems((prev) => {
+        const next = [...prev];
+        const qtyNum = next[index]?.quantity === "" ? 0 : Number(next[index]?.quantity || 0);
+        next[index] = {
+          ...next[index],
+          productId: prod.id,
+          productName: prod.name,
+          unitCost: cost,
+          previousCost: cost,
+          currentStock: stock,
+          previousSellingPrice: sellPrice,
+          newSellingPrice: sellPrice,
+          updateCatalogPrice: true,
+          lineTotal: qtyNum * cost,
+          uom: (prod.uom || prod.unit || "PCS").toUpperCase(),
+        };
+        return next;
+      });
+      setActiveSearchRow(null);
+      setDropdownCoords(null);
+      setTimeout(() => {
+        document.getElementById(`purchase-qty-input-${index}`)?.focus();
+      }, 40);
+    },
+    []
+  );
+
+  const handleProductNameInput = (index: number, value: string) => {
+    setItems((prev) => {
+      const next = [...prev];
+      next[index] = {
+        ...next[index],
+        productName: value,
+        productId: "",
       };
-    }
-    setItems(newItems);
+      return next;
+    });
   };
 
-  const handleQtyChange = (index: number, qty: number) => {
-    const newItems = [...items];
-    const safeQty = Math.max(1, qty);
-    newItems[index].quantity = safeQty;
-    newItems[index].lineTotal = safeQty * newItems[index].unitCost;
-    setItems(newItems);
+  const handleQtyChange = (index: number, rawVal: string) => {
+    setItems((prev) => {
+      const next = [...prev];
+      if (rawVal === "") {
+        next[index] = { ...next[index], quantity: "", lineTotal: 0 };
+      } else {
+        const q = parseFloat(rawVal);
+        const safeQty = isNaN(q) ? 0 : Math.max(0, q);
+        next[index] = {
+          ...next[index],
+          quantity: isNaN(q) ? "" : safeQty,
+          lineTotal: safeQty * next[index].unitCost,
+        };
+      }
+      return next;
+    });
   };
 
   const handleCostChange = (index: number, cost: number) => {
     const newItems = [...items];
     const safeCost = Math.max(0, cost);
     newItems[index].unitCost = safeCost;
-    newItems[index].lineTotal = (newItems[index].quantity || 1) * safeCost;
+    const qtyNum = newItems[index].quantity === "" ? 0 : Number(newItems[index].quantity || 0);
+    newItems[index].lineTotal = qtyNum * safeCost;
 
     // Suggest new selling price if not yet customized or zero
     if (!newItems[index].newSellingPrice || newItems[index].newSellingPrice === 0) {
@@ -258,29 +362,44 @@ export default function CreatePurchasePage() {
       return;
     }
 
-    const targetProd = prodIdToSelect
-      ? products.find((p) => p.id === prodIdToSelect)
-      : products[0];
+    const targetProd = prodIdToSelect ? products.find((p) => p.id === prodIdToSelect) : null;
 
     if (targetProd) {
       const cost = Number(targetProd.purchasePrice || targetProd.costPrice || targetProd.averageCost || 0);
       const sellPrice = Number(targetProd.sellingPrice || targetProd.retailPrice || 0);
       const stock = Number(targetProd.currentStock || 0);
 
-      setItems([
-        ...items,
+      setItems((prev) => [
+        ...prev,
         {
           productId: targetProd.id,
           productName: targetProd.name,
-          quantity: 1,
+          quantity: "",
           unitCost: cost,
           previousCost: cost,
           currentStock: stock,
           previousSellingPrice: sellPrice,
           newSellingPrice: sellPrice,
           updateCatalogPrice: true,
-          lineTotal: cost,
+          lineTotal: 0,
           uom: (targetProd.uom || targetProd.unit || "PCS").toUpperCase(),
+        },
+      ]);
+    } else {
+      setItems((prev) => [
+        ...prev,
+        {
+          productId: "",
+          productName: "",
+          quantity: "",
+          unitCost: 0,
+          previousCost: 0,
+          currentStock: 0,
+          previousSellingPrice: 0,
+          newSellingPrice: 0,
+          updateCatalogPrice: true,
+          lineTotal: 0,
+          uom: "PCS",
         },
       ]);
     }
@@ -415,9 +534,15 @@ export default function CreatePurchasePage() {
         return;
       }
 
-      for (const it of items) {
+      for (let i = 0; i < items.length; i++) {
+        const it = items[i];
         if (!it.productId || it.productId === "__custom__") {
-          setError("All items in the purchase bill must be selected from registered products in the catalog.");
+          setError(`Item #${i + 1}: Please select a product from the catalog.`);
+          setSubmitting(false);
+          return;
+        }
+        if (it.quantity === "" || Number(it.quantity) <= 0) {
+          setError(`Item #${i + 1} (${it.productName || "Product"}): Quantity add karo (must be greater than 0).`);
           setSubmitting(false);
           return;
         }
@@ -433,7 +558,7 @@ export default function CreatePurchasePage() {
         items: items.map((it) => ({
           productId: it.productId,
           productName: it.productName,
-          quantity: it.quantity,
+          quantity: Number(it.quantity),
           unitCost: it.unitCost,
           previousCost: it.previousCost,
           newSellingPrice: it.newSellingPrice,
@@ -606,7 +731,16 @@ export default function CreatePurchasePage() {
         </div>
       )}
 
-      <form id="purchase-create-form" onSubmit={handleSubmit} className="space-y-6">
+      <form
+        id="purchase-create-form"
+        onSubmit={handleSubmit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && (e.target as HTMLElement).tagName === "INPUT") {
+            e.preventDefault();
+          }
+        }}
+        className="space-y-6"
+      >
         {/* Supplier & Bill Metadata */}
         <Card className="shadow-xs border-slate-200 bg-white dark:bg-slate-900">
           <CardHeader className="flex flex-row items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
@@ -797,40 +931,117 @@ export default function CreatePurchasePage() {
                     >
                       {/* Main Row Inputs */}
                       <div className="grid grid-cols-1 md:grid-cols-12 gap-3.5 items-end">
-                        {/* Product Selector / Name */}
+                        {/* Searchable Product Combobox (POS/Wholesale Style) */}
                         <div className="md:col-span-4 space-y-1">
                           <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 flex items-center justify-between">
                             <span>Product / Stock Item</span>
                             <span className="text-[10px] font-mono text-indigo-600 dark:text-indigo-400 font-semibold">
-                              In Stock: {item.currentStock} pcs
+                              {item.productId ? `In Stock: ${item.currentStock} pcs` : t("Type to search...", "تلاش کریں...")}
                             </span>
                           </label>
 
-                          <select
-                            value={item.productId}
-                            onChange={(e) => handleProductChange(idx, e.target.value)}
-                            className="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-2 text-xs font-semibold text-slate-900 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
-                          >
-                            {products.map((p) => (
-                              <option key={p.id} value={p.id}>
-                                {p.name} — (Stock: {p.currentStock ?? 0} | Cost: Rs {Number(p.purchasePrice || p.averageCost || 0).toLocaleString()} | Sell: Rs {Number(p.sellingPrice || p.retailPrice || 0).toLocaleString()})
-                              </option>
-                            ))}
-                          </select>
+                          <div className="relative">
+                            <input
+                              id={`purchase-product-input-${idx}`}
+                              type="text"
+                              value={item.productName}
+                              onFocus={() => openProductDropdown(idx)}
+                              onChange={(e) => {
+                                handleProductNameInput(idx, e.target.value);
+                                setHighlightedProductIndex(0);
+                                openProductDropdown(idx);
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === "ArrowDown") {
+                                  e.preventDefault();
+                                  if (activeSearchRow !== idx) {
+                                    openProductDropdown(idx);
+                                  } else if (matchingProducts.length > 0) {
+                                    setHighlightedProductIndex((prev) => {
+                                      const next = Math.min(prev + 1, matchingProducts.length - 1);
+                                      setTimeout(
+                                        () => document.getElementById(`purchase-product-option-${next}`)?.scrollIntoView({ block: "nearest" }),
+                                        0
+                                      );
+                                      return next;
+                                    });
+                                  }
+                                } else if (e.key === "ArrowUp") {
+                                  e.preventDefault();
+                                  if (activeSearchRow === idx && matchingProducts.length > 0) {
+                                    setHighlightedProductIndex((prev) => {
+                                      const next = Math.max(prev - 1, 0);
+                                      setTimeout(
+                                        () => document.getElementById(`purchase-product-option-${next}`)?.scrollIntoView({ block: "nearest" }),
+                                        0
+                                      );
+                                      return next;
+                                    });
+                                  }
+                                } else if (e.key === "Enter") {
+                                  e.preventDefault();
+                                  if (activeSearchRow === idx && matchingProducts.length > 0) {
+                                    const selectedProd = matchingProducts[highlightedProductIndex] || matchingProducts[0];
+                                    const alreadyExactMatch =
+                                      item.productId &&
+                                      selectedProd &&
+                                      item.productId === selectedProd.id &&
+                                      (item.productName || "").trim().toLowerCase() === (selectedProd.name || "").trim().toLowerCase();
+                                    if (!alreadyExactMatch) {
+                                      selectProductForRow(idx, selectedProd);
+                                      return;
+                                    }
+                                  }
+                                  setActiveSearchRow(null);
+                                  setDropdownCoords(null);
+                                  document.getElementById(`purchase-qty-input-${idx}`)?.focus();
+                                } else if (e.key === "Escape" || e.key === "Tab") {
+                                  setActiveSearchRow(null);
+                                  setDropdownCoords(null);
+                                }
+                              }}
+                              placeholder={t("Type product name or SKU...", "پروڈکٹ کا نام لکھیں...")}
+                              autoComplete="off"
+                              className="w-full rounded-lg border border-slate-300 bg-white pl-2.5 pr-8 py-2 text-xs font-semibold text-slate-900 focus:border-indigo-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                            />
+                            <button
+                              type="button"
+                              tabIndex={-1}
+                              onClick={() => {
+                                if (activeSearchRow === idx) {
+                                  setActiveSearchRow(null);
+                                  setDropdownCoords(null);
+                                } else {
+                                  openProductDropdown(idx);
+                                }
+                              }}
+                              className="absolute right-2 top-2.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                            >
+                              <ChevronDown className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
                         </div>
 
-                      {/* Inward Qty */}
+                      {/* Inward Qty (Blank by default, Enter moves to Unit Cost) */}
                       <div className="md:col-span-2 space-y-1">
                         <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
                           Inward Qty
                         </label>
                         <input
+                          id={`purchase-qty-input-${idx}`}
                           type="number"
                           min="1"
-                          value={item.quantity}
-                          onChange={(e) => handleQtyChange(idx, parseFloat(e.target.value) || 1)}
+                          step="any"
+                          value={item.quantity === "" ? "" : item.quantity}
+                          onChange={(e) => handleQtyChange(idx, e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              document.getElementById(`purchase-cost-input-${idx}`)?.focus();
+                            }
+                          }}
+                          placeholder="0"
                           className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-center text-xs font-bold text-slate-900 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
-                          required
                         />
                       </div>
 
@@ -852,11 +1063,19 @@ export default function CreatePurchasePage() {
                         </label>
                         <div className="relative">
                           <input
+                            id={`purchase-cost-input-${idx}`}
                             type="number"
                             step="0.01"
                             min="0"
-                            value={item.unitCost}
+                            value={item.unitCost || ""}
                             onChange={(e) => handleCostChange(idx, parseFloat(e.target.value) || 0)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.preventDefault();
+                                document.getElementById(`purchase-sell-input-${idx}`)?.focus();
+                              }
+                            }}
+                            placeholder="0"
                             className={`w-full rounded-lg border px-3 py-2 text-right text-xs font-mono font-bold text-slate-900 dark:bg-slate-900 dark:text-white ${
                               analysis.costIncreased
                                 ? "border-amber-400 bg-amber-50/20"
@@ -864,7 +1083,6 @@ export default function CreatePurchasePage() {
                                 ? "border-emerald-400 bg-emerald-50/20"
                                 : "border-slate-300 bg-white"
                             }`}
-                            required
                           />
                         </div>
                       </div>
@@ -880,11 +1098,25 @@ export default function CreatePurchasePage() {
                           )}
                         </label>
                         <input
+                          id={`purchase-sell-input-${idx}`}
                           type="number"
                           step="0.01"
                           min="0"
-                          value={item.newSellingPrice}
+                          value={item.newSellingPrice || ""}
                           onChange={(e) => handleSellingPriceChange(idx, parseFloat(e.target.value) || 0)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              if (idx === items.length - 1) {
+                                handleAddItem();
+                                setTimeout(() => {
+                                  document.getElementById(`purchase-product-input-${idx + 1}`)?.focus();
+                                }, 60);
+                              } else {
+                                document.getElementById(`purchase-product-input-${idx + 1}`)?.focus();
+                              }
+                            }
+                          }}
                           className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-right text-xs font-mono font-bold text-slate-900 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
                           placeholder="e.g. 52000"
                         />
@@ -1018,6 +1250,91 @@ export default function CreatePurchasePage() {
           )}
         </CardContent>
         </Card>
+
+        {/* Viewport-fixed slim below-input floating dropdown for Purchase Product Search */}
+        {activeSearchRow !== null && dropdownCoords !== null && (
+          <>
+            <div
+              className="fixed inset-0 z-[9998] bg-transparent"
+              onClick={() => {
+                setActiveSearchRow(null);
+                setDropdownCoords(null);
+              }}
+            />
+            <div
+              style={{
+                position: "fixed",
+                top: `${dropdownCoords.top}px`,
+                left: `${dropdownCoords.left}px`,
+                width: `${dropdownCoords.width}px`,
+                maxHeight: `${dropdownCoords.maxHeight}px`,
+              }}
+              className="z-[9999] overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-xl dark:border-slate-700 dark:bg-slate-900 ring-1 ring-indigo-500/30"
+              onMouseDown={(e) => e.stopPropagation()}
+            >
+              <div className="sticky top-0 bg-slate-100 dark:bg-slate-800 px-2.5 py-1 text-[10px] font-bold text-slate-500 dark:text-slate-400 flex items-center justify-between border-b border-slate-200 dark:border-slate-700">
+                <span className="flex items-center gap-1">
+                  <Search className="h-3 w-3 text-indigo-600" />
+                  {t("Products", "پروڈکٹس")} ({matchingProducts.length}) • ↑↓ Enter
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveSearchRow(null);
+                    setDropdownCoords(null);
+                  }}
+                  className="text-slate-400 hover:text-slate-600 text-xs px-1"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {matchingProducts.length === 0 ? (
+                <div className="p-2.5 text-center text-xs text-slate-500 dark:text-slate-400">
+                  <p className="font-semibold">{t("No catalog match found", "کیٹلاگ میں کوئی آئٹم نہیں ملا")}</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {matchingProducts.map((prod, pIdx) => {
+                    const isHighlighted = pIdx === highlightedProductIndex;
+                    const cost = Number(prod.purchasePrice || prod.costPrice || prod.averageCost || 0);
+                    return (
+                      <div
+                        id={`purchase-product-option-${pIdx}`}
+                        key={prod.id}
+                        onMouseEnter={() => setHighlightedProductIndex(pIdx)}
+                        onClick={() => {
+                          if (activeSearchRow !== null) {
+                            selectProductForRow(activeSearchRow, prod);
+                          }
+                        }}
+                        className={`px-2.5 py-1.5 cursor-pointer transition flex items-center justify-between gap-2 text-left ${
+                          isHighlighted
+                            ? "bg-indigo-50 dark:bg-indigo-950/60 border-l-2 border-indigo-600"
+                            : "hover:bg-slate-50 dark:hover:bg-slate-800/40"
+                        }`}
+                      >
+                        <span
+                          className={`text-xs font-semibold truncate flex-1 ${
+                            isHighlighted ? "text-indigo-700 dark:text-indigo-300" : "text-slate-900 dark:text-white"
+                          }`}
+                        >
+                          {prod.name}
+                        </span>
+                        <span className="text-[10px] text-slate-500 dark:text-slate-400 shrink-0 tabular-nums">
+                          Qty: <strong className="text-slate-700 dark:text-slate-200">{prod.currentStock ?? 0}</strong>
+                        </span>
+                        <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400 shrink-0 tabular-nums min-w-[70px] text-right">
+                          Rs. {cost.toLocaleString()}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </>
+        )}
 
         {/* Payment & Bill Settlement Cards */}
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
