@@ -186,3 +186,150 @@ export function validateAndRestoreDatabaseBackup(rawPayload: string): {
     };
   }
 }
+
+export interface DesktopBusinessSetupInput {
+  businessName: string;
+  ownerName: string;
+  phone?: string;
+  email: string;
+  password?: string;
+  city?: string;
+  packageType?: string;
+}
+
+/**
+ * Checks whether the local desktop business profile & owner have been created.
+ */
+export function isDesktopSetupComplete(): boolean {
+  const state = readDesktopDatabaseState();
+  return Boolean(state && state.companies && state.companies.length > 0 && state.users && state.users.length > 0);
+}
+
+/**
+ * Returns the active desktop business & owner user if initialized.
+ */
+export function getDesktopBusinessInfo(): {
+  isSetupComplete: boolean;
+  business?: any;
+  user?: any;
+} {
+  const state = readDesktopDatabaseState();
+  if (state && state.companies && state.companies.length > 0 && state.users && state.users.length > 0) {
+    return {
+      isSetupComplete: true,
+      business: state.companies[0],
+      user: state.users[0],
+    };
+  }
+  return { isSetupComplete: false };
+}
+
+/**
+ * Creates the initial fresh, zero-data business ledger and owner user on this computer.
+ */
+export function initializeDesktopBusiness(data: DesktopBusinessSetupInput): {
+  success: boolean;
+  business: any;
+  user: any;
+  error?: string;
+} {
+  try {
+    const bizId = "biz-desktop-main";
+    const cleanEmail = data.email.toLowerCase().trim();
+    const pkg = data.packageType || "ACCOUNTING_ONLY";
+
+    const business = {
+      id: bizId,
+      name: data.businessName.trim(),
+      ownerName: data.ownerName.trim(),
+      phone: data.phone?.trim() || "",
+      email: cleanEmail,
+      city: data.city?.trim() || "Karachi",
+      currency: "PKR",
+      currencySymbol: "Rs",
+      packageType: pkg,
+      enabledModules:
+        pkg === "ACCOUNTING_ONLY"
+          ? ["accounting", "inventory", "sales", "purchases", "reports"]
+          : ["accounting", "inventory", "sales", "purchases", "pos", "reports", "compliance"],
+      canCreateBranches: true,
+      subscriptionStatus: "ACTIVE",
+      createdAt: new Date().toISOString(),
+    };
+
+    const user = {
+      id: "usr-desktop-owner",
+      name: data.ownerName.trim(),
+      email: cleanEmail,
+      password: data.password || "admin123",
+      role: "OWNER_ADMIN",
+      platformRole: "TENANT_USER",
+      businessId: bizId,
+      businessName: business.name,
+      companyIds: [bizId],
+      branchId: null,
+      createdAt: new Date().toISOString(),
+    };
+
+    // Standard initial Chart of Accounts (Rs 0.00 balances, completely fresh)
+    const accounts = [
+      { id: `acc-1010-${bizId}`, businessId: bizId, code: "1010", name: "Cash in Hand", type: "ASSET", subType: "Cash", balance: 0 },
+      { id: `acc-1020-${bizId}`, businessId: bizId, code: "1020", name: "Main Bank Account", type: "ASSET", subType: "Bank", balance: 0 },
+      { id: `acc-1030-${bizId}`, businessId: bizId, code: "1030", name: "Petty Cash", type: "ASSET", subType: "Cash", balance: 0 },
+      { id: `acc-1100-${bizId}`, businessId: bizId, code: "1100", name: "Accounts Receivable", type: "ASSET", subType: "Receivable", balance: 0 },
+      { id: `acc-1200-${bizId}`, businessId: bizId, code: "1200", name: "Merchandise Inventory", type: "ASSET", subType: "Inventory", balance: 0 },
+      { id: `acc-2010-${bizId}`, businessId: bizId, code: "2010", name: "Accounts Payable", type: "LIABILITY", subType: "Payable", balance: 0 },
+      { id: `acc-3010-${bizId}`, businessId: bizId, code: "3010", name: "Owner's Capital", type: "EQUITY", subType: "Capital", balance: 0 },
+      { id: `acc-4010-${bizId}`, businessId: bizId, code: "4010", name: "Sales Revenue", type: "REVENUE", subType: "Operating Revenue", balance: 0 },
+      { id: `acc-5010-${bizId}`, businessId: bizId, code: "5010", name: "Cost of Goods Sold", type: "EXPENSE", subType: "Direct Cost", balance: 0 },
+      { id: `acc-5100-${bizId}`, businessId: bizId, code: "5100", name: "General & Administrative Expenses", type: "EXPENSE", subType: "Operating Expense", balance: 0 },
+      { id: `acc-5110-${bizId}`, businessId: bizId, code: "5110", name: "Shop / Office Rent", type: "EXPENSE", subType: "Operating Expense", balance: 0 },
+      { id: `acc-5120-${bizId}`, businessId: bizId, code: "5120", name: "Electricity & Utility Bills", type: "EXPENSE", subType: "Operating Expense", balance: 0 },
+      { id: `acc-5130-${bizId}`, businessId: bizId, code: "5130", name: "Staff Salaries & Wages", type: "EXPENSE", subType: "Operating Expense", balance: 0 },
+    ];
+
+    const state = {
+      business,
+      activeBusinessId: bizId,
+      companies: [business],
+      users: [user],
+      accounts,
+      cashBankAccounts: [
+        { id: `cb-1-${bizId}`, businessId: bizId, name: "Shop Cash Drawer (کاؤنٹر کیش)", type: "CASH", accountId: `acc-1010-${bizId}`, balance: 0 },
+        { id: `cb-2-${bizId}`, businessId: bizId, name: "Primary Business Bank", type: "BANK", accountId: `acc-1020-${bizId}`, balance: 0 },
+      ],
+      expenseCategories: [
+        { id: `exp-cat-1`, name: "Rent & Utilities", code: "5110" },
+        { id: `exp-cat-2`, name: "Staff Salaries", code: "5130" },
+        { id: `exp-cat-3`, name: "Tea & Refreshment", code: "5100" },
+        { id: `exp-cat-4`, name: "Transport & Delivery", code: "5100" },
+      ],
+      categories: [],
+      products: [],
+      customers: [],
+      suppliers: [],
+      sales: [],
+      purchases: [],
+      payments: [],
+      expenses: [],
+      inventoryTransactions: [],
+      journalEntries: [],
+      branches: [],
+    };
+
+    writeDesktopDatabaseStateSync(state);
+
+    return {
+      success: true,
+      business,
+      user,
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      business: null,
+      user: null,
+      error: err.message,
+    };
+  }
+}

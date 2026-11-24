@@ -169,7 +169,8 @@ export function Sidebar({
   };
 
   const userRole = user?.role || "STAFF";
-  const isPlatformMode = (userRole === "SUPER_ADMIN" || userRole === "ADMIN") && !isInspectingClient;
+  const isDesktop = typeof window !== "undefined" && Boolean((window as any).accounts360Desktop?.isDesktop);
+  const isPlatformMode = !isDesktop && (userRole === "SUPER_ADMIN" || userRole === "ADMIN") && !isInspectingClient;
   const isFbrInvoicingOnly = activeCompany?.packageType === "FBR_INVOICING_ONLY";
   const isDigitalInvoicing =
     activeCompany?.integrationType === "DIGITAL_INVOICING" ||

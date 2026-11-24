@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession, getActiveBusinessCookie } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { fallbackStore } from "@/lib/fallbackStore";
+import { readDesktopDatabaseState } from "@/lib/desktopDatabase";
 
 export const dynamic = "force-dynamic";
 
@@ -55,16 +56,22 @@ export async function GET(req: NextRequest) {
           accessibleCompanies[0] ||
           formatBiz(await prisma.business.findUnique({ where: { id: targetId }, include: { settings: true } }));
       } catch {
-        // Fallback store
+        // Local Desktop DB or Fallback store
+        const desktopDb = readDesktopDatabaseState();
+        const baseCompanies =
+          desktopDb && desktopDb.companies && desktopDb.companies.length > 0
+            ? desktopDb.companies
+            : fallbackStore.companies;
+
         if (session.role === "SUPER_ADMIN" || session.role === "ADMIN") {
-          accessibleCompanies = fallbackStore.companies;
+          accessibleCompanies = baseCompanies;
         } else {
           const userCompanyIds = session.companyIds || [session.businessId];
-          accessibleCompanies = fallbackStore.companies.filter((c) =>
+          accessibleCompanies = baseCompanies.filter((c: any) =>
             userCompanyIds.includes(c.id)
           );
           if (accessibleCompanies.length === 0) {
-            accessibleCompanies = [fallbackStore.companies[0]];
+            accessibleCompanies = [baseCompanies[0]];
           }
         }
 

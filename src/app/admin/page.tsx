@@ -44,6 +44,11 @@ export default function AdminDashboardPage() {
   const dynamicARR = dynamicMRR * 12;
 
   useEffect(() => {
+    if (typeof window !== "undefined" && Boolean((window as any).accounts360Desktop?.isDesktop)) {
+      window.location.href = "/";
+      return;
+    }
+
     async function loadAdminData() {
       try {
         const promises: Promise<any>[] = [

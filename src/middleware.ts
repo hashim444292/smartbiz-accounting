@@ -65,11 +65,13 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // 2. Publicly accessible APIs (healthcheck, login, public FBR receipt verification)
+  // 2. Publicly accessible APIs (healthcheck, login, public FBR receipt verification, desktop activation & setup)
   const isPublicApi =
     pathname === "/api/health" ||
     pathname.startsWith("/api/auth/login") ||
-    pathname.startsWith("/api/verify");
+    pathname.startsWith("/api/verify") ||
+    pathname.startsWith("/api/desktop/license") ||
+    pathname.startsWith("/api/desktop/setup");
 
   // 3. Publicly accessible pages (login page, public FBR invoice QR verify page)
   const isLoginPage = pathname === "/login";

@@ -9,6 +9,8 @@ import {
   exportDatabaseBackup,
   validateAndRestoreDatabaseBackup,
   hasDesktopDatabaseFile,
+  initializeDesktopBusiness,
+  isDesktopSetupComplete,
 } from "../src/lib/desktopDatabase";
 
 describe("Desktop Database Persistence & .sbz Backup Suite", () => {
@@ -104,5 +106,31 @@ describe("Desktop Database Persistence & .sbz Backup Suite", () => {
     const restoreResult = validateAndRestoreDatabaseBackup(tamperedPayload);
     expect(restoreResult.success).toBe(false);
     expect(restoreResult.error).toMatch(/Checksum verification failed/i);
+  });
+
+  it("6. initializeDesktopBusiness creates clean slate ledger and owner user", () => {
+    const res = initializeDesktopBusiness({
+      businessName: "Tariq Autos",
+      ownerName: "Tariq Mehmood",
+      phone: "0300-9876543",
+      city: "Rawalpindi",
+      email: "tariq@autos.pk",
+      password: "pass123",
+      packageType: "POS_COMBO",
+    });
+
+    expect(res.success).toBe(true);
+    expect(res.business.name).toBe("Tariq Autos");
+    expect(res.business.packageType).toBe("POS_COMBO");
+    expect(res.user.email).toBe("tariq@autos.pk");
+    expect(res.user.role).toBe("OWNER_ADMIN");
+
+    const onDisk = readDesktopDatabaseState();
+    expect(onDisk.companies[0].name).toBe("Tariq Autos");
+    expect(onDisk.sales).toHaveLength(0);
+    expect(onDisk.products).toHaveLength(0);
+    expect(onDisk.customers).toHaveLength(0);
+    expect(onDisk.accounts.length).toBeGreaterThan(5);
+    expect(isDesktopSetupComplete()).toBe(true);
   });
 });
