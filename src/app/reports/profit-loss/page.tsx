@@ -119,6 +119,8 @@ export default function ProfitLossPage() {
   const netSales = Number(data?.netSales ?? (grossSales - salesReturns));
   const cogs = Number(data?.cogs ?? data?.totalCogs ?? 0);
   const inventoryLoss = Number(data?.inventoryLoss ?? 0);
+  const belowCostSalesLoss = Number(data?.belowCostSalesLoss ?? 0);
+  const belowCostSalesItems: any[] = data?.belowCostSalesItems || [];
   const totalCostOfSales = Number(data?.totalCostOfSales ?? (cogs + inventoryLoss));
   const grossProfit = Number(data?.grossProfit ?? (netSales - totalCostOfSales));
   const grossMarginPercent = Number(data?.grossMarginPercent ?? (netSales > 0 ? (grossProfit / netSales) * 100 : 0));
@@ -256,7 +258,7 @@ export default function ProfitLossPage() {
               {formatMoney(totalCostOfSales)}
             </div>
             <div className="text-[10px] text-slate-400 mt-0.5">
-              COGS: {formatMoney(cogs)} {inventoryLoss > 0 && `• Loss: ${formatMoney(inventoryLoss)}`}
+              COGS: {formatMoney(cogs)} {belowCostSalesLoss > 0 && <span className="text-rose-600 font-semibold">• Below-Cost Loss: {formatMoney(belowCostSalesLoss)}</span>} {inventoryLoss > 0 && `• Shrinkage: ${formatMoney(inventoryLoss)}`}
             </div>
           </div>
 
@@ -292,6 +294,28 @@ export default function ProfitLossPage() {
             </div>
           </div>
         </div>
+
+        {/* Below-Cost Sales Loss Alert Card */}
+        {belowCostSalesLoss > 0 && (
+          <div className="rounded-xl border border-rose-200 bg-rose-50/80 p-3.5 text-xs dark:border-rose-900/60 dark:bg-rose-950/30">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="flex items-center gap-2.5">
+                <span className="text-xl">📉</span>
+                <div>
+                  <div className="font-bold text-rose-900 dark:text-rose-200 text-xs sm:text-sm">
+                    Below-Cost Sales Loss (کم قیمت پر فروخت کا خسارہ):{" "}
+                    <span className="font-black text-rose-700 dark:text-rose-300 font-mono">
+                      {formatMoney(belowCostSalesLoss)}
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-rose-700/90 dark:text-rose-400 mt-0.5">
+                    {belowCostSalesItems.length} item{belowCostSalesItems.length === 1 ? "" : "s"} were sold below purchase cost price in this reporting period.
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ========================================================================= */}
@@ -340,6 +364,38 @@ export default function ProfitLossPage() {
                 <span>Cost of Inventory Sold (Weighted Average Cost)</span>
                 <span className="font-semibold tabular-nums">-{formatMoney(cogs)}</span>
               </div>
+              {belowCostSalesLoss > 0 && (
+                <div className="space-y-1.5 my-1.5">
+                  <div className="flex justify-between items-center text-rose-600 dark:text-rose-400 font-semibold bg-rose-50/80 dark:bg-rose-950/40 px-2.5 py-1.5 rounded border border-rose-200 dark:border-rose-900/60">
+                    <span className="flex items-center gap-1.5">
+                      <span>📉</span>
+                      <span>Below-Cost Sales Loss (کم قیمت پر فروخت کا خسارہ - {belowCostSalesItems.length} item{belowCostSalesItems.length === 1 ? "" : "s"})</span>
+                    </span>
+                    <span className="font-mono font-bold tabular-nums">
+                      -{formatMoney(belowCostSalesLoss)}
+                    </span>
+                  </div>
+                  {belowCostSalesItems.length > 0 && (
+                    <div className="pl-3 sm:pl-4 space-y-1 my-1 border-l-2 border-rose-400 dark:border-rose-800 text-[11px] text-slate-600 dark:text-slate-400">
+                      {belowCostSalesItems.map((item: any, idx: number) => (
+                        <div key={idx} className="flex justify-between items-center py-0.5">
+                          <span className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-mono text-blue-600 dark:text-blue-400 font-semibold text-[10px]">{item.invoiceNumber}</span>
+                            <span>•</span>
+                            <span className="font-semibold text-slate-900 dark:text-white">{item.productName} ({item.quantity} pcs)</span>
+                            <span className="text-[10px] text-slate-400">
+                              (Cost: {formatMoney(item.costPrice)} vs Sold: {formatMoney(item.unitPrice)})
+                            </span>
+                          </span>
+                          <span className="font-mono text-rose-700 dark:text-rose-400 font-bold tabular-nums">
+                            -{formatMoney(item.totalLoss)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
               {inventoryLoss > 0 && (
                 <div className="space-y-1">
                   <div className="flex justify-between text-rose-600 font-semibold">

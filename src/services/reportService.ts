@@ -1027,6 +1027,20 @@ export interface ProfitLossReportResult {
   cogs: number;
   inventoryLoss: number;
   inventoryLossBreakdown?: Array<{ label: string; amount: number; icon: string }>;
+  belowCostSalesLoss?: number;
+  belowCostSalesItems?: Array<{
+    saleId: string;
+    invoiceNumber: string;
+    date: string;
+    customerName: string;
+    productId: string;
+    productName: string;
+    quantity: number;
+    costPrice: number;
+    unitPrice: number;
+    unitLoss: number;
+    totalLoss: number;
+  }>;
   totalCostOfSales: number;
   grossProfit: number;
   grossMarginPercent: number;
@@ -1061,7 +1075,10 @@ export async function getProfitLossReport(params: ProfitLossReportParams): Promi
         date: { gte: startDateTime, lte: endDateTime },
         ...branchFilter,
       },
-      include: { items: true },
+      include: {
+        items: true,
+        customer: { select: { name: true } },
+      },
     }),
     prisma.product.findMany({
       where: { businessId },
@@ -1106,6 +1123,20 @@ export async function getProfitLossReport(params: ProfitLossReportParams): Promi
   let cogsDec = new Decimal(0);
   let unitsSoldDec = new Decimal(0);
   let activeSalesCount = 0;
+  let belowCostLossDec = new Decimal(0);
+  const belowCostSalesItems: Array<{
+    saleId: string;
+    invoiceNumber: string;
+    date: string;
+    customerName: string;
+    productId: string;
+    productName: string;
+    quantity: number;
+    costPrice: number;
+    unitPrice: number;
+    unitLoss: number;
+    totalLoss: number;
+  }> = [];
 
   for (const s of sales) {
     if (s.status === "CANCELLED") {
@@ -1121,6 +1152,27 @@ export async function getProfitLossReport(params: ProfitLossReportParams): Promi
           unitCost = toDecimal(productCostMap.get(item.productId) || 0);
         }
         cogsDec = cogsDec.add(qty.mul(unitCost));
+
+        const unitPrice = toDecimal(item.unitPrice || 0);
+        if (unitCost.gt(0) && unitPrice.lt(unitCost)) {
+          const unitLoss = unitCost.sub(unitPrice);
+          const totalLineLoss = unitLoss.mul(qty);
+          belowCostLossDec = belowCostLossDec.add(totalLineLoss);
+
+          belowCostSalesItems.push({
+            saleId: s.id,
+            invoiceNumber: s.invoiceNumber || `INV-${s.id.slice(-4)}`,
+            date: s.date ? new Date(s.date).toISOString().slice(0, 10) : "",
+            customerName: s.customerName || (s as any).customer?.name || "Walk-in",
+            productId: item.productId || "",
+            productName: item.productName || "Product",
+            quantity: qty.toNumber(),
+            costPrice: round2(unitCost).toNumber(),
+            unitPrice: round2(unitPrice).toNumber(),
+            unitLoss: round2(unitLoss).toNumber(),
+            totalLoss: round2(totalLineLoss).toNumber(),
+          });
+        }
       }
     }
   }
@@ -1262,6 +1314,8 @@ export async function getProfitLossReport(params: ProfitLossReportParams): Promi
     cogs,
     inventoryLoss,
     inventoryLossBreakdown: breakdownList,
+    belowCostSalesLoss: round2(belowCostLossDec).toNumber(),
+    belowCostSalesItems,
     totalCostOfSales,
     grossProfit,
     grossMarginPercent,
