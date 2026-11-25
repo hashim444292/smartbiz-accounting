@@ -412,34 +412,34 @@ export default function DashboardPage() {
       {/* OVERDUE & PAYMENT PROMISE ALERT BANNER */}
       {/* ========================================================================= */}
       {data?.paymentReminders && (data.paymentReminders.overdueCount > 0 || data.paymentReminders.dueTodayCount > 0) && (
-        <div className="rounded-2xl border-2 border-rose-400 bg-gradient-to-r from-rose-50 via-amber-50 to-rose-50 p-4 sm:p-5 text-xs text-rose-950 dark:border-rose-800 dark:from-rose-950/60 dark:via-amber-950/40 dark:to-rose-950/60 dark:text-rose-200 shadow-md animate-in fade-in slide-in-from-top-2 duration-200">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <div className="flex items-start gap-3">
-              <div className="h-10 w-10 rounded-2xl bg-rose-600 text-white flex items-center justify-center font-bold shrink-0 shadow-sm animate-pulse">
+        <div className="rounded-xl sm:rounded-2xl border border-rose-300 sm:border-2 sm:border-rose-400 bg-gradient-to-r from-rose-50 via-amber-50 to-rose-50 p-3 sm:p-4 text-xs text-rose-950 dark:border-rose-800 dark:from-rose-950/60 dark:via-amber-950/40 dark:to-rose-950/60 dark:text-rose-200 shadow-sm">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 sm:gap-3">
+            <div className="flex items-start gap-2.5 sm:gap-3">
+              <div className="hidden sm:flex h-10 w-10 rounded-2xl bg-rose-600 text-white items-center justify-center font-bold shrink-0 shadow-sm animate-pulse">
                 <Bell className="h-5 w-5" />
               </div>
-              <div>
+              <div className="min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-sm font-black text-rose-950 dark:text-rose-100">
-                    ⚠️ {t(`Payment Due Alert: ${data.paymentReminders.overdueCount} payments are overdue!`, `اہم یاد دہانی: ${data.paymentReminders.overdueCount} ادائیگیاں / وصولیاں تاخیر کا شکار ہیں!`)}
+                  <span className="text-xs sm:text-sm font-black text-rose-950 dark:text-rose-100">
+                    ⚠️ {t(`Payment Due Alert: ${data.paymentReminders.overdueCount} payments overdue`, `اہم یاد دہانی: ${data.paymentReminders.overdueCount} ادائیگیاں / وصولیاں تاخیر کا شکار ہیں!`)}
                   </span>
-                  <span className="rounded-full bg-rose-200/80 px-2 py-0.5 text-[10px] font-bold text-rose-900 dark:bg-rose-900 dark:text-rose-100">
+                  <span className="hidden sm:inline-block rounded-full bg-rose-200/80 px-2 py-0.5 text-[10px] font-bold text-rose-900 dark:bg-rose-900 dark:text-rose-100">
                     {t("Overdue Alert", "تاخیر شدہ واجبات")}
                   </span>
                 </div>
-                <p className="text-rose-800 dark:text-rose-300 mt-0.5 text-xs leading-relaxed">
+                <p className="text-rose-800 dark:text-rose-300 mt-0.5 text-[11px] sm:text-xs leading-snug">
                   {t(
-                    `Receivable from customers: Rs ${Number(data.paymentReminders.totalOverdueReceivables || 0).toLocaleString()} • Payable to suppliers: Rs ${Number(data.paymentReminders.totalOverduePayables || 0).toLocaleString()}`,
+                    `Receivable: Rs ${Number(data.paymentReminders.totalOverdueReceivables || 0).toLocaleString()} • Payable: Rs ${Number(data.paymentReminders.totalOverduePayables || 0).toLocaleString()}`,
                     `گاہکوں سے Rs ${Number(data.paymentReminders.totalOverdueReceivables || 0).toLocaleString()} وصول کرنی ہے اور سپلائرز کو Rs ${Number(data.paymentReminders.totalOverduePayables || 0).toLocaleString()} ادا کرنی ہے۔`
                   )}
                 </p>
               </div>
             </div>
 
-            <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+            <div className="flex items-center gap-2 shrink-0 self-start sm:self-auto">
               <Link
                 href="/payments"
-                className="inline-flex items-center gap-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white px-3.5 py-2 text-xs font-bold transition shadow-xs"
+                className="inline-flex items-center gap-1.5 rounded-lg sm:rounded-xl bg-rose-600 hover:bg-rose-700 text-white px-3 py-1.5 text-[11px] sm:text-xs font-bold transition shadow-xs"
               >
                 <span>{t("Record Payment", "ادائیگی ریکارڈ کریں")}</span>
                 <ArrowRight className="h-3.5 w-3.5" />

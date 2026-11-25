@@ -350,23 +350,23 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
 
   return (
     <>
-      <header data-no-print className="print:hidden sticky top-0 z-40 flex h-16 w-full max-w-full items-center justify-between border-b border-slate-200/80 bg-white/95 px-3 sm:px-6 backdrop-blur-md dark:border-slate-800/90 dark:bg-[#111827]/95 transition-colors duration-150">
-        <div className="flex items-center gap-2 sm:gap-3 shrink-0 min-w-0">
+      <header data-no-print className="print:hidden sticky top-0 z-40 flex h-14 sm:h-16 w-full max-w-full items-center justify-between gap-1.5 sm:gap-3 border-b border-slate-200/80 bg-white/95 px-2.5 sm:px-6 backdrop-blur-md dark:border-slate-800/90 dark:bg-[#111827]/95 transition-colors duration-150">
+        <div className="flex items-center gap-1.5 sm:gap-3 flex-1 min-w-0">
           <button
             onClick={onMenuClick}
             aria-label="Toggle menu"
-            className="rounded-xl p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200 lg:hidden transition"
+            className="rounded-xl p-1.5 sm:p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200 lg:hidden transition shrink-0"
           >
             <Menu className="h-5 w-5" />
           </button>
 
           {/* Company Context / Switcher */}
           {(user?.role === "SUPER_ADMIN" || user?.role === "ADMIN") ? (
-            <div className="relative" ref={dropdownRef}>
+            <div className="relative min-w-0" ref={dropdownRef}>
               <button
                 disabled={switchingCompanyId !== null}
                 onClick={() => setDropdownOpen(!dropdownOpen)}
-                className={`flex items-center gap-2 rounded-xl border px-3 py-1.5 text-xs font-semibold transition ${
+                className={`flex items-center gap-1.5 sm:gap-2 rounded-xl border px-2 sm:px-3 py-1.5 text-xs font-semibold transition max-w-full ${
                   switchingCompanyId !== null
                     ? "bg-amber-50 text-amber-800 border-amber-300 animate-pulse cursor-wait"
                     : isInspectingClient
@@ -378,27 +378,27 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
                 {switchingCompanyId !== null ? (
                   <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-amber-600 border-t-transparent shrink-0" />
                 ) : isInspectingClient ? (
-                  <span className="text-amber-600 text-sm">🛠️</span>
+                  <span className="text-amber-600 text-sm shrink-0">🛠️</span>
                 ) : (
-                  <span className="text-indigo-600 dark:text-indigo-400 text-sm">👑</span>
+                  <span className="text-indigo-600 dark:text-indigo-400 text-sm shrink-0">👑</span>
                 )}
-                <div className="text-left max-w-[120px] sm:max-w-[200px] truncate">
+                <div className="text-left max-w-[125px] sm:max-w-[200px] truncate">
                   <span className="block truncate leading-tight font-bold">
                     {switchingCompanyId !== null
-                      ? "Switching Company..."
+                      ? "Switching..."
                       : isInspectingClient
                       ? activeCompany?.name || "Inspect Client"
-                      : "SaaS Platform Admin"}
+                      : "Platform Admin"}
                   </span>
-                  <span className="text-[10px] text-slate-500 dark:text-slate-400 block truncate">
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400 hidden sm:block truncate">
                     {isInspectingClient ? "Inspecting Client Books" : `${companies.length} Registered Tenants`}
                   </span>
                 </div>
-                <ChevronDown className="h-3.5 w-3.5 text-slate-400 ml-1 shrink-0" />
+                <ChevronDown className="h-3.5 w-3.5 text-slate-400 shrink-0" />
               </button>
 
               {dropdownOpen && (
-                <div className="absolute left-0 mt-2 w-76 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl dark:border-slate-800 dark:bg-[#111827] z-50 animate-in fade-in zoom-in-95 duration-100">
+                <div className="absolute left-0 mt-2 w-72 max-w-[calc(100vw-20px)] rounded-2xl border border-slate-200 bg-white p-2 shadow-xl dark:border-slate-800 dark:bg-[#111827] z-50 animate-in fade-in zoom-in-95 duration-100">
                   <div className="px-3 py-2 border-b border-slate-100 dark:border-slate-800 mb-1">
                     <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
                       Multi-Tenant Workspace Inspector
@@ -663,11 +663,17 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
             <Search className="h-4 w-4" />
           </button>
 
-          {/* Offline Sync & Network Vault Indicator */}
-          <OfflineSyncIndicator />
+          {/* Offline Sync & Network Vault Indicator (Desktop/Tablet) */}
+          <div className="hidden sm:flex">
+            <OfflineSyncIndicator />
+          </div>
 
-          {/* Global Date Range Selector (Hidden in Platform Admin mode) */}
-          {!isPlatformMode && <DateRangeSelector />}
+          {/* Global Date Range Selector (Hidden on small mobile & in Platform Admin mode) */}
+          {!isPlatformMode && (
+            <div className="hidden md:block">
+              <DateRangeSelector />
+            </div>
+          )}
 
           {/* Active Ringing Alarm Pill */}
           {isAlarmActive && (
@@ -1093,6 +1099,26 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
                         <span>My Profile & Password</span>
                       </Link>
                     </div>
+                    {/* Mobile Quick Theme & Language Row (hidden on md+ where header buttons are shown) */}
+                    <div className="flex md:hidden items-center gap-1.5 pb-1.5 mb-1 border-b border-slate-100 dark:border-slate-800">
+                      <button
+                        type="button"
+                        onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+                        className="flex-1 flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 py-1.5 text-[11px] font-semibold text-slate-700 dark:text-slate-200"
+                      >
+                        {theme === "dark" ? <Sun className="h-3.5 w-3.5 text-amber-500" /> : <Moon className="h-3.5 w-3.5 text-indigo-500" />}
+                        <span>{theme === "dark" ? "Light" : "Dark"}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setLanguage(language === "en" ? "ur" : "en")}
+                        className="flex-1 flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 py-1.5 text-[11px] font-semibold text-slate-700 dark:text-slate-200"
+                      >
+                        <Languages className="h-3.5 w-3.5 text-blue-500" />
+                        <span>{language === "en" ? "اردو" : "English"}</span>
+                      </button>
+                    </div>
+
                     <button
                       type="button"
                       onClick={() => {
@@ -1150,6 +1176,26 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
                           <span>{t("Install App (Mobile/PC)", "ایپ انسٹال کریں")}</span>
                         </button>
                       )}
+
+                    {/* Mobile Quick Theme & Language Row (hidden on md+ where header buttons are shown) */}
+                    <div className="flex md:hidden items-center gap-1.5 pb-1.5 mb-1 border-b border-slate-100 dark:border-slate-800">
+                      <button
+                        type="button"
+                        onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+                        className="flex-1 flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 py-1.5 text-[11px] font-semibold text-slate-700 dark:text-slate-200"
+                      >
+                        {theme === "dark" ? <Sun className="h-3.5 w-3.5 text-amber-500" /> : <Moon className="h-3.5 w-3.5 text-indigo-500" />}
+                        <span>{theme === "dark" ? "Light" : "Dark"}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setLanguage(language === "en" ? "ur" : "en")}
+                        className="flex-1 flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 py-1.5 text-[11px] font-semibold text-slate-700 dark:text-slate-200"
+                      >
+                        <Languages className="h-3.5 w-3.5 text-blue-500" />
+                        <span>{language === "en" ? "اردو" : "English"}</span>
+                      </button>
+                    </div>
 
                     <button
                       type="button"

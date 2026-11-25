@@ -96,43 +96,46 @@ function ShellContent({ children }: { children: React.ReactNode }) {
         <div className="sticky top-0 z-40 w-full">
           {/* Active Super Admin User Session Switching Banner */}
           {user && user.role !== "SUPER_ADMIN" && user.isSwitched && (
-            <div data-no-print className="print:hidden bg-gradient-to-r from-purple-800 via-indigo-800 to-indigo-900 text-white px-4 py-2 text-xs flex items-center justify-between shadow-xs z-30 border-b border-indigo-700/50">
-              <div className="flex items-center gap-2">
-                <span className="font-semibold text-purple-200">Active User Session:</span>
-                <span className="font-bold underline">{user.name}</span>
-                <span className="bg-white/15 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase">{user.role}</span>
-                <span className="text-purple-200 hidden sm:inline">• Active Client: {activeCompany?.name}</span>
+            <div data-no-print className="print:hidden bg-gradient-to-r from-purple-800 via-indigo-800 to-indigo-900 text-white px-2.5 sm:px-4 py-1.5 text-[11px] sm:text-xs flex items-center justify-between gap-2 shadow-xs z-30 border-b border-indigo-700/50">
+              <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-1">
+                <span className="font-semibold text-purple-200 hidden sm:inline shrink-0">Active User Session:</span>
+                <span className="font-bold underline truncate">{user.name}</span>
+                <span className="bg-white/15 px-1.5 sm:px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-bold uppercase shrink-0">{user.role}</span>
+                <span className="text-purple-200 hidden md:inline truncate">• {activeCompany?.name}</span>
               </div>
               <button
                 onClick={() => switchUser("usr-1")}
-                className="bg-white text-indigo-950 hover:bg-purple-50 text-[11px] font-extrabold px-3 py-1 rounded-xl transition shadow-xs flex items-center gap-1 shrink-0"
+                className="bg-white text-indigo-950 hover:bg-purple-50 text-[10px] sm:text-[11px] font-extrabold px-2.5 sm:px-3 py-1 rounded-lg sm:rounded-xl transition shadow-xs flex items-center gap-1 shrink-0 whitespace-nowrap"
               >
                 <span>👑</span>
-                <span>Switch Back to Super Admin</span>
+                <span className="hidden sm:inline">Switch Back to Super Admin</span>
+                <span className="sm:hidden">Exit User</span>
               </button>
             </div>
           )}
 
           {/* Super Admin / Platform Admin Client Inspection Banner */}
           {(user?.role === "SUPER_ADMIN" || user?.role === "ADMIN") && isInspectingClient && (
-            <div data-no-print className="print:hidden bg-gradient-to-r from-amber-700 via-amber-600 to-amber-700 text-white px-4 py-2 text-xs flex items-center justify-between shadow-xs z-30 border-b border-amber-600/60">
-              <div className="flex items-center gap-2">
-                <span className="bg-white/20 text-white px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider">
+            <div data-no-print className="print:hidden bg-gradient-to-r from-amber-700 via-amber-600 to-amber-700 text-white px-2.5 sm:px-4 py-1.5 text-[11px] sm:text-xs flex items-center justify-between gap-2 shadow-xs z-30 border-b border-amber-600/60">
+              <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-1">
+                <span className="hidden sm:inline-flex bg-white/20 text-white px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider shrink-0">
                   🛡️ Client Inspection Mode
                 </span>
-                <span className="font-semibold text-amber-100 hidden sm:inline">
+                <span className="sm:hidden font-semibold text-amber-100 shrink-0">🛡️ Inspecting:</span>
+                <span className="font-semibold text-amber-100 hidden md:inline shrink-0">
                   Viewing Client Workspace:
                 </span>
-                <strong className="underline text-white font-bold">{activeCompany?.name}</strong>
-                <span className="text-amber-200 text-[11px] hidden md:inline">
+                <strong className="underline text-white font-bold truncate">{activeCompany?.name}</strong>
+                <span className="text-amber-200 text-[11px] hidden lg:inline truncate">
                   (Changes affect this client&apos;s live ledger)
                 </span>
               </div>
               <button
                 onClick={exitInspection}
-                className="bg-white text-amber-950 hover:bg-amber-50 text-xs font-black px-3 py-1 rounded-xl transition shadow-xs flex items-center gap-1.5 shrink-0"
+                className="bg-white text-amber-950 hover:bg-amber-50 text-[10px] sm:text-xs font-black px-2.5 sm:px-3 py-1 rounded-lg sm:rounded-xl transition shadow-xs flex items-center gap-1 shrink-0 whitespace-nowrap"
               >
-                <span>← Return to Platform Admin</span>
+                <span className="hidden sm:inline">← Return to Platform Admin</span>
+                <span className="sm:hidden">← Exit</span>
               </button>
             </div>
           )}
