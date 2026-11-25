@@ -360,6 +360,12 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
             <Menu className="h-5 w-5" />
           </button>
 
+          <img
+            src="/icons/icon-192.png"
+            alt="Accounts360"
+            className="h-7 w-7 rounded-lg object-contain bg-white p-0.5 border border-slate-200/80 dark:border-slate-700 lg:hidden shrink-0"
+          />
+
           {/* Company Context / Switcher */}
           {(user?.role === "SUPER_ADMIN" || user?.role === "ADMIN") ? (
             <div className="relative min-w-0" ref={dropdownRef}>

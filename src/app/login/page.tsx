@@ -172,12 +172,13 @@ export default function LoginPage() {
       <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-indigo-400/10 rounded-full blur-3xl pointer-events-none" />
 
       <div className="sm:mx-auto sm:w-full sm:max-w-md relative z-10 text-center">
-        <div className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-600 text-white shadow-lg shadow-indigo-600/30 mb-3">
-          <ShieldCheck className="h-8 w-8" />
+        <div className="inline-flex items-center justify-center rounded-2xl bg-white px-4 py-2.5 shadow-md border border-slate-200/80 mb-3">
+          <img
+            src="/icons/logo-full.png"
+            alt="Accounts360"
+            className="h-10 sm:h-12 w-auto object-contain"
+          />
         </div>
-        <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-          Accounts360 Desktop
-        </h2>
         <p className="mt-1 text-xs text-slate-500 font-medium">
           Professional Business Accounting, Inventory & FBR Digital POS
         </p>

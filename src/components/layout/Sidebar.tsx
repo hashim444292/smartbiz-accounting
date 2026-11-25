@@ -261,34 +261,24 @@ export function Sidebar({
         } ${isCollapsed ? "w-20" : "w-64"}`}
       >
         {/* Brand Header */}
-        <div className="flex h-16 items-center justify-between px-4 border-b border-slate-200/80 bg-slate-50/60 dark:border-slate-800 dark:bg-slate-900/40">
-          <Link href={isPlatformMode ? "/admin" : "/"} className="flex items-center gap-3 overflow-hidden">
-            <div
-              className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-white font-bold shadow-xs transition ${
-                isPlatformMode
-                  ? "bg-slate-900 border border-slate-700 dark:bg-slate-800 dark:border-slate-600"
-                  : "bg-indigo-600 border border-indigo-500/80 shadow-indigo-600/20"
-              }`}
-            >
-              <ShieldCheck className="h-5 w-5" />
-            </div>
-            {!isCollapsed && (
-              <div className="leading-none overflow-hidden text-ellipsis whitespace-nowrap">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-sm font-extrabold tracking-tight text-slate-900 dark:text-white font-sans">
-                    Accounts360
-                  </span>
-                  <span
-                    className={`rounded-md px-1.5 py-0.5 text-[9px] font-extrabold uppercase tracking-wide border ${
-                      isPlatformMode
-                        ? "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/60 dark:text-purple-300 dark:border-purple-800"
-                        : "bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/60 dark:text-indigo-300 dark:border-indigo-800"
-                    }`}
-                  >
-                    {isPlatformMode ? "PLATFORM" : "ERP"}
-                  </span>
+        <div className="flex h-16 items-center justify-between px-3.5 border-b border-slate-200/80 bg-slate-50/60 dark:border-slate-800 dark:bg-slate-900/40">
+          <Link href={isPlatformMode ? "/admin" : "/"} className="flex items-center gap-2.5 overflow-hidden">
+            {isCollapsed ? (
+              <img
+                src="/icons/icon-192.png"
+                alt="Accounts360"
+                className="h-9 w-9 shrink-0 rounded-xl object-contain bg-white p-0.5 shadow-xs border border-slate-200/80 dark:border-slate-700"
+              />
+            ) : (
+              <div className="flex flex-col overflow-hidden">
+                <div className="inline-flex items-center rounded-xl bg-white/95 px-2 py-1 shadow-2xs border border-slate-200/70 dark:border-slate-700/80 w-fit">
+                  <img
+                    src="/icons/logo-full.png"
+                    alt="Accounts360"
+                    className="h-7 w-auto object-contain"
+                  />
                 </div>
-                <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
+                <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium mt-0.5 pl-0.5 truncate">
                   {isPlatformMode ? "SaaS Multi-Tenant Admin" : isFbrInvoicingOnly ? "FBR Digital Invoicing & POS" : isAccountingOnly ? "Business Accounting" : "Accounting & FBR Suite"}
                 </span>
               </div>
