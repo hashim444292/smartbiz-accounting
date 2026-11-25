@@ -738,7 +738,7 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
             </button>
 
             {remindersOpen && (
-              <div className="absolute right-0 mt-2 w-80 sm:w-96 rounded-2xl border border-slate-200 bg-white p-3 shadow-2xl dark:border-slate-800 dark:bg-[#111827] z-50 animate-in fade-in zoom-in-95 duration-100 max-h-[85vh] overflow-hidden flex flex-col">
+              <div className="fixed left-3 right-3 mt-2 sm:absolute sm:left-auto sm:right-0 sm:w-96 rounded-2xl border border-slate-200 bg-white p-3 shadow-2xl dark:border-slate-800 dark:bg-[#111827] z-50 animate-in fade-in zoom-in-95 duration-100 max-h-[75vh] sm:max-h-[85vh] overflow-hidden flex flex-col">
                 <div className="flex items-center justify-between pb-2.5 border-b border-slate-100 dark:border-slate-800">
                   <div className="flex items-center gap-1.5">
                     <Bell className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
