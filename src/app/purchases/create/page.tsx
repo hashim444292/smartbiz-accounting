@@ -1278,7 +1278,8 @@ export default function CreatePurchasePage() {
               <div className="sticky top-0 bg-slate-100 dark:bg-slate-800 px-2.5 py-1 text-[10px] font-bold text-slate-500 dark:text-slate-400 flex items-center justify-between border-b border-slate-200 dark:border-slate-700">
                 <span className="flex items-center gap-1">
                   <Search className="h-3 w-3 text-indigo-600" />
-                  {t("Products", "پروڈکٹس")} ({matchingProducts.length}) • ↑↓ Enter
+                  {t("Products", "پروڈکٹس")} ({matchingProducts.length})
+                  <span className="hidden md:inline">• ↑↓ Enter</span>
                 </span>
                 <button
                   type="button"

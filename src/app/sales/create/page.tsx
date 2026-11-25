@@ -2063,7 +2063,7 @@ export default function CreateSalePage() {
                           type="button"
                           title={t("View Purchase Bills [F1]", "خریداری بلز دیکھیں [F1]")}
                           onClick={() => openHistoryModal("PURCHASE", focusedRowIndex)}
-                          className="text-[9px] px-1.5 py-0.5 rounded bg-blue-100 hover:bg-blue-200 text-blue-700 dark:bg-blue-950 dark:hover:bg-blue-900 dark:text-blue-300 font-mono font-bold transition cursor-pointer"
+                          className="hidden md:inline-block text-[9px] px-1.5 py-0.5 rounded bg-blue-100 hover:bg-blue-200 text-blue-700 dark:bg-blue-950 dark:hover:bg-blue-900 dark:text-blue-300 font-mono font-bold transition cursor-pointer"
                         >
                           F1 Bills
                         </button>
@@ -2071,7 +2071,7 @@ export default function CreateSalePage() {
                           type="button"
                           title={t("View Sales Invoices & Rate [F2]", "فروخت انوائسز اور ریٹ دیکھیں [F2]")}
                           onClick={() => openHistoryModal("SALE", focusedRowIndex)}
-                          className="text-[9px] px-1.5 py-0.5 rounded bg-purple-100 hover:bg-purple-200 text-purple-700 dark:bg-purple-950 dark:hover:bg-purple-900 dark:text-purple-300 font-mono font-bold transition cursor-pointer"
+                          className="hidden md:inline-block text-[9px] px-1.5 py-0.5 rounded bg-purple-100 hover:bg-purple-200 text-purple-700 dark:bg-purple-950 dark:hover:bg-purple-900 dark:text-purple-300 font-mono font-bold transition cursor-pointer"
                         >
                           F2 Sales
                         </button>
@@ -2355,21 +2355,30 @@ export default function CreateSalePage() {
                                   : "border-slate-200 focus:border-blue-500 dark:border-slate-700"
                               }`}
                             />
-                            {/* [F1] Purchase Bills History Shortcut */}
+                            {/* Mobile: Single clean History icon (no F1/F2 keyboard clutter on touch screens) */}
+                            <button
+                              type="button"
+                              title={t("View Rate & Bill History", "ریٹ اور بل ہسٹری دیکھیں")}
+                              onClick={() => openHistoryModal("SALE", idx)}
+                              className="md:hidden rounded-md border border-purple-200 bg-purple-50 p-1.5 text-purple-700 hover:bg-purple-100 dark:border-purple-800 dark:bg-purple-950/50 dark:text-purple-300 shrink-0 transition"
+                            >
+                              <History className="h-3.5 w-3.5" />
+                            </button>
+                            {/* Desktop: [F1] Purchase Bills History Shortcut */}
                             <button
                               type="button"
                               title={t("View Purchase Bills History [F1]", "خریداری بلز ہسٹری دیکھیں [F1]")}
                               onClick={() => openHistoryModal("PURCHASE", idx)}
-                              className="rounded-md border border-blue-200 bg-blue-50 px-1.5 py-1 text-[10px] font-bold text-blue-700 hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-950/50 dark:text-blue-300 shrink-0 transition"
+                              className="hidden md:inline-flex rounded-md border border-blue-200 bg-blue-50 px-1.5 py-1 text-[10px] font-bold text-blue-700 hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-950/50 dark:text-blue-300 shrink-0 transition"
                             >
                               F1
                             </button>
-                            {/* [F2] Sales Invoices History Shortcut */}
+                            {/* Desktop: [F2] Sales Invoices History Shortcut */}
                             <button
                               type="button"
                               title={t("View Sales Invoices & Rate History [F2]", "فروخت انوائسز اور ریٹ ہسٹری دیکھیں [F2]")}
                               onClick={() => openHistoryModal("SALE", idx)}
-                              className="rounded-md border border-purple-200 bg-purple-50 px-1.5 py-1 text-[10px] font-bold text-purple-700 hover:bg-purple-100 dark:border-purple-800 dark:bg-purple-950/50 dark:text-purple-300 shrink-0 transition"
+                              className="hidden md:inline-flex rounded-md border border-purple-200 bg-purple-50 px-1.5 py-1 text-[10px] font-bold text-purple-700 hover:bg-purple-100 dark:border-purple-800 dark:bg-purple-950/50 dark:text-purple-300 shrink-0 transition"
                             >
                               F2
                             </button>
@@ -2528,7 +2537,8 @@ export default function CreateSalePage() {
                   <div className="sticky top-0 bg-slate-100 dark:bg-slate-800 px-2.5 py-1 text-[10px] font-bold text-slate-500 dark:text-slate-400 flex items-center justify-between border-b border-slate-200 dark:border-slate-700">
                     <span className="flex items-center gap-1">
                       <Search className="h-3 w-3 text-blue-600" />
-                      {t("Products", "پروڈکٹس")} ({matchingProducts.length}) • ↑↓ Enter
+                      {t("Products", "پروڈکٹس")} ({matchingProducts.length})
+                      <span className="hidden md:inline">• ↑↓ Enter</span>
                     </span>
                     <button
                       type="button"
