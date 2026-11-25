@@ -873,13 +873,22 @@ export default function DesktopLicensesPage() {
                     </label>
                     <select
                       value={durationDays}
-                      onChange={(e) => setDurationDays(Number(e.target.value))}
+                      onChange={(e) => {
+                        const days = Number(e.target.value);
+                        setDurationDays(days);
+                        if (days <= 30) {
+                          setAnnualFee(0);
+                        } else if (annualFee === 0) {
+                          setAnnualFee(25000);
+                        }
+                      }}
                       className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     >
+                      <option value={15}>15 Days (Trial / Feedback)</option>
+                      <option value={30}>30 Days (1 Month Trial)</option>
+                      <option value={180}>6 Months (180 Days)</option>
                       <option value={365}>1 Year (365 Days) [Standard]</option>
                       <option value={730}>2 Years (730 Days)</option>
-                      <option value={180}>6 Months (180 Days)</option>
-                      <option value={30}>1 Month Trial (30 Days)</option>
                       <option value={3650}>Lifetime (10 Years)</option>
                     </select>
                   </div>
