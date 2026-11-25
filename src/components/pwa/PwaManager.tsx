@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
-import { Download, RefreshCw, Share, X } from "lucide-react";
+import React, { useEffect, useRef, useState } from "react";
+import { Download, MoreVertical, RefreshCw, Share, Smartphone, X } from "lucide-react";
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -12,8 +12,9 @@ const DISMISS_KEY = "sb_pwa_prompt_dismissed_at";
 
 export function PwaManager() {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+  const deferredPromptRef = useRef<BeforeInstallPromptEvent | null>(null);
   const [showInstallBanner, setShowInstallBanner] = useState(false);
-  const [isIosHint, setIsIosHint] = useState(false);
+  const [platformHint, setPlatformHint] = useState<"native" | "ios" | "android-manual">("native");
   const [updateReady, setUpdateReady] = useState(false);
   const [waitingWorker, setWaitingWorker] = useState<ServiceWorker | null>(null);
 
@@ -26,7 +27,6 @@ export function PwaManager() {
       Boolean((window as any).electronAPI);
     if (isElectron) return;
 
-    // Already running as installed standalone PWA
     const isStandalone =
       window.matchMedia("(display-mode: standalone)").matches ||
       Boolean((window.navigator as any).standalone);
@@ -56,32 +56,56 @@ export function PwaManager() {
 
     if (isStandalone) return;
 
-    // Respect 7-day dismissal
-    try {
-      const dismissedAt = Number(localStorage.getItem(DISMISS_KEY) || 0);
-      if (dismissedAt && Date.now() - dismissedAt < 7 * 24 * 60 * 60 * 1000) {
-        return;
-      }
-    } catch {}
+    const ua = navigator.userAgent.toLowerCase();
+    const isIos = /iphone|ipad|ipod/.test(ua) && !/crios|fxios/.test(ua);
+    const isMobile = /android|iphone|ipad|ipod|mobile/.test(ua);
 
     const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault();
-      setDeferredPrompt(e as BeforeInstallPromptEvent);
+      const promptEvent = e as BeforeInstallPromptEvent;
+      deferredPromptRef.current = promptEvent;
+      setDeferredPrompt(promptEvent);
+      setPlatformHint("native");
+      setShowInstallBanner(true);
+    };
+
+    const handleManualTrigger = () => {
+      if (deferredPromptRef.current) {
+        setPlatformHint("native");
+      } else if (isIos) {
+        setPlatformHint("ios");
+      } else {
+        setPlatformHint("android-manual");
+      }
       setShowInstallBanner(true);
     };
 
     window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+    window.addEventListener("sb:open-pwa-install", handleManualTrigger);
 
-    // iOS Safari detection (doesn't fire beforeinstallprompt)
-    const ua = navigator.userAgent.toLowerCase();
-    const isIos = /iphone|ipad|ipod/.test(ua) && !/crios|fxios/.test(ua);
-    if (isIos) {
-      setIsIosHint(true);
-      setShowInstallBanner(true);
+    // Respect 7-day dismissal for automatic banner
+    let isDismissed = false;
+    try {
+      const dismissedAt = Number(localStorage.getItem(DISMISS_KEY) || 0);
+      if (dismissedAt && Date.now() - dismissedAt < 7 * 24 * 60 * 60 * 1000) {
+        isDismissed = true;
+      }
+    } catch {}
+
+    // If on mobile and browser didn't auto-fire beforeinstallprompt within 2.5s, show helpful fallback banner
+    let fallbackTimer: ReturnType<typeof setTimeout> | null = null;
+    if (isMobile && !isDismissed) {
+      fallbackTimer = setTimeout(() => {
+        if (deferredPromptRef.current) return;
+        setPlatformHint(isIos ? "ios" : "android-manual");
+        setShowInstallBanner(true);
+      }, 2500);
     }
 
     return () => {
       window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+      window.removeEventListener("sb:open-pwa-install", handleManualTrigger);
+      if (fallbackTimer) clearTimeout(fallbackTimer);
     };
   }, []);
 
@@ -142,8 +166,9 @@ export function PwaManager() {
             />
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between gap-2">
-                <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
-                  Install Accounts360 App
+                <p className="text-xs font-bold text-slate-900 dark:text-white truncate flex items-center gap-1">
+                  <Smartphone className="h-3.5 w-3.5 text-indigo-600 shrink-0" />
+                  <span>Install Accounts360 App</span>
                 </p>
                 <button
                   type="button"
@@ -154,12 +179,8 @@ export function PwaManager() {
                   <X className="h-3.5 w-3.5" />
                 </button>
               </div>
-              {isIosHint ? (
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">
-                  Tap <Share className="inline h-3 w-3 text-indigo-600" /> then{" "}
-                  <strong className="text-slate-700 dark:text-slate-200">Add to Home Screen</strong>.
-                </p>
-              ) : (
+
+              {platformHint === "native" && deferredPrompt ? (
                 <div className="mt-2 flex items-center gap-2">
                   <button
                     type="button"
@@ -177,6 +198,16 @@ export function PwaManager() {
                     Later
                   </button>
                 </div>
+              ) : platformHint === "ios" ? (
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 leading-snug">
+                  Tap <Share className="inline h-3 w-3 text-indigo-600" /> then{" "}
+                  <strong className="text-slate-700 dark:text-slate-200">Add to Home Screen</strong>.
+                </p>
+              ) : (
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 leading-snug">
+                  Browser menu <MoreVertical className="inline h-3 w-3 text-indigo-600" /> par tap karein aur{" "}
+                  <strong className="text-slate-700 dark:text-slate-200">Install app / Add to Home screen</strong> select karein.
+                </p>
               )}
             </div>
           </div>

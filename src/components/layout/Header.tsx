@@ -29,6 +29,7 @@ import {
   Languages,
   Volume2,
   Keyboard,
+  Download,
 } from "lucide-react";
 import { DateRangeSelector } from "./DateRangeSelector";
 import { KeyboardShortcutsModal } from "./KeyboardShortcutsModal";
@@ -1133,6 +1134,22 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
                       <History className="h-3.5 w-3.5 text-slate-500" />
                       <span>Activity Log</span>
                     </Link>
+
+                    {typeof window !== "undefined" &&
+                      !navigator.userAgent.includes("Electron") &&
+                      !window.matchMedia("(display-mode: standalone)").matches && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setUserMenuOpen(false);
+                            window.dispatchEvent(new CustomEvent("sb:open-pwa-install"));
+                          }}
+                          className="w-full flex items-center gap-2 rounded-xl px-2.5 py-1.5 text-xs text-emerald-700 hover:bg-emerald-50 dark:text-emerald-300 dark:hover:bg-emerald-950/30 font-semibold transition"
+                        >
+                          <Download className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                          <span>{t("Install App (Mobile/PC)", "ایپ انسٹال کریں")}</span>
+                        </button>
+                      )}
 
                     <button
                       type="button"
