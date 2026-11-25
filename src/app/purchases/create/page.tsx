@@ -213,11 +213,12 @@ export default function CreatePurchasePage() {
       const maxHeight = openBelow
         ? Math.min(220, Math.max(90, spaceBelow))
         : Math.min(220, Math.max(90, rect.top - 14));
+      const dropWidth = Math.min(window.innerWidth - 16, Math.max(rect.width, 320));
       setDropdownCoords({
         top: openBelow ? rect.bottom + 4 : undefined,
         bottom: openBelow ? undefined : window.innerHeight - rect.top + 4,
-        left: Math.max(8, Math.min(rect.left, window.innerWidth - 350)),
-        width: Math.max(rect.width, 330),
+        left: Math.max(8, Math.min(rect.left, window.innerWidth - dropWidth - 8)),
+        width: dropWidth,
         maxHeight,
       });
     }

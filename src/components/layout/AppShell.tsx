@@ -9,6 +9,7 @@ import { DateRangeProvider } from "@/context/DateRangeContext";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import DesktopActivationGate, { DesktopLicenseState } from "@/components/desktop/DesktopActivationGate";
 import DesktopSetupWizard from "@/components/desktop/DesktopSetupWizard";
+import { PwaManager } from "@/components/pwa/PwaManager";
 
 function ShellContent({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -150,6 +151,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <AuthProvider>
       <DateRangeProvider>
         <ShellContent>{children}</ShellContent>
+        <PwaManager />
       </DateRangeProvider>
     </AuthProvider>
   );

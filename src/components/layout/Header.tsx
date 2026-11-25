@@ -683,11 +683,11 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
             </button>
           )}
 
-          {/* Keyboard Shortcuts Guide Trigger (Clean, Discoverable, Zero Clutter) */}
+          {/* Keyboard Shortcuts Guide Trigger (Desktop/Tablet only, hidden on touch phones to keep mobile header clean) */}
           <button
             type="button"
             onClick={() => setShortcutsOpen(true)}
-            className="flex h-9 items-center gap-1.5 px-2.5 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-indigo-50 hover:text-indigo-700 hover:border-indigo-200 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-indigo-950/50 dark:hover:text-indigo-300 transition shadow-2xs text-xs font-semibold"
+            className="hidden md:flex h-9 items-center gap-1.5 px-2.5 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-indigo-50 hover:text-indigo-700 hover:border-indigo-200 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-indigo-950/50 dark:hover:text-indigo-300 transition shadow-2xs text-xs font-semibold"
             title={t("Keyboard Shortcuts (F10 or Shift+?)", "کی بورڈ شارٹ کٹس (F10)")}
           >
             <Keyboard className="h-4 w-4 shrink-0" />

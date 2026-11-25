@@ -3,7 +3,9 @@ const nextConfig = {
   output: 'standalone',
   reactStrictMode: true,
   poweredByHeader: false,
+  compress: true,
   experimental: {
+    optimizePackageImports: ['lucide-react', 'recharts'],
     serverActions: {
       bodySizeLimit: '10mb',
     },
@@ -11,7 +13,7 @@ const nextConfig = {
   async headers() {
     return [
       {
-        source: '/((?!_next/static|_next/image|favicon.ico).*)',
+        source: '/((?!_next/static|_next/image|favicon.ico|icons|sw.js|manifest.webmanifest).*)',
         headers: [
           {
             key: 'Cache-Control',
