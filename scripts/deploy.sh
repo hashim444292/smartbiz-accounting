@@ -122,7 +122,7 @@ docker run --rm --network contract-genie_app_network -v "${APP_DIR}":/app -w /ap
 # 8. Clean up dangling images and cap Docker build cache
 echo "🧹 Pruning dangling images and maintaining lean build cache..."
 docker image prune -f || true
-docker builder prune -f --keep-storage 2GB || true
+docker builder prune -f --filter "until=24h" || true
 
 echo "================================================================="
 echo "🎉 DEPLOYMENT SUCCESSFUL!"
