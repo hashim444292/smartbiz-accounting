@@ -24,7 +24,8 @@ export default function LoginPage() {
   const router = useRouter();
   const { login } = useAuth();
 
-  // Mode: "LOGIN" or "SETUP"
+  // Mode: "LOGIN" or "SETUP" (SETUP is strictly for Desktop Standalone mode, never Webapp)
+  const [isDesktopMode, setIsDesktopMode] = useState(false);
   const [activeTab, setActiveTab] = useState<"LOGIN" | "SETUP">("LOGIN");
 
   // Login State
@@ -53,6 +54,7 @@ export default function LoginPage() {
         const res = await fetch("/api/desktop/setup");
         const data = await res.json();
         if (data.success && data.isDesktop) {
+          setIsDesktopMode(true);
           setIsLicenseActivated(Boolean(data.isActivated));
           if (!data.isSetupComplete) {
             setActiveTab("SETUP");
@@ -183,38 +185,40 @@ export default function LoginPage() {
           Professional Business Accounting, Inventory & FBR Digital POS
         </p>
 
-        {/* Tab Switcher */}
-        <div className="mt-5 inline-flex p-1 bg-slate-200/80 rounded-2xl border border-slate-300/80 shadow-xs">
-          <button
-            type="button"
-            onClick={() => {
-              setActiveTab("LOGIN");
-              setError(null);
-            }}
-            className={`px-5 py-2 text-xs font-bold rounded-xl transition ${
-              activeTab === "LOGIN"
-                ? "bg-white text-indigo-700 shadow-sm"
-                : "text-slate-600 hover:text-slate-900"
-            }`}
-          >
-            Sign In (لاگ ان)
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setActiveTab("SETUP");
-              setError(null);
-            }}
-            className={`px-5 py-2 text-xs font-bold rounded-xl transition flex items-center gap-1.5 ${
-              activeTab === "SETUP"
-                ? "bg-white text-indigo-700 shadow-sm"
-                : "text-slate-600 hover:text-slate-900"
-            }`}
-          >
-            <Sparkles className="h-3.5 w-3.5 text-amber-500" />
-            <span>Setup New Business (نیا سیٹ اپ)</span>
-          </button>
-        </div>
+        {/* Tab Switcher (Desktop Standalone Only) */}
+        {isDesktopMode && (
+          <div className="mt-5 inline-flex p-1 bg-slate-200/80 rounded-2xl border border-slate-300/80 shadow-xs">
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab("LOGIN");
+                setError(null);
+              }}
+              className={`px-5 py-2 text-xs font-bold rounded-xl transition ${
+                activeTab === "LOGIN"
+                  ? "bg-white text-indigo-700 shadow-sm"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              Sign In (لاگ ان)
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab("SETUP");
+                setError(null);
+              }}
+              className={`px-5 py-2 text-xs font-bold rounded-xl transition flex items-center gap-1.5 ${
+                activeTab === "SETUP"
+                  ? "bg-white text-indigo-700 shadow-sm"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              <Sparkles className="h-3.5 w-3.5 text-amber-500" />
+              <span>Setup New Business (نیا سیٹ اپ)</span>
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="mt-5 sm:mx-auto sm:w-full sm:max-w-md relative z-10">
@@ -291,20 +295,22 @@ export default function LoginPage() {
                 </button>
               </div>
 
-              <div className="text-center pt-2">
-                <button
-                  type="button"
-                  onClick={() => setActiveTab("SETUP")}
-                  className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 hover:underline"
-                >
-                  Don't have an account? Set up your company &rarr;
-                </button>
-              </div>
+              {isDesktopMode && (
+                <div className="text-center pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("SETUP")}
+                    className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 hover:underline"
+                  >
+                    Don&apos;t have an account? Set up your company &rarr;
+                  </button>
+                </div>
+              )}
             </form>
           )}
 
-          {/* TAB 2: SETUP NEW BUSINESS & ACTIVATE LICENSE */}
-          {activeTab === "SETUP" && (
+          {/* TAB 2: SETUP NEW BUSINESS & ACTIVATE LICENSE (Desktop Standalone Only) */}
+          {isDesktopMode && activeTab === "SETUP" && (
             <form className="space-y-3.5" onSubmit={handleSetupSubmit}>
               {/* Machine ID Banner */}
               {machineId && (
@@ -498,7 +504,9 @@ export default function LoginPage() {
           <div className="mt-5 pt-3.5 border-t border-slate-100 flex items-center justify-center gap-2 text-slate-400 text-xs">
             <ShieldCheck className="h-4 w-4 text-emerald-600 shrink-0" />
             <span className="font-medium text-[11px] text-slate-500">
-              Accounts360 Standalone Edition &bull; FBR Digital POS Ready
+              {isDesktopMode
+                ? "Accounts360 Standalone Edition • FBR Digital POS Ready"
+                : "accounts360.live • 256-Bit Encrypted & FBR Digital Linked"}
             </span>
           </div>
         </div>
