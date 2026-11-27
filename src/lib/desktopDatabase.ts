@@ -4,10 +4,12 @@
  * Features atomic writes, crash resilience, automated state hydration, and 1-click .sbz backup/restore.
  */
 
-import fs from "fs";
-import path from "path";
-import os from "os";
-import crypto from "crypto";
+const nodeRequire: NodeRequire | null =
+  typeof window === "undefined" ? eval("require") : null;
+const fs: typeof import("fs") = nodeRequire ? nodeRequire("fs") : ({} as any);
+const path: typeof import("path") = nodeRequire ? nodeRequire("path") : ({} as any);
+const os: typeof import("os") = nodeRequire ? nodeRequire("os") : ({} as any);
+const crypto: typeof import("crypto") = nodeRequire ? nodeRequire("crypto") : ({} as any);
 
 export interface DatabaseBackupPayload {
   format: "ACCOUNTS360_BACKUP";
