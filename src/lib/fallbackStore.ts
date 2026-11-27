@@ -1,4 +1,10 @@
 import { Decimal, round2, round4, calculateWeightedAverageCost, calculateLineTotal } from "./decimal";
+import {
+  readDesktopDatabaseState,
+  scheduleDesktopDatabaseSave,
+  flushDesktopDatabaseSave,
+  hasDesktopDatabaseFile,
+} from "./desktopDatabase";
 
 export interface StoreState {
   business: any;
@@ -2143,8 +2149,6 @@ function initializeState(): StoreState {
   // Hydrate desktop database state if smartbiz.db exists on disk (Node server-side only)
   if (typeof window === "undefined") {
     try {
-      const nodeRequire = eval("require");
-      const { readDesktopDatabaseState } = nodeRequire("./desktopDatabase");
       const desktopDb = readDesktopDatabaseState();
       if (desktopDb && desktopDb.business && desktopDb.companies && desktopDb.companies.length > 0) {
         const activeBiz = desktopDb.business;
@@ -2158,9 +2162,10 @@ function initializeState(): StoreState {
           business: activeBiz,
           activeBusinessId: activeBiz.id,
           companies: [...desktopDb.companies, ...companies.filter((c: any) => c.id !== activeBiz.id)],
-          users: [...(desktopDb.users || []), ...users],
+          users: [...(desktopDb.users || []), ...users.filter((u: any) => !(desktopDb.users || []).some((du: any) => du.id === u.id))],
           accounts: [...dAccounts, ...accounts.filter((a: any) => a.businessId !== activeBiz.id)],
           cashBankAccounts: [...(desktopDb.cashBankAccounts || []), ...cashBankAccounts.filter((cb: any) => cb.businessId !== activeBiz.id)],
+          expenseCategories: [...(desktopDb.expenseCategories || expenseCategories)],
           categories: [...(desktopDb.categories || []), ...categories.filter((cat: any) => cat.businessId !== activeBiz.id)],
           products: [...dProducts, ...products.filter((p: any) => p.businessId !== activeBiz.id)],
           customers: [...dCustomers, ...customers.filter((c: any) => c.businessId !== activeBiz.id)],
@@ -2169,6 +2174,11 @@ function initializeState(): StoreState {
           purchases: [...(desktopDb.purchases || []), ...purchases.filter((p: any) => p.businessId !== activeBiz.id)],
           payments: [...(desktopDb.payments || []), ...payments.filter((pay: any) => pay.businessId !== activeBiz.id)],
           expenses: [...(desktopDb.expenses || []), ...expenses.filter((e: any) => e.businessId !== activeBiz.id)],
+          inventoryTransactions: [...(desktopDb.inventoryTransactions || []), ...inventoryTransactions.filter((t: any) => t.businessId !== activeBiz.id)],
+          journalEntries: [...(desktopDb.journalEntries || []), ...journalEntries.filter((j: any) => j.businessId !== activeBiz.id)],
+          branches: [...(desktopDb.branches || []), ...(branches || []).filter((b: any) => b.businessId !== activeBiz.id)],
+          aiImports: desktopDb.aiImports || [],
+          auditLogs: [...(desktopDb.auditLogs || []), ...auditLogs.filter((a: any) => a.businessId !== activeBiz.id)],
         };
       }
     } catch {}
@@ -2177,12 +2187,128 @@ function initializeState(): StoreState {
   return baseState;
 }
 
+const PERSISTED_ARRAY_KEYS = new Set([
+  "companies",
+  "users",
+  "accounts",
+  "cashBankAccounts",
+  "expenseCategories",
+  "categories",
+  "products",
+  "customers",
+  "suppliers",
+  "sales",
+  "purchases",
+  "payments",
+  "expenses",
+  "inventoryTransactions",
+  "journalEntries",
+  "branches",
+  "aiImports",
+  "auditLogs",
+]);
+
+function persistDesktopFallbackStore(store: StoreState): void {
+  if (typeof window !== "undefined") return;
+  const isDesktop = process.env.DESKTOP_MODE === "true" || process.env.ACCOUNTS360_DESKTOP === "true";
+  if (!isDesktop || !hasDesktopDatabaseFile()) return;
+
+  const activeBizId = store.business?.id || store.activeBusinessId;
+  const byBiz = (arr: any[]) =>
+    (arr || []).filter((item: any) => !item?.businessId || item.businessId === activeBizId);
+
+  const snapshot = {
+    business: store.business,
+    activeBusinessId: activeBizId,
+    companies: (store.companies || []).filter((c: any) => c.id === activeBizId || String(c.id).startsWith("biz-desktop-")),
+    users: (store.users || []).filter((u: any) => u.businessId === activeBizId || String(u.id).startsWith("usr-desktop")),
+    accounts: byBiz(store.accounts),
+    cashBankAccounts: byBiz(store.cashBankAccounts),
+    expenseCategories: store.expenseCategories || [],
+    categories: byBiz(store.categories),
+    products: byBiz(store.products),
+    customers: byBiz(store.customers),
+    suppliers: byBiz(store.suppliers),
+    sales: byBiz(store.sales),
+    purchases: byBiz(store.purchases),
+    payments: byBiz(store.payments),
+    expenses: byBiz(store.expenses),
+    inventoryTransactions: byBiz(store.inventoryTransactions),
+    journalEntries: byBiz(store.journalEntries),
+    branches: byBiz(store.branches),
+    aiImports: store.aiImports || [],
+    auditLogs: byBiz(store.auditLogs),
+    updatedAt: new Date().toISOString(),
+  };
+
+  scheduleDesktopDatabaseSave(snapshot, 50);
+}
+
+function wrapWithDesktopPersistence(store: StoreState): StoreState {
+  if (typeof window !== "undefined") return store;
+
+  const arrayProxyCache = new WeakMap<any[], any[]>();
+  const wrapArray = (arr: any[]) => {
+    if (arrayProxyCache.has(arr)) return arrayProxyCache.get(arr)!;
+    const proxy = new Proxy(arr, {
+      set(target, prop, value, receiver) {
+        const res = Reflect.set(target, prop, value, receiver);
+        if (prop !== "length" || res) {
+          persistDesktopFallbackStore(store);
+        }
+        return res;
+      },
+      deleteProperty(target, prop) {
+        const res = Reflect.deleteProperty(target, prop);
+        persistDesktopFallbackStore(store);
+        return res;
+      },
+    });
+    arrayProxyCache.set(arr, proxy);
+    return proxy;
+  };
+
+  if (!(globalThis as any).__desktopExitHooksRegistered) {
+    (globalThis as any).__desktopExitHooksRegistered = true;
+    process.on("beforeExit", flushDesktopDatabaseSave);
+    process.on("SIGINT", () => {
+      flushDesktopDatabaseSave();
+      process.exit(0);
+    });
+    process.on("SIGTERM", () => {
+      flushDesktopDatabaseSave();
+      process.exit(0);
+    });
+  }
+
+  return new Proxy(store, {
+    get(target, prop, receiver) {
+      const val = Reflect.get(target, prop, receiver);
+      if (typeof prop === "string" && PERSISTED_ARRAY_KEYS.has(prop) && Array.isArray(val)) {
+        return wrapArray(val);
+      }
+      return val;
+    },
+    set(target, prop, value, receiver) {
+      const res = Reflect.set(target, prop, value, receiver);
+      if (typeof prop === "string" && (PERSISTED_ARRAY_KEYS.has(prop) || prop === "business" || prop === "activeBusinessId")) {
+        persistDesktopFallbackStore(target);
+      }
+      return res;
+    },
+  });
+}
+
 declare global {
   // eslint-disable-next-line no-var
   var fallbackStoreGlobal: StoreState | undefined;
 }
 
-export const fallbackStore = globalThis.fallbackStoreGlobal ?? initializeState();
+const rawStore = globalThis.fallbackStoreGlobal ?? initializeState();
+export const fallbackStore = wrapWithDesktopPersistence(rawStore);
+if (process.env.NODE_ENV !== "production") {
+  globalThis.fallbackStoreGlobal = rawStore;
+}
 
 if (process.env.NODE_ENV !== "production") {
   globalThis.fallbackStoreGlobal = fallbackStore;

@@ -87,6 +87,7 @@ export function readDesktopDatabaseState(): any | null {
 }
 
 let saveTimeout: NodeJS.Timeout | null = null;
+let pendingSaveState: any = null;
 
 /**
  * Saves database state to disk using an atomic write pattern
@@ -118,20 +119,42 @@ export function writeDesktopDatabaseStateSync(state: any): void {
 }
 
 /**
+ * Flushes any pending debounced save synchronously.
+ */
+export function flushDesktopDatabaseSave(): void {
+  if (saveTimeout) {
+    clearTimeout(saveTimeout);
+    saveTimeout = null;
+  }
+  if (pendingSaveState) {
+    const toWrite = pendingSaveState;
+    pendingSaveState = null;
+    try {
+      writeDesktopDatabaseStateSync(toWrite);
+    } catch (err: any) {
+      console.error("[DesktopDatabase] Flush write error:", err.message);
+    }
+  }
+}
+
+/**
  * Debounced database commit for high-frequency operations (sales, payments, ledgers).
  */
-export function scheduleDesktopDatabaseSave(state: any, delayMs = 300): void {
+export function scheduleDesktopDatabaseSave(state: any, delayMs = 150): void {
+  pendingSaveState = state;
   if (saveTimeout) {
     clearTimeout(saveTimeout);
   }
 
   saveTimeout = setTimeout(() => {
+    const toWrite = pendingSaveState;
+    pendingSaveState = null;
+    saveTimeout = null;
+    if (!toWrite) return;
     try {
-      writeDesktopDatabaseStateSync(state);
+      writeDesktopDatabaseStateSync(toWrite);
     } catch (err: any) {
       console.error("[DesktopDatabase] Debounced write error:", err.message);
-    } finally {
-      saveTimeout = null;
     }
   }, delayMs);
 }

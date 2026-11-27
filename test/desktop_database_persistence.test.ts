@@ -133,4 +133,34 @@ describe("Desktop Database Persistence & .sbz Backup Suite", () => {
     expect(onDisk.accounts.length).toBeGreaterThan(5);
     expect(isDesktopSetupComplete()).toBe(true);
   });
+
+  it("7. fallbackStore mutations in DESKTOP_MODE persist automatically to smartbiz.db", async () => {
+    process.env.DESKTOP_MODE = "true";
+    const { initializeDesktopBusiness, flushDesktopDatabaseSave } = await import("@/lib/desktopDatabase");
+    const setupRes = initializeDesktopBusiness({
+      businessName: "Persist Test Traders",
+      ownerName: "Tester",
+      phone: "0300-0000000",
+      city: "Lahore",
+      email: "persist@test.pk",
+      password: "Password123",
+      packageType: "ACCOUNTING_ONLY",
+    });
+    expect(setupRes.success).toBe(true);
+
+    const { fallbackStore } = await import("@/lib/fallbackStore");
+    fallbackStore.business = setupRes.business;
+    fallbackStore.activeBusinessId = setupRes.business.id;
+    fallbackStore.sales.push({
+      id: "sale-persist-1",
+      businessId: setupRes.business.id,
+      invoiceNumber: "INV-PERSIST-001",
+      totalAmount: 2500,
+    });
+
+    flushDesktopDatabaseSave();
+    const onDisk = readDesktopDatabaseState();
+    expect(onDisk.sales.some((s: any) => s.id === "sale-persist-1")).toBe(true);
+    delete process.env.DESKTOP_MODE;
+  });
 });
