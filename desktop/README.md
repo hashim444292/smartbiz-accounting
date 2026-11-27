@@ -4,6 +4,13 @@ This directory houses the Electron native desktop wrapper and packaging pipeline
 
 ---
 
+## ⚠️ Mandatory Data Preservation Rule (All Future Builds)
+- **Never Lose Existing Client Data:** Clients upgrading from an older `Accounts360-Setup-*.exe` already have `%APPDATA%/Accounts360/smartbiz.db` and `%APPDATA%/Accounts360/license.json`. New builds MUST preserve and hydrate all existing `smartbiz.db` data seamlessly.
+- **Disk Persistence First:** Every mutation in `src/lib/fallbackStore.ts` must auto-persist to `smartbiz.db` via `src/lib/desktopDatabase.ts` (with `flushDesktopDatabaseSave()` on exit) and `desktopDatabase.ts` must keep server-only Node module loading so Next.js standalone builds never break.
+- **Pre-Release Gate:** Always run `npx vitest run test/desktop_database_persistence.test.ts` before packaging any new `.exe` installer.
+
+---
+
 ## 🏗️ Architecture Overview
 
 The desktop version operates 100% offline using a single, self-contained Next.js standalone process wrapped inside Electron:
