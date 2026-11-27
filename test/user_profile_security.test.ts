@@ -1,9 +1,28 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { fallbackStore, storeUpdateUser } from "@/lib/fallbackStore";
-import { hashPassword, comparePassword } from "@/lib/auth";
+import { hashPassword, comparePassword, signSessionToken, TOKEN_NAME } from "@/lib/auth";
 import { POST as changePasswordHandler } from "@/app/api/auth/change-password/route";
 import { GET as getProfileHandler, PUT as updateProfileHandler } from "@/app/api/auth/profile/route";
 import { NextRequest } from "next/server";
+
+function createAuthenticatedChangePasswordReq(body: Record<string, unknown>) {
+  const token = signSessionToken({
+    userId: "usr-1",
+    email: "admin@smartbiz.com",
+    name: "System Admin",
+    role: "SUPER_ADMIN",
+    businessId: "biz-1",
+    businessName: "SmartBiz Solutions",
+  });
+  return new NextRequest("http://localhost:3000/api/auth/change-password", {
+    method: "POST",
+    headers: {
+      Cookie: `${TOKEN_NAME}=${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+}
 
 describe("User Profile & Password Security Suite", () => {
   beforeEach(() => {
@@ -45,14 +64,29 @@ describe("User Profile & Password Security Suite", () => {
     expect(data.user.companies.length).toBeGreaterThan(0);
   });
 
-  it("should reject password change when current password is missing or empty", async () => {
+  it("should reject unauthenticated password change requests with 401", async () => {
     const req = new NextRequest("http://localhost:3000/api/auth/change-password", {
       method: "POST",
       body: JSON.stringify({
-        currentPassword: "",
-        newPassword: "NewSecretPassword123",
-        confirmPassword: "NewSecretPassword123",
+        currentPassword: "admin123",
+        newPassword: "BrandNewSuperSecret2026!",
+        confirmPassword: "BrandNewSuperSecret2026!",
       }),
+    });
+
+    const res = await changePasswordHandler(req);
+    const data = await res.json();
+
+    expect(res.status).toBe(401);
+    expect(data.success).toBe(false);
+    expect(data.error).toContain("Unauthorized");
+  });
+
+  it("should reject password change when current password is missing or empty", async () => {
+    const req = createAuthenticatedChangePasswordReq({
+      currentPassword: "",
+      newPassword: "NewSecretPassword123",
+      confirmPassword: "NewSecretPassword123",
     });
 
     const res = await changePasswordHandler(req);
@@ -63,14 +97,11 @@ describe("User Profile & Password Security Suite", () => {
     expect(data.error).toContain("Current password is required");
   });
 
-  it("should reject password change when new password is less than 6 characters", async () => {
-    const req = new NextRequest("http://localhost:3000/api/auth/change-password", {
-      method: "POST",
-      body: JSON.stringify({
-        currentPassword: "admin123",
-        newPassword: "123",
-        confirmPassword: "123",
-      }),
+  it("should reject password change when new password does not meet strong password policy", async () => {
+    const req = createAuthenticatedChangePasswordReq({
+      currentPassword: "admin123",
+      newPassword: "123",
+      confirmPassword: "123",
     });
 
     const res = await changePasswordHandler(req);
@@ -78,17 +109,14 @@ describe("User Profile & Password Security Suite", () => {
 
     expect(res.status).toBe(400);
     expect(data.success).toBe(false);
-    expect(data.error).toContain("at least 6 characters");
+    expect(data.error).toContain("at least 8 characters");
   });
 
   it("should reject password change when new password and confirm password do not match", async () => {
-    const req = new NextRequest("http://localhost:3000/api/auth/change-password", {
-      method: "POST",
-      body: JSON.stringify({
-        currentPassword: "admin123",
-        newPassword: "ValidPassword123",
-        confirmPassword: "DifferentPassword456",
-      }),
+    const req = createAuthenticatedChangePasswordReq({
+      currentPassword: "admin123",
+      newPassword: "ValidPassword123",
+      confirmPassword: "DifferentPassword456",
     });
 
     const res = await changePasswordHandler(req);
@@ -100,13 +128,10 @@ describe("User Profile & Password Security Suite", () => {
   });
 
   it("should reject password change when new password is same as current password", async () => {
-    const req = new NextRequest("http://localhost:3000/api/auth/change-password", {
-      method: "POST",
-      body: JSON.stringify({
-        currentPassword: "admin123",
-        newPassword: "admin123",
-        confirmPassword: "admin123",
-      }),
+    const req = createAuthenticatedChangePasswordReq({
+      currentPassword: "admin123",
+      newPassword: "admin123",
+      confirmPassword: "admin123",
     });
 
     const res = await changePasswordHandler(req);
@@ -118,13 +143,10 @@ describe("User Profile & Password Security Suite", () => {
   });
 
   it("should reject password change when current password is invalid", async () => {
-    const req = new NextRequest("http://localhost:3000/api/auth/change-password", {
-      method: "POST",
-      body: JSON.stringify({
-        currentPassword: "completely_wrong_current_password_999",
-        newPassword: "BrandNewPassword2026",
-        confirmPassword: "BrandNewPassword2026",
-      }),
+    const req = createAuthenticatedChangePasswordReq({
+      currentPassword: "completely_wrong_current_password_999",
+      newPassword: "BrandNewPassword2026",
+      confirmPassword: "BrandNewPassword2026",
     });
 
     const res = await changePasswordHandler(req);
@@ -136,13 +158,10 @@ describe("User Profile & Password Security Suite", () => {
   });
 
   it("should successfully update password when current password is valid", async () => {
-    const req = new NextRequest("http://localhost:3000/api/auth/change-password", {
-      method: "POST",
-      body: JSON.stringify({
-        currentPassword: "admin123",
-        newPassword: "BrandNewSuperSecret2026!",
-        confirmPassword: "BrandNewSuperSecret2026!",
-      }),
+    const req = createAuthenticatedChangePasswordReq({
+      currentPassword: "admin123",
+      newPassword: "BrandNewSuperSecret2026!",
+      confirmPassword: "BrandNewSuperSecret2026!",
     });
 
     const res = await changePasswordHandler(req);

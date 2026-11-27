@@ -31,8 +31,15 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
           return NextResponse.json({ success: false, error: "Another category with this name already exists" }, { status: 400 });
         }
 
+        const owned = await prisma.expenseCategory.findFirst({
+          where: { id, businessId },
+        });
+        if (!owned) {
+          return NextResponse.json({ success: false, error: "Category not found" }, { status: 404 });
+        }
+
         const updated = await prisma.expenseCategory.update({
-          where: { id },
+          where: { id, businessId },
           data: {
             name: trimmedName,
             description: description?.trim() || null,
@@ -72,7 +79,14 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
 
     if (process.env.DATABASE_URL) {
       try {
-        const expensesCount = await prisma.expense.count({ where: { categoryId: id } });
+        const owned = await prisma.expenseCategory.findFirst({
+          where: { id, businessId },
+        });
+        if (!owned) {
+          return NextResponse.json({ success: false, error: "Category not found" }, { status: 404 });
+        }
+
+        const expensesCount = await prisma.expense.count({ where: { categoryId: id, businessId } });
         if (expensesCount > 0) {
           return NextResponse.json({
             success: false,
@@ -80,7 +94,7 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
           }, { status: 400 });
         }
 
-        await prisma.expenseCategory.delete({ where: { id } });
+        await prisma.expenseCategory.delete({ where: { id, businessId } });
 
         const storeIdx = fallbackStore.expenseCategories.findIndex((c) => c.id === id);
         if (storeIdx >= 0) {

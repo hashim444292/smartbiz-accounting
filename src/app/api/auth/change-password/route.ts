@@ -8,9 +8,15 @@ export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await getSession();
-    const userId = session?.userId || "usr-1";
-    const userEmail = session?.email || "admin@smartbiz.com";
+    const session = await getSession(req);
+    if (!session?.userId) {
+      return NextResponse.json(
+        { success: false, error: "Unauthorized. Please sign in first." },
+        { status: 401 }
+      );
+    }
+    const userId = session.userId;
+    const userEmail = session.email;
 
     const body = await req.json();
     const { currentPassword, newPassword, confirmPassword } = body;
@@ -23,9 +29,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (!newPassword || newPassword.length < 6) {
+    if (!newPassword || newPassword.length < 8 || !/[A-Za-z]/.test(newPassword) || !/[0-9]/.test(newPassword)) {
       return NextResponse.json(
-        { success: false, error: "New password must be at least 6 characters long" },
+        { success: false, error: "New password must be at least 8 characters long and include both letters and numbers." },
         { status: 400 }
       );
     }

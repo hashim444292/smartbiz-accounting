@@ -24,7 +24,6 @@ export async function GET(request: NextRequest) {
         where: {
           OR: [
             { fbrInvoiceNumber: cleanInv },
-            { invoiceNumber: cleanInv },
             { id: cleanInv },
           ],
         },
@@ -43,7 +42,6 @@ export async function GET(request: NextRequest) {
       const fbSale = fallbackStore.sales.find(
         (s) =>
           s.fbrInvoiceNumber === cleanInv ||
-          s.invoiceNumber === cleanInv ||
           s.id === cleanInv
       );
       if (fbSale) {

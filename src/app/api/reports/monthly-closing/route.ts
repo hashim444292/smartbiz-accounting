@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getActiveBusinessId } from "@/lib/businessHelper";
+import { getSession } from "@/lib/auth";
 import { getMonthlyClosingReport, closeAccountingPeriod, reopenAccountingPeriod } from "@/services/reportService";
 import { fallbackStore } from "@/lib/fallbackStore";
 import { round2 } from "@/lib/decimal";
@@ -125,8 +126,21 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const session = await getSession(req);
+  if (!session?.userId) {
+    return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+  }
+  const allowedRoles = ["SUPER_ADMIN", "ADMIN", "OWNER_ADMIN", "ACCOUNTANT", "WEBAPP_ADMIN"];
+  if (!allowedRoles.includes(session.role)) {
+    return NextResponse.json(
+      { success: false, error: "Forbidden: Only Owners or Accountants can close/reopen accounting periods." },
+      { status: 403 }
+    );
+  }
+
   const body = await req.json();
-  const { action, year, month, notes, reason, userId = "admin" } = body;
+  const { action, year, month, notes, reason } = body;
+  const userId = session.userId;
 
   try {
     const businessId = await getActiveBusinessId(req);

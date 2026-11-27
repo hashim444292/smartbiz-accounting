@@ -16,7 +16,21 @@ export async function POST(req: NextRequest) {
     const isCallerAdmin =
       session?.role === "ADMIN" || (session as any)?.platformRole === "WEBAPP_ADMIN";
 
-    if (!session || (!isCallerSuperAdmin && !isCallerAdmin && !session.isSwitched)) {
+    let isVerifiedSwitchedAdmin = false;
+    if (session?.isSwitched && session.originalAdminId) {
+      let origUser: any = null;
+      try {
+        origUser = await prisma.user.findUnique({ where: { id: session.originalAdminId } });
+      } catch {}
+      if (!origUser) {
+        origUser = fallbackStore.users.find((u) => u.id === session.originalAdminId);
+      }
+      if (origUser && (origUser.role === "SUPER_ADMIN" || origUser.role === "ADMIN")) {
+        isVerifiedSwitchedAdmin = true;
+      }
+    }
+
+    if (!session || (!isCallerSuperAdmin && !isCallerAdmin && !isVerifiedSwitchedAdmin)) {
       return NextResponse.json(
         { success: false, error: "Access denied. Only Platform Admins have permission to switch user profiles." },
         { status: 403 }
@@ -92,6 +106,7 @@ export async function POST(req: NextRequest) {
       branchName: targetUser.branchName || (targetUser as any).branch?.name || null,
       canCreateBranches: Boolean(targetBiz.canCreateBranches),
       isSwitched: targetUser.role !== "SUPER_ADMIN",
+      originalAdminId: targetUser.role !== "SUPER_ADMIN" ? (session.originalAdminId || session.userId) : undefined,
     };
 
     const token = signSessionToken(payload);
@@ -107,6 +122,7 @@ export async function POST(req: NextRequest) {
       path: "/",
       maxAge: 60 * 60 * 24 * 7,
       httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
     });
 

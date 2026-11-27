@@ -349,16 +349,22 @@ export async function createProduct(input: CreateProductInput) {
 
 export async function updateProduct(
   id: string,
-  updates: Partial<CreateProductInput> & { userId?: string; userName?: string }
+  updates: Partial<CreateProductInput> & { userId?: string; userName?: string },
+  businessId?: string
 ) {
   let existingProduct: any = null;
   try {
-    existingProduct = await prisma.product.findUnique({
-      where: { id },
+    existingProduct = await prisma.product.findFirst({
+      where: {
+        id,
+        ...(businessId ? { businessId } : {}),
+      },
       include: { category: true },
     });
   } catch {
-    existingProduct = fallbackStore.products.find((p) => p.id === id);
+    existingProduct = fallbackStore.products.find(
+      (p) => p.id === id && (!businessId || !p.businessId || p.businessId === businessId)
+    );
   }
 
   if (!existingProduct) {
@@ -454,11 +460,14 @@ export async function updateProduct(
   return updatedProduct;
 }
 
-export async function getProductById(id: string, _businessId?: string) {
+export async function getProductById(id: string, businessId?: string) {
   let product: any = null;
   try {
-    product = await prisma.product.findUnique({
-      where: { id },
+    product = await prisma.product.findFirst({
+      where: {
+        id,
+        ...(businessId ? { businessId } : {}),
+      },
       include: {
         category: true,
         saleItems: {
@@ -469,7 +478,9 @@ export async function getProductById(id: string, _businessId?: string) {
       },
     });
   } catch {
-    product = fallbackStore.products.find((p) => p.id === id);
+    product = fallbackStore.products.find(
+      (p) => p.id === id && (!businessId || !p.businessId || p.businessId === businessId)
+    );
     if (product) {
       const cat = fallbackStore.categories.find((c) => c.id === product.categoryId);
       const linkedSales = fallbackStore.sales

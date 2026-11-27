@@ -14,6 +14,13 @@ export async function DELETE(
     const categoryId = params.id;
 
     try {
+      const existing = await prisma.category.findFirst({
+        where: { id: categoryId, businessId },
+      });
+      if (!existing) {
+        return NextResponse.json({ success: false, error: "Category not found." }, { status: 404 });
+      }
+
       // Reassign products to null
       await prisma.product.updateMany({
         where: { categoryId, businessId },
@@ -21,7 +28,7 @@ export async function DELETE(
       });
 
       await prisma.category.delete({
-        where: { id: categoryId },
+        where: { id: categoryId, businessId },
       });
 
       return NextResponse.json({
@@ -59,8 +66,15 @@ export async function PUT(
     }
 
     try {
+      const existing = await prisma.category.findFirst({
+        where: { id: categoryId, businessId },
+      });
+      if (!existing) {
+        return NextResponse.json({ success: false, error: "Category not found." }, { status: 404 });
+      }
+
       const updated = await prisma.category.update({
-        where: { id: categoryId },
+        where: { id: categoryId, businessId },
         data: {
           name,
           defaultHsCode: body.defaultHsCode,

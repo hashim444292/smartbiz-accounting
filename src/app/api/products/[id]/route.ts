@@ -8,7 +8,8 @@ export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const product = await getProductById(params.id);
+    const businessId = await getActiveBusinessId(req);
+    const product = await getProductById(params.id, businessId);
     if (!product) {
       return NextResponse.json({ success: false, error: "Product not found" }, { status: 404 });
     }
@@ -20,8 +21,9 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
   try {
+    const businessId = await getActiveBusinessId(req);
     const body = await req.json();
-    const updated = await updateProduct(params.id, body);
+    const updated = await updateProduct(params.id, body, businessId);
     return NextResponse.json({
       success: true,
       data: updated,
@@ -34,6 +36,12 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 
 export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
   try {
+    const businessId = await getActiveBusinessId(req);
+    const existing = await getProductById(params.id, businessId);
+    if (!existing) {
+      return NextResponse.json({ success: false, error: "Product not found" }, { status: 404 });
+    }
+
     const { searchParams } = new URL(req.url);
     const action = searchParams.get("action");
 
@@ -41,11 +49,6 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
       const restored = await restoreProduct(params.id);
       return NextResponse.json({ success: true, data: restored, message: "Product restored to active status" });
     }
-
-    let businessId: string | null = null;
-    try {
-      businessId = await getActiveBusinessId(req);
-    } catch {}
 
     // 1. Check if product is referenced in Sales or Purchases
     let canHardDelete = true;

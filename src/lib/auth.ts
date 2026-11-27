@@ -21,6 +21,7 @@ export interface SessionPayload {
   branchName?: string | null;
   canCreateBranches?: boolean;
   isSwitched?: boolean;
+  originalAdminId?: string;
   allowedModules?: string[];
 }
 
