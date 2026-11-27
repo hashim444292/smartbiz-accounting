@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession, getActiveBusinessCookie } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
+import { prisma, isDesktopOffline } from "@/lib/prisma";
 import { fallbackStore } from "@/lib/fallbackStore";
 import { readDesktopDatabaseState } from "@/lib/desktopDatabase";
 
@@ -80,9 +80,27 @@ export async function GET(req: NextRequest) {
             c.integrationType ||
             c.fbrIntegrationType ||
             (c.posId ? "TIER1_POS" : "DIGITAL_INVOICING");
+          const pkg = c.packageType || "FULL_SUITE";
+          let enabledModules = c.enabledModules;
+          if (isDesktopOffline() && pkg === "ACCOUNTING_ONLY") {
+            enabledModules = Array.from(
+              new Set([
+                ...(Array.isArray(enabledModules) ? enabledModules : []),
+                "accounting",
+                "inventory",
+                "sales",
+                "purchases",
+                "reports",
+                "pos",
+                "bulkImport",
+                "aiEntry",
+              ])
+            );
+          }
           return {
             ...c,
-            packageType: c.packageType || "FULL_SUITE",
+            packageType: pkg,
+            enabledModules,
             integrationType: fallbackInt,
             fbrIntegrationType: fallbackInt,
           };
@@ -131,7 +149,12 @@ export async function GET(req: NextRequest) {
           branchId: liveUser?.branchId !== undefined ? liveUser.branchId : (session.branchId || null),
           branchName: liveUser?.branchName !== undefined ? liveUser.branchName : (session.branchName || null),
           canCreateBranches: Boolean(activeCompany?.canCreateBranches),
-          allowedModules: dbUserModules.length > 0 ? dbUserModules : (liveUser?.allowedModules || session.allowedModules || []),
+          allowedModules:
+            isDesktopOffline() && session.role === "OWNER_ADMIN"
+              ? []
+              : dbUserModules.length > 0
+              ? dbUserModules
+              : liveUser?.allowedModules || session.allowedModules || [],
         },
         activeCompany: activeCompany || {
           id: session.businessId,
