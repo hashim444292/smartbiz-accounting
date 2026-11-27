@@ -4,13 +4,65 @@ import { comparePassword, signSessionToken, setSessionCookie, setActiveBusinessC
 import { fallbackStore } from "@/lib/fallbackStore";
 import { readDesktopDatabaseState } from "@/lib/desktopDatabase";
 import { getClientIp, checkLoginRateLimit, recordFailedLogin, resetLoginRateLimit } from "@/lib/rateLimit";
+import { getUserTwoFactorConfig, verifyTotpCode } from "@/lib/totp";
 
 export const dynamic = "force-dynamic";
+
+async function enforceTwoFactorIfEnabled(
+  userId: string,
+  totpCode: unknown,
+  ipKey: string,
+  emailKey: string
+): Promise<NextResponse | null> {
+  const twoFa = await getUserTwoFactorConfig(userId);
+  if (!twoFa?.enabled || !twoFa?.secret) {
+    return null;
+  }
+
+  const cleanCode = typeof totpCode === "string" ? totpCode.trim() : "";
+  if (!cleanCode) {
+    return NextResponse.json(
+      {
+        success: false,
+        requires2FA: true,
+        error: "Enter the 6-digit code from Google Authenticator.",
+      },
+      { status: 401 }
+    );
+  }
+
+  if (!verifyTotpCode(twoFa.secret, cleanCode)) {
+    const ipRes = recordFailedLogin(ipKey);
+    const emailRes = recordFailedLogin(emailKey);
+    if (!ipRes.allowed || !emailRes.allowed) {
+      const waitSec = ipRes.retryAfterSeconds || emailRes.retryAfterSeconds || 900;
+      return NextResponse.json(
+        {
+          success: false,
+          requires2FA: true,
+          error: `Too many failed verification attempts. Please try again in ${waitSec} seconds.`,
+        },
+        { status: 429, headers: { "Retry-After": String(waitSec) } }
+      );
+    }
+
+    return NextResponse.json(
+      {
+        success: false,
+        requires2FA: true,
+        error: "Invalid Google Authenticator code. Please try again.",
+      },
+      { status: 401 }
+    );
+  }
+
+  return null;
+}
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { email, password } = body;
+    const { email, password, totpCode } = body;
 
     if (!email || !password) {
       return NextResponse.json(
@@ -67,6 +119,9 @@ export async function POST(req: NextRequest) {
       if (user) {
         const isValid = await comparePassword(password, user.passwordHash);
         if (isValid) {
+          const twoFaRejection = await enforceTwoFactorIfEnabled(user.id, totpCode, ipKey, emailKey);
+          if (twoFaRejection) return twoFaRejection;
+
           const primaryBusiness = user.memberships[0]?.business || (await prisma.business.findFirst({ orderBy: { createdAt: "asc" } }));
           let companyIds = user.memberships.map((m) => m.businessId);
           if (user.role === "SUPER_ADMIN" || user.role === "ADMIN") {
@@ -188,6 +243,9 @@ export async function POST(req: NextRequest) {
     );
 
     if (fallbackUser) {
+      const twoFaRejection = await enforceTwoFactorIfEnabled(fallbackUser.id, totpCode, ipKey, emailKey);
+      if (twoFaRejection) return twoFaRejection;
+
       const activeBiz = fallbackStore.companies.find((c) => fallbackUser.companyIds?.includes(c.id)) || fallbackStore.companies[0];
 
       const payload = {

@@ -74,7 +74,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   isInspectingClient: boolean;
-  login: (email: string, password: string) => Promise<{ success: boolean; error?: string; user?: UserProfile }>;
+  login: (email: string, password: string, totpCode?: string) => Promise<{ success: boolean; error?: string; user?: UserProfile; requires2FA?: boolean }>;
   logout: () => Promise<void>;
   switchCompany: (businessId: string) => Promise<boolean>;
   switchBranch: (branchId: string | null) => Promise<boolean>;
@@ -144,12 +144,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     refreshSession();
   }, [refreshSession]);
 
-  const login = async (email: string, password: string) => {
+  const login = async (email: string, password: string, totpCode?: string) => {
     try {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password, ...(totpCode ? { totpCode } : {}) }),
       });
       const data = await res.json();
       if (data.success) {
@@ -171,7 +171,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
         return { success: true, user: data.user };
       }
-      return { success: false, error: data.error || "Login failed" };
+      return {
+        success: false,
+        error: data.error || "Login failed",
+        requires2FA: Boolean(data.requires2FA),
+      };
     } catch (err: any) {
       return { success: false, error: err.message || "Network error" };
     }

@@ -31,6 +31,8 @@ export default function LoginPage() {
   // Login State
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [requires2FA, setRequires2FA] = useState(false);
+  const [totpCode, setTotpCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -97,9 +99,18 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const res = await login(email, password);
+      const res = await login(email, password, requires2FA ? totpCode : undefined);
       if (!res.success) {
-        setError(res.error || "Invalid login credentials");
+        if (res.requires2FA) {
+          if (!requires2FA) {
+            setRequires2FA(true);
+            setError(null);
+          } else {
+            setError(res.error || "Invalid Google Authenticator code");
+          }
+        } else {
+          setError(res.error || "Invalid login credentials");
+        }
       }
     } catch (err: any) {
       setError(err.message || "An error occurred during login");
@@ -277,6 +288,50 @@ export default function LoginPage() {
                   />
                 </div>
               </div>
+
+              {requires2FA && (
+                <div className="rounded-2xl bg-indigo-50 border border-indigo-200 p-4 space-y-3 animate-in fade-in">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-indigo-900">
+                      <ShieldCheck className="h-4 w-4 text-indigo-600" />
+                      <span className="text-xs font-bold uppercase tracking-wider">
+                        Google Authenticator (2FA)
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRequires2FA(false);
+                        setTotpCode("");
+                        setError(null);
+                      }}
+                      className="text-[11px] font-semibold text-indigo-600 hover:underline"
+                    >
+                      Change account
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-indigo-700">
+                    Enter the 6-digit verification code from your Google Authenticator app.
+                  </p>
+                  <div className="relative rounded-xl shadow-xs">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-indigo-500">
+                      <KeyRound className="h-4 w-4" />
+                    </div>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]{6}"
+                      maxLength={6}
+                      required
+                      autoFocus
+                      value={totpCode}
+                      onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                      placeholder="123456"
+                      className="block w-full pl-10 pr-3 py-2.5 bg-white border border-indigo-300 rounded-xl text-slate-900 font-mono tracking-[0.35em] text-center placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm font-bold"
+                    />
+                  </div>
+                </div>
+              )}
 
               <div className="pt-2">
                 <button

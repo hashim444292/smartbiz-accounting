@@ -24,6 +24,96 @@ export default function SettingsPage() {
   const [defaultsSaved, setDefaultsSaved] = useState(false);
   const [defaultsError, setDefaultsError] = useState<string | null>(null);
 
+  // Google Authenticator (2FA) State
+  const [twoFaEnabled, setTwoFaEnabled] = useState(false);
+  const [twoFaLoading, setTwoFaLoading] = useState(false);
+  const [twoFaSetupData, setTwoFaSetupData] = useState<{ secret: string; qrDataUrl: string } | null>(null);
+  const [twoFaCode, setTwoFaCode] = useState("");
+  const [twoFaFeedback, setTwoFaFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
+
+  useEffect(() => {
+    fetch("/api/auth/2fa")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.success) setTwoFaEnabled(Boolean(d.enabled));
+      })
+      .catch(() => {});
+  }, []);
+
+  const handleStart2FaSetup = async () => {
+    setTwoFaLoading(true);
+    setTwoFaFeedback(null);
+    try {
+      const res = await fetch("/api/auth/2fa", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "SETUP" }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setTwoFaSetupData({ secret: data.secret, qrDataUrl: data.qrDataUrl });
+        setTwoFaCode("");
+      } else {
+        setTwoFaFeedback({ type: "error", message: data.error || "Failed to start 2FA setup" });
+      }
+    } catch (err: any) {
+      setTwoFaFeedback({ type: "error", message: err.message || "Network error" });
+    } finally {
+      setTwoFaLoading(false);
+    }
+  };
+
+  const handleEnable2Fa = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setTwoFaLoading(true);
+    setTwoFaFeedback(null);
+    try {
+      const res = await fetch("/api/auth/2fa", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "ENABLE", code: twoFaCode }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setTwoFaEnabled(true);
+        setTwoFaSetupData(null);
+        setTwoFaCode("");
+        setTwoFaFeedback({ type: "success", message: data.message || "Google Authenticator enabled!" });
+      } else {
+        setTwoFaFeedback({ type: "error", message: data.error || "Invalid verification code" });
+      }
+    } catch (err: any) {
+      setTwoFaFeedback({ type: "error", message: err.message || "Network error" });
+    } finally {
+      setTwoFaLoading(false);
+    }
+  };
+
+  const handleDisable2Fa = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setTwoFaLoading(true);
+    setTwoFaFeedback(null);
+    try {
+      const res = await fetch("/api/auth/2fa", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "DISABLE", code: twoFaCode }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setTwoFaEnabled(false);
+        setTwoFaCode("");
+        setTwoFaFeedback({ type: "success", message: data.message || "2FA disabled." });
+      } else {
+        setTwoFaFeedback({ type: "error", message: data.error || "Invalid verification code" });
+      }
+    } catch (err: any) {
+      setTwoFaFeedback({ type: "error", message: err.message || "Network error" });
+    } finally {
+      setTwoFaLoading(false);
+    }
+  };
+
   // Profile synced from activeCompany
   const [businessName, setBusinessName] = useState(activeCompany?.name || "SmartBiz Trading & Distribution");
   const [ownerName, setOwnerName] = useState(activeCompany?.ownerName || "Hashim Khan");
@@ -326,6 +416,7 @@ export default function SettingsPage() {
 
       {/* TAB 1: PROFILE */}
       {activeTab === "PROFILE" && (
+        <div className="space-y-4">
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-xs space-y-4">
           <div className="border-b border-slate-100 pb-3">
             <h3 className="text-sm font-bold text-slate-900">Business Profile</h3>
@@ -398,6 +489,142 @@ export default function SettingsPage() {
               </button>
             </div>
           </form>
+        </div>
+
+        {/* Google Authenticator (2FA) Security Card */}
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-xs space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
+                <Shield className="h-4 w-4" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">Google Authenticator (2FA)</h3>
+                <p className="text-[11px] text-slate-500">
+                  Protect your account with a 6-digit verification code on every sign-in
+                </p>
+              </div>
+            </div>
+            <Badge variant={twoFaEnabled ? "success" : "warning"}>
+              {twoFaEnabled ? "Enabled" : "Not Enabled"}
+            </Badge>
+          </div>
+
+          {twoFaFeedback && (
+            <div
+              className={`rounded-xl border p-3 text-xs flex items-center gap-2 ${
+                twoFaFeedback.type === "success"
+                  ? "bg-emerald-50 border-emerald-200 text-emerald-800"
+                  : "bg-red-50 border-red-200 text-red-700"
+              }`}
+            >
+              {twoFaFeedback.type === "success" ? (
+                <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
+              ) : (
+                <AlertCircle className="h-4 w-4 shrink-0 text-red-600" />
+              )}
+              <span>{twoFaFeedback.message}</span>
+            </div>
+          )}
+
+          {!twoFaEnabled && !twoFaSetupData && (
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="text-xs text-slate-600">
+                Scan a QR code with Google Authenticator (Android/iOS) to require a 6-digit code when logging in.
+              </p>
+              <Button
+                type="button"
+                onClick={handleStart2FaSetup}
+                disabled={twoFaLoading}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs"
+              >
+                {twoFaLoading ? "Preparing..." : "Setup Google Authenticator"}
+              </Button>
+            </div>
+          )}
+
+          {!twoFaEnabled && twoFaSetupData && (
+            <form onSubmit={handleEnable2Fa} className="space-y-4">
+              <div className="flex flex-col sm:flex-row items-center gap-5 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <img
+                  src={twoFaSetupData.qrDataUrl}
+                  alt="Google Authenticator QR Code"
+                  className="h-40 w-40 rounded-lg border border-slate-200 bg-white p-1.5"
+                />
+                <div className="space-y-2 text-xs text-slate-700">
+                  <p className="font-bold text-slate-900">Step 1: Scan QR Code</p>
+                  <p>Open Google Authenticator on your phone, tap <strong>+</strong> &rarr; <strong>Scan a QR code</strong>.</p>
+                  <p className="text-[11px] text-slate-500">
+                    Or enter key manually:{" "}
+                    <code className="rounded bg-white px-2 py-0.5 font-mono text-[11px] font-bold text-indigo-700 border border-slate-200">
+                      {twoFaSetupData.secret}
+                    </code>
+                  </p>
+                  <p className="font-bold text-slate-900 pt-1">Step 2: Enter 6-Digit Code</p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={6}
+                      required
+                      value={twoFaCode}
+                      onChange={(e) => setTwoFaCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                      placeholder="123456"
+                      className="w-36 rounded-xl border border-slate-300 bg-white px-3 py-2 text-center font-mono text-sm font-bold tracking-widest text-slate-900 focus:border-indigo-500 focus:outline-none"
+                    />
+                    <Button
+                      type="submit"
+                      disabled={twoFaLoading || twoFaCode.length !== 6}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs"
+                    >
+                      {twoFaLoading ? "Verifying..." : "Verify & Enable 2FA"}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        setTwoFaSetupData(null);
+                        setTwoFaCode("");
+                      }}
+                      className="text-xs"
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </form>
+          )}
+
+          {twoFaEnabled && (
+            <form onSubmit={handleDisable2Fa} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50/50 p-4">
+              <div className="text-xs text-slate-700">
+                <p className="font-bold text-emerald-900">Your account is protected with Google Authenticator.</p>
+                <p className="text-[11px] text-slate-500">To disable 2FA, enter a current 6-digit code from your app.</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={6}
+                  required
+                  value={twoFaCode}
+                  onChange={(e) => setTwoFaCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                  placeholder="123456"
+                  className="w-32 rounded-xl border border-slate-300 bg-white px-3 py-2 text-center font-mono text-sm font-bold tracking-widest text-slate-900 focus:border-red-500 focus:outline-none"
+                />
+                <Button
+                  type="submit"
+                  variant="outline"
+                  disabled={twoFaLoading || twoFaCode.length !== 6}
+                  className="border-red-300 text-red-600 hover:bg-red-50 text-xs"
+                >
+                  {twoFaLoading ? "Disabling..." : "Disable 2FA"}
+                </Button>
+              </div>
+            </form>
+          )}
+        </div>
         </div>
       )}
 
