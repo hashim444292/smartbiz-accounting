@@ -38,8 +38,8 @@ echo "💾 Executing mandatory pre-deployment database backup before applying ch
 if [ -x "${APP_DIR}/scripts/backup-db.sh" ]; then
     "${APP_DIR}/scripts/backup-db.sh"
 
-    # Locate the fresh backup produced within the last 5 minutes
-    LATEST_BACKUP=$(find /var/backups/smartbiz-db -name "smartbiz_db_*.sql.gz" -type f -mmin -5 2>/dev/null | sort -r | head -n 1 || true)
+    # Locate the fresh backup produced within the last 5 minutes (encrypted or plain)
+    LATEST_BACKUP=$(find /var/backups/smartbiz-db \( -name "smartbiz_db_*.sql.gz.enc" -o -name "smartbiz_db_*.sql.gz" \) -type f -mmin -5 2>/dev/null | sort -r | head -n 1 || true)
 
     if [ -z "${LATEST_BACKUP}" ] || [ ! -s "${LATEST_BACKUP}" ]; then
         echo "❌ FATAL: Pre-deployment database backup verification failed! No non-empty backup archive was found."
@@ -47,14 +47,22 @@ if [ -x "${APP_DIR}/scripts/backup-db.sh" ]; then
         exit 1
     fi
 
-    # Integrity Check 1: Test gzip decompression integrity
-    if ! gzip -t "${LATEST_BACKUP}" 2>/dev/null; then
-        echo "❌ FATAL: Pre-deployment database backup archive failed gzip integrity check (corrupted archive)!"
-        exit 1
+    # Integrity Check 1 & 2: Test decryption (if .enc) + gzip integrity + PostgreSQL header
+    if [[ "${LATEST_BACKUP}" == *.enc ]]; then
+        KEY_FILE="${BACKUP_KEY_FILE:-/root/.smartbiz_backup_key}"
+        if [ ! -f "${KEY_FILE}" ] || ! openssl enc -d -aes-256-cbc -pbkdf2 -iter 100000 -in "${LATEST_BACKUP}" -pass file:"${KEY_FILE}" | gzip -t 2>/dev/null; then
+            echo "❌ FATAL: Encrypted pre-deployment database backup failed decryption or gzip integrity check!"
+            exit 1
+        fi
+        HEADER_SAMPLE=$(set +o pipefail; openssl enc -d -aes-256-cbc -pbkdf2 -iter 100000 -in "${LATEST_BACKUP}" -pass file:"${KEY_FILE}" 2>/dev/null | gzip -dc 2>/dev/null | head -n 30 || true)
+    else
+        if ! gzip -t "${LATEST_BACKUP}" 2>/dev/null; then
+            echo "❌ FATAL: Pre-deployment database backup archive failed gzip integrity check (corrupted archive)!"
+            exit 1
+        fi
+        HEADER_SAMPLE=$(set +o pipefail; gzip -dc "${LATEST_BACKUP}" 2>/dev/null | head -n 30 || true)
     fi
 
-    # Integrity Check 2: Verify structural SQL dump header (run in subshell without pipefail to prevent SIGPIPE on early head exit)
-    HEADER_SAMPLE=$(set +o pipefail; gzip -dc "${LATEST_BACKUP}" 2>/dev/null | head -n 30 || true)
     if ! echo "${HEADER_SAMPLE}" | grep -q "PostgreSQL"; then
         echo "❌ FATAL: Backup archive does not contain valid PostgreSQL dump structure!"
         echo "Sample output: ${HEADER_SAMPLE}"
