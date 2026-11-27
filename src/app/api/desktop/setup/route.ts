@@ -88,7 +88,7 @@ export async function POST(req: NextRequest) {
       branchId: null,
       branchName: null,
       canCreateBranches: true,
-      allowedModules: setupResult.business.enabledModules,
+      allowedModules: [],
     };
 
     const token = signSessionToken(sessionPayload);

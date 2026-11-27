@@ -49,20 +49,37 @@ export function hasDesktopDatabaseFile(): boolean {
   }
 }
 
+let cachedState: any | null = null;
+let cachedMtimeMs = 0;
+let cachedFilePath = "";
+
 /**
  * Reads and parses the persistent database state from disk.
+ * Uses an in-memory mtime cache so repeated reads take 0ms unless modified on disk.
  * Returns null if the file does not exist or is empty.
  */
 export function readDesktopDatabaseState(): any | null {
   const filePath = getDesktopDatabaseFilePath();
   if (!fs.existsSync(filePath)) {
+    cachedState = null;
+    cachedMtimeMs = 0;
+    cachedFilePath = "";
     return null;
   }
 
   try {
+    const stat = fs.statSync(filePath);
+    if (cachedState && cachedFilePath === filePath && stat.mtimeMs === cachedMtimeMs) {
+      return cachedState;
+    }
+
     const raw = fs.readFileSync(filePath, "utf8");
     if (!raw || !raw.trim()) return null;
-    return JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+    cachedState = parsed;
+    cachedMtimeMs = stat.mtimeMs;
+    cachedFilePath = filePath;
+    return parsed;
   } catch (err: any) {
     console.error("[DesktopDatabase] Failed to read database file:", err.message);
     return null;
@@ -84,10 +101,20 @@ export function writeDesktopDatabaseStateSync(state: any): void {
   }
 
   const tmpPath = `${filePath}.tmp-${Date.now()}`;
-  const serialized = JSON.stringify(state, null, 2);
+  const serialized = JSON.stringify(state);
 
   fs.writeFileSync(tmpPath, serialized, "utf8");
   fs.renameSync(tmpPath, filePath);
+
+  try {
+    const stat = fs.statSync(filePath);
+    cachedState = state;
+    cachedMtimeMs = stat.mtimeMs;
+    cachedFilePath = filePath;
+  } catch {
+    cachedState = state;
+    cachedFilePath = filePath;
+  }
 }
 
 /**
@@ -250,8 +277,8 @@ export function initializeDesktopBusiness(data: DesktopBusinessSetupInput): {
       packageType: pkg,
       enabledModules:
         pkg === "ACCOUNTING_ONLY"
-          ? ["accounting", "inventory", "sales", "purchases", "reports"]
-          : ["accounting", "inventory", "sales", "purchases", "pos", "reports", "compliance"],
+          ? ["accounting", "inventory", "sales", "purchases", "reports", "pos", "bulkImport", "aiEntry"]
+          : ["accounting", "inventory", "sales", "purchases", "pos", "bulkImport", "aiEntry", "reports", "compliance"],
       canCreateBranches: true,
       subscriptionStatus: "ACTIVE",
       createdAt: new Date().toISOString(),

@@ -216,7 +216,7 @@ export async function POST(req: NextRequest) {
           branchId: null,
           branchName: null,
           canCreateBranches: true,
-          allowedModules: activeBiz.enabledModules || [],
+          allowedModules: desktopUser.allowedModules || [],
         };
 
         resetLoginRateLimit(ipKey);
