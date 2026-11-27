@@ -15,6 +15,11 @@ import { invalidateCache } from "@/lib/clientCache";
 import { SalesReturnModal } from "@/components/sales/SalesReturnModal";
 import { SalesEditModal } from "@/components/sales/SalesEditModal";
 import { extractCreditNoteInfo } from "@/lib/fbrRowActions";
+import {
+  usePrintSettings,
+  PrintFormatSelector,
+  ThermalReceiptSlip,
+} from "@/components/print/ThermalReceiptPrintBar";
 
 export default function SaleDetailPage() {
   const { t, language } = useLanguage();
@@ -29,6 +34,7 @@ export default function SaleDetailPage() {
   const [isReturnModalOpen, setIsReturnModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const invoiceRef = useRef<HTMLDivElement>(null);
+  const printSettings = usePrintSettings();
 
   const fetchSale = useCallback(async () => {
     try {
@@ -130,7 +136,7 @@ export default function SaleDetailPage() {
       const searchParams = new URLSearchParams(window.location.search);
       if (searchParams.get("print") === "true") {
         const timer = setTimeout(() => {
-          window.print();
+          printSettings.triggerPrint();
         }, 400);
         return () => clearTimeout(timer);
       }
@@ -448,14 +454,22 @@ export default function SaleDetailPage() {
               )}
               <span>{isDownloading ? "Generating PDF..." : "Download PDF"}</span>
             </Button>
+            <PrintFormatSelector
+              printFormat={printSettings.printFormat}
+              setPrintFormat={printSettings.setPrintFormat}
+              selectedPrinter={printSettings.selectedPrinter}
+              setSelectedPrinter={printSettings.setSelectedPrinter}
+              printers={printSettings.printers}
+              isDesktop={printSettings.isDesktop}
+            />
             <Button
               variant="primary"
               size="sm"
-              onClick={() => window.print()}
+              onClick={printSettings.triggerPrint}
               className="bg-indigo-600 hover:bg-indigo-700 text-white flex items-center gap-1.5 font-semibold shadow-2xs"
             >
               <Printer className="h-3.5 w-3.5" />
-              <span>Print Invoice</span>
+              <span>Print {printSettings.printFormat === "A4" ? "Invoice" : `${printSettings.printFormat} Slip`}</span>
             </Button>
           </div>
         </div>
@@ -492,11 +506,42 @@ export default function SaleDetailPage() {
         {/* ========================================================================= */}
         {/* STATUTORY FBR TAX INVOICE DOCUMENT SHEET (Exact PDF Layout) */}
         {/* ========================================================================= */}
+        {printSettings.printFormat !== "A4" && (
+          <ThermalReceiptSlip
+            format={printSettings.printFormat}
+            docTitle={isTaxInvoice ? "TAX INVOICE" : "SALE RECEIPT"}
+            docNumber={sale.invoiceNumber}
+            dateStr={new Date(sale.date || sale.createdAt).toLocaleDateString()}
+            businessName={sellerName}
+            businessAddress={sellerAddress}
+            businessPhone={sellerPhone}
+            businessNtn={sellerNtn}
+            partyLabel="Customer"
+            partyName={sale.customer?.name || sale.customerName || "Walk-in Customer"}
+            partyPhone={sale.customer?.phone || sale.customerPhone}
+            items={(sale.items || []).map((it: any) => ({
+              name: it.productName || it.product?.name || "Item",
+              quantity: Number(it.quantity || 0),
+              unitPrice: Number(it.unitPrice || 0),
+              total: Number(it.totalAmount ?? it.total ?? Number(it.quantity || 0) * Number(it.unitPrice || 0)),
+            }))}
+            subtotal={Number(sale.subtotal || sale.totalAmount || 0)}
+            discount={Number(sale.discountAmount || sale.discount || 0)}
+            tax={totalTax}
+            totalAmount={Number(sale.totalAmount || 0)}
+            paidAmount={Number(sale.paidAmount || 0)}
+            balanceAmount={Math.max(0, Number(sale.totalAmount || 0) - Number(sale.paidAmount || 0))}
+            paymentMethod={sale.paymentMethod}
+            fbrInvoiceNumber={realFbrInvoiceNumber}
+            notes={cleanNotes}
+          />
+        )}
+
         <div
           ref={invoiceRef}
           id="invoice-printable-area"
           style={{ pageBreakInside: "avoid", breakInside: "avoid" }}
-          className="bg-white text-slate-900 border border-slate-200 rounded-2xl p-6 sm:p-10 print:p-2 print:border-none print:shadow-none print:rounded-none shadow-sm font-sans"
+          className={`bg-white text-slate-900 border border-slate-200 rounded-2xl p-6 sm:p-10 print:p-2 print:border-none print:shadow-none print:rounded-none shadow-sm font-sans ${printSettings.printFormat !== "A4" ? "hidden print:hidden" : ""}`}
         >
           {/* Header Block: Seller Info (Left) & Tax Invoice Meta (Right) */}
           <div className="flex flex-col sm:flex-row items-start justify-between gap-3">

@@ -368,11 +368,12 @@ ipcMain.handle("get-printers", async () => {
 ipcMain.handle("print-thermal", async (_event, options) => {
   if (!mainWindow) return { success: false, error: "No active window" };
   try {
+    const widthMicrons = Number(options?.widthMicrons) || 80000;
     await mainWindow.webContents.print({
-      silent: options?.silent !== false,
+      silent: options?.silent === true && Boolean(options?.deviceName),
       printBackground: true,
       deviceName: options?.deviceName || "",
-      pageSize: { width: 80000, height: 297000 }, // 80mm roll width
+      pageSize: { width: widthMicrons, height: 297000 }, // 80mm or 58mm roll width
       margins: { marginType: "none" },
     });
     return { success: true };

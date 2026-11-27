@@ -11,6 +11,11 @@ import { BrandPageLoader } from "@/components/ui/loader";
 import { PurchaseReturnModal } from "@/components/purchases/PurchaseReturnModal";
 import { useAuth } from "@/context/AuthContext";
 import { useLanguage } from "@/context/LanguageContext";
+import {
+  usePrintSettings,
+  PrintFormatSelector,
+  ThermalReceiptSlip,
+} from "@/components/print/ThermalReceiptPrintBar";
 
 export default function PurchaseDetailPage() {
   const params = useParams();
@@ -19,6 +24,7 @@ export default function PurchaseDetailPage() {
   const [purchase, setPurchase] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [isReturnModalOpen, setIsReturnModalOpen] = useState(false);
+  const printSettings = usePrintSettings();
 
   const fetchPurchase = async () => {
     try {
@@ -96,9 +102,17 @@ export default function PurchaseDetailPage() {
             <RotateCcw className="h-3.5 w-3.5" />
             <span>{t("Return Items / Debit Note", "مال واپس کریں / ڈیبٹ نوٹ")}</span>
           </Button>
-          <Button variant="primary" size="sm" onClick={() => window.print()} className="gap-1.5 shadow-sm">
+          <PrintFormatSelector
+            printFormat={printSettings.printFormat}
+            setPrintFormat={printSettings.setPrintFormat}
+            selectedPrinter={printSettings.selectedPrinter}
+            setSelectedPrinter={printSettings.setSelectedPrinter}
+            printers={printSettings.printers}
+            isDesktop={printSettings.isDesktop}
+          />
+          <Button variant="primary" size="sm" onClick={printSettings.triggerPrint} className="gap-1.5 shadow-sm">
             <Printer className="h-3.5 w-3.5" />
-            <span>{t("Print Bill Slip", "پرنٹ واؤچر")}</span>
+            <span>{printSettings.printFormat === "A4" ? t("Print Bill Slip", "پرنٹ واؤچر") : `Print ${printSettings.printFormat} Slip`}</span>
           </Button>
         </div>
       </div>
@@ -156,8 +170,37 @@ export default function PurchaseDetailPage() {
         </div>
       )}
 
+      {printSettings.printFormat !== "A4" && (
+        <ThermalReceiptSlip
+          format={printSettings.printFormat}
+          docTitle="PURCHASE BILL"
+          docNumber={purchase.purchaseNumber}
+          dateStr={new Date(purchase.date || purchase.createdAt).toLocaleDateString()}
+          businessName={activeCompany?.name || "SmartBiz"}
+          businessAddress={activeCompany?.address}
+          businessPhone={activeCompany?.phone}
+          partyLabel="Supplier"
+          partyName={purchase.supplier?.name || purchase.supplierName || "Supplier"}
+          partyPhone={purchase.supplier?.phone}
+          items={(purchase.items || []).map((it: any) => ({
+            name: it.productName || it.product?.name || "Item",
+            quantity: Number(it.quantity || 0),
+            unitPrice: Number(it.unitCost ?? it.unitPrice ?? 0),
+            total: Number(it.totalCost ?? it.totalAmount ?? it.total ?? Number(it.quantity || 0) * Number(it.unitCost ?? it.unitPrice ?? 0)),
+          }))}
+          subtotal={Number(purchase.subtotal || purchase.totalAmount || 0)}
+          discount={Number(purchase.discountAmount || purchase.discount || 0)}
+          tax={Number(purchase.taxAmount || 0)}
+          totalAmount={Number(purchase.totalAmount || 0)}
+          paidAmount={Number(purchase.paidAmount || 0)}
+          balanceAmount={Math.max(0, Number(purchase.totalAmount || 0) - Number(purchase.paidAmount || 0))}
+          paymentMethod={purchase.paymentMethod}
+          notes={purchase.notes}
+        />
+      )}
+
       {/* Purchase Document Box */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm dark:border-slate-800 dark:bg-slate-900 print:border-none print:shadow-none print:p-0">
+      <div className={`rounded-2xl border border-slate-200 bg-white p-8 shadow-sm dark:border-slate-800 dark:bg-slate-900 print:border-none print:shadow-none print:p-0 ${printSettings.printFormat !== "A4" ? "hidden print:hidden" : ""}`}>
         {/* Header */}
         <div className="flex items-start justify-between border-b border-slate-200 pb-6 dark:border-slate-800">
           <div>
