@@ -7,15 +7,18 @@
 # ==============================================================================
 
 set -euo pipefail
+umask 077
 
 BACKUP_DIR="/var/backups/smartbiz-db"
 DB_NAME="smartbiz_db"
 DB_USER="smartbiz_user"
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 BACKUP_FILE="${BACKUP_DIR}/${DB_NAME}_${TIMESTAMP}.sql.gz"
+KEY_FILE="${BACKUP_KEY_FILE:-/root/.smartbiz_backup_key}"
 RETENTION_DAYS=14
 
 mkdir -p "${BACKUP_DIR}"
+chmod 700 "${BACKUP_DIR}"
 
 echo "[$(date)] Starting backup of ${DB_NAME}..."
 
@@ -50,11 +53,24 @@ if [ ! -s "${BACKUP_FILE}" ]; then
     exit 1
 fi
 
-FILE_SIZE=$(du -h "${BACKUP_FILE}" | cut -f1)
-echo "[$(date)] Backup completed successfully: ${BACKUP_FILE} (${FILE_SIZE})"
+FINAL_FILE="${BACKUP_FILE}"
+if [ -f "${KEY_FILE}" ] && command -v openssl &> /dev/null; then
+    ENC_FILE="${BACKUP_FILE}.enc"
+    openssl enc -aes-256-cbc -pbkdf2 -iter 100000 -salt -in "${BACKUP_FILE}" -out "${ENC_FILE}" -pass file:"${KEY_FILE}"
+    rm -f "${BACKUP_FILE}"
+    chmod 600 "${ENC_FILE}"
+    FINAL_FILE="${ENC_FILE}"
+    echo "[$(date)] Backup encrypted with AES-256-CBC (PBKDF2): ${FINAL_FILE}"
+else
+    chmod 600 "${BACKUP_FILE}"
+    echo "[$(date)] WARNING: ${KEY_FILE} not found; backup stored unencrypted."
+fi
+
+FILE_SIZE=$(du -h "${FINAL_FILE}" | cut -f1)
+echo "[$(date)] Backup completed successfully: ${FINAL_FILE} (${FILE_SIZE})"
 
 # Retention cleanup: remove backups older than 14 days
 echo "[$(date)] Cleaning up backups older than ${RETENTION_DAYS} days..."
-find "${BACKUP_DIR}" -name "${DB_NAME}_*.sql.gz" -type f -mtime +${RETENTION_DAYS} -delete
+find "${BACKUP_DIR}" \( -name "${DB_NAME}_*.sql.gz" -o -name "${DB_NAME}_*.sql.gz.enc" \) -type f -mtime +${RETENTION_DAYS} -delete
 
 echo "[$(date)] Backup process finished."
