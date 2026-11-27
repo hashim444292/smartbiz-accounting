@@ -49,7 +49,7 @@
       "icon": "assets/icon.ico",
       "publisherName": "Accounts360 Systems",
       "requestedExecutionLevel": "asInvoker",
-      "signAndEditExecutable": false,
+      "signAndEditExecutable": true,
       "artifactName": "Accounts360-Setup-${version}.${ext}"
     },
     "nsis": {
@@ -58,6 +58,8 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
+      "installerIcon": "assets/icon.ico",
+      "uninstallerIcon": "assets/icon.ico",
       "shortcutName": "Accounts360"
     }
   }
